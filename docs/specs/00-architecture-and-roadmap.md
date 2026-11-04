@@ -307,6 +307,27 @@ How it works:
 - Mobile sign-in uses the same Google account. It gets a per-device token that an admin can revoke, plus push notifications.
 - React Native (Expo) is chosen so the app reuses TypeScript, types and much of the logic from the web front end.
 
+### Connecting BI tools (added 4 Nov)
+
+Sidharth on 4 Nov: can MyERP connect to an open-source or commercial BI tool later? Yes. The plan is built so that any common tool can connect: Metabase, Superset, Power BI, Looker Studio or Tableau.
+
+**A stable reporting layer in every tenant database.** Each module adds read-only SQL views in a `bi_v1` schema next to its own reports.
+
+- **Facts:** GL entries, stock ledger, sales and purchase lines, production, payroll totals.
+- **Dimensions:** date, company, branch, the ledger group tree flattened to levels, item and category, party, warehouse, batch.
+
+BI tools read these views, never the application tables. App upgrades therefore don't break dashboards. A breaking change ships as `bi_v2` alongside `bi_v1` for a period. Amounts come straight from the two ledgers, so BI figures always agree with MyERP's own reports.
+
+**Three ways to connect, all keeping each tenant's data separate:**
+
+| Route | Best for | How |
+| --- | --- | --- |
+| Built-in dashboards (open source) | Everyday dashboards inside MyERP | Metabase or Superset runs inside our private network and is embedded in MyERP screens. Each tenant's dashboards query only that tenant's `bi_v1` views, and a signed link applies the user's company and branch limits |
+| BigQuery export (commercial tools) | Power BI, Looker Studio, Tableau, Excel | A scheduled job copies the `bi_v1` views into a separate BigQuery dataset per tenant, every hour or night. The tenant's BI tool connects to its own dataset with its own key. The database itself is never exposed to the internet |
+| Direct read-only access (internal analysts) | Your own team or CA | A read-only database role that can see only the `bi_v1` schema, on a read replica so heavy queries never slow down billing. Reached through the Cloud SQL Auth Proxy, never a public IP |
+
+**Roadmap:** the `bi_v1` views come with each module from Phase 2 (accounts) onward, at small cost. The read replica, BigQuery export and embedded Metabase come with MIS in Phase 6. BI access per tenant becomes a plan feature in Phase 10.
+
 ### Branch accounts and POS billing (added 4 Nov)
 
 Sidharth asked on 4 Nov for branch-wise accounts and point-of-sale (POS) billing at a later stage. Both are planned now so the data model is ready for them. Branch accounts mostly come for free from rule 19. POS is a later module.
