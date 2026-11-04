@@ -156,6 +156,7 @@ A request reaches only its own tenant's database. Shared masters reach every ten
 | --- | --- | --- | --- |
 | Platform | One platform database | Tenants, plans, billing, each tenant's database connection, platform admins, support access log | Platform admins only |
 | Global masters | Platform database, copied into every tenant database as read-only tables | HSN/SAC codes, GST rate table, TDS/TCS sections, states and state codes, countries and currencies, standard UOMs, bank IFSC list, Tally standard group template, PF/ESI rates, professional tax slabs, base print templates | Platform admins, published as a new version |
+| Festival calendar **(added 4 Nov)** | Platform database, synced read-only | Indian festivals and seasons with dates per year and the regions where each matters; tenants add their own events | Platform admins, updated yearly |
 | Carriers master **(added 4 Nov)** | Platform database, synced read-only like other global masters | Shipping lines (SCAC, container owner prefixes, tracking URL), airlines (IATA 3-digit AWB prefix, tracking URL), couriers, ports and airports (UN/LOCODE), ICDs and CFSs. A container or AWB number entered on a shipment picks its carrier automatically from the prefix | Platform admins |
 | Global item catalogue **(added 4 Nov)** | Platform database only; searched live, and an item is copied into a tenant when picked | Standard items with a fixed code (GTIN or MyERP code), description, HSN, pack sizes with dimensions, weights and barcodes | Platform admins; tenants can suggest items |
 | Tenant | One database per tenant | Its companies, users and roles, all masters and transactions, both ledgers, custom fields, print formats, reports, approval rules, AI settings | That tenant's own admins |
@@ -428,11 +429,23 @@ Yes, MyERP should use AI, but only as an assistant that prepares drafts and flag
 
 Sidharth on 4 Nov wants AI to drive production planning, purchase planning and safety stock from historical order data. This grows the "Demand and reorder suggestions" row above into a planning chain. Each step produces **draft plans that a planner reviews, edits and approves** (rule 0006).
 
-1. **Demand forecast.** A monthly and weekly forecast per item, customer group and branch, from order history. It accounts for seasonality, festivals, trend, new and discontinued items, and one-off bulk orders, which are flagged so they don't distort the forecast. Each forecast shows its accuracy against what actually happened.
+1. **Demand forecast.** A monthly forecast (with a weekly split for production) per item, region, customer group and branch, from order history. It accounts for seasonality, festivals, trend, new and discontinued items, and one-off bulk orders, which are flagged so they don't distort the forecast. Each forecast shows its accuracy against what actually happened.
 2. **Safety stock and reorder levels.** Safety stock per item-warehouse is calculated from demand variability, actual supplier lead-time variability and the service level the tenant sets per item class (for example 98% for A items, 90% for C). Shelf life caps it, so perishable stock is never over-held. It is recalculated monthly, with the change and the reason shown.
 3. **Production plan.** A suggested plan by week and line that turns the forecast plus open sales orders into work orders. It respects line capacity, minimum batch sizes, changeover time, shelf life, and stock already on hand or in progress.
 4. **Material plan and purchase plan (MRP).** The production plan is exploded through the BOMs into raw and packing material needs, net of stock, open POs and in-transit stock. This gives draft POs and material requests per supplier, timed by each supplier's actual lead time, minimum order and pack size.
 5. **Explanations and what-if.** Every suggestion says why, for example "Diwali uplift of 40% seen in the last 3 years; supplier lead time averages 18 days". Planners can ask what-ifs: "What if sales grow 20%?" or "What if this supplier is 10 days late?"
+
+**The monthly planning cycle (Sidharth, 4 Nov).** Planning is monthly and starts from the sales plan, built by region and around festival seasons:
+
+- **Regions:** a region master (zones, states or the tenant's own sales areas). Every customer, branch and order carries its region, so history can be split by region.
+- **Festival calendar:** a global master of Indian festivals and seasons with their dates for each year, and the regions where each matters. Examples are Diwali, Durga Puja, Onam, Pongal, Eid, Raksha Bandhan, wedding season and harvest season. The dates move every year, so this cannot be a fixed month. Each tenant can add its own events, such as trade fairs or a big customer's annual order.
+- **Monthly cycle:**
+  1. In the last week of the month, AI drafts a baseline plan by region × item group × month for the next 3 to 6 months. It shows the uplift each festival brought in past years.
+  2. Regional sales heads adjust their region's numbers and give a reason, such as a new distributor or a lost customer.
+  3. The sales, production and purchase heads agree the plan, and the MD approves it.
+  4. The approved plan becomes the basis for the production plan, MRP and purchase plan.
+  5. The first month is frozen, and later months can still change.
+- **Review:** each month, the plan vs actual for each region and item group, and AI forecast vs the sales team's figure. Over time this shows whose numbers to trust where.
 
 **The calculation is ordinary MRP; AI improves the inputs.** The material and capacity calculation (step 4) is a normal, deterministic MRP built in Phase 5. AI makes the forecast and safety stock smarter and writes the explanations, so plans still work if AI is switched off.
 
@@ -444,7 +457,7 @@ Sidharth on 4 Nov wants AI to drive production planning, purchase planning and s
 - Supplier lead times, actual: PO date to GRN date per line, and quantity received vs ordered.
 - Production actuals: start and end per stage, output per line per hour, downtime with reasons, batch size, yield.
 - Schemes, promotions and price changes, with dates, so a spike from a scheme is not read as a trend.
-- Customer group, channel and branch on every order.
+- Customer group, channel, branch and region on every order.
 - **ERPNext history migrated in full** (at least 3 years of sales orders, invoices, POs and GRNs, not just open balances), so forecasting can start soon after cutover instead of waiting a year.
 
 **Roadmap:** deterministic MRP and the capacity plan come in Phase 5. AI forecasting, safety stock and plan suggestions come as **Phase 13 (about 6 to 8 weeks)**, after cutover and once migrated history has been checked. Accuracy is measured on a held-back period before planners rely on it.
