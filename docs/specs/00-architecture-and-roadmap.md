@@ -307,6 +307,24 @@ How it works:
 - Mobile sign-in uses the same Google account. It gets a per-device token that an admin can revoke, plus push notifications.
 - React Native (Expo) is chosen so the app reuses TypeScript, types and much of the logic from the web front end.
 
+### Role dashboards (added 4 Nov)
+
+Every user lands on a dashboard for their role. Each tile shows a figure, its trend, and a red/amber/green flag against a target the tenant sets. Clicking a tile drills down to the report and then to the voucher, Tally style. Tiles read from the two ledgers and the `bi_v1` views, so they always agree with the reports. A user sees only the companies and branches their role allows. Tenants can rearrange tiles, hide them, set targets, and add tiles from saved reports (stored as data, rule 18). Dashboards refresh on open, and an optional daily email or WhatsApp summary goes out at 9 am.
+
+| Dashboard | Key tiles | Phase |
+| --- | --- | --- |
+| Owner / MD | Sales and gross margin (today, month, year vs last year), cash and bank position, receivables and payables with overdue, stock value and ageing, production output and yield, top 10 customers and items, GST and TDS due dates, pending approvals, alerts | Builds up from 2; full in 6 |
+| Accounts | Bank balances and unreconciled entries, receivables ageing, payables due this week, MSME bills near 45 days, GST and TDS liability and due dates, ITC mismatches with 2B, month-close checklist | 2, 6 |
+| Sales | Orders, dispatches and invoices vs target, pending orders and reservations, top and slipping customers, margin by item and customer, credit-limit breaches, overdue collections | 4 |
+| Purchase | Open POs and overdue deliveries, GRNI (received, not billed), price variance, supplier on-time and rejection rate, shortages from the reorder run | 3 |
+| Production | Today's work orders by line, output vs plan, yield and BOM vs actual consumption, scrap, downtime, WIP value, batches awaiting release | 5 |
+| Warehouse | Stock by warehouse and bin, near-expiry and expired batches, batches on hold, slow and dead stock, cycle count variances, bin fill | 3 |
+| Quality / food safety | Overdue checklists, out-of-limit readings, open non-conformances and CAPAs, batches on hold or rejected, supplier approvals expiring, calibration due, last mock recall time | 5b |
+| HR and payroll | Headcount, attendance today, payroll cost vs budget, staff loans outstanding, daily expense claims pending | 8 |
+| Fixed assets and loans | Asset additions and depreciation, loan balances, EMIs and interest due this month, covenant dates | 7 |
+
+The supervisor mobile app (Phase 12) shows the same tiles for its workspace. The "ask your data" AI feature can answer follow-up questions about any tile.
+
 ### Connecting BI tools (added 4 Nov)
 
 Sidharth on 4 Nov: can MyERP connect to an open-source or commercial BI tool later? Yes. The plan is built so that any common tool can connect: Metabase, Superset, Power BI, Looker Studio or Tableau.
