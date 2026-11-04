@@ -1,0 +1,72 @@
+name: Deploy to staging
+
+# Runs after CI passes on main: build one image, migrate, then roll out.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  # Not secrets: printed by deploy/gcp/bootstrap.sh on 4 Nov 2026.
+  GCP_PROJECT_ID: myerp-staging
+  GCP_REGION: asia-south1
+  GCP_WIF_PROVIDER: projects/255819525378/locations/global/workloadIdentityPools/github/providers/github-actions
+  GCP_DEPLOYER_SA: myerp-deployer@myerp-staging.iam.gserviceaccount.com
+  GCP_RUNTIME_SA: myerp-runtime@myerp-staging.iam.gserviceaccount.com
+  IMAGE_REPO: asia-south1-docker.pkg.dev/myerp-staging/myerp/app
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write   # keyless login to Google Cloud
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          IMAGE="${IMAGE_REPO}:${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+          docker build -t "${IMAGE}" .
+          docker push "${IMAGE}"
+
+      - name: Run migrations
+        run: |
+          gcloud run jobs update myerp-migrate \
+            --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --image "${IMAGE}"
+          gcloud run jobs execute myerp-migrate \
+            --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --wait
+
+      - name: Roll out app
+        run: |
+          gcloud run deploy myerp-app \
+            --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" \
+            --image "${IMAGE}" --service-account "${GCP_RUNTIME_SA}"
+          URL=$(gcloud run services describe myerp-app --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --format='value(status.url)')
+          echo "Deployed to ${URL}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke test
+        run: |
+          URL=$(gcloud run services describe myerp-app --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --format='value(status.url)')
+          curl --fail --silent --show-error "${URL}/api/health/"
+          curl --fail --silent --show-error "${URL}/api/whoami/"
