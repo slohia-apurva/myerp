@@ -81,7 +81,7 @@ The stack is unchanged from v1: Python/Django on PostgreSQL with a React front e
 | File storage **(new)** | S3-compatible object storage | Attachments (supplier bills, COAs, certificates), exports, backups |
 | Email / notifications **(new)** | Transactional email service; WhatsApp later | Send invoices and POs, approval alerts |
 | Error monitoring **(new)** | Sentry (or self-hosted GlitchTip) | Know about a failed posting before a user reports it |
-| Login security **(new)** | Django auth + TOTP two-factor for submit/admin roles | Books and GST data are high-value |
+| Login security **(new)** | Sign in with Google (no MyERP passwords); Google 2-Step Verification enforced for staff; see decision 0007 | Books and GST data are high-value |
 | Deploy | Google Cloud, Mumbai region: Cloud Run, Cloud SQL, Memorystore (see Hosting) | One-command deploy; data stays in India |
 | Code | Private GitHub repo, GitHub Actions CI | Claude works from the repo each session; tests on every push |
 
@@ -160,7 +160,7 @@ A request reaches only its own tenant's database. Shared masters reach every ten
 
 ### How it works
 
-- **Tenant resolver.** Each tenant gets its own address, such as apurvam.myerp.in. Before login, the app looks up the tenant in the platform database and connects only to that tenant's database. Users, passwords and 2FA live in the tenant database, so a user of one tenant cannot log in to another.
+- **Tenant resolver.** Each tenant gets its own address, such as apurvam.myerp.in. Before login, the app looks up the tenant in the platform database and connects only to that tenant's database. Users and sessions live in the tenant database, so a user of one tenant cannot log in to another.
 - **Global masters are synced, not shared live.** PostgreSQL can't link rows across databases, so a sync job copies each new version of the global masters into every tenant database. There the app can only read them, which keeps reports fast and makes each tenant's backup complete on its own. A tenant that needs a different value, such as a special GST rate on one item, records an override in its own database. The global value is never edited.
 - **Customisation without code forks.** Everything a tenant can change is stored as data in its own database. That covers custom fields (a JSON column on every document plus field definitions), print formats, report definitions, dashboards, approval rules, naming series, roles and workflow states. No code is ever written for one tenant, so one upgrade serves everyone.
 - **One version, rolled out in waves.** Each release runs its database migrations on every tenant database in turn, with Apurvam first as the pilot. Custom fields sit in the JSON column, so a migration never clashes with a tenant's customisations.
@@ -304,7 +304,7 @@ These targets apply to every module and are checked at each phase gate.
 | Availability | Working hours 9am to 9pm IST; planned updates outside them |
 | Backups | Nightly full PostgreSQL dump plus continuous WAL archiving to object storage in India; 30 daily and 12 monthly copies kept |
 | Restore drill | Restore to a fresh server once a month; must complete in under 2 hours (RTO) with at most 15 minutes of lost data (RPO) |
-| Security | HTTPS only; TOTP 2FA for admin, accountant and anyone who can submit; failed-login lockout; secrets outside the repo; database not reachable from the internet |
+| Security | HTTPS only; Sign in with Google, with 2-Step Verification enforced in Google Workspace; only people an admin added can sign in; secrets outside the repo; database not reachable from the internet |
 | Permissions | Checked in the API on every request, never only in the UI |
 | Performance | Voucher save under 1 second for 50 lines; link-field search under 300 ms on 5,000+ items; trial balance for a year under 3 seconds |
 | Scale (sizing guess) | 15 concurrent users, 100k ledger rows a year per company; to be confirmed with real ERPNext volumes |
@@ -421,7 +421,7 @@ The Secured Loans and Unsecured Loans groups feed the loans module (7b). Staff l
 
 - [ ] A GST rate changed with a future valid-from date applies only to documents dated on or after it
 - [ ] An audit-log entry cannot be edited or deleted by any role, including admin
-- [ ] A user without 2FA set up cannot submit or cancel
+- [ ] Only people added by a tenant admin can sign in, and only at that tenant
 - [ ] An approval rule (PO over ₹1 lakh) is saved and readable by Module 3
 - [ ] A restore of last night's backup on a fresh server completes and the app logs in
 - [ ] Item import dry-run on a bad CSV lists every row error without saving anything

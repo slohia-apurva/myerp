@@ -59,10 +59,10 @@ def logged_in(tenants):
 
     from accounts.models import User
 
-    def make(slug: str, username: str = "tester") -> Client:
+    def make(slug: str, email: str = "tester@example.com") -> Client:
         client = Client()
         with use_tenant(tenants[slug]):
-            user, _ = User.objects.get_or_create(username=username)
+            user = User.objects.filter(email=email).first() or User.objects.create_user(email)
             client.force_login(user)
         return client
 

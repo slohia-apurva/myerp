@@ -21,15 +21,17 @@ Start with `myerp-staging`; repeat for `myerp-prod` once staging passes the Phas
 
    Creates: VPC with private service access, Cloud SQL PostgreSQL 16 (private IP only, nightly backups kept 14 days, 7 days point-in-time recovery), Secret Manager secrets, Artifact Registry, a files bucket, the Cloud Run service `myerp-app` and the migration job `myerp-migrate` (both on a placeholder image until CI deploys).
 3. **Deploys (GitHub Actions).** On every merge to main: build the image, push it, run `myerp-migrate` (`manage.py deploy_migrate`), roll out `myerp-app`.
-4. **Users.** There is no sign-up page. An Owner creates each user from Cloud Shell by running the migration job with other arguments, then reads the one-time password link from its log:
+4. **Google sign-in (once per project).** People sign in with their Google account; MyERP keeps no passwords. In the Cloud console for the project:
+   1. *Google Auth Platform > Branding*: app name "MyERP", support email. *Audience*: **Internal** while only apurva.org.in accounts sign in (no Google review needed). Switch to External when other people need access.
+   2. *Clients > Create client*: type **Web application**, name "MyERP staging". Under *Authorised JavaScript origins* add the app address (staging: `https://myerp-app-fzeilr5lpa-el.a.run.app`) and, for local development, `http://localhost:5173` and `http://localhost`. No redirect URIs are needed.
+   3. Put the client id (ends in `.apps.googleusercontent.com`; not a secret) in `environments/staging.tfvars` as `google_client_id`, merge, and run `terraform apply` again.
+5. **Users.** There is no sign-up page. Until the Users screen exists, an Owner adds each person by email from Cloud Shell, reusing the migration job:
 
    ```sh
    gcloud run jobs execute myerp-migrate --project myerp-staging --region asia-south1 --wait \
-     --args=manage.py,create_tenant_user,apurvam,USERNAME,--first-name=FIRST,--email=EMAIL
-   gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="myerp-migrate" AND textPayload:"Password link"' \
-     --project myerp-staging --limit 1 --format='value(textPayload)'
+     --args=manage.py,create_tenant_user,apurvam,PERSON@apurva.org.in,--name=FULL_NAME
    ```
 
-   Put the app address in front of the printed `/#set-password/...` path and open it within 24 hours. The link works once. The user chooses a password, logs in, and sets up an authenticator app (required for everyone). For a forgotten password or a lost phone, run the same command with `--reset` added.
+   They can then sign in with that Google account. Add `--deactivate` to remove someone's access.
 
 Not yet created, to keep staging cheap until they are needed: Memorystore (Redis) and the Celery worker (first background jobs arrive in Phase 2/3), and the load balancer with a wildcard certificate (needs the domain).

@@ -31,7 +31,5 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export type Session =
-  | { step: "password" }
-  | { step: "totp" }
-  | { step: "totp_setup" }
-  | { step: "done"; user: { username: string; name: string } };
+  | { signed_in: false; google_client_id: string }
+  | { signed_in: true; user: { email: string; name: string } };

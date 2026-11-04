@@ -52,3 +52,9 @@ variable "fallback_tenant" {
   type        = string
   default     = ""
 }
+
+variable "google_client_id" {
+  description = "OAuth client id for Sign in with Google (APIs & Services > Credentials). Not a secret. Empty until created; sign-in then says it is not set up."
+  type        = string
+  default     = ""
+}

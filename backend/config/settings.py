@@ -92,22 +92,17 @@ STATIC_URL = "static/"
 WHITENOISE_ROOT = FRONTEND_DIST if FRONTEND_DIST.is_dir() else None
 WHITENOISE_INDEX_FILE = True
 
-# Users, sessions and two-factor secrets are tenant-side (see accounts/).
+# Users and sessions are tenant-side (see accounts/). People sign in with Google.
 AUTH_USER_MODEL = "accounts.User"
-AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-        "OPTIONS": {"min_length": 10},
-    },
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
-]
-# Password links from `create_tenant_user` last one day.
-PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
-# A login lasts a working day; closing the browser does not end it.
+# OAuth client id from Google Cloud (APIs & Services > Credentials). Not a secret.
+MYERP_GOOGLE_CLIENT_ID = env("MYERP_GOOGLE_CLIENT_ID", "")
+# A sign-in lasts a working day; closing the browser does not end it.
 SESSION_COOKIE_AGE = 60 * 60 * 12
 SESSION_COOKIE_HTTPONLY = True
+# Google's sign-in popup needs to talk back to this page, and its button needs
+# to see which site it is on.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 REST_FRAMEWORK = {
     # JSON only: the browsable API would need templates we don't ship.

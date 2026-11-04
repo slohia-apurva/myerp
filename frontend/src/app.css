@@ -65,10 +65,6 @@ button.link {
   font-size: 0.85rem;
   color: #555;
 }
-.qr svg {
-  display: block;
-  margin: 0 auto;
-}
-code {
-  word-break: break-all;
+.google-button {
+  min-height: 44px;
 }
