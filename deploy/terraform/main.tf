@@ -164,7 +164,7 @@ resource "google_secret_manager_secret" "platform_database_url" {
 }
 
 resource "google_secret_manager_secret_version" "platform_database_url" {
-  secret      = google_secret_manager_secret.platform_database_url.id
+  secret = google_secret_manager_secret.platform_database_url.id
   secret_data = format(
     "postgres://%s:%s@%s:5432/%s",
     google_sql_user.app.name,
