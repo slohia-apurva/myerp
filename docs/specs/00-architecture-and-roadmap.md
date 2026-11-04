@@ -218,7 +218,7 @@ Each module below lists the documents it owns and what they post. This is the ch
 | 3b. Purchase | Material request, PO, GRN, landed cost voucher, purchase invoice, purchase return, debit note | Yes | Yes (GRN, return) | Pending POs, GRNI, purchase register, supplier ageing |
 | 3c. Reorder engine | Reorder run → draft material requests or POs | No | No | Shortage list, below-min items |
 | 4. Sales | Quotation, SO (with reservation), pick list, delivery note, sales invoice, sales return, credit note | Yes | Yes (delivery, return) | Pending SOs, sales register, receivables ageing, customer statement |
-| 5. Production | BOM (multi-level, versioned), work order, job card per stage, material transfer to WIP, production entry, scrap/by-product entry, job work challan **(new)** | Yes (WIP, finished goods) | Yes | WIP, yield, BOM vs actual consumption, batch genealogy |
+| 5. Production | Production plan by line and week, MRP run (material needs net of stock and open POs) **(added 4 Nov)**, BOM (multi-level, versioned), work order, job card per stage, material transfer to WIP, production entry, scrap/by-product entry, job work challan **(new)** | Yes (WIP, finished goods) | Yes | WIP, yield, BOM vs actual consumption, batch genealogy |
 | 5b. Quality and food safety **(added 4 Nov)** | Checklist templates (ISO 9001, FSSC 22000 / ISO 22000, HACCP, GMP), scheduled checklist runs, CCP monitoring log, non-conformance, CAPA, batch release, supplier approval, document control (SOPs), calibration, internal audit, mock recall | No | Batch status only (hold, release, reject) | Overdue checks, out-of-limit readings, open CAPAs, traceability and mock-recall report |
 | 6a. GST | E-invoice (IRN), e-way bill, GSTR-1 data, GSTR-3B data, GSTR-2B reconciliation **(new)**, ITC-04 for job work **(new)** | RCM and ITC entries | No | GST registers, ITC mismatch report |
 | 6b. TDS/TCS **(new)** | Deduction on purchase invoice/payment, challan entry, certificate tracking | Yes | No | TDS payable, 26Q/27EQ data |
@@ -424,6 +424,31 @@ Yes, MyERP should use AI, but only as an assistant that prepares drafts and flag
 | Drafting help | Drafts payment reminders, PO emails and customer statements for a person to send | 4, 3b | Any time |
 | Migration cleanup | Finds duplicate items and parties in the ERPNext export, and suggests missing HSN codes and UOMs | 9 | Phase 9 |
 
+### AI planning: production, purchase and safety stock (added 4 Nov)
+
+Sidharth on 4 Nov wants AI to drive production planning, purchase planning and safety stock from historical order data. This grows the "Demand and reorder suggestions" row above into a planning chain. Each step produces **draft plans that a planner reviews, edits and approves** (rule 0006).
+
+1. **Demand forecast.** A monthly and weekly forecast per item, customer group and branch, from order history. It accounts for seasonality, festivals, trend, new and discontinued items, and one-off bulk orders, which are flagged so they don't distort the forecast. Each forecast shows its accuracy against what actually happened.
+2. **Safety stock and reorder levels.** Safety stock per item-warehouse is calculated from demand variability, actual supplier lead-time variability and the service level the tenant sets per item class (for example 98% for A items, 90% for C). Shelf life caps it, so perishable stock is never over-held. It is recalculated monthly, with the change and the reason shown.
+3. **Production plan.** A suggested plan by week and line that turns the forecast plus open sales orders into work orders. It respects line capacity, minimum batch sizes, changeover time, shelf life, and stock already on hand or in progress.
+4. **Material plan and purchase plan (MRP).** The production plan is exploded through the BOMs into raw and packing material needs, net of stock, open POs and in-transit stock. This gives draft POs and material requests per supplier, timed by each supplier's actual lead time, minimum order and pack size.
+5. **Explanations and what-if.** Every suggestion says why, for example "Diwali uplift of 40% seen in the last 3 years; supplier lead time averages 18 days". Planners can ask what-ifs: "What if sales grow 20%?" or "What if this supplier is 10 days late?"
+
+**The calculation is ordinary MRP; AI improves the inputs.** The material and capacity calculation (step 4) is a normal, deterministic MRP built in Phase 5. AI makes the forecast and safety stock smarter and writes the explanations, so plans still work if AI is switched off.
+
+**Data captured from day one so the history is there:**
+
+- Sales orders with the date the customer wanted, the date promised and the date shipped. Plans need what was ordered, not only what was invoiced.
+- Unmet demand: order lines cut, short-shipped or cancelled for lack of stock, and quotations lost, with a reason.
+- Stock-outs: the dates each item-warehouse hit zero.
+- Supplier lead times, actual: PO date to GRN date per line, and quantity received vs ordered.
+- Production actuals: start and end per stage, output per line per hour, downtime with reasons, batch size, yield.
+- Schemes, promotions and price changes, with dates, so a spike from a scheme is not read as a trend.
+- Customer group, channel and branch on every order.
+- **ERPNext history migrated in full** (at least 3 years of sales orders, invoices, POs and GRNs, not just open balances), so forecasting can start soon after cutover instead of waiting a year.
+
+**Roadmap:** deterministic MRP and the capacity plan come in Phase 5. AI forecasting, safety stock and plan suggestions come as **Phase 13 (about 6 to 8 weeks)**, after cutover and once migrated history has been checked. Accuracy is measured on a held-back period before planners rely on it.
+
 ### Guardrails
 
 1. **Drafts only.** AI can create a Draft document or a suggestion. Submitting, cancelling, approving and paying stay with a person who has that permission.
@@ -492,7 +517,7 @@ Cutover is best on the first day of a quarter after a month-end close. The bin s
 
 The build is now about 11 to 15 months of part-time work, then 2 to 3 months of parallel running. v2 adds Phase 0 for setup, folds TDS into Phase 6, adds fixed assets, loans and payroll as Phases 7 and 8, makes migration its own phase, and adds Phase 10 to prepare MyERP for sale as SaaS. The multi-tenant foundation itself is built in Phases 0 and 1, adding about 2 weeks.
 
-_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 5b Quality and food safety (5–6, added 4 Nov) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8) · 11 POS billing (6–8, added 4 Nov; can move earlier if Apurvam opens retail counters). 12 Mobile app for supervisors (8–10, added 4 Nov). Branch columns and the branch master arrive in Phase 1, branch reports in Phases 2 and 6. Each phase closes with a gate tested on real Apurvam data._
+_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 5b Quality and food safety (5–6, added 4 Nov) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8) · 11 POS billing (6–8, added 4 Nov; can move earlier if Apurvam opens retail counters). 12 Mobile app for supervisors (8–10, added 4 Nov). 13 AI planning: forecast, safety stock, production and purchase plans (6–8, added 4 Nov). Branch columns and the branch master arrive in Phase 1, branch reports in Phases 2 and 6. Each phase closes with a gate tested on real Apurvam data._
 
 A phase starts only when the gate above it passes. Durations are estimates for one person working with Claude a few hours a day; dates get set once the target cutover date is known.
 
