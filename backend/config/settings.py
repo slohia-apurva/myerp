@@ -29,7 +29,14 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-only-insecure-key" if DEBUG else None
 # Tenants are reached at <tenant-slug>.<MYERP_BASE_DOMAIN>, e.g. apurvam.myerp.in.
 # Locally that is apurvam.localhost.
 MYERP_BASE_DOMAIN = env("MYERP_BASE_DOMAIN", "localhost")
-ALLOWED_HOSTS = [MYERP_BASE_DOMAIN, f".{MYERP_BASE_DOMAIN}"]
+ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS", f"{MYERP_BASE_DOMAIN},.{MYERP_BASE_DOMAIN}").split(",")
+
+# Tenant served on hosts that carry no tenant subdomain (e.g. the bare Cloud Run
+# URL on staging before a domain exists). Empty in production.
+MYERP_FALLBACK_TENANT = env("MYERP_FALLBACK_TENANT", "")
+
+# Bucket for attachments and exports (Google Cloud Storage); unused until Module 1.
+MYERP_FILES_BUCKET = env("MYERP_FILES_BUCKET", "")
 
 # Prefix for tenant database names: tenant "apurvam" lives in myerp_tenant_apurvam.
 MYERP_TENANT_DB_PREFIX = env("MYERP_TENANT_DB_PREFIX", "myerp_tenant_")

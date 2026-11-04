@@ -27,7 +27,10 @@ class TenantMiddleware:
         if request.path.startswith(settings.MYERP_TENANT_EXEMPT_PATHS):
             return self.get_response(request)
 
-        slug = tenant_slug_from_host(request.get_host(), settings.MYERP_BASE_DOMAIN)
+        slug = (
+            tenant_slug_from_host(request.get_host(), settings.MYERP_BASE_DOMAIN)
+            or settings.MYERP_FALLBACK_TENANT
+        )
         tenant = (
             Tenant.objects.filter(slug=slug, status=Tenant.Status.ACTIVE).first() if slug else None
         )

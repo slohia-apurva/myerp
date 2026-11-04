@@ -53,6 +53,16 @@ def test_unknown_tenant_gets_404(client, tenants, host):
     assert response.status_code == 404
 
 
+def test_fallback_tenant_serves_hosts_without_subdomain(client, tenants, settings):
+    settings.MYERP_FALLBACK_TENANT = "alpha"
+    bare = client.get("/api/whoami/", HTTP_HOST="localhost")
+    assert bare.status_code == 200
+    assert bare.json()["tenant"] == "alpha"
+    # A named subdomain is never redirected to the fallback tenant.
+    assert client.get("/api/whoami/", HTTP_HOST="nobody.localhost").status_code == 404
+    assert client.get("/api/whoami/", HTTP_HOST="beta.localhost").json()["tenant"] == "beta"
+
+
 def test_suspended_tenant_gets_404(client, alpha):
     Tenant.objects.filter(pk=alpha.pk).update(status=Tenant.Status.SUSPENDED)
     response = client.get("/api/whoami/", HTTP_HOST="alpha.localhost")
