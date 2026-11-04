@@ -198,7 +198,7 @@ These rules are fixed before any module is written, and every later module must 
 9. **Warehouses are a tree with real allocation.** Orders reserve against a parent (rack group); picking resolves to leaf bins.
 10. **One posting service, many documents.** All documents call the same tested functions to write ledger rows.
 11. **Received-not-billed is explicit (new).** A GRN debits stock and credits a Stock Received But Not Billed (GRNI) account; the purchase invoice clears it. Price differences between GRN and invoice post to a purchase price variance account, or revalue stock if it is still on hand. Landed costs (freight, loading) are added to lot rates through a landed cost voucher.
-12. **Batches carry expiry and status (new).** Batch-tracked items record manufacturing date, expiry and QC status (quarantine, released, rejected). Only released batches can be picked; picking suggests first-expiry-first-out within FIFO valuation.
+12. **Every stock movement is batch-wise (changed 4 Nov: mandatory for all stock).** Every stock item is batch-tracked: raw materials, packing materials, intermediates and finished goods. Every stock ledger row carries a batch. A batch records the supplier's own lot number (on receipt), manufacturing date, expiry and QC status (quarantine, released, rejected, on hold). Only released batches can be picked; picking suggests first-expiry-first-out within FIFO valuation. Items with no natural lot (for example a consumable) get one batch per receipt automatically, so the rule never blocks entry.
 13. **Inter-company and inter-GSTIN movements are sales (new).** Stock moving between the LLP and the Ltd, or between two GSTINs of one company, posts a tax invoice and a matching purchase, with GST. Moves within one GSTIN are plain transfers.
 14. **Tax rules are dated master data (new).** GST rates, HSN mappings, TDS sections and thresholds live in tables with valid-from dates. A rate change is a data entry, not a code change, and old documents keep the rate of their date.
 15. **Approvals are rules, not code (new).** Approval rules per document type and company (e.g. PO above ₹1 lakh needs owner approval; sales below a margin floor needs approval; credit-limit breach blocks SO submit).
@@ -218,6 +218,7 @@ Each module below lists the documents it owns and what they post. This is the ch
 | 3c. Reorder engine | Reorder run → draft material requests or POs | No | No | Shortage list, below-min items |
 | 4. Sales | Quotation, SO (with reservation), pick list, delivery note, sales invoice, sales return, credit note | Yes | Yes (delivery, return) | Pending SOs, sales register, receivables ageing, customer statement |
 | 5. Production | BOM (multi-level, versioned), work order, job card per stage, material transfer to WIP, production entry, scrap/by-product entry, job work challan **(new)** | Yes (WIP, finished goods) | Yes | WIP, yield, BOM vs actual consumption, batch genealogy |
+| 5b. Quality and food safety **(added 4 Nov)** | Checklist templates (ISO 9001, FSSC 22000 / ISO 22000, HACCP, GMP), scheduled checklist runs, CCP monitoring log, non-conformance, CAPA, batch release, supplier approval, document control (SOPs), calibration, internal audit, mock recall | No | Batch status only (hold, release, reject) | Overdue checks, out-of-limit readings, open CAPAs, traceability and mock-recall report |
 | 6a. GST | E-invoice (IRN), e-way bill, GSTR-1 data, GSTR-3B data, GSTR-2B reconciliation **(new)**, ITC-04 for job work **(new)** | RCM and ITC entries | No | GST registers, ITC mismatch report |
 | 6b. TDS/TCS **(new)** | Deduction on purchase invoice/payment, challan entry, certificate tracking | Yes | No | TDS payable, 26Q/27EQ data |
 | 6c. MIS | Dashboards | No | No | Sales, margin by item/customer, stock ageing, production yield, cash position |
@@ -248,6 +249,30 @@ Design rules for these modules:
 - **Email from the app:** send invoice/PO PDF to the party's email.
 - **Generic import/export:** CSV/Excel import for every master and opening balance, with a dry-run that shows errors before saving.
 - **Barcode scanning** on pick lists, GRNs and stock counts (USB or phone camera).
+
+### Traceability and quality checklists (added 4 Nov)
+
+Sidharth on 4 Nov: batch-wise stock is mandatory, traceability forward and backward is essential, and the system should hold ISO and FSSC 22000 checklists.
+
+**Traceability, forward and backward (Modules 3a, 3b, 5):**
+
+- Batch on every stock row (rule 12) is what makes this possible. Each GRN line records the supplier's lot and certificate of analysis. Each production entry records exactly which input batches went into which output batch, including rework and blending. Each delivery line records the batch shipped.
+- **Backward trace:** from a finished batch (or a customer complaint) to every input batch, its supplier, GRN, certificate and QC results, and the checklists and CCP readings logged during that work order.
+- **Forward trace:** from a supplier lot or raw material batch to every intermediate and finished batch that used it, then to every customer, invoice, e-way bill and quantity shipped, with what is still in stock and where.
+- **Mock recall:** one screen runs both traces for a chosen batch and produces the recall list with quantities and contacts, timed. FSSC 22000 expects a recall drill to finish within hours; this makes it minutes. Each drill is saved as an audit record.
+- **Mass balance:** quantity in vs quantity out per batch (consumed, shipped, in stock, scrapped), so gaps show up.
+- Batch holds: putting a batch on hold blocks picking it and every batch made from it, until released.
+
+**Quality and food safety checklists (new Module 5b, after production, about 5 to 6 weeks):**
+
+- **Templates as data:** a checklist is a list of questions with answer types (yes/no, number with limits, text, photo, signature). Standard templates for ISO 9001, FSSC 22000 / ISO 22000 prerequisite programmes, HACCP, GMP and hygiene, pest control and allergen control ship as **global masters**. Each tenant copies them and adapts them in its own database (rule 17).
+- **Scheduled runs:** per shift, day, week or batch, assigned to a role and a location or production line, filled on a tablet or phone with photos. Overdue checks alert the supervisor.
+- **Tied to the work:** a checklist can be required before a work order starts, at a CCP during production, at GRN (incoming inspection) or before dispatch. A batch cannot be released while a required check is missing or failed.
+- **Out of limits means action:** a reading outside its limit raises a non-conformance automatically. It goes through investigation, corrective and preventive action (CAPA), verification and closure, each step signed.
+- **The rest of the food safety system:** supplier approval and periodic re-evaluation, document control with SOP versions and read-and-sign, calibration schedule for instruments, internal audit plans and findings, training records, and the management review pack.
+- **Records are evidence:** submitted checklist runs are immutable like posted vouchers (cancel and amend only), carry user and time, and print as audit-ready reports.
+
+This module needs tablet and phone screens, which settles part of the mobile open decision: checklist runs and batch release will be mobile-friendly in v1.
 
 ### Branch accounts and POS billing (added 4 Nov)
 
@@ -393,7 +418,7 @@ Cutover is best on the first day of a quarter after a month-end close. The bin s
 
 The build is now about 11 to 15 months of part-time work, then 2 to 3 months of parallel running. v2 adds Phase 0 for setup, folds TDS into Phase 6, adds fixed assets, loans and payroll as Phases 7 and 8, makes migration its own phase, and adds Phase 10 to prepare MyERP for sale as SaaS. The multi-tenant foundation itself is built in Phases 0 and 1, adding about 2 weeks.
 
-_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8) · 11 POS billing (6–8, added 4 Nov; can move earlier if Apurvam opens retail counters). Branch columns and the branch master arrive in Phase 1, branch reports in Phases 2 and 6. Each phase closes with a gate tested on real Apurvam data._
+_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 5b Quality and food safety (5–6, added 4 Nov) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8) · 11 POS billing (6–8, added 4 Nov; can move earlier if Apurvam opens retail counters). Branch columns and the branch master arrive in Phase 1, branch reports in Phases 2 and 6. Each phase closes with a gate tested on real Apurvam data._
 
 A phase starts only when the gate above it passes. Durations are estimates for one person working with Claude a few hours a day; dates get set once the target cutover date is known.
 
@@ -551,7 +576,8 @@ The v1 working method stands: the repo is the project's memory, spec before code
 - [ ] Budget for running costs (server, backups, GSP fees)
 - [ ] **(new)** Do you do job work (send material out for processing, or process for others)? Decides ITC-04 and job work challans
 - [ ] **(new)** Any exports or foreign-currency purchases? Decides multi-currency in v1
-- [ ] **(new)** Are products FSSAI-licensed and organic-certified? Decides batch traceability depth and label formats
+- [ ] **(new)** Are products FSSAI-licensed and organic-certified? Decides label formats (batch traceability is now mandatory regardless)
+- [ ] **(new, 4 Nov)** Which certifications does Apurvam hold or plan (FSSC 22000, ISO 9001, ISO 22000, organic NPOP/NOP, BRC)? We start with those templates. Share current checklists and HACCP plan if available
 - [ ] **(new)** How many users per role, and real yearly volumes (invoices, GRNs, items)?
 - [ ] **(new)** Does either company have more than one GSTIN (another state)?
 - [ ] **(new)** Target cutover date, so the roadmap can be dated
