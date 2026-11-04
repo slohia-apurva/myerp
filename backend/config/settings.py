@@ -47,10 +47,12 @@ MYERP_TENANT_EXEMPT_PATHS = ("/api/health/",)
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "django.contrib.sessions",
     "rest_framework",
     # Platform side: lives only in the platform database.
     "tenancy",
     # Tenant side: lives only in each tenant's database.
+    "accounts",
     "core",
 ]
 
@@ -60,6 +62,11 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.common.CommonMiddleware",
     "tenancy.middleware.TenantMiddleware",
+    # Below the tenant middleware: sessions and users live in the tenant's
+    # database, so they must be read and saved while the tenant is selected.
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -85,13 +92,30 @@ STATIC_URL = "static/"
 WHITENOISE_ROOT = FRONTEND_DIST if FRONTEND_DIST.is_dir() else None
 WHITENOISE_INDEX_FILE = True
 
+# Users, sessions and two-factor secrets are tenant-side (see accounts/).
+AUTH_USER_MODEL = "accounts.User"
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 10},
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+# Password links from `create_tenant_user` last one day.
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+# A login lasts a working day; closing the browser does not end it.
+SESSION_COOKIE_AGE = 60 * 60 * 12
+SESSION_COOKIE_HTTPONLY = True
+
 REST_FRAMEWORK = {
     # JSON only: the browsable API would need templates we don't ship.
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
-    # Login arrives in Phase 1; Phase 0 endpoints are read-only probes.
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
-    "UNAUTHENTICATED_USER": None,
+    # Session login (with CSRF) only; every endpoint needs a logged-in user
+    # unless it says otherwise.
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }
 
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", "redis://localhost:6379/0")

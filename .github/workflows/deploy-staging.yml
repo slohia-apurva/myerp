@@ -52,8 +52,10 @@ jobs:
 
       - name: Run migrations
         run: |
+          # Command and args match deploy/terraform/main.tf.
           gcloud run jobs update myerp-migrate \
-            --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --image "${IMAGE}"
+            --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --image "${IMAGE}" \
+            --command python --args manage.py,deploy_migrate
           gcloud run jobs execute myerp-migrate \
             --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --wait
 
@@ -69,4 +71,4 @@ jobs:
         run: |
           URL=$(gcloud run services describe myerp-app --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --format='value(status.url)')
           curl --fail --silent --show-error "${URL}/api/health/"
-          curl --fail --silent --show-error "${URL}/api/whoami/"
+          curl --fail --silent --show-error "${URL}/api/auth/session/"

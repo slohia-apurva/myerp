@@ -40,9 +40,9 @@ def test_health_needs_no_tenant(client, tenants):
     assert response.json() == {"status": "ok"}
 
 
-def test_each_subdomain_sees_only_its_own_companies(client, tenants):
-    alpha = client.get("/api/whoami/", HTTP_HOST="alpha.localhost").json()
-    beta = client.get("/api/whoami/", HTTP_HOST="beta.localhost").json()
+def test_each_subdomain_sees_only_its_own_companies(logged_in):
+    alpha = logged_in("alpha").get("/api/whoami/", HTTP_HOST="alpha.localhost").json()
+    beta = logged_in("beta").get("/api/whoami/", HTTP_HOST="beta.localhost").json()
     assert alpha == {"tenant": "alpha", "name": "Alpha Group", "companies": ["Alpha Foods LLP"]}
     assert beta == {"tenant": "beta", "name": "Beta Group", "companies": ["Beta Traders Ltd"]}
 
@@ -53,14 +53,15 @@ def test_unknown_tenant_gets_404(client, tenants, host):
     assert response.status_code == 404
 
 
-def test_fallback_tenant_serves_hosts_without_subdomain(client, tenants, settings):
+def test_fallback_tenant_serves_hosts_without_subdomain(logged_in, settings):
     settings.MYERP_FALLBACK_TENANT = "alpha"
-    bare = client.get("/api/whoami/", HTTP_HOST="localhost")
+    bare = logged_in("alpha").get("/api/whoami/", HTTP_HOST="localhost")
     assert bare.status_code == 200
     assert bare.json()["tenant"] == "alpha"
     # A named subdomain is never redirected to the fallback tenant.
-    assert client.get("/api/whoami/", HTTP_HOST="nobody.localhost").status_code == 404
-    assert client.get("/api/whoami/", HTTP_HOST="beta.localhost").json()["tenant"] == "beta"
+    beta = logged_in("beta")
+    assert beta.get("/api/whoami/", HTTP_HOST="nobody.localhost").status_code == 404
+    assert beta.get("/api/whoami/", HTTP_HOST="beta.localhost").json()["tenant"] == "beta"
 
 
 def test_suspended_tenant_gets_404(client, alpha):
@@ -93,8 +94,8 @@ def test_platform_and_tenant_tables_never_mix(alpha):
     tenant_tables = table_names(alpha.db_alias)
     assert "tenancy_tenant" in platform_tables
     assert "tenancy_tenant" not in tenant_tables
-    assert {"core_company", "auth_user"} <= tenant_tables
-    assert not {"core_company", "auth_user"} & platform_tables
+    assert {"core_company", "accounts_user", "django_session"} <= tenant_tables
+    assert not {"core_company", "accounts_user", "django_session"} & platform_tables
 
 
 def test_background_task_runs_inside_named_tenant(alpha, beta):

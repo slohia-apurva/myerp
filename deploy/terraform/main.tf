@@ -302,8 +302,12 @@ resource "google_cloud_run_v2_job" "migrate" {
       }
 
       containers {
-        image   = local.placeholder_image
-        command = ["sh", "-c", "python manage.py migrate && python manage.py migrate_tenants"]
+        image = local.placeholder_image
+
+        # Admin commands reuse this job by overriding the arguments, e.g.
+        #   gcloud run jobs execute myerp-migrate --args=manage.py,create_tenant_user,apurvam,NAME
+        command = ["python"]
+        args    = ["manage.py", "deploy_migrate"]
 
         dynamic "env" {
           for_each = local.plain_env

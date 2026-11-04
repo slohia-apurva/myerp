@@ -11,7 +11,10 @@ BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.
 
 @pytest.mark.django_db(databases="__all__")
 def test_api_answers_json_when_a_browser_opens_it(client, tenants):
-    response = client.get("/api/whoami/", HTTP_HOST="alpha.localhost", HTTP_ACCEPT=BROWSER_ACCEPT)
+    # The deploy's smoke test opens this endpoint without logging in.
+    response = client.get(
+        "/api/auth/session/", HTTP_HOST="alpha.localhost", HTTP_ACCEPT=BROWSER_ACCEPT
+    )
     assert response.status_code == 200
     assert response["Content-Type"] == "application/json"
 

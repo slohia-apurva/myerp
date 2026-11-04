@@ -1,42 +1,83 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { api, ApiError, Session } from "./api";
+import { Login, SetPassword } from "./Login";
+import "./app.css";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
 
-type State =
-  | { kind: "loading" }
-  | { kind: "ready"; data: WhoAmI }
-  | { kind: "error"; message: string };
+// A one-time password link looks like /#set-password/<uid>/<token>. The token
+// sits after "#" so it never reaches the server or its logs.
+function passwordLink(): { uid: string; token: string } | null {
+  const match = window.location.hash.match(/^#set-password\/([^/]+)\/([^/]+)$/);
+  return match ? { uid: match[1], token: match[2] } : null;
+}
 
-// Phase 0 placeholder: shows which tenant this subdomain reaches.
 export function App() {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [link, setLink] = useState(passwordLink);
+  const [session, setSession] = useState<Session | null>(null);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch("/api/whoami/")
-      .then(async (res) => {
-        if (!res.ok) throw new Error(res.status === 404 ? "Unknown tenant" : `HTTP ${res.status}`);
-        setState({ kind: "ready", data: (await res.json()) as WhoAmI });
-      })
-      .catch((err: Error) => setState({ kind: "error", message: err.message }));
+  const load = useCallback(() => {
+    api<Session>("auth/session/")
+      .then(setSession)
+      .catch((err: ApiError) => setError(err.status === 404 ? "Unknown company group address." : err.message));
   }, []);
+  useEffect(load, [load]);
+
+  const leaveLink = () => {
+    history.replaceState(null, "", "/");
+    setLink(null);
+    load();
+  };
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24 }}>
+    <main>
       <h1>MyERP</h1>
-      {state.kind === "loading" && <p>Loading…</p>}
-      {state.kind === "error" && <p>Could not load: {state.message}</p>}
-      {state.kind === "ready" && (
-        <>
-          <p>
-            Tenant: <strong>{state.data.name}</strong> ({state.data.tenant})
-          </p>
-          <ul>
-            {state.data.companies.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
-        </>
+      {error && <p className="error">{error}</p>}
+      {link ? (
+        <SetPassword uid={link.uid} token={link.token} onDone={leaveLink} />
+      ) : session === null ? (
+        !error && <p>Loading…</p>
+      ) : session.step === "done" ? (
+        <Home session={session} onLogout={setSession} />
+      ) : (
+        <Login session={session} onChange={setSession} />
       )}
     </main>
+  );
+}
+
+function Home({
+  session,
+  onLogout,
+}: {
+  session: Extract<Session, { step: "done" }>;
+  onLogout: (s: Session) => void;
+}) {
+  const [who, setWho] = useState<WhoAmI | null>(null);
+  useEffect(() => {
+    api<WhoAmI>("whoami/").then(setWho);
+  }, []);
+  return (
+    <div className="card">
+      <p>
+        Logged in as <strong>{session.user.name}</strong>
+        {who && (
+          <>
+            {" "}
+            · {who.name} ({who.tenant})
+          </>
+        )}
+      </p>
+      {who && (
+        <ul>
+          {who.companies.length === 0 && <li>No companies yet.</li>}
+          {who.companies.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+      )}
+      <button onClick={() => api<Session>("auth/logout/", {}).then(onLogout)}>Log out</button>
+    </div>
   );
 }

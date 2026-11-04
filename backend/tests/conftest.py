@@ -50,3 +50,20 @@ def alpha(tenants):
 @pytest.fixture
 def beta(tenants):
     return tenants["beta"]
+
+
+@pytest.fixture
+def logged_in(tenants):
+    """logged_in("alpha") -> a test client with a user logged in to alpha."""
+    from django.test import Client
+
+    from accounts.models import User
+
+    def make(slug: str, username: str = "tester") -> Client:
+        client = Client()
+        with use_tenant(tenants[slug]):
+            user, _ = User.objects.get_or_create(username=username)
+            client.force_login(user)
+        return client
+
+    return make
