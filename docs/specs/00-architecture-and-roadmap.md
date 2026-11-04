@@ -156,6 +156,7 @@ A request reaches only its own tenant's database. Shared masters reach every ten
 | --- | --- | --- | --- |
 | Platform | One platform database | Tenants, plans, billing, each tenant's database connection, platform admins, support access log | Platform admins only |
 | Global masters | Platform database, copied into every tenant database as read-only tables | HSN/SAC codes, GST rate table, TDS/TCS sections, states and state codes, countries and currencies, standard UOMs, bank IFSC list, Tally standard group template, PF/ESI rates, professional tax slabs, base print templates | Platform admins, published as a new version |
+| Global item catalogue **(added 4 Nov)** | Platform database only; searched live, and an item is copied into a tenant when picked | Standard items with a fixed code (GTIN or MyERP code), description, HSN, pack sizes with dimensions, weights and barcodes | Platform admins; tenants can suggest items |
 | Tenant | One database per tenant | Its companies, users and roles, all masters and transactions, both ledgers, custom fields, print formats, reports, approval rules, AI settings | That tenant's own admins |
 
 ### How it works
@@ -170,7 +171,7 @@ A request reaches only its own tenant's database. Shared masters reach every ten
 ### Design rules added
 
 - **Rule 16: Tenant isolation.** Every request, job and file belongs to exactly one tenant and opens only that tenant's database. An automated test logs in to tenant A, tries to reach tenant B's data, and must fail.
-- **Rule 17: Global masters are read-only to tenants.** Tenants override values locally and never edit shared data.
+- **Rule 17: Global masters are read-only to tenants.** Tenants override values locally and never edit shared data. This includes the fixed fields of items linked to the global item catalogue.
 - **Rule 18: No tenant-specific code.** Every difference between tenants is configuration or data in their own database, or a feature flag in their plan.
 
 ### Needed before selling (Phase 10)
@@ -386,6 +387,29 @@ Where dimensions and weight are used:
 - Bins: **(adopt)** optional bin dimensions and maximum weight, so putaway warns when a bin is full
 - Labels: carton and pallet labels print barcode, contents, weight and dimensions
 
+### Global item catalogue (added 4 Nov)
+
+A platform-wide catalogue of standard items, each with a fixed code (like a barcode) and a fixed description. When a tenant creates an item, it can search the catalogue by code, barcode scan or name and pull the item in, instead of typing everything again. Requested by Sidharth on 4 Nov.
+
+**What a catalogue item holds (fixed, maintained by platform admins):**
+
+- Catalogue code: the item's GTIN (EAN-13 or GTIN-14) when it has one. Otherwise MyERP issues its own code, for example `MC-SPC-000123-7` with a check digit, printable as a Code 128 barcode. A code is never reused or changed.
+- Brand, standard name and standard description, category, HSN code, net content (for example 500 g), shelf life, and veg/non-veg and organic flags where they apply
+- The UOM chain with each pack's L × B × H, net and gross weight and its own barcode (packet, inner box, carton), in the same shape as the item UOM table above
+- Images and specification attachments
+
+**What stays the tenant's own:** item code or alias, local name, prices, income and expense ledgers, warehouses, reorder levels, suppliers, batch and expiry settings, custom fields, and extra UOMs such as a pallet. The GST rate always comes from the dated HSN/GST master, never from the catalogue.
+
+**How it works:**
+
+- **Searched live, copied on pick.** The catalogue can grow to hundreds of thousands of items, so it is not copied into every tenant database like the smaller global masters. It stays in the platform database behind a read-only search API. When a tenant picks an item, the catalogue fields are copied into a new item in the tenant's own database, with the catalogue code and version. The tenant's books never depend on the platform database being reachable.
+- **Fixed fields stay fixed.** On a linked item, the catalogue fields (code, description, HSN, pack sizes and barcodes) are read-only to the tenant (rule 17). A tenant that needs something different either unlinks the item, which turns it into an ordinary item of its own, or suggests a correction to the platform.
+- **Updates are offered, never forced.** When the platform publishes a corrected catalogue item, tenants with that item linked see "Catalogue update available" with the changes side by side. They accept per item or in bulk. Posted documents never change, because each document line keeps its own copy (design rule 1).
+- **Tenants can suggest, not publish.** A tenant can send one of its own items to the catalogue as a suggestion. Platform admins review it before it is published. A tenant's items are never shared without that explicit step.
+- **Duplicates are caught at entry.** Creating an item whose barcode matches a catalogue item prompts "Use the catalogue item?" first.
+
+**Where it lands in the roadmap:** the catalogue tables, the platform search API and "Create item from catalogue" come in Phase 1, alongside the item master. They are seeded with Apurvam's own cleaned item list from the ERPNext migration. Tenant suggestions, the review queue and the update notices come in Phase 10. A lookup in GS1 India's DataKart by GTIN is an option to check later, since it needs a GS1 licence and has its own terms.
+
 ### Chart of accounts: Tally-style groups and ledgers (added 3 Nov)
 
 The chart of accounts works like Tally. Every ledger sits under a group, and groups can have sub-groups to any depth. A ledger takes its nature (asset, liability, income, expense) from the primary group at the top of its branch, so a new sub-group or ledger needs no accounting setup.
@@ -486,3 +510,6 @@ The v1 working method stands: the repo is the project's memory, spec before code
 * [ ] **(new)** Which entity will own and sell MyERP as SaaS: one of the two companies, or a new one?
 * [ ] **(new)** Product name and web domain for the SaaS version (apurvam.myerp.in is a placeholder)
 * [ ] **(new)** Which customisations should tenants be able to make themselves, and which only your team on request?
+* [ ] **(new, 4 Nov)** Item catalogue scope: packaged products only, or raw materials and packing materials too?
+* [ ] **(new, 4 Nov)** Does Apurvam have a GS1 India membership and GTINs on its packs? If not, MyERP issues its own catalogue codes
+* [ ] **(new, 4 Nov)** Who curates the catalogue for the SaaS version: your team only, or also trusted tenants?
