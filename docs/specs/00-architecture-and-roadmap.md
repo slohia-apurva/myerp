@@ -325,6 +325,7 @@ Connectors bring data in as drafts or suggestions, the same rule as AI (rule 000
 | Medium | Devices | Barcode label printers (ZPL), weighing scales, biometric attendance, thermal receipt printers | Zebra, TSC; ZKTeco, eSSL | 3, 8, 11 |
 | Medium | Statutory files | TDS returns (26Q/27EQ in FVU format), EPFO ECR, ESIC, PT returns: generated as files for upload | Government utilities | 6b, 8 |
 | Medium | E-signature | Sign invoices and POs with DSC or Aadhaar eSign | Leegality, Digio, emSigner | 4 |
+| High if you export or import | ICEGATE (Indian Customs) | **Imports:** bill of entry data (assessable value, BCD, SWS, IGST) feeds landed cost on the GRN, and import IGST is matched to the IMPG section of GSTR-2B. **Exports:** shipping bill and LEO status linked to the export invoice; IGST refund and drawback/RoDTEP status; e-BRC realisation against the invoice. Filing itself usually stays with the customs broker; MyERP sends the broker the invoice and packing list data and pulls back the status | ICEGATE enquiry and e-Sanchit services (registration needed), DGFT e-BRC, or the customs broker's system | 3b, 4, 6a |
 | Later | Invoice discounting | Upload invoices to TReDS for early payment from large buyers | RXIL, M1xchange, Invoicemart | 10 |
 | Later | Tally export | Vouchers and masters as Tally XML, for a CA who works in Tally | none | 6c |
 | Later | MyERP's own API | Documented REST API and webhooks, so tenants can connect their own tools | none | 10 |
@@ -601,3 +602,4 @@ The v1 working method stands: the repo is the project's memory, spec before code
 * [ ] **(new, 4 Nov)** Do either company have branches today (depots, factories, offices) whose accounts you want separately? Which ones?
 * [ ] **(new, 4 Nov)** Will Apurvam run its own retail counters? If yes, POS can move ahead of Phase 10
 * [ ] **(new, 4 Nov)** Which banks, couriers or transporters, payment gateway and GSP does Apurvam use today?
+* [ ] **(new, 4 Nov)** ICEGATE asked for: how many export and import consignments a year, which ports, and does a customs broker file today? This also settles the multi-currency question (yes, if you export or import)
