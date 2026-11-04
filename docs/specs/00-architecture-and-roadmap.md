@@ -202,6 +202,7 @@ These rules are fixed before any module is written, and every later module must 
 13. **Inter-company and inter-GSTIN movements are sales (new).** Stock moving between the LLP and the Ltd, or between two GSTINs of one company, posts a tax invoice and a matching purchase, with GST. Moves within one GSTIN are plain transfers.
 14. **Tax rules are dated master data (new).** GST rates, HSN mappings, TDS sections and thresholds live in tables with valid-from dates. A rate change is a data entry, not a code change, and old documents keep the rate of their date.
 15. **Approvals are rules, not code (new).** Approval rules per document type and company (e.g. PO above ₹1 lakh needs owner approval; sales below a margin floor needs approval; credit-limit breach blocks SO submit).
+19. **Every row carries its branch (added 4 Nov).** Each company has at least one branch ("Head office" is created with the company). Every voucher header, GL row and stock ledger row carries branch\_id next to company\_id, and every voucher balances per branch as well as per company. When one voucher touches two branches, the posting service adds the matching lines on a Branch/Divisions control account, the way Tally does. Added now because adding a column to every ledger row after go-live means rewriting history.
 
 ## Module map
 
@@ -246,6 +247,32 @@ Design rules for these modules:
 - **Email from the app:** send invoice/PO PDF to the party's email.
 - **Generic import/export:** CSV/Excel import for every master and opening balance, with a dry-run that shows errors before saving.
 - **Barcode scanning** on pick lists, GRNs and stock counts (USB or phone camera).
+
+### Branch accounts and POS billing (added 4 Nov)
+
+Sidharth asked on 4 Nov for branch-wise accounts and point-of-sale (POS) billing at a later stage. Both are planned now so the data model is ready for them. Branch accounts mostly come for free from rule 19. POS is a later module.
+
+**Built in now (Phases 1 and 2), because it is cheap now and expensive later:**
+
+- **Branch master** per company: name, address, state, the GSTIN registration it trades under, and a default warehouse. Every company starts with one "Head office" branch, so single-branch users never see the field.
+- **branch\_id on every voucher, GL row and stock ledger row** (rule 19), and on warehouses, so stock by branch is just a filter.
+- **Balanced per branch.** Inter-branch transfers and expenses paid by one branch for another post through a Branch/Divisions control account, so each branch has its own trial balance that agrees with the company's.
+- **Naming series per branch** (for example `MUM/INV/25-26/0001`) and **price lists per branch**.
+- **Users limited to branches.** A role can be restricted to one or more branches, the way it is restricted to a company.
+- **A second dimension, cost centre,** on GL rows for departments or projects, so it never has to compete with branch.
+
+**Branch accounts (reports, Phase 2 and Phase 6):** branch-wise trial balance, P&L and balance sheet, branch stock and sales registers, inter-branch reconciliation, and branch filters on every MIS dashboard. A branch in another state with its own GSTIN follows rule 13: stock moved there is a sale.
+
+**POS billing (new module, Phase 11, about 6 to 8 weeks):**
+
+- Counter screen built for speed: barcode scan (using the item UOM barcodes and the item catalogue), search by name, quantity and discount keys, and no mouse needed
+- Terminals belong to a branch; each has its own invoice series, so bills never clash even offline
+- Shift open and close: opening float, cash count by denomination at close, and a cash and UPI/card variance report
+- Split payments: cash, UPI (with dynamic QR), card, and credit for known customers
+- Each bill is a B2C sales invoice that posts sales, GST and stock at once; returns and exchanges at the counter post a credit note
+- Works offline: the browser keeps a queue of bills and syncs when the connection returns
+- Thermal receipt printing (80 mm) and an optional customer display
+- Later: loyalty points, schemes and offers, and weighing-scale barcodes for loose goods
 
 ## AI in MyERP (added 3 Nov)
 
@@ -334,7 +361,7 @@ Cutover is best on the first day of a quarter after a month-end close. The bin s
 
 The build is now about 11 to 15 months of part-time work, then 2 to 3 months of parallel running. v2 adds Phase 0 for setup, folds TDS into Phase 6, adds fixed assets, loans and payroll as Phases 7 and 8, makes migration its own phase, and adds Phase 10 to prepare MyERP for sale as SaaS. The multi-tenant foundation itself is built in Phases 0 and 1, adding about 2 weeks.
 
-_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8). Each phase closes with a gate tested on real Apurvam data._
+_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8) · 11 POS billing (6–8, added 4 Nov; can move earlier if Apurvam opens retail counters). Branch columns and the branch master arrive in Phase 1, branch reports in Phases 2 and 6. Each phase closes with a gate tested on real Apurvam data._
 
 A phase starts only when the gate above it passes. Durations are estimates for one person working with Claude a few hours a day; dates get set once the target cutover date is known.
 
@@ -513,3 +540,5 @@ The v1 working method stands: the repo is the project's memory, spec before code
 * [ ] **(new, 4 Nov)** Item catalogue scope: packaged products only, or raw materials and packing materials too?
 * [ ] **(new, 4 Nov)** Does Apurvam have a GS1 India membership and GTINs on its packs? If not, MyERP issues its own catalogue codes
 * [ ] **(new, 4 Nov)** Who curates the catalogue for the SaaS version: your team only, or also trusted tenants?
+* [ ] **(new, 4 Nov)** Do either company have branches today (depots, factories, offices) whose accounts you want separately? Which ones?
+* [ ] **(new, 4 Nov)** Will Apurvam run its own retail counters? If yes, POS can move ahead of Phase 10
