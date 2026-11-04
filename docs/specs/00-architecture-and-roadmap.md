@@ -275,6 +275,38 @@ Sidharth on 4 Nov: batch-wise stock is mandatory, traceability forward and backw
 
 This module needs tablet and phone screens, which settles part of the mobile open decision: checklist runs and batch release will be mobile-friendly in v1.
 
+### Mobile apps for supervisors (added 4 Nov)
+
+Sidharth on 4 Nov: a mobile app later, including apps for the production, warehouse, and receiving and dispatch supervisors.
+
+**One app with role workspaces, not four apps.** A single Android/iOS app shows each person only the workspaces their role allows. One app is one thing to build, test, install and update; a supervisor who covers two roles just sees both.
+
+| Workspace | What the supervisor does on the floor |
+| --- | --- |
+| Production | Today's work orders by line; start, pause and finish job card stages with downtime reasons; issue materials by scanning batch labels; record output and print the new batch label; scrap and by-products; CCP checks and checklists; photos |
+| Warehouse | Stock lookup by scanning an item, batch or bin; putaway suggestions; bin-to-bin transfers; cycle counts; batch hold and release; expiry alerts |
+| Receiving | Gate entry against a PO (vehicle, driver, invoice photo); draft GRN by scanning supplier lots and entering expiry; weighment; incoming QC checklist; damage photos |
+| Dispatch | Pick lists in first-expiry-first-out order by scan; packing into cartons; loading checklist and vehicle photo; delivery note; e-way bill status |
+| Approvals (everyone) | Approve or reject POs, payments and other documents waiting on them; notifications |
+
+How it works:
+
+- **Scanning:** the phone camera for occasional use, or rugged Android scanners (Zebra, Honeywell) with built-in scanners for the warehouse and floor.
+- **Works with weak signal:** actions are queued on the device and sent when the connection returns. Each carries an idempotency key, so a retry never creates a second entry.
+- **Same rules as the web:** the app only calls the same API as the web screens. Posting, batches, permissions and approvals all stay on the server.
+
+**Roadmap:** in v1 the floor screens (checklists, batch release, receiving, picking) are built mobile-friendly in the web app, so tablets work from the start. The native app is **Phase 12 (about 8 to 10 weeks)**, after the web modules it uses are stable. It can come earlier if the floor needs it.
+
+**Choices made now so the app is easy later (Phase 1 onward):**
+
+- Every business action is an API call; the React screens hold no business logic.
+- The API is versioned (`/api/v1/`) and described by an OpenAPI schema generated from the code. The web and mobile apps share one generated TypeScript client.
+- Create and submit endpoints accept an idempotency key.
+- One **scan endpoint** turns any barcode (item UOM, batch, bin, document, container or AWB) into the record it belongs to.
+- List endpoints support "changed since" for offline sync.
+- Mobile sign-in uses the same Google account. It gets a per-device token that an admin can revoke, plus push notifications.
+- React Native (Expo) is chosen so the app reuses TypeScript, types and much of the logic from the web front end.
+
 ### Branch accounts and POS billing (added 4 Nov)
 
 Sidharth asked on 4 Nov for branch-wise accounts and point-of-sale (POS) billing at a later stage. Both are planned now so the data model is ready for them. Branch accounts mostly come for free from rule 19. POS is a later module.
@@ -421,7 +453,7 @@ Cutover is best on the first day of a quarter after a month-end close. The bin s
 
 The build is now about 11 to 15 months of part-time work, then 2 to 3 months of parallel running. v2 adds Phase 0 for setup, folds TDS into Phase 6, adds fixed assets, loans and payroll as Phases 7 and 8, makes migration its own phase, and adds Phase 10 to prepare MyERP for sale as SaaS. The multi-tenant foundation itself is built in Phases 0 and 1, adding about 2 weeks.
 
-_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 5b Quality and food safety (5–6, added 4 Nov) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8) · 11 POS billing (6–8, added 4 Nov; can move earlier if Apurvam opens retail counters). Branch columns and the branch master arrive in Phase 1, branch reports in Phases 2 and 6. Each phase closes with a gate tested on real Apurvam data._
+_Roadmap diagram in the planning doc. Phases: 0 Setup (2–3 wks) · 1 Foundation and masters (4–6) · 2 Accounts core (6–8) · 3 Stock and purchase (8–10) · 4 Sales (6–8) · 5 Production (6–8) · 5b Quality and food safety (5–6, added 4 Nov) · 6 GST, TDS and MIS (5–7) · 7 Fixed assets and loans (3–4) · 8 Payroll and staff (6–8) · 9 Migration and cutover (2–3 months) · 10 SaaS launch (6–8) · 11 POS billing (6–8, added 4 Nov; can move earlier if Apurvam opens retail counters). 12 Mobile app for supervisors (8–10, added 4 Nov). Branch columns and the branch master arrive in Phase 1, branch reports in Phases 2 and 6. Each phase closes with a gate tested on real Apurvam data._
 
 A phase starts only when the gate above it passes. Durations are estimates for one person working with Claude a few hours a day; dates get set once the target cutover date is known.
 
@@ -573,7 +605,7 @@ The v1 working method stands: the repo is the project's memory, spec before code
 - [x] Stack: Django + React (decided 4 Nov)
 - [x] Default stock valuation: FIFO for all items (decided)
 - [ ] Hosting: VPS you manage, or a managed platform (Render / Railway / AWS) at higher cost
-- [ ] Mobile/tablet screens in v1 for production, stores or sales?
+- [x] Mobile: floor screens mobile-friendly in the web app in v1; one native app with role workspaces in Phase 12 (decided 4 Nov)
 - [ ] E-invoice and e-way bill: direct NIC API or via a GSP
 - [ ] Who validates posting rules: you alone, or with your CA per module
 - [ ] Budget for running costs (server, backups, GSP fees)
