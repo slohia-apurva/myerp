@@ -10,5 +10,5 @@
   - SMS OTP was rejected for sign-in (SIM-swap risk, DLT registration and per-message cost in India). An **email one-time code** fallback for people without a Google account comes in a later slice, together with outbound email.
 - Consequences:
   - Google cannot use wildcard origins, so every address people sign in at must be listed on the OAuth client. Before SaaS launch, use one central sign-in address (e.g. `login.myerp.in`) that hands the session to the tenant's subdomain.
-  - The OAuth consent screen is Internal (apurva.org.in only) for now; going External for other tenants needs Google's brand verification.
+  - The OAuth consent screen is External and published, so any Google account (Workspace or Gmail) can reach the sign-in step; access is still limited to emails a tenant admin added. Adding a logo to the consent screen would trigger Google's brand verification.
   - Roles and a Users screen for tenant admins come next; until then users are added with `manage.py create_tenant_user`.
