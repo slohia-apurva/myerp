@@ -1,10 +1,11 @@
 # MyERP: notes for Claude sessions
 
-MyERP is Apurvam's own web ERP (books, stock, production, purchase, sales, GST, payroll), built to replace ERPNext and later sold as SaaS. Read `docs/specs/00-architecture-and-roadmap.md` (the plan, design rules 1-18, roadmap) and `docs/decisions/` before changing anything structural.
+MyERP is Apurvam's own web ERP (books, stock, production, purchase, sales, GST, payroll), built to replace ERPNext and later sold as SaaS. Read `docs/specs/00-architecture-and-roadmap.md` (the plan, design rules 1-19, roadmap) and `docs/decisions/` before changing anything structural.
 
 ## Rules that code must keep
 
 - Two ledgers (GL, stock ledger) are the source of truth; posted entries are immutable (cancel + amend, never edit).
+- Every voucher, GL row and stock ledger row carries company_id and branch_id (rule 19).
 - Money NUMERIC(18,2), qty/rates NUMERIC(18,6). Never floats.
 - Tenant isolation: tenant data is reached only inside `tenancy.context.use_tenant(...)` (the middleware does this per request). Never pass `.using(...)` to reach another tenant. Platform-side apps are listed in `tenancy.router.PLATFORM_APPS`; everything else is tenant-side.
 - No tenant-specific code: differences between tenants are data or plan feature flags.

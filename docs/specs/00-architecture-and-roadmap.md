@@ -202,7 +202,8 @@ These rules are fixed before any module is written, and every later module must 
 13. **Inter-company and inter-GSTIN movements are sales (new).** Stock moving between the LLP and the Ltd, or between two GSTINs of one company, posts a tax invoice and a matching purchase, with GST. Moves within one GSTIN are plain transfers.
 14. **Tax rules are dated master data (new).** GST rates, HSN mappings, TDS sections and thresholds live in tables with valid-from dates. A rate change is a data entry, not a code change, and old documents keep the rate of their date.
 15. **Approvals are rules, not code (new).** Approval rules per document type and company (e.g. PO above ₹1 lakh needs owner approval; sales below a margin floor needs approval; credit-limit breach blocks SO submit).
-19. **Every row carries its branch (added 4 Nov).** Each company has at least one branch ("Head office" is created with the company). Every voucher header, GL row and stock ledger row carries branch\_id next to company\_id, and every voucher balances per branch as well as per company. When one voucher touches two branches, the posting service adds the matching lines on a Branch/Divisions control account, the way Tally does. Added now because adding a column to every ledger row after go-live means rewriting history.
+
+- **Rule 19: Every row carries its branch (added 4 Nov).** Each company has at least one branch ("Head office" is created with the company). Every voucher header, GL row and stock ledger row carries branch\_id next to company\_id, and every voucher balances per branch as well as per company. When one voucher touches two branches, the posting service adds the matching lines on a Branch/Divisions control account, the way Tally does. Added now because adding a column to every ledger row after go-live means rewriting history.
 
 ## Module map
 
