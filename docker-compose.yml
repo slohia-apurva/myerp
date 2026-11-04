@@ -1,0 +1,52 @@
+# Local development. See README for first-time setup.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: myerp
+      POSTGRES_PASSWORD: myerp
+      POSTGRES_DB: myerp_platform
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myerp -d myerp_platform"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  backend:
+    build: ./backend
+    command: sh -c "python manage.py migrate && python manage.py migrate_tenants && python manage.py runserver 0.0.0.0:8000"
+    environment: &backend-env
+      DJANGO_DEBUG: "1"
+      MYERP_BASE_DOMAIN: localhost
+      PLATFORM_DATABASE_URL: postgres://myerp:myerp@db:5432/myerp_platform
+      CELERY_BROKER_URL: redis://redis:6379/0
+    volumes: ["./backend:/app"]
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  worker:
+    build: ./backend
+    command: celery -A config worker --loglevel=info
+    environment: *backend-env
+    volumes: ["./backend:/app"]
+    depends_on: [backend, redis]
+
+  frontend:
+    image: node:22
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --port 5173"
+    environment:
+      VITE_API_TARGET: http://backend:8000
+    volumes: ["./frontend:/app"]
+    ports: ["5173:5173"]
+    depends_on: [backend]
+
+volumes:
+  pgdata:
