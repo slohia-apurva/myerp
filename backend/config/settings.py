@@ -56,6 +56,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves the built React app (index.html and /assets/) before tenant lookup.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.common.CommonMiddleware",
     "tenancy.middleware.TenantMiddleware",
 ]
@@ -77,7 +79,15 @@ DATABASES = {
 DATABASE_ROUTERS = ["tenancy.router.TenantRouter"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# The production image copies the React build here (see the root Dockerfile).
+FRONTEND_DIST = BASE_DIR / "frontend_dist"
+STATIC_URL = "static/"
+WHITENOISE_ROOT = FRONTEND_DIST if FRONTEND_DIST.is_dir() else None
+WHITENOISE_INDEX_FILE = True
+
 REST_FRAMEWORK = {
+    # JSON only: the browsable API would need templates we don't ship.
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     # Login arrives in Phase 1; Phase 0 endpoints are read-only probes.
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],

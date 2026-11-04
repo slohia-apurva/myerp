@@ -25,3 +25,4 @@ frontend/dist/
 *.tfstate
 *.tfstate.*
 .terraform.lock.hcl.bak
+backend/frontend_dist/
