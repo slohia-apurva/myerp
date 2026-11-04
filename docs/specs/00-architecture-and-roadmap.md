@@ -275,6 +275,37 @@ Sidharth asked on 4 Nov for branch-wise accounts and point-of-sale (POS) billing
 - Thermal receipt printing (80 mm) and an optional customer display
 - Later: loyalty points, schemes and offers, and weighing-scale barcodes for loose goods
 
+### Integrations with outside services (added 4 Nov)
+
+Sidharth asked on 4 Nov for API links with shipping companies, banks and other services. They all go through one **connectors** layer:
+
+- Each connector is switched on per tenant.
+- Its keys are stored in Secret Manager under that tenant.
+- Calls run as background jobs with retries.
+- Every request and response is logged.
+
+Connectors bring data in as drafts or suggestions, the same rule as AI (rule 0006). For example, a bank statement line becomes a match suggestion and a courier COD remittance becomes a draft receipt. A person submits; nothing posts on its own.
+
+| Priority | Integration | What it does | Providers to compare | Phase |
+| --- | --- | --- | --- | --- |
+| Must, v1 | GST (via a GSP or NIC direct) | E-invoice IRN and QR, e-way bill create/extend/cancel, GSTIN lookup on party masters, GSTR-1 upload data, GSTR-2B and IMS download | ClearTax, Masters India, IRIS, NIC direct | 6a (GSTIN lookup in 1) |
+| Must, v1 | Banks: statements | Daily statement feed for reconciliation; CSV/MT940 import first, then bank APIs | ICICI, HDFC, Axis, Kotak connected banking; or an aggregator | 2 |
+| Must, v1 | Banks: payments | Bulk vendor and salary payment files or API, with status coming back; positive pay for cheques | Same banks; RazorpayX or similar | 2, 8 |
+| Must, v1 | Email and WhatsApp | Send invoices, POs, statements, payment reminders, approval requests | Transactional email service; WhatsApp Business API (Meta Cloud API, Gupshup, Interakt) | 2, 4 |
+| High | Payment collection | UPI QR and payment link on each invoice; incoming payments matched to the invoice | Razorpay, Cashfree, PayU | 4 |
+| High | Shipping and courier | Book shipment, get AWB and label, track, and reconcile COD remittances and freight bills against dispatches | Shiprocket, ClickPost (aggregators), Delhivery, Blue Dart, DTDC | 4 |
+| High | Freight and vehicles | Vehicle and e-way bill status, FASTag trips for full-truck loads | ULIP (government logistics platform), transporter portals | 4 |
+| High | Identity checks | Verify PAN, GSTIN, Udyam (MSME) and bank account (penny drop) when creating parties and employees | Surepass, Signzy, or the GSP | 1 |
+| Medium | Marketplaces and online store | Pull orders, returns and settlement reports; push stock | Amazon SP-API, Flipkart, Shopify or WooCommerce; quick-commerce portals by file | after 4 |
+| Medium | Devices | Barcode label printers (ZPL), weighing scales, biometric attendance, thermal receipt printers | Zebra, TSC; ZKTeco, eSSL | 3, 8, 11 |
+| Medium | Statutory files | TDS returns (26Q/27EQ in FVU format), EPFO ECR, ESIC, PT returns: generated as files for upload | Government utilities | 6b, 8 |
+| Medium | E-signature | Sign invoices and POs with DSC or Aadhaar eSign | Leegality, Digio, emSigner | 4 |
+| Later | Invoice discounting | Upload invoices to TReDS for early payment from large buyers | RXIL, M1xchange, Invoicemart | 10 |
+| Later | Tally export | Vouchers and masters as Tally XML, for a CA who works in Tally | none | 6c |
+| Later | MyERP's own API | Documented REST API and webhooks, so tenants can connect their own tools | none | 10 |
+
+Open question: which bank(s) and courier(s) Apurvam uses today, since we start with those.
+
 ## AI in MyERP (added 3 Nov)
 
 Yes, MyERP should use AI, but only as an assistant that prepares drafts and flags problems. A person always submits. AI never posts to the ledgers, so design rules 1 to 3 stay exactly as they are.
@@ -543,3 +574,4 @@ The v1 working method stands: the repo is the project's memory, spec before code
 * [ ] **(new, 4 Nov)** Who curates the catalogue for the SaaS version: your team only, or also trusted tenants?
 * [ ] **(new, 4 Nov)** Do either company have branches today (depots, factories, offices) whose accounts you want separately? Which ones?
 * [ ] **(new, 4 Nov)** Will Apurvam run its own retail counters? If yes, POS can move ahead of Phase 10
+* [ ] **(new, 4 Nov)** Which banks, couriers or transporters, payment gateway and GSP does Apurvam use today?
