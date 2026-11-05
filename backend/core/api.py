@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import india
+from core import modules as company_modules
 from core.companies import create_company, visible_companies
 from core.models import (
     BILL_WISE_GROUP_CODES,
@@ -88,6 +89,13 @@ class CompanySerializer(serializers.ModelSerializer):
     cin = serializers.CharField(max_length=21, allow_blank=True, required=False)
     tan = serializers.CharField(max_length=10, allow_blank=True, required=False)
     validate_gstin = validate_pan = validate_cin = validate_tan = staticmethod(_upper)
+    modules = serializers.ListField(child=serializers.CharField(), required=False)
+
+    def validate_modules(self, value):
+        try:
+            return company_modules.check(value)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
 
     class Meta:
         model = Company
@@ -108,6 +116,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "fiscal_year_start_month",
             "books_start",
             "multi_currency",
+            "modules",
             "base_currency",
         ]
         read_only_fields = ["base_currency"]
@@ -377,6 +386,18 @@ class StatesView(APIView):
         return Response([{"code": c, "name": n} for c, n in india.STATE_CHOICES])
 
 
+class ModulesView(APIView):
+    permission_classes = [Signed]
+
+    def get(self, request):
+        return Response(
+            [
+                {"code": code, "label": label, "what": what, "needs": list(needs)}
+                for code, label, what, needs in company_modules.MODULES
+            ]
+        )
+
+
 class CompanyListView(APIView):
     permission_classes = [Signed]
 
@@ -443,7 +464,10 @@ class CompanyDetailView(APIView):
         # Fiscal year start can change only until vouchers exist (a later piece
         # will refuse it then).
         fields = ["name", "gstin", "pan", *REGISTRATION_FIELDS, "state_code", *CONTACT_FIELDS]
-        _save(company, data, [*fields, "fiscal_year_start_month", "books_start", "multi_currency"])
+        if "modules" in data and data["modules"] != company.modules and not request.user.is_owner:
+            raise PermissionDenied("Only an Owner can change a company's modules.")
+        extra = ["fiscal_year_start_month", "books_start", "multi_currency", "modules"]
+        _save(company, data, [*fields, *extra])
         if not company.multi_currency and company.ledgers.exclude(currency=None).exists():
             raise ValidationError(
                 {"multi_currency": ["Some ledgers are in foreign currencies; change them first."]}

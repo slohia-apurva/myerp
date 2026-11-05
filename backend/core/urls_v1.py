@@ -4,6 +4,7 @@ from core import api
 
 urlpatterns = [
     path("states/", api.StatesView.as_view(), name="states"),
+    path("modules/", api.ModulesView.as_view(), name="modules"),
     path("currencies/", api.CurrencyListView.as_view(), name="currencies"),
     path("companies/", api.CompanyListView.as_view(), name="companies"),
     path("companies/<int:pk>/", api.CompanyDetailView.as_view(), name="company"),

@@ -7,7 +7,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.functions import Lower
 
-from core import india
+from core import india, modules
 
 
 class Currency(models.Model):
@@ -70,6 +70,8 @@ class Company(models.Model):
     base_currency = models.CharField(max_length=3, default="INR", editable=False)
     # Exports, imports, EEFC accounts: ledgers and bills in other currencies.
     multi_currency = models.BooleanField(default=False)
+    # Module codes this company uses (core.modules); Accounts is always on.
+    modules = models.JSONField(default=modules.all_modules)
     # "Books beginning from": opening balances are as at the start of this day.
     books_start = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
