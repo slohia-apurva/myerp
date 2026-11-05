@@ -14,4 +14,6 @@ urlpatterns = [
         name="ledger-groups",
     ),
     path("ledger-groups/<int:pk>/", api.LedgerGroupDetailView.as_view(), name="ledger-group"),
+    path("companies/<int:pk>/ledgers/", api.LedgerListView.as_view(), name="ledgers"),
+    path("ledgers/<int:pk>/", api.LedgerDetailView.as_view(), name="ledger"),
 ]
