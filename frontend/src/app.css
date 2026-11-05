@@ -282,3 +282,7 @@ table.grid tfoot td {
 table.grid select {
   min-width: 68px;
 }
+
+.pre {
+  white-space: pre-line;
+}

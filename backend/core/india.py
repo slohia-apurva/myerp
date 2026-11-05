@@ -81,3 +81,12 @@ def validate_gstin(value: str) -> None:
 def validate_state_code(value: str) -> None:
     if value not in STATES:
         raise ValidationError(f"{value} is not a GST state code.")
+
+
+PHONE_RE = re.compile(r"^\+?[0-9][0-9 \-]{5,18}[0-9]$")
+
+
+def validate_phone(value: str) -> None:
+    """Indian or international numbers: digits, spaces and dashes, optional +."""
+    if not PHONE_RE.match(value):
+        raise ValidationError("Enter a phone number like +91 98200 12345 or 022-2345 6789.")

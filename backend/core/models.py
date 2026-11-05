@@ -43,6 +43,9 @@ class Company(models.Model):
     state_code = models.CharField(max_length=2, validators=[india.validate_state_code])
     address = models.TextField(blank=True)
     pincode = models.CharField(max_length=6, blank=True)
+    phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
+    email = models.EmailField(blank=True)
+    contact_person = models.CharField(max_length=100, blank=True)
     # Indian companies close their books on 31 March, so the year starts in April.
     fiscal_year_start_month = models.PositiveSmallIntegerField(
         default=4, validators=[MinValueValidator(1), MaxValueValidator(12)]
@@ -116,6 +119,10 @@ class Branch(models.Model):
     state_code = models.CharField(max_length=2, validators=[india.validate_state_code])
     gstin = models.CharField(max_length=15, blank=True, validators=[india.validate_gstin])
     address = models.TextField(blank=True)
+    pincode = models.CharField(max_length=6, blank=True)
+    phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
+    email = models.EmailField(blank=True)
+    contact_person = models.CharField(max_length=100, blank=True)
     is_head_office = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
@@ -143,6 +150,8 @@ class Branch(models.Model):
                 raise ValidationError({"gstin": "This GSTIN belongs to a different state."})
             if self.company.pan and self.gstin[2:12] != self.company.pan:
                 raise ValidationError({"gstin": "A branch GSTIN must be under the company's PAN."})
+        if self.pincode and not re.fullmatch(r"[1-9][0-9]{5}", self.pincode):
+            raise ValidationError({"pincode": "A PIN code is 6 digits."})
         if self.is_head_office and not self.is_active:
             raise ValidationError({"is_active": "The head office cannot be deactivated."})
 

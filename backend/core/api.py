@@ -69,6 +69,9 @@ def _upper(value: str) -> str:
     return value.strip().upper()
 
 
+CONTACT_FIELDS = ["address", "pincode", "phone", "email", "contact_person"]
+
+
 class CompanySerializer(serializers.ModelSerializer):
     state = serializers.SerializerMethodField()
     # Checked by the model after being upper-cased here.
@@ -88,6 +91,9 @@ class CompanySerializer(serializers.ModelSerializer):
             "state",
             "address",
             "pincode",
+            "phone",
+            "email",
+            "contact_person",
             "fiscal_year_start_month",
             "books_start",
             "multi_currency",
@@ -111,7 +117,15 @@ class BranchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Branch
-        fields = ["id", "name", "state_code", "gstin", "address", "is_head_office", "is_active"]
+        fields = [
+            "id",
+            "name",
+            "state_code",
+            "gstin",
+            *CONTACT_FIELDS,
+            "is_head_office",
+            "is_active",
+        ]
         read_only_fields = ["is_head_office"]
 
 
@@ -392,7 +406,7 @@ class CompanyDetailView(APIView):
         old_pan = company.pan
         # Fiscal year start can change only until vouchers exist (a later piece
         # will refuse it then).
-        fields = ["name", "gstin", "pan", "state_code", "address", "pincode"]
+        fields = ["name", "gstin", "pan", "state_code", *CONTACT_FIELDS]
         _save(company, data, [*fields, "fiscal_year_start_month", "books_start", "multi_currency"])
         if not company.multi_currency and company.ledgers.exclude(currency=None).exists():
             raise ValidationError(
@@ -444,7 +458,7 @@ class BranchDetailView(APIView):
             others = Branch.objects.filter(company_id=branch.company_id).exclude(pk=pk)
             if others.filter(name__iexact=data["name"]).exists():
                 raise ValidationError({"name": ["This company already has a branch by that name."]})
-        _save(branch, data, ["name", "state_code", "gstin", "address", "is_active"])
+        _save(branch, data, ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active"])
         return Response(BranchSerializer(branch).data)
 
 

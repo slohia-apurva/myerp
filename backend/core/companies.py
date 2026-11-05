@@ -19,6 +19,11 @@ def create_company(**fields) -> Company:
         company.full_clean(exclude=["abbr"] if not company.abbr else None)
         company.save()
         ensure_head_office(Branch, company)
+        # The head office starts with the company's address and contact.
+        head = company.branches.get(is_head_office=True)
+        for field in ("address", "pincode", "phone", "email", "contact_person"):
+            setattr(head, field, getattr(company, field))
+        head.save()
         seed_standard_groups(LedgerGroup, company)
         ensure_cash_ledger(Ledger, LedgerGroup, company)
     return company
