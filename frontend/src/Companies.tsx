@@ -79,7 +79,7 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
       </div>
       <p className="small">
         Each company keeps its own books, GST registration and document numbers. A new company starts with a Head
-        office branch and Tally's standard ledger groups.
+        office branch and the standard ledger groups.
       </p>
       {error && <p className="error">{error}</p>}
       {adding && (
@@ -451,7 +451,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
         <h3>Ledger groups</h3>
       </div>
       <p className="small">
-        Tally's 15 primary groups and their standard sub-groups come with every company and cannot be changed. Add your
+        The 15 primary groups and their standard sub-groups come with every company and cannot be changed. Add your
         own groups under them, for example Export debtors under Sundry Debtors. Ledgers come in the next piece.
       </p>
       <ul className="tree">{(children.get(null) ?? []).map((g) => node(g, 0))}</ul>
