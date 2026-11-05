@@ -119,7 +119,7 @@ def test_filter_by_group_includes_sub_groups(as_user, company):
     assert "ledgers" in str(response.json())
 
 
-def test_edit_move_deactivate_delete(as_user, company):
+def test_edit_move_deactivate_never_delete(as_user, company):
     accountant = as_user("accountant")
     g = groups(accountant, company)
     path = f"companies/{company}/ledgers/"
@@ -145,7 +145,9 @@ def test_edit_move_deactivate_delete(as_user, company):
     assert (
         call(accountant, "patch", f"ledgers/{ledger['id']}/", {"name": "Cash"}).status_code == 400
     )
-    assert call(accountant, "delete", f"ledgers/{ledger['id']}/").status_code == 204
+    # Ledgers are never deleted, even by an Owner; deactivate them instead.
+    owner = as_user("owner")
+    assert call(owner, "delete", f"ledgers/{ledger['id']}/").status_code == 405
 
 
 def test_who_may_see_and_change_ledgers(as_user, company, alpha):

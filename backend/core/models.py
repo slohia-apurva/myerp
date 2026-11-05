@@ -189,8 +189,8 @@ class Ledger(models.Model):
     """An account that takes postings, e.g. HDFC Current A/c or Freight
     Inward. Every ledger sits under a group and takes its nature from it.
 
-    Opening balances and postings arrive with vouchers; a ledger with
-    postings can then only be deactivated, not deleted.
+    Ledgers are never deleted (Sidharth, 5 Nov 2026), only deactivated, so
+    history always resolves. Opening balances arrive with vouchers.
     """
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="ledgers")
