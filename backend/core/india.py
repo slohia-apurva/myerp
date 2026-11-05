@@ -90,3 +90,43 @@ def validate_phone(value: str) -> None:
     """Indian or international numbers: digits, spaces and dashes, optional +."""
     if not PHONE_RE.match(value):
         raise ValidationError("Enter a phone number like +91 98200 12345 or 022-2345 6789.")
+
+
+# Registration numbers on the company master.
+CIN_RE = re.compile(
+    r"^[LU][0-9]{5}[A-Z]{2}[0-9]{4}(PLC|PTC|OPC|GOI|SGC|FLC|FTC|GAP|GAT|NPL|ULL|ULT)[0-9]{6}$"
+)
+LLPIN_RE = re.compile(r"^[A-Z]{3}-[0-9]{4}$")
+TAN_RE = re.compile(r"^[A-Z]{4}[0-9]{5}[A-Z]$")
+IEC_RE = re.compile(r"^[A-Z0-9]{10}$")
+UDYAM_RE = re.compile(r"^UDYAM-[A-Z]{2}-[0-9]{2}-[0-9]{7}$")
+FSSAI_RE = re.compile(r"^[0-9]{14}$")
+
+
+def _check(pattern, value: str, message: str) -> None:
+    if not pattern.match(value):
+        raise ValidationError(message)
+
+
+def validate_cin(value: str) -> None:
+    _check(CIN_RE, value, "A CIN is 21 characters like U01100MH2015PTC123456.")
+
+
+def validate_llpin(value: str) -> None:
+    _check(LLPIN_RE, value, "An LLPIN looks like AAB-1234.")
+
+
+def validate_tan(value: str) -> None:
+    _check(TAN_RE, value, "A TAN is 10 characters like PNEA12345B.")
+
+
+def validate_iec(value: str) -> None:
+    _check(IEC_RE, value, "An IEC is 10 letters or digits (usually the PAN).")
+
+
+def validate_udyam(value: str) -> None:
+    _check(UDYAM_RE, value, "A Udyam number looks like UDYAM-MH-26-0012345.")
+
+
+def validate_fssai(value: str) -> None:
+    _check(FSSAI_RE, value, "An FSSAI licence number is 14 digits.")

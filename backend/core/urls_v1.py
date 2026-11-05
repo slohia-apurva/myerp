@@ -10,6 +10,10 @@ urlpatterns = [
     path("companies/<int:pk>/branches/", api.BranchListView.as_view(), name="branches"),
     path("branches/<int:pk>/", api.BranchDetailView.as_view(), name="branch"),
     path(
+        "companies/<int:pk>/certificates/", api.CertificateListView.as_view(), name="certificates"
+    ),
+    path("certificates/<int:pk>/", api.CertificateDetailView.as_view(), name="certificate"),
+    path(
         "companies/<int:pk>/ledger-groups/",
         api.LedgerGroupListView.as_view(),
         name="ledger-groups",

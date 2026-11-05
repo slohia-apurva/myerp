@@ -233,3 +233,92 @@ def test_contact_details_on_company_and_branches(owner):
     assert "pincode" in bad.json()
     bad = call(owner, "patch", f"companies/{company['id']}/", {"email": "not-an-email"})
     assert "email" in bad.json()
+
+
+def test_registration_numbers(owner):
+    company = add_company(
+        owner,
+        entity_type="llp",
+        cin="aab-1234",
+        tan="pnea12345b",
+        incorporation_date="2015-06-01",
+    ).json()
+    assert (company["cin"], company["tan"]) == ("AAB-1234", "PNEA12345B")
+    path = f"companies/{company['id']}/"
+    # An LLP takes an LLPIN, not a CIN.
+    bad = call(owner, "patch", path, {"cin": "U01100MH2015PTC123456"})
+    assert "LLPIN" in bad.json()["cin"][0]
+    ok = call(
+        owner, "patch", path, {"entity_type": "private_limited", "cin": "U01100MH2015PTC123456"}
+    )
+    assert ok.status_code == 200, ok.json()
+    bad = call(owner, "patch", path, {"entity_type": "partnership"})
+    assert "cin" in bad.json()
+    assert "tan" in call(owner, "patch", path, {"tan": "12345"}).json()
+
+
+def test_one_default_address_of_each_kind(owner):
+    company_id = add_company(owner).json()["id"]
+    path = f"companies/{company_id}/branches/"
+    head = call(owner, "get", f"companies/{company_id}/").json()["branches"][0]
+    assert head["default_billing"] and head["default_ship_to"] and head["default_ship_from"]
+
+    depot = call(
+        owner,
+        "post",
+        path,
+        {"name": "Bhiwandi depot", "state_code": "27", "default_ship_from": True},
+    ).json()
+    branches = {
+        b["name"]: b for b in call(owner, "get", f"companies/{company_id}/").json()["branches"]
+    }
+    assert branches["Bhiwandi depot"]["default_ship_from"]
+    assert not branches["Head office"]["default_ship_from"]
+    assert branches["Head office"]["default_billing"]
+
+    # Unticking the only default is refused; it moves by ticking another branch.
+    bad = call(owner, "patch", f"branches/{depot['id']}/", {"default_ship_from": False})
+    assert "default_ship_from" in bad.json()
+    # A branch holding a default cannot be closed.
+    bad = call(owner, "patch", f"branches/{depot['id']}/", {"is_active": False})
+    assert "is_active" in bad.json()
+    call(owner, "patch", f"branches/{head['id']}/", {"default_ship_from": True})
+    ok = call(owner, "patch", f"branches/{depot['id']}/", {"is_active": False})
+    assert ok.status_code == 200, ok.json()
+
+
+def test_certificates_with_renewal_dates(owner):
+    company_id = add_company(owner).json()["id"]
+    head = call(owner, "get", f"companies/{company_id}/").json()["branches"][0]
+    path = f"companies/{company_id}/certificates/"
+    fssai = {
+        "kind": "fssai",
+        "number": "11526998000123",
+        "issued_by": "FSSAI",
+        "branch": head["id"],
+        "valid_from": "2023-04-01",
+        "valid_until": "2028-03-31",
+    }
+    response = call(owner, "post", path, fssai)
+    assert response.status_code == 201, response.json()
+    assert response.json()["branch_name"] == "Head office"
+    udyam = call(owner, "post", path, {"kind": "udyam", "number": "udyam-mh-26-0012345"}).json()
+    assert udyam["number"] == "UDYAM-MH-26-0012345" and udyam["valid_until"] is None
+
+    assert "number" in call(owner, "post", path, {**fssai, "number": "12ab"}).json()
+    iec = {"kind": "iec", "number": "aapfu0939f", "valid_until": "2027-06-30"}
+    assert call(owner, "post", path, iec).json()["number"] == "AAPFU0939F"
+    assert "name" in call(owner, "post", path, {"kind": "other", "number": "X1"}).json()
+    backwards = {**fssai, "valid_until": "2022-01-01"}
+    assert "valid_until" in call(owner, "post", path, backwards).json()
+
+    other_company = add_company(owner, name="Apurva Organics Ltd", gstin="").json()["id"]
+    other_head = call(owner, "get", f"companies/{other_company}/").json()["branches"][0]
+    bad = call(owner, "post", path, {**fssai, "branch": other_head["id"]})
+    assert "branch" in bad.json()
+
+    renewed = call(owner, "patch", f"certificates/{udyam['id']}/", {"notes": "Re-classified"})
+    assert renewed.status_code == 200
+    assert call(owner, "delete", f"certificates/{udyam['id']}/").status_code == 405
+    detail = call(owner, "get", f"companies/{company_id}/").json()
+    assert [c["kind"] for c in detail["certificates"]] == ["fssai", "iec", "udyam"]

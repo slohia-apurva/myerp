@@ -35,7 +35,24 @@ class Company(models.Model):
     office branch and the standard ledger groups.
     """
 
+    PROPRIETORSHIP, PARTNERSHIP, LLP = "proprietorship", "partnership", "llp"
+    PRIVATE, PUBLIC, OPC = "private_limited", "public_limited", "opc"
+    ENTITY_TYPES = [
+        (PROPRIETORSHIP, "Proprietorship"),
+        (PARTNERSHIP, "Partnership firm"),
+        (LLP, "LLP"),
+        (PRIVATE, "Private limited company"),
+        (PUBLIC, "Public limited company"),
+        (OPC, "One person company"),
+    ]
+    REGISTERED_WITH_MCA = (LLP, PRIVATE, PUBLIC, OPC)
+
     name = models.CharField(max_length=200, unique=True)
+    entity_type = models.CharField(max_length=20, choices=ENTITY_TYPES, blank=True)
+    # CIN for companies, LLPIN for LLPs (both from the MCA).
+    cin = models.CharField(max_length=21, blank=True)
+    incorporation_date = models.DateField(null=True, blank=True)
+    tan = models.CharField(max_length=10, blank=True, validators=[india.validate_tan])
     # Short code used in document numbers, e.g. AOL/PO/2026-27/0001.
     abbr = models.CharField(max_length=10, unique=True)
     gstin = models.CharField(max_length=15, blank=True, validators=[india.validate_gstin])
@@ -75,6 +92,21 @@ class Company(models.Model):
         self.gstin = self.gstin.strip().upper()
         self.pan = self.pan.strip().upper()
         self.abbr = self.abbr.strip().upper()
+        for field in ("cin", "tan"):
+            setattr(self, field, getattr(self, field).strip().upper())
+        if self.cin:
+            if self.entity_type == self.LLP:
+                check = india.validate_llpin
+            elif self.entity_type in self.REGISTERED_WITH_MCA:
+                check = india.validate_cin
+            else:
+                raise ValidationError(
+                    {"cin": "Only companies and LLPs have a CIN or LLPIN; pick the type first."}
+                )
+            try:
+                check(self.cin)
+            except ValidationError as exc:
+                raise ValidationError({"cin": exc.messages}) from exc
         if self.gstin:
             if not self.pan:
                 self.pan = self.gstin[2:12]
@@ -125,11 +157,23 @@ class Branch(models.Model):
     contact_person = models.CharField(max_length=100, blank=True)
     is_head_office = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    # The address picked first on documents; each can be changed per document.
+    default_billing = models.BooleanField(default=False)
+    default_ship_to = models.BooleanField(default=False)
+    default_ship_from = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-is_head_office", "name"]
         verbose_name_plural = "branches"
         constraints = [
+            *(
+                models.UniqueConstraint(
+                    fields=["company"],
+                    condition=models.Q(**{flag: True}),
+                    name=f"one_{flag}_per_company",
+                )
+                for flag in ("default_billing", "default_ship_to", "default_ship_from")
+            ),
             models.UniqueConstraint(
                 "company", Lower("name"), name="branch_name_unique_per_company"
             ),
@@ -154,6 +198,88 @@ class Branch(models.Model):
             raise ValidationError({"pincode": "A PIN code is 6 digits."})
         if self.is_head_office and not self.is_active:
             raise ValidationError({"is_active": "The head office cannot be deactivated."})
+        if not self.is_active and (
+            self.default_billing or self.default_ship_to or self.default_ship_from
+        ):
+            raise ValidationError(
+                {"is_active": "Move this branch's default addresses before closing it."}
+            )
+
+
+class Certificate(models.Model):
+    """A licence, registration or certificate the company must keep valid:
+    FSSAI licence, organic (NPOP) scope certificate, ISO / FSSC 22000, LUT,
+    factory licence, pollution consent. Kept on its own list so renewals can
+    be reminded. Never deleted: a renewed certificate is a new row and the
+    old one stays as history."""
+
+    FSSAI, UDYAM, IEC, ORGANIC, ISO, FSSC, LUT, FACTORY, POLLUTION, TRADE, OTHER = (
+        "fssai",
+        "udyam",
+        "iec",
+        "organic",
+        "iso",
+        "fssc",
+        "lut",
+        "factory",
+        "pollution",
+        "trade",
+        "other",
+    )
+    KINDS = [
+        (FSSAI, "FSSAI licence / registration"),
+        (UDYAM, "Udyam (MSME) registration"),
+        (IEC, "IEC (importer-exporter code)"),
+        (ORGANIC, "Organic certificate (NPOP / NOP / EU)"),
+        (ISO, "ISO certificate"),
+        (FSSC, "FSSC 22000"),
+        (LUT, "LUT for exports"),
+        (FACTORY, "Factory licence"),
+        (POLLUTION, "Pollution control consent"),
+        (TRADE, "Shop / trade licence"),
+        (OTHER, "Other"),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="certificates")
+    # Premises-wise licences (FSSAI, factory) belong to a branch; blank = whole company.
+    branch = models.ForeignKey(
+        Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="certificates"
+    )
+    kind = models.CharField(max_length=20, choices=KINDS)
+    name = models.CharField(max_length=100, blank=True)  # e.g. "ISO 9001:2015"
+    number = models.CharField(max_length=60)
+    issued_by = models.CharField(max_length=100, blank=True)
+    valid_from = models.DateField(null=True, blank=True)
+    # Renewal (expiry) date; blank for certificates that do not lapse.
+    valid_until = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["kind", "-valid_until"]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} {self.number}"
+
+    def clean(self):
+        self.number = self.number.strip()
+        check = {
+            self.FSSAI: india.validate_fssai,
+            self.UDYAM: india.validate_udyam,
+            self.IEC: india.validate_iec,
+        }
+        if self.kind in (self.UDYAM, self.IEC):
+            self.number = self.number.upper()
+        if self.kind in check:
+            try:
+                check[self.kind](self.number)
+            except ValidationError as exc:
+                raise ValidationError({"number": exc.messages}) from exc
+        if self.kind == self.OTHER and not self.name.strip():
+            raise ValidationError({"name": "Say what this certificate is."})
+        if self.valid_from and self.valid_until and self.valid_until < self.valid_from:
+            raise ValidationError({"valid_until": "The renewal date is before the start date."})
+        if self.branch_id and self.branch.company_id != self.company_id:
+            raise ValidationError({"branch": "That branch belongs to another company."})
 
 
 class LedgerGroup(models.Model):

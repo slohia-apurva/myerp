@@ -9,13 +9,13 @@ const contactOf = (x: Contact | null | undefined): Contact =>
     ? { address: x.address, pincode: x.pincode, phone: x.phone, email: x.email, contact_person: x.contact_person }
     : NO_CONTACT;
 
-function ContactFields(props: { value: Contact; onChange: (c: Contact) => void }) {
+function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; addressLabel?: string }) {
   const v = props.value;
   const set = (field: keyof Contact) => (e: { target: { value: string } }) => props.onChange({ ...v, [field]: e.target.value });
   return (
     <>
       <label>
-        Address
+        {props.addressLabel ?? "Address"}
         <textarea rows={2} value={v.address} onChange={set("address")} />
       </label>
       <div className="row">
@@ -50,6 +50,10 @@ function contactLines(x: Contact) {
 export type Company = Contact & {
   id: number;
   name: string;
+  entity_type: string;
+  cin: string;
+  incorporation_date: string | null;
+  tan: string;
   abbr: string;
   gstin: string;
   pan: string;
@@ -60,7 +64,51 @@ export type Company = Contact & {
   multi_currency: boolean;
   base_currency: string;
 };
-type Branch = Contact & {
+type DefaultFlag = "default_billing" | "default_ship_to" | "default_ship_from";
+const DEFAULTS: [DefaultFlag, string][] = [
+  ["default_billing", "Default billing address"],
+  ["default_ship_to", "Default ship to"],
+  ["default_ship_from", "Default ship from"],
+];
+const ENTITY_TYPES: [string, string][] = [
+  ["proprietorship", "Proprietorship"],
+  ["partnership", "Partnership firm"],
+  ["llp", "LLP"],
+  ["private_limited", "Private limited company"],
+  ["public_limited", "Public limited company"],
+  ["opc", "One person company"],
+];
+const MCA_TYPES = ["llp", "private_limited", "public_limited", "opc"];
+const cinLabel = (type: string) => (type === "llp" ? "LLPIN" : "CIN");
+
+type Certificate = {
+  id: number;
+  kind: string;
+  kind_label: string;
+  name: string;
+  number: string;
+  issued_by: string;
+  branch: number | null;
+  branch_name: string;
+  valid_from: string | null;
+  valid_until: string | null;
+  notes: string;
+};
+const CERTIFICATE_KINDS: [string, string][] = [
+  ["fssai", "FSSAI licence / registration"],
+  ["udyam", "Udyam (MSME) registration"],
+  ["iec", "IEC (importer-exporter code)"],
+  ["organic", "Organic certificate (NPOP / NOP / EU)"],
+  ["iso", "ISO certificate"],
+  ["fssc", "FSSC 22000"],
+  ["lut", "LUT for exports"],
+  ["factory", "Factory licence"],
+  ["pollution", "Pollution control consent"],
+  ["trade", "Shop / trade licence"],
+  ["other", "Other"],
+];
+
+type Branch = Contact & Record<DefaultFlag, boolean> & {
   id: number;
   name: string;
   state_code: string;
@@ -82,7 +130,7 @@ export type Group = {
 };
 type State = { code: string; name: string };
 type Opening = { dr: string; cr: string; difference: string };
-type Detail = { company: Company; branches: Branch[]; ledger_groups: Group[]; opening: Opening };
+type Detail = { company: Company; branches: Branch[]; certificates: Certificate[]; ledger_groups: Group[]; opening: Opening };
 
 export const money = (v: string | number) =>
   Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -184,6 +232,10 @@ function CompanyForm(props: {
   const [abbr, setAbbr] = useState(c?.abbr ?? "");
   const [gstin, setGstin] = useState(c?.gstin ?? "");
   const [pan, setPan] = useState(c?.pan ?? "");
+  const [entityType, setEntityType] = useState(c?.entity_type ?? "");
+  const [cin, setCin] = useState(c?.cin ?? "");
+  const [incorporated, setIncorporated] = useState(c?.incorporation_date ?? "");
+  const [tan, setTan] = useState(c?.tan ?? "");
   const [stateCode, setStateCode] = useState(c?.state_code ?? "");
   const [contact, setContact] = useState(contactOf(c));
   const [fyMonth, setFyMonth] = useState(c?.fiscal_year_start_month ?? 4);
@@ -206,6 +258,10 @@ function CompanyForm(props: {
       name,
       gstin,
       pan,
+      entity_type: entityType,
+      cin: MCA_TYPES.includes(entityType) ? cin : "",
+      incorporation_date: incorporated || null,
+      tan,
       state_code: stateCode,
       ...contact,
       fiscal_year_start_month: fyMonth,
@@ -247,7 +303,41 @@ function CompanyForm(props: {
         State
         <StateSelect states={props.states} value={stateCode} onChange={setStateCode} />
       </label>
-      <ContactFields value={contact} onChange={setContact} />
+      <div className="row">
+        <label>
+          Type of entity
+          <select value={entityType} onChange={(e) => setEntityType(e.target.value)}>
+            <option value="">Choose…</option>
+            {ENTITY_TYPES.map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {MCA_TYPES.includes(entityType) && (
+          <label>
+            {cinLabel(entityType)}
+            <input
+              value={cin}
+              maxLength={21}
+              placeholder={entityType === "llp" ? "AAB-1234" : "U01100MH2015PTC123456"}
+              onChange={(e) => setCin(e.target.value.toUpperCase())}
+            />
+          </label>
+        )}
+      </div>
+      <div className="row">
+        <label>
+          Date of incorporation
+          <input type="date" value={incorporated} onChange={(e) => setIncorporated(e.target.value)} />
+        </label>
+        <label>
+          TAN (for deducting TDS)
+          <input value={tan} maxLength={10} onChange={(e) => setTan(e.target.value.toUpperCase())} />
+        </label>
+      </div>
+      <ContactFields value={contact} onChange={setContact} addressLabel="Registered address" />
       <label>
         Financial year starts in
         <select value={fyMonth} onChange={(e) => setFyMonth(Number(e.target.value))}>
@@ -329,7 +419,19 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
           <dd>{c.pan || "—"}</dd>
           <dt>State</dt>
           <dd>{c.state}</dd>
-          <dt>Address</dt>
+          <dt>Type of entity</dt>
+          <dd>{ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1] ?? "—"}</dd>
+          {MCA_TYPES.includes(c.entity_type) && (
+            <>
+              <dt>{cinLabel(c.entity_type)}</dt>
+              <dd>{c.cin || "—"}</dd>
+            </>
+          )}
+          <dt>Incorporated</dt>
+          <dd>{c.incorporation_date ? longDate(c.incorporation_date) : "—"}</dd>
+          <dt>TAN</dt>
+          <dd>{c.tan || "—"}</dd>
+          <dt>Registered address</dt>
           <dd className="pre">{contactLines(c).where}</dd>
           <dt>Contact</dt>
           <dd>{contactLines(c).reach}</dd>
@@ -355,6 +457,7 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
         </dl>
       )}
       <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
+      <Certificates company={c} certificates={detail.certificates} branches={detail.branches} canEdit={canEdit} reload={reload} />
     </section>
   );
 }
@@ -401,6 +504,13 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
               <td>
                 {b.name}
                 {b.is_head_office && <span className="small"> · head office</span>}
+                <div>
+                  {DEFAULTS.filter(([flag]) => b[flag]).map(([flag]) => (
+                    <span key={flag} className="tag">
+                      {{ default_billing: "Billing", default_ship_to: "Ship to", default_ship_from: "Ship from" }[flag]}
+                    </span>
+                  ))}
+                </div>
                 {!b.is_active && <span className="small"> · closed</span>}
               </td>
               <td>{stateName(b.state_code)}</td>
@@ -429,12 +539,19 @@ function BranchForm(props: { company: Company; branch: Branch | null; states: St
   const [gstin, setGstin] = useState(b?.gstin ?? "");
   const [contact, setContact] = useState(contactOf(b));
   const [active, setActive] = useState(b?.is_active ?? true);
+  const [flags, setFlags] = useState<Record<DefaultFlag, boolean>>({
+    default_billing: b?.default_billing ?? false,
+    default_ship_to: b?.default_ship_to ?? false,
+    default_ship_from: b?.default_ship_from ?? false,
+  });
   const [error, setError] = useState("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    const body = { name, state_code: stateCode, gstin, ...contact, is_active: active };
+    // Only newly ticked defaults are sent; ticking moves it from the other branch.
+    const ticked = Object.fromEntries(DEFAULTS.filter(([f]) => flags[f] && !b?.[f]).map(([f]) => [f, true]));
+    const body = { name, state_code: stateCode, gstin, ...contact, is_active: active, ...ticked };
     try {
       if (b) await api(`v1/branches/${b.id}/`, body, "PATCH");
       else await api(`v1/companies/${props.company.id}/branches/`, body);
@@ -462,12 +579,216 @@ function BranchForm(props: { company: Company; branch: Branch | null; states: St
         </label>
       </div>
       <ContactFields value={contact} onChange={setContact} />
+      <fieldset>
+        <legend>Default addresses (picked first on documents, can be changed on each)</legend>
+        {DEFAULTS.map(([flag, label]) => (
+          <label key={flag} className="check">
+            <input
+              type="checkbox"
+              checked={flags[flag]}
+              disabled={b?.[flag]}
+              onChange={(e) => setFlags({ ...flags, [flag]: e.target.checked })}
+            />
+            {label}
+            {b?.[flag] ? " (to move it, tick it on another branch)" : ""}
+          </label>
+        ))}
+      </fieldset>
       {b && !b.is_head_office && (
         <label className="check">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Open (untick when the branch closes)
         </label>
       )}
+      {error && <p className="error">{error}</p>}
+      <div className="buttons">
+        <button>Save</button>
+        <button type="button" className="link" onClick={props.onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function renewalNote(until: string | null) {
+  if (!until) return { text: "No renewal", cls: "small" };
+  const days = Math.ceil((new Date(until).getTime() - Date.now()) / 86400000);
+  if (days < 0) return { text: `Expired ${longDate(until)}`, cls: "error" };
+  if (days <= 90) return { text: `Renew by ${longDate(until)} (${days} days)`, cls: "warn" };
+  return { text: `Renew by ${longDate(until)}`, cls: "" };
+}
+
+function Certificates(props: {
+  company: Company;
+  certificates: Certificate[];
+  branches: Branch[];
+  canEdit: boolean;
+  reload: () => void;
+}) {
+  const [editing, setEditing] = useState<Certificate | "new" | null>(null);
+  return (
+    <>
+      <div className="page-head">
+        <h3>Licences and certificates</h3>
+        {props.canEdit && (
+          <button className="link" onClick={() => setEditing("new")}>
+            Add certificate
+          </button>
+        )}
+      </div>
+      {editing && (
+        <CertificateForm
+          company={props.company}
+          certificate={editing === "new" ? null : editing}
+          branches={props.branches}
+          onDone={() => {
+            setEditing(null);
+            props.reload();
+          }}
+          onCancel={() => setEditing(null)}
+        />
+      )}
+      {props.certificates.length === 0 ? (
+        <p className="small">None yet. Add the FSSAI licence, Udyam, IEC, organic and ISO certificates with their renewal dates.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Certificate</th>
+              <th>Number</th>
+              <th>Branch</th>
+              <th>Renewal</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {props.certificates.map((x) => {
+              const note = renewalNote(x.valid_until);
+              return (
+                <tr key={x.id}>
+                  <td>
+                    {x.kind_label}
+                    {x.name && <div className="small">{x.name}</div>}
+                  </td>
+                  <td>
+                    {x.number}
+                    {x.issued_by && <div className="small">{x.issued_by}</div>}
+                  </td>
+                  <td>{x.branch_name || <span className="small">Whole company</span>}</td>
+                  <td className={note.cls}>{note.text}</td>
+                  <td>
+                    {props.canEdit && (
+                      <button className="link" onClick={() => setEditing(x)}>
+                        Edit
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
+function CertificateForm(props: {
+  company: Company;
+  certificate: Certificate | null;
+  branches: Branch[];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const x = props.certificate;
+  const [kind, setKind] = useState(x?.kind ?? "fssai");
+  const [name, setName] = useState(x?.name ?? "");
+  const [number, setNumber] = useState(x?.number ?? "");
+  const [issuedBy, setIssuedBy] = useState(x?.issued_by ?? "");
+  const [branch, setBranch] = useState<number | null>(x?.branch ?? null);
+  const [validFrom, setValidFrom] = useState(x?.valid_from ?? "");
+  const [validUntil, setValidUntil] = useState(x?.valid_until ?? "");
+  const [notes, setNotes] = useState(x?.notes ?? "");
+  const [error, setError] = useState("");
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    const body = {
+      kind,
+      name,
+      number,
+      issued_by: issuedBy,
+      branch,
+      valid_from: validFrom || null,
+      valid_until: validUntil || null,
+      notes,
+    };
+    try {
+      if (x) await api(`v1/certificates/${x.id}/`, body, "PATCH");
+      else await api(`v1/companies/${props.company.id}/certificates/`, body);
+      props.onDone();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  return (
+    <form className="card" onSubmit={save}>
+      <h4>{x ? `Edit ${x.kind_label}` : "Add certificate"}</h4>
+      <div className="row">
+        <label>
+          Type
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            {CERTIFICATE_KINDS.map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Name {kind === "other" ? "" : "(optional, e.g. ISO 9001:2015)"}
+          <input value={name} required={kind === "other"} onChange={(e) => setName(e.target.value)} />
+        </label>
+      </div>
+      <div className="row">
+        <label>
+          Number
+          <input required value={number} onChange={(e) => setNumber(e.target.value)} />
+        </label>
+        <label>
+          Issued by
+          <input value={issuedBy} placeholder="e.g. FSSAI, DGFT, certification body" onChange={(e) => setIssuedBy(e.target.value)} />
+        </label>
+      </div>
+      <label>
+        Branch (for licences issued per premises)
+        <select value={branch ?? ""} onChange={(e) => setBranch(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">Whole company</option>
+          {props.branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="row">
+        <label>
+          Valid from
+          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+        </label>
+        <label>
+          Renewal date (blank if it does not lapse)
+          <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+        </label>
+      </div>
+      <label>
+        Notes
+        <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </label>
+      <p className="small">A renewed certificate is added as a new one, so the old one stays on record.</p>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
         <button>Save</button>

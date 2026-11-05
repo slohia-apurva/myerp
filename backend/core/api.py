@@ -28,6 +28,7 @@ from core.models import (
     CR,
     DR,
     Branch,
+    Certificate,
     Company,
     Currency,
     Ledger,
@@ -70,6 +71,13 @@ def _upper(value: str) -> str:
 
 
 CONTACT_FIELDS = ["address", "pincode", "phone", "email", "contact_person"]
+REGISTRATION_FIELDS = [
+    "entity_type",
+    "cin",
+    "incorporation_date",
+    "tan",
+]
+DEFAULT_FLAGS = ["default_billing", "default_ship_to", "default_ship_from"]
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -77,7 +85,9 @@ class CompanySerializer(serializers.ModelSerializer):
     # Checked by the model after being upper-cased here.
     gstin = serializers.CharField(max_length=15, allow_blank=True, required=False)
     pan = serializers.CharField(max_length=10, allow_blank=True, required=False)
-    validate_gstin = validate_pan = staticmethod(_upper)
+    cin = serializers.CharField(max_length=21, allow_blank=True, required=False)
+    tan = serializers.CharField(max_length=10, allow_blank=True, required=False)
+    validate_gstin = validate_pan = validate_cin = validate_tan = staticmethod(_upper)
 
     class Meta:
         model = Company
@@ -87,6 +97,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "abbr",
             "gstin",
             "pan",
+            *REGISTRATION_FIELDS,
             "state_code",
             "state",
             "address",
@@ -125,8 +136,30 @@ class BranchSerializer(serializers.ModelSerializer):
             *CONTACT_FIELDS,
             "is_head_office",
             "is_active",
+            *DEFAULT_FLAGS,
         ]
         read_only_fields = ["is_head_office"]
+
+
+class CertificateSerializer(serializers.ModelSerializer):
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True, default="")
+
+    class Meta:
+        model = Certificate
+        fields = [
+            "id",
+            "kind",
+            "kind_label",
+            "name",
+            "number",
+            "issued_by",
+            "branch",
+            "branch_name",
+            "valid_from",
+            "valid_until",
+            "notes",
+        ]
 
 
 class LedgerGroupSerializer(serializers.ModelSerializer):
@@ -379,6 +412,9 @@ class CompanyDetailView(APIView):
             {
                 "company": CompanySerializer(company).data,
                 "branches": BranchSerializer(company.branches.all(), many=True).data,
+                "certificates": CertificateSerializer(
+                    company.certificates.select_related("branch"), many=True
+                ).data,
                 "opening": _opening_totals(company),
                 "ledger_groups": LedgerGroupSerializer(
                     company.ledger_groups.select_related("parent__parent__parent").annotate(
@@ -406,7 +442,7 @@ class CompanyDetailView(APIView):
         old_pan = company.pan
         # Fiscal year start can change only until vouchers exist (a later piece
         # will refuse it then).
-        fields = ["name", "gstin", "pan", "state_code", *CONTACT_FIELDS]
+        fields = ["name", "gstin", "pan", *REGISTRATION_FIELDS, "state_code", *CONTACT_FIELDS]
         _save(company, data, [*fields, "fiscal_year_start_month", "books_start", "multi_currency"])
         if not company.multi_currency and company.ledgers.exclude(currency=None).exists():
             raise ValidationError(
@@ -437,8 +473,60 @@ class BranchListView(APIView):
         if company.branches.filter(name__iexact=name).exists():
             raise ValidationError({"name": ["This company already has a branch by that name."]})
         branch = Branch(company=company)
+        _move_defaults(branch, serializer.validated_data)
         _save(branch, {**serializer.validated_data, "name": name}, BranchSerializer.Meta.fields)
         return Response(BranchSerializer(branch).data, status=status.HTTP_201_CREATED)
+
+
+CERTIFICATE_FIELDS = [
+    f for f in CertificateSerializer.Meta.fields if f not in ("id", "kind_label", "branch_name")
+]
+
+
+class CertificateListView(APIView):
+    permission_classes = [Signed]
+
+    @tenant_atomic()
+    def post(self, request, pk: int):
+        _check(request, EDIT)
+        company = _company(request, pk)
+        serializer = CertificateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        certificate = Certificate(company=company)
+        _save(certificate, serializer.validated_data, CERTIFICATE_FIELDS)
+        return Response(CertificateSerializer(certificate).data, status=status.HTTP_201_CREATED)
+
+
+class CertificateDetailView(APIView):
+    """Edit only: certificates are never deleted (a renewal is a new row)."""
+
+    permission_classes = [Signed]
+
+    @tenant_atomic()
+    def patch(self, request, pk: int):
+        _check(request, EDIT)
+        certificate = Certificate.objects.select_for_update().filter(pk=pk).first()
+        if certificate is None or not visible_companies(request.user).filter(
+            pk=certificate.company_id
+        ):
+            raise NotFound("No such certificate.")
+        serializer = CertificateSerializer(certificate, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        _save(certificate, serializer.validated_data, CERTIFICATE_FIELDS)
+        return Response(CertificateSerializer(certificate).data)
+
+
+def _move_defaults(branch: Branch, data: dict) -> None:
+    """Ticking a default on this branch takes it off the company's other
+    branch. Unticking is refused: every company keeps one of each default."""
+    for flag in DEFAULT_FLAGS:
+        if flag not in data:
+            continue
+        if data[flag]:
+            others = Branch.objects.filter(company_id=branch.company_id, **{flag: True})
+            others.exclude(pk=branch.pk).update(**{flag: False})
+        elif getattr(branch, flag):
+            raise ValidationError({flag: ["Tick this default on another branch instead."]})
 
 
 class BranchDetailView(APIView):
@@ -458,7 +546,9 @@ class BranchDetailView(APIView):
             others = Branch.objects.filter(company_id=branch.company_id).exclude(pk=pk)
             if others.filter(name__iexact=data["name"]).exists():
                 raise ValidationError({"name": ["This company already has a branch by that name."]})
-        _save(branch, data, ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active"])
+        _move_defaults(branch, data)
+        fields = ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active", *DEFAULT_FLAGS]
+        _save(branch, data, fields)
         return Response(BranchSerializer(branch).data)
 
 
