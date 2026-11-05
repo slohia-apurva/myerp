@@ -261,6 +261,9 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
       <div className="page-head">
         <h2>{c.name}</h2>
         <div className="buttons">
+          <a className="button" href={`#/companies/${c.id}/groups`}>
+            Ledger groups
+          </a>
           <a className="button" href={`#/companies/${c.id}/ledgers`}>
             Ledgers
           </a>
@@ -309,7 +312,6 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
         </dl>
       )}
       <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
-      <LedgerGroups company={c} groups={detail.ledger_groups} canEdit={canEdit} reload={reload} />
     </section>
   );
 }
@@ -433,6 +435,37 @@ function BranchForm(props: { company: Company; branch: Branch | null; states: St
   );
 }
 
+export function LedgerGroupsPage({ id, session }: { id: number; session: SignedIn }) {
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [error, setError] = useState("");
+  const reload = useCallback(() => {
+    api<Detail>(`v1/companies/${id}/`)
+      .then(setDetail)
+      .catch((err: Error) => setError(err.message));
+  }, [id]);
+  useEffect(reload, [reload]);
+  if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
+  return (
+    <section className="page">
+      <p className="small">
+        <a href="#/companies">Companies</a> › <a href={`#/companies/${id}`}>{detail.company.name}</a>
+      </p>
+      <div className="page-head">
+        <h2>Ledger groups</h2>
+        <a className="button" href={`#/companies/${id}/ledgers`}>
+          Ledgers
+        </a>
+      </div>
+      <LedgerGroups
+        company={detail.company}
+        groups={detail.ledger_groups}
+        canEdit={session.permissions.includes("masters.edit")}
+        reload={reload}
+      />
+    </section>
+  );
+}
+
 function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boolean; reload: () => void }) {
   const [editing, setEditing] = useState<{ group: Group | null; parent: number | null } | null>(null);
   const children = useMemo(() => {
@@ -486,9 +519,6 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
 
   return (
     <>
-      <div className="page-head">
-        <h3>Ledger groups</h3>
-      </div>
       <p className="small">
         The 15 primary groups and their standard sub-groups come with every company and cannot be changed. Add your
         own groups under them, for example Export debtors under Sundry Debtors.
