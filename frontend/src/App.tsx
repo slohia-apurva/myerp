@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, Session, SignedIn } from "./api";
+import { CompaniesPage, CompanyPage } from "./Companies";
 import { SignIn } from "./Login";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
-type Page = "home" | "users" | "roles";
+type Page = "home" | "users" | "roles" | "companies";
+type Route = { page: Page; id?: number };
 
-function pageFromHash(): Page {
-  const page = window.location.hash.replace(/^#\/?/, "");
-  return page === "users" || page === "roles" ? page : "home";
+function routeFromHash(): Route {
+  const [page, id] = window.location.hash.replace(/^#\/?/, "").split("/");
+  if (page === "companies") return { page, id: id ? Number(id) : undefined };
+  return { page: page === "users" || page === "roles" ? page : "home" };
 }
 
 export function App() {
@@ -38,13 +41,14 @@ export function App() {
 }
 
 function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Session) => void }) {
-  const [page, setPage] = useState<Page>(pageFromHash);
+  const [{ page, id }, setRoute] = useState<Route>(routeFromHash);
   useEffect(() => {
-    const onHash = () => setPage(pageFromHash());
+    const onHash = () => setRoute(routeFromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const canManageUsers = session.permissions.includes("users.manage");
+  const canSeeMasters = session.permissions.includes("masters.view");
   const signOut = () => {
     // Stop Google from signing the person straight back in on this browser.
     if ("google" in window) google.accounts.id.disableAutoSelect();
@@ -62,6 +66,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         <strong>MyERP</strong>
         <nav>
           {link("home", "Home")}
+          {canSeeMasters && link("companies", "Companies")}
           {canManageUsers && link("users", "Users")}
           {canManageUsers && link("roles", "Roles")}
         </nav>
@@ -73,7 +78,13 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         </span>
       </header>
       <main>
-        {page === "users" && canManageUsers ? (
+        {page === "companies" && canSeeMasters ? (
+          id ? (
+            <CompanyPage key={id} id={id} session={session} />
+          ) : (
+            <CompaniesPage session={session} />
+          )
+        ) : page === "users" && canManageUsers ? (
           <UsersPage session={session} />
         ) : page === "roles" && canManageUsers ? (
           <RolesPage session={session} />

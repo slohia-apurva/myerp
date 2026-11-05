@@ -1,7 +1,7 @@
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.models import Company
+from core.companies import visible_companies
 
 
 class WhoAmIView(APIView):
@@ -12,6 +12,6 @@ class WhoAmIView(APIView):
             {
                 "tenant": request.tenant.slug,
                 "name": request.tenant.name,
-                "companies": list(Company.objects.values_list("name", flat=True)),
+                "companies": list(visible_companies(request.user).values_list("name", flat=True)),
             }
         )
