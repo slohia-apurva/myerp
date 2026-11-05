@@ -13,6 +13,7 @@ export type Company = {
   pincode: string;
   fiscal_year_start_month: number;
   books_start: string;
+  multi_currency: boolean;
   base_currency: string;
 };
 type Branch = {
@@ -145,6 +146,7 @@ function CompanyForm(props: {
   const [pincode, setPincode] = useState(c?.pincode ?? "");
   const [fyMonth, setFyMonth] = useState(c?.fiscal_year_start_month ?? 4);
   const [booksStart, setBooksStart] = useState(c?.books_start ?? "");
+  const [multiCurrency, setMultiCurrency] = useState(c?.multi_currency ?? false);
   const [error, setError] = useState("");
 
   // A GSTIN starts with the state code and contains the PAN.
@@ -167,6 +169,7 @@ function CompanyForm(props: {
       pincode,
       fiscal_year_start_month: fyMonth,
       ...(booksStart ? { books_start: booksStart } : {}),
+      multi_currency: multiCurrency,
       ...(c ? {} : abbr ? { abbr } : {}),
     };
     try {
@@ -226,6 +229,10 @@ function CompanyForm(props: {
       <label>
         Books beginning from (opening balances are as at this date; blank = start of this financial year)
         <input type="date" value={booksStart} onChange={(e) => setBooksStart(e.target.value)} />
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={multiCurrency} onChange={(e) => setMultiCurrency(e.target.checked)} />
+        Use foreign currencies (exports, imports, EEFC accounts). Books stay in INR.
       </label>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
@@ -296,6 +303,8 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
           <dd>
             {MONTHS[c.fiscal_year_start_month - 1]} to {MONTHS[(c.fiscal_year_start_month + 10) % 12]}, {c.base_currency}
           </dd>
+          <dt>Currencies</dt>
+          <dd>{c.multi_currency ? "INR, plus foreign currencies on ledgers" : "INR only"}</dd>
           <dt>Books beginning from</dt>
           <dd>{longDate(c.books_start)}</dd>
           <dt>Opening balances</dt>

@@ -87,3 +87,33 @@ def ensure_cash_ledger(Ledger, LedgerGroup, company) -> None:
     if not Ledger.objects.filter(company=company, name__iexact="Cash").exists():
         group = LedgerGroup.objects.get(company=company, code="cash_in_hand")
         Ledger.objects.create(company=company, group=group, name="Cash")
+
+
+# code, name, symbol: currencies Indian exporters and importers use most.
+CURRENCIES = [
+    ("INR", "Indian Rupee", "₹"),
+    ("USD", "US Dollar", "$"),
+    ("EUR", "Euro", "€"),
+    ("GBP", "Pound Sterling", "£"),
+    ("AED", "UAE Dirham", "AED"),
+    ("SAR", "Saudi Riyal", "SAR"),
+    ("SGD", "Singapore Dollar", "S$"),
+    ("AUD", "Australian Dollar", "A$"),
+    ("CAD", "Canadian Dollar", "C$"),
+    ("JPY", "Japanese Yen", "¥"),
+    ("CNY", "Chinese Yuan", "CN¥"),
+    ("CHF", "Swiss Franc", "CHF"),
+    ("HKD", "Hong Kong Dollar", "HK$"),
+    ("MYR", "Malaysian Ringgit", "RM"),
+    ("THB", "Thai Baht", "฿"),
+    ("BDT", "Bangladeshi Taka", "৳"),
+    ("NPR", "Nepalese Rupee", "Rs"),
+    ("LKR", "Sri Lankan Rupee", "Rs"),
+    ("ZAR", "South African Rand", "R"),
+    ("NZD", "New Zealand Dollar", "NZ$"),
+]
+
+
+def seed_currencies(Currency) -> None:
+    for code, name, symbol in CURRENCIES:
+        Currency.objects.get_or_create(code=code, defaults={"name": name, "symbol": symbol})
