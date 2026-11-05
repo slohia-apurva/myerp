@@ -288,6 +288,7 @@ Sidharth on 4 Nov: a mobile app later, including apps for the production, wareho
 | Warehouse | Stock lookup by scanning an item, batch or bin; putaway suggestions; bin-to-bin transfers; cycle counts; batch hold and release; expiry alerts |
 | Receiving | Gate entry against a PO (vehicle, driver, invoice photo); draft GRN by scanning supplier lots and entering expiry; weighment; incoming QC checklist; damage photos |
 | Dispatch | Pick lists in first-expiry-first-out order by scan; packing into cartons; loading checklist and vehicle photo; delivery note; e-way bill status |
+| Sales order **(added 5 Nov)** | Salesman sees **only his own customers** and, for each customer, **only the products approved for that customer** (with the customer's price list, scheme and pack sizes). He books orders on the visit, sees the customer's outstanding and overdue bills, credit limit, last orders and pending deliveries, and can repeat a past order. Orders reach the company as **draft sales orders** for the sales desk to check and submit (credit-limit and stock checks on the server). Works offline in the market and syncs later. Optional: check-in with location and photo at the shop, daily beat plan, collections entered against bills |
 | Approvals (everyone) | Approve or reject POs, payments and other documents waiting on them; notifications |
 
 How it works:
@@ -305,6 +306,7 @@ How it works:
 - Create and submit endpoints accept an idempotency key.
 - One **scan endpoint** turns any barcode (item UOM, batch, bin, document, container or AWB) into the record it belongs to.
 - List endpoints support "changed since" for offline sync.
+- Customers carry a salesman (and area/beat); a customer-item list ("approved products") with its own price list is a sales master from Phase 4, so the salesman workspace has the data it needs. A salesman's API access is limited to his customers by the same permission layer as the web.
 - Mobile sign-in uses the same Google account. It gets a per-device token that an admin can revoke, plus push notifications.
 - React Native (Expo) is chosen so the app reuses TypeScript, types and much of the logic from the web front end.
 
