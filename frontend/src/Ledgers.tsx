@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
-import type { Company, Group } from "./Companies";
+import { longDate, money, type Company, type Group } from "./Companies";
 
 type Ledger = {
   id: number;
@@ -14,7 +14,13 @@ type Ledger = {
   account_number: string;
   ifsc: string;
   bank_branch: string;
+  opening_amount: string;
+  opening_side: Side;
+  bill_wise: boolean;
+  opening_bills: Bill[];
 };
+type Side = "dr" | "cr";
+type Bill = { ref: string; bill_date: string; due_date: string | null; amount: string; side: Side };
 type Detail = { company: Company; ledger_groups: Group[] };
 
 const NATURE: Record<string, string> = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
@@ -94,6 +100,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
           ledger={editing === "new" ? null : editing}
           groups={ordered}
           defaultGroup={groupFilter}
+          booksStart={detail.company.books_start}
           onDone={() => {
             setEditing(null);
             reload();
@@ -111,13 +118,14 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
             <th>Ledger</th>
             <th>Group</th>
             <th>Nature</th>
+            <th className="num">Opening</th>
             <th />
           </tr>
         </thead>
         <tbody>
           {ledgers.length === 0 && (
             <tr>
-              <td colSpan={4} className="small">
+              <td colSpan={5} className="small">
                 No ledgers match.
               </td>
             </tr>
@@ -138,6 +146,13 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
               </td>
               <td>{l.group_name}</td>
               <td>{NATURE[l.nature]}</td>
+              <td className="num">
+                {Number(l.opening_amount) === 0 ? (
+                  <span className="small">—</span>
+                ) : (
+                  `${money(l.opening_amount)} ${l.opening_side === "dr" ? "Dr" : "Cr"}`
+                )}
+              </td>
               <td>
                 {canEdit && (
                   <button className="link" onClick={() => setEditing(l)}>
@@ -158,6 +173,7 @@ function LedgerForm(props: {
   ledger: Ledger | null;
   groups: { group: Group; depth: number }[];
   defaultGroup: string;
+  booksStart: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -170,8 +186,28 @@ function LedgerForm(props: {
   const [accountNumber, setAccountNumber] = useState(l?.account_number ?? "");
   const [ifsc, setIfsc] = useState(l?.ifsc ?? "");
   const [bankBranch, setBankBranch] = useState(l?.bank_branch ?? "");
+  const [openingAmount, setOpeningAmount] = useState(l && Number(l.opening_amount) ? l.opening_amount : "");
+  const [openingSide, setOpeningSide] = useState<Side>(l?.opening_side ?? "dr");
+  const groupOf = (id: string) => props.groups.find((g) => String(g.group.id) === id)?.group;
+  const [billWise, setBillWise] = useState(l ? l.bill_wise : (groupOf(props.defaultGroup)?.bill_wise_default ?? false));
+  const [bills, setBills] = useState<Bill[]>(l?.opening_bills ?? []);
   const [error, setError] = useState("");
-  const isBank = props.groups.find((g) => String(g.group.id) === group)?.group.is_bank ?? false;
+  const chosen = groupOf(group);
+  const isBank = chosen?.is_bank ?? false;
+  const usualSide: Side = chosen?.nature === "asset" || chosen?.nature === "expense" ? "dr" : "cr";
+
+  const pickGroup = (id: string) => {
+    setGroup(id);
+    // A new ledger under Sundry Debtors or Creditors is bill-wise by default.
+    if (!l) {
+      const g = groupOf(id);
+      setBillWise(g?.bill_wise_default ?? false);
+      setOpeningSide(g?.nature === "asset" || g?.nature === "expense" ? "dr" : "cr");
+    }
+  };
+  // For a bill-wise ledger the opening balance is the total of its bills.
+  const billsTotal = bills.reduce((t, b) => t + (Number(b.amount) || 0) * (b.side === "dr" ? 1 : -1), 0);
+  const setBill = (i: number, change: Partial<Bill>) => setBills(bills.map((b, j) => (j === i ? { ...b, ...change } : b)));
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -185,6 +221,14 @@ function LedgerForm(props: {
       account_number: accountNumber,
       ifsc,
       bank_branch: bankBranch,
+      bill_wise: billWise,
+      ...(billWise
+        ? {
+            opening_amount: Math.abs(billsTotal).toFixed(2),
+            opening_side: billsTotal < 0 ? "cr" : "dr",
+            opening_bills: bills.map((b) => ({ ...b, due_date: b.due_date || null })),
+          }
+        : { opening_amount: openingAmount || "0", opening_side: openingSide }),
     };
     try {
       if (l) await api(`v1/ledgers/${l.id}/`, body, "PATCH");
@@ -204,7 +248,7 @@ function LedgerForm(props: {
         </label>
         <label>
           Under group
-          <GroupSelect groups={props.groups} value={group} onChange={setGroup} />
+          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
         </label>
       </div>
       {isBank && (
@@ -232,6 +276,107 @@ function LedgerForm(props: {
           </div>
         </fieldset>
       )}
+      <fieldset>
+        <legend>Opening balance as at {longDate(props.booksStart)}</legend>
+        <label className="check">
+          <input type="checkbox" checked={billWise} onChange={(e) => setBillWise(e.target.checked)} />
+          Maintain balances bill by bill (customers, suppliers)
+        </label>
+        {billWise ? (
+          <>
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Bill reference</th>
+                  <th>Bill date</th>
+                  <th>Due date</th>
+                  <th className="num">Amount</th>
+                  <th>Dr/Cr</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {bills.map((b, i) => (
+                  <tr key={i}>
+                    <td>
+                      <input required value={b.ref} onChange={(e) => setBill(i, { ref: e.target.value })} />
+                    </td>
+                    <td>
+                      <input required type="date" value={b.bill_date} onChange={(e) => setBill(i, { bill_date: e.target.value })} />
+                    </td>
+                    <td>
+                      <input type="date" value={b.due_date ?? ""} onChange={(e) => setBill(i, { due_date: e.target.value })} />
+                    </td>
+                    <td>
+                      <input
+                        required
+                        className="num"
+                        inputMode="decimal"
+                        value={b.amount}
+                        onChange={(e) => setBill(i, { amount: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <select value={b.side} onChange={(e) => setBill(i, { side: e.target.value as Side })}>
+                        <option value="dr">Dr</option>
+                        <option value="cr">Cr</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button type="button" className="link danger" onClick={() => setBills(bills.filter((_, j) => j !== i))}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={3}>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setBills([...bills, { ref: "", bill_date: "", due_date: null, amount: "", side: usualSide }])}
+                    >
+                      Add bill
+                    </button>
+                  </td>
+                  <td className="num">
+                    <strong>{money(Math.abs(billsTotal))}</strong>
+                  </td>
+                  <td>
+                    <strong>{billsTotal < 0 ? "Cr" : "Dr"}</strong>
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+            <p className="small">
+              The opening balance is the total of the bills. Bills must be dated before {longDate(props.booksStart)}.
+            </p>
+          </>
+        ) : (
+          <div className="row">
+            <label>
+              Amount
+              <input
+                className="num"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={openingAmount}
+                onChange={(e) => setOpeningAmount(e.target.value)}
+              />
+            </label>
+            <label>
+              Dr/Cr
+              <select value={openingSide} onChange={(e) => setOpeningSide(e.target.value as Side)}>
+                <option value="dr">Dr</option>
+                <option value="cr">Cr</option>
+              </select>
+            </label>
+          </div>
+        )}
+      </fieldset>
       <label>
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />

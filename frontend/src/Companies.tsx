@@ -12,6 +12,7 @@ export type Company = {
   address: string;
   pincode: string;
   fiscal_year_start_month: number;
+  books_start: string;
   base_currency: string;
 };
 type Branch = {
@@ -33,9 +34,16 @@ export type Group = {
   is_standard: boolean;
   ledger_count: number;
   is_bank: boolean;
+  bill_wise_default: boolean;
 };
 type State = { code: string; name: string };
-type Detail = { company: Company; branches: Branch[]; ledger_groups: Group[] };
+type Opening = { dr: string; cr: string; difference: string };
+type Detail = { company: Company; branches: Branch[]; ledger_groups: Group[]; opening: Opening };
+
+export const money = (v: string | number) =>
+  Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const longDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const NATURE = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
@@ -136,6 +144,7 @@ function CompanyForm(props: {
   const [address, setAddress] = useState(c?.address ?? "");
   const [pincode, setPincode] = useState(c?.pincode ?? "");
   const [fyMonth, setFyMonth] = useState(c?.fiscal_year_start_month ?? 4);
+  const [booksStart, setBooksStart] = useState(c?.books_start ?? "");
   const [error, setError] = useState("");
 
   // A GSTIN starts with the state code and contains the PAN.
@@ -157,6 +166,7 @@ function CompanyForm(props: {
       address,
       pincode,
       fiscal_year_start_month: fyMonth,
+      ...(booksStart ? { books_start: booksStart } : {}),
       ...(c ? {} : abbr ? { abbr } : {}),
     };
     try {
@@ -212,6 +222,10 @@ function CompanyForm(props: {
             </option>
           ))}
         </select>
+      </label>
+      <label>
+        Books beginning from (opening balances are as at this date; blank = start of this financial year)
+        <input type="date" value={booksStart} onChange={(e) => setBooksStart(e.target.value)} />
       </label>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
@@ -278,6 +292,19 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
           <dt>Financial year</dt>
           <dd>
             {MONTHS[c.fiscal_year_start_month - 1]} to {MONTHS[(c.fiscal_year_start_month + 10) % 12]}, {c.base_currency}
+          </dd>
+          <dt>Books beginning from</dt>
+          <dd>{longDate(c.books_start)}</dd>
+          <dt>Opening balances</dt>
+          <dd>
+            Dr {money(detail.opening.dr)} · Cr {money(detail.opening.cr)}
+            {Number(detail.opening.difference) !== 0 && (
+              <span className="error">
+                {" "}
+                · difference {money(Math.abs(Number(detail.opening.difference)))}{" "}
+                {Number(detail.opening.difference) > 0 ? "Dr" : "Cr"}
+              </span>
+            )}
           </dd>
         </dl>
       )}
