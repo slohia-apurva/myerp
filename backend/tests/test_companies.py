@@ -5,7 +5,8 @@ from django.test import Client
 
 from accounts.models import Role, User
 from core.india import gstin_check_char, validate_gstin
-from core.models import Company, LedgerGroup
+from core.ledger_groups import TREE, seed_standard_groups
+from core.models import Company, Ledger, LedgerGroup
 from tenancy.context import use_tenant
 
 pytestmark = pytest.mark.django_db(databases="__all__")
@@ -61,7 +62,7 @@ def test_gstin_check_character():
         validate_gstin("99AAPFU0939F1Z" + gstin_check_char("99AAPFU0939F1Z"))
 
 
-def test_new_company_starts_with_head_office_and_tally_groups(owner):
+def test_new_company_starts_with_head_office_and_schedule_iii_groups(owner):
     response = add_company(owner)
     assert response.status_code == 201, response.json()
     company = response.json()
@@ -76,9 +77,24 @@ def test_new_company_starts_with_head_office_and_tally_groups(owner):
     ]
     groups = detail["ledger_groups"]
     primary = [g for g in groups if g["parent"] is None]
-    assert len(primary) == 15 and len(groups) == 28
+    assert len(primary) == 14 and len(groups) == len(TREE)
+    # In report order: equity and liabilities, assets, then profit and loss.
+    assert [g["name"] for g in primary][:5] == [
+        "Capital Account",
+        "Non-current Liabilities",
+        "Current Liabilities",
+        "Non-current Assets",
+        "Current Assets",
+    ]
     by_name = {g["name"]: g for g in groups}
     assert by_name["Sundry Debtors"]["parent"] == by_name["Current Assets"]["id"]
+    assert by_name["Sundry Debtors"]["schedule_iii"] == "Trade receivables"
+    long_term = by_name["Long-term Borrowings"]
+    assert long_term["parent"] == by_name["Non-current Liabilities"]["id"]
+    assert by_name["Secured Loans"]["parent"] == long_term["id"]
+    assert by_name["Fixed Assets"]["parent"] == by_name["Non-current Assets"]["id"]
+    assert by_name["Finance Costs"]["parent"] == by_name["Indirect Expenses"]["id"]
+    assert "Misc. Expenses (ASSET)" not in by_name and "Loans (Liability)" not in by_name
     assert by_name["Sundry Debtors"]["nature"] == "asset"
     assert by_name["Duties & Taxes"]["nature"] == "liability"
     assert by_name["Sales Accounts"]["affects_gross_profit"] is True
@@ -352,3 +368,48 @@ def test_modules_chosen_per_company(owner, as_user):
     assert {"code": "pos", "label": "Point of sale"}.items() <= next(
         m for m in listed if m["code"] == "pos"
     ).items()
+
+
+def test_old_tally_groups_are_converted_to_schedule_iii(owner, alpha):
+    """Companies made before decision 0015: groups are re-laid by code, custom
+    groups and ledgers under retired groups move, and a custom group whose
+    name a new standard group takes is renamed."""
+    from importlib import import_module
+
+    v1 = import_module("core.migrations.0003_fill_existing_companies")
+    company_id = add_company(owner).json()["id"]
+    with use_tenant(alpha):
+        company = Company.objects.get(pk=company_id)
+        company.ledgers.all().delete()
+        while company.ledger_groups.exists():
+            company.ledger_groups.filter(children=None).delete()
+        v1.seed_standard_groups_v1(LedgerGroup, company)
+        old = {g.code: g for g in company.ledger_groups.all()}
+        term = LedgerGroup.objects.create(
+            company=company, name="Term Loans", parent=old["loans_liability"], nature="liability"
+        )
+        clash = LedgerGroup.objects.create(
+            company=company,
+            name="Finance Costs",
+            parent=old["indirect_expenses"],
+            nature="expense",
+        )
+        prelim = Ledger.objects.create(
+            company=company, group=old["misc_expenses_asset"], name="Preliminary Expenses"
+        )
+
+        seed_standard_groups(LedgerGroup, company, Ledger)
+
+        new = {g.code: g for g in company.ledger_groups.exclude(code="")}
+        assert set(new) == {code for code, *_ in TREE}
+        assert new["secured_loans"].parent == new["long_term_borrowings"]
+        assert new["bank_od"].parent == new["short_term_borrowings"]
+        assert new["fixed_assets"].parent == new["non_current_assets"]
+        term.refresh_from_db()
+        assert term.parent == new["long_term_borrowings"]
+        prelim.refresh_from_db()
+        assert prelim.group == new["other_non_current_assets"]
+        # The custom "Finance Costs" was adopted as the standard group.
+        clash.refresh_from_db()
+        assert clash.code == "finance_costs" and clash.parent == new["indirect_expenses"]
+        assert not LedgerGroup.objects.filter(code__in=["loans_liability", "misc_expenses_asset"])

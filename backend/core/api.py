@@ -186,11 +186,12 @@ class LedgerGroupSerializer(serializers.ModelSerializer):
             "affects_gross_profit",
             "code",
             "is_standard",
+            "schedule_iii",
             "ledger_count",
             "is_bank",
             "bill_wise_default",
         ]
-        read_only_fields = ["nature", "affects_gross_profit", "code", "is_standard"]
+        read_only_fields = ["nature", "affects_gross_profit", "code", "is_standard", "schedule_iii"]
 
     def get_is_bank(self, group) -> bool:
         return group.is_bank_group()
@@ -438,9 +439,10 @@ class CompanyDetailView(APIView):
                 ).data,
                 "opening": _opening_totals(company),
                 "ledger_groups": LedgerGroupSerializer(
-                    company.ledger_groups.select_related("parent__parent__parent").annotate(
-                        ledger_count=Count("ledgers")
-                    ),
+                    company.ledger_groups.select_related("parent__parent__parent")
+                    .annotate(ledger_count=Count("ledgers"))
+                    # Meta.ordering is dropped from GROUP BY queries.
+                    .order_by("sequence", "name"),
                     many=True,
                 ).data,
             }

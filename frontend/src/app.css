@@ -306,3 +306,8 @@ ul.modules li {
   break-inside: avoid;
   margin-bottom: 4px;
 }
+
+.sch3 {
+  color: #6b7280;
+  font-style: italic;
+}
