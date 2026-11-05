@@ -6,7 +6,7 @@ databases (`databases="__all__"`), so anything a test writes is rolled back.
 
 import pytest
 
-from core.models import Company
+from core.companies import create_company
 from tenancy.context import use_tenant
 from tenancy.models import Tenant
 from tenancy.provisioning import create_tenant, drop_tenant_database
@@ -32,7 +32,7 @@ def tenants(django_db_setup, django_db_blocker):
         for slug, (group_name, company_name) in TEST_TENANTS.items():
             tenant = create_tenant(slug, group_name, db_name=_test_db_name(slug))
             with use_tenant(tenant):
-                Company.objects.create(name=company_name, state_code="27")
+                create_company(name=company_name, state_code="27")
             created[slug] = tenant
 
     yield created

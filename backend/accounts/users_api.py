@@ -204,12 +204,3 @@ def _unique_code(name: str) -> str:
     while Role.objects.filter(code=code).exists():
         code, n = f"{base}-{n}", n + 1
     return code
-
-
-class CompanyListView(APIView):
-    """Companies to pick from when limiting a user."""
-
-    permission_classes = [permissions.requires("users.manage")]
-
-    def get(self, request):
-        return Response(list(Company.objects.values("id", "name")))
