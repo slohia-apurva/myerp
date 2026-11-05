@@ -10,6 +10,23 @@ from django.db.models.functions import Lower
 from core import india
 
 
+class Currency(models.Model):
+    """A currency the tenant deals in, e.g. USD. INR is the base currency of
+    every company; others are used only when a company turns on multiple
+    currencies."""
+
+    code = models.CharField(max_length=3, unique=True)
+    name = models.CharField(max_length=60)
+    symbol = models.CharField(max_length=5, blank=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name_plural = "currencies"
+
+    def __str__(self) -> str:
+        return self.code
+
+
 class Company(models.Model):
     """A legal entity inside a tenant, e.g. Apurvam Organics LLP.
 
@@ -31,6 +48,8 @@ class Company(models.Model):
         default=4, validators=[MinValueValidator(1), MaxValueValidator(12)]
     )
     base_currency = models.CharField(max_length=3, default="INR", editable=False)
+    # Exports, imports, EEFC accounts: ledgers and bills in other currencies.
+    multi_currency = models.BooleanField(default=False)
     # "Books beginning from": opening balances are as at the start of this day.
     books_start = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -231,6 +250,16 @@ class Ledger(models.Model):
     )
     opening_side = models.CharField(max_length=2, choices=SIDES, default=DR)
     bill_wise = models.BooleanField(default=False)
+    # Blank means the base currency (INR). For a foreign currency ledger the
+    # opening balance is also kept in that currency, at the rate given;
+    # opening_amount stays the INR value the books carry.
+    currency = models.ForeignKey(
+        Currency, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    opening_fc_amount = models.DecimalField(
+        max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
+    )
+    opening_rate = models.DecimalField(max_digits=18, decimal_places=9, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -275,6 +304,10 @@ class LedgerOpeningBill(models.Model):
         max_digits=18, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
     )
     side = models.CharField(max_length=2, choices=SIDES)
+    # Foreign currency ledgers: the bill in its own currency and the rate
+    # that gives `amount` in INR.
+    fc_amount = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    rate = models.DecimalField(max_digits=18, decimal_places=9, null=True, blank=True)
 
     class Meta:
         ordering = ["bill_date", "id"]

@@ -18,9 +18,21 @@ type Ledger = {
   opening_side: Side;
   bill_wise: boolean;
   opening_bills: Bill[];
+  currency: string | null;
+  opening_fc_amount: string;
+  opening_rate: string | null;
 };
+type Currency = { code: string; name: string; symbol: string };
 type Side = "dr" | "cr";
-type Bill = { ref: string; bill_date: string; due_date: string | null; amount: string; side: Side };
+type Bill = {
+  ref: string;
+  bill_date: string;
+  due_date: string | null;
+  amount: string;
+  side: Side;
+  fc_amount?: string | null;
+  rate?: string | null;
+};
 type Detail = { company: Company; ledger_groups: Group[] };
 
 const NATURE: Record<string, string> = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
@@ -101,6 +113,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
           groups={ordered}
           defaultGroup={groupFilter}
           booksStart={detail.company.books_start}
+          multiCurrency={detail.company.multi_currency}
           onDone={() => {
             setEditing(null);
             reload();
@@ -150,7 +163,17 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
                 {Number(l.opening_amount) === 0 ? (
                   <span className="small">—</span>
                 ) : (
-                  `${money(l.opening_amount)} ${l.opening_side === "dr" ? "Dr" : "Cr"}`
+                  <>
+                    {money(l.opening_amount)} {l.opening_side === "dr" ? "Dr" : "Cr"}
+                    {l.currency && (
+                      <>
+                        <br />
+                        <span className="small">
+                          {l.currency} {money(l.opening_fc_amount)}
+                        </span>
+                      </>
+                    )}
+                  </>
                 )}
               </td>
               <td>
@@ -174,6 +197,7 @@ function LedgerForm(props: {
   groups: { group: Group; depth: number }[];
   defaultGroup: string;
   booksStart: string;
+  multiCurrency: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -191,6 +215,16 @@ function LedgerForm(props: {
   const groupOf = (id: string) => props.groups.find((g) => String(g.group.id) === id)?.group;
   const [billWise, setBillWise] = useState(l ? l.bill_wise : (groupOf(props.defaultGroup)?.bill_wise_default ?? false));
   const [bills, setBills] = useState<Bill[]>(l?.opening_bills ?? []);
+  const [currency, setCurrency] = useState(l?.currency ?? "");
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [fcAmount, setFcAmount] = useState(l && Number(l.opening_fc_amount) ? l.opening_fc_amount : "");
+  const [rate, setRate] = useState(l?.opening_rate ?? "");
+  useEffect(() => {
+    if (props.multiCurrency) api<Currency[]>("v1/currencies/").then(setCurrencies);
+  }, [props.multiCurrency]);
+  const foreign = currency !== "" && currency !== "INR";
+  const inr = (fc: string | null | undefined, r: string | null | undefined) =>
+    Math.round((Number(fc) || 0) * (Number(r) || 0) * 100) / 100;
   const [error, setError] = useState("");
   const chosen = groupOf(group);
   const isBank = chosen?.is_bank ?? false;
@@ -206,7 +240,9 @@ function LedgerForm(props: {
     }
   };
   // For a bill-wise ledger the opening balance is the total of its bills.
-  const billsTotal = bills.reduce((t, b) => t + (Number(b.amount) || 0) * (b.side === "dr" ? 1 : -1), 0);
+  const billInr = (b: Bill) => (foreign ? inr(b.fc_amount, b.rate) : Number(b.amount) || 0);
+  const billsTotal = bills.reduce((t, b) => t + billInr(b) * (b.side === "dr" ? 1 : -1), 0);
+  const billsFcTotal = bills.reduce((t, b) => t + (Number(b.fc_amount) || 0) * (b.side === "dr" ? 1 : -1), 0);
   const setBill = (i: number, change: Partial<Bill>) => setBills(bills.map((b, j) => (j === i ? { ...b, ...change } : b)));
 
   const save = async (event: FormEvent) => {
@@ -222,13 +258,20 @@ function LedgerForm(props: {
       ifsc,
       bank_branch: bankBranch,
       bill_wise: billWise,
+      currency: foreign ? currency : null,
       ...(billWise
         ? {
             opening_amount: Math.abs(billsTotal).toFixed(2),
             opening_side: billsTotal < 0 ? "cr" : "dr",
-            opening_bills: bills.map((b) => ({ ...b, due_date: b.due_date || null })),
+            opening_bills: bills.map((b) =>
+              foreign
+                ? { ...b, due_date: b.due_date || null, amount: undefined }
+                : { ...b, due_date: b.due_date || null, fc_amount: null, rate: null },
+            ),
           }
-        : { opening_amount: openingAmount || "0", opening_side: openingSide }),
+        : foreign
+          ? { opening_fc_amount: fcAmount || "0", opening_rate: rate || null, opening_side: openingSide }
+          : { opening_amount: openingAmount || "0", opening_side: openingSide }),
     };
     try {
       if (l) await api(`v1/ledgers/${l.id}/`, body, "PATCH");
@@ -251,6 +294,19 @@ function LedgerForm(props: {
           <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
         </label>
       </div>
+      {props.multiCurrency && (
+        <label>
+          Currency
+          <select value={currency || "INR"} onChange={(e) => setCurrency(e.target.value === "INR" ? "" : e.target.value)}>
+            {currencies.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} · {c.name}
+                {c.code === "INR" ? " (base)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {isBank && (
         <fieldset>
           <legend>Bank details</legend>
@@ -290,7 +346,9 @@ function LedgerForm(props: {
                   <th>Bill reference</th>
                   <th>Bill date</th>
                   <th>Due date</th>
-                  <th className="num">Amount</th>
+                  {foreign && <th className="num">Amount ({currency})</th>}
+                  {foreign && <th className="num">Rate</th>}
+                  <th className="num">Amount (₹)</th>
                   <th>Dr/Cr</th>
                   <th />
                 </tr>
@@ -307,14 +365,40 @@ function LedgerForm(props: {
                     <td>
                       <input type="date" value={b.due_date ?? ""} onChange={(e) => setBill(i, { due_date: e.target.value })} />
                     </td>
+                    {foreign && (
+                      <td>
+                        <input
+                          required
+                          className="num"
+                          inputMode="decimal"
+                          value={b.fc_amount ?? ""}
+                          onChange={(e) => setBill(i, { fc_amount: e.target.value })}
+                        />
+                      </td>
+                    )}
+                    {foreign && (
+                      <td>
+                        <input
+                          required
+                          className="num"
+                          inputMode="decimal"
+                          value={b.rate ?? ""}
+                          onChange={(e) => setBill(i, { rate: e.target.value })}
+                        />
+                      </td>
+                    )}
                     <td>
-                      <input
-                        required
-                        className="num"
-                        inputMode="decimal"
-                        value={b.amount}
-                        onChange={(e) => setBill(i, { amount: e.target.value })}
-                      />
+                      {foreign ? (
+                        <div className="num">{money(billInr(b))}</div>
+                      ) : (
+                        <input
+                          required
+                          className="num"
+                          inputMode="decimal"
+                          value={b.amount}
+                          onChange={(e) => setBill(i, { amount: e.target.value })}
+                        />
+                      )}
                     </td>
                     <td>
                       <select value={b.side} onChange={(e) => setBill(i, { side: e.target.value as Side })}>
@@ -336,11 +420,19 @@ function LedgerForm(props: {
                     <button
                       type="button"
                       className="link"
-                      onClick={() => setBills([...bills, { ref: "", bill_date: "", due_date: null, amount: "", side: usualSide }])}
+                      onClick={() =>
+                        setBills([...bills, { ref: "", bill_date: "", due_date: null, amount: "", side: usualSide, fc_amount: "", rate: "" }])
+                      }
                     >
                       Add bill
                     </button>
                   </td>
+                  {foreign && (
+                    <td className="num">
+                      <strong>{money(Math.abs(billsFcTotal))}</strong>
+                    </td>
+                  )}
+                  {foreign && <td />}
                   <td className="num">
                     <strong>{money(Math.abs(billsTotal))}</strong>
                   </td>
@@ -357,16 +449,33 @@ function LedgerForm(props: {
           </>
         ) : (
           <div className="row">
-            <label>
-              Amount
-              <input
-                className="num"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={openingAmount}
-                onChange={(e) => setOpeningAmount(e.target.value)}
-              />
-            </label>
+            {foreign ? (
+              <>
+                <label>
+                  Amount ({currency})
+                  <input className="num" inputMode="decimal" placeholder="0.00" value={fcAmount} onChange={(e) => setFcAmount(e.target.value)} />
+                </label>
+                <label>
+                  Rate (₹ per {currency})
+                  <input className="num" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} />
+                </label>
+                <label>
+                  Amount (₹)
+                  <input className="num" readOnly value={money(inr(fcAmount, rate))} />
+                </label>
+              </>
+            ) : (
+              <label>
+                Amount
+                <input
+                  className="num"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={openingAmount}
+                  onChange={(e) => setOpeningAmount(e.target.value)}
+                />
+              </label>
+            )}
             <label>
               Dr/Cr
               <select value={openingSide} onChange={(e) => setOpeningSide(e.target.value as Side)}>

@@ -10,7 +10,7 @@ Who may do what:
   posting rules rely on them.
 """
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
@@ -25,9 +25,11 @@ from core import india
 from core.companies import create_company, visible_companies
 from core.models import (
     BILL_WISE_GROUP_CODES,
+    CR,
     DR,
     Branch,
     Company,
+    Currency,
     Ledger,
     LedgerGroup,
     LedgerOpeningBill,
@@ -88,6 +90,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "pincode",
             "fiscal_year_start_month",
             "books_start",
+            "multi_currency",
             "base_currency",
         ]
         read_only_fields = ["base_currency"]
@@ -146,7 +149,8 @@ BANK_FIELDS = ["bank_name", "account_number", "ifsc", "bank_branch"]
 class OpeningBillSerializer(serializers.ModelSerializer):
     class Meta:
         model = LedgerOpeningBill
-        fields = ["ref", "bill_date", "due_date", "amount", "side"]
+        fields = ["ref", "bill_date", "due_date", "amount", "side", "fc_amount", "rate"]
+        extra_kwargs = {"amount": {"required": False}}
 
 
 class LedgerSerializer(serializers.ModelSerializer):
@@ -155,6 +159,9 @@ class LedgerSerializer(serializers.ModelSerializer):
     ifsc = serializers.CharField(max_length=11, allow_blank=True, required=False)
     validate_ifsc = staticmethod(_upper)
     opening_bills = OpeningBillSerializer(many=True, required=False)
+    currency = serializers.SlugRelatedField(
+        slug_field="code", queryset=Currency.objects.all(), allow_null=True, required=False
+    )
     bill_wise = serializers.BooleanField(required=False)
 
     class Meta:
@@ -172,6 +179,9 @@ class LedgerSerializer(serializers.ModelSerializer):
             "opening_side",
             "bill_wise",
             "opening_bills",
+            "currency",
+            "opening_fc_amount",
+            "opening_rate",
         ]
 
 
@@ -184,7 +194,29 @@ LEDGER_FIELDS = [
     "opening_amount",
     "opening_side",
     "bill_wise",
+    "currency",
+    "opening_fc_amount",
+    "opening_rate",
 ]
+
+CENT = Decimal("0.01")
+
+
+def _in_inr(fc_amount, rate) -> Decimal:
+    return (fc_amount * rate).quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def _set_foreign_opening(ledger: Ledger) -> None:
+    """A foreign currency ledger's INR opening balance is its foreign amount
+    at the rate given. A base-currency ledger keeps no foreign figures."""
+    if ledger.currency is None:
+        ledger.opening_fc_amount, ledger.opening_rate = Decimal("0"), None
+    elif not ledger.bill_wise:
+        if ledger.opening_fc_amount and not (ledger.opening_rate and ledger.opening_rate > 0):
+            raise ValidationError({"opening_rate": ["Give the exchange rate in INR."]})
+        rate = ledger.opening_rate or Decimal("0")
+        ledger.opening_amount = _in_inr(ledger.opening_fc_amount, rate)
+    ledger.save()
 
 
 def _save_opening_bills(ledger: Ledger, bills: list[dict] | None) -> None:
@@ -215,11 +247,37 @@ def _save_opening_bills(ledger: Ledger, bills: list[dict] | None) -> None:
                 raise ValidationError(
                     {"opening_bills": [f"Bill {b['ref']} is due before its own date."]}
                 )
+            if ledger.currency is not None:
+                fc, rate = b.get("fc_amount"), b.get("rate")
+                if not fc or fc <= 0 or not rate or rate <= 0:
+                    raise ValidationError(
+                        {
+                            "opening_bills": [
+                                f"Bill {b['ref']} needs its {ledger.currency.code} amount "
+                                "and the exchange rate."
+                            ]
+                        }
+                    )
+                b["amount"] = _in_inr(fc, rate)
+            else:
+                b["fc_amount"] = b["rate"] = None
+                if not b.get("amount") or b["amount"] <= 0:
+                    raise ValidationError({"opening_bills": [f"Bill {b['ref']} needs an amount."]})
         ledger.opening_bills.all().delete()
         LedgerOpeningBill.objects.bulk_create(
             LedgerOpeningBill(ledger=ledger, **{**b, "ref": b["ref"].strip()}) for b in bills
         )
     total = sum((b.signed for b in ledger.opening_bills.all()), Decimal("0"))
+    if ledger.currency is not None:
+        # Each bill has its own rate, so the INR balance is the bills' total.
+        fc_total = sum(
+            (b.fc_amount if b.side == DR else -b.fc_amount for b in ledger.opening_bills.all()),
+            Decimal("0"),
+        )
+        ledger.opening_amount, ledger.opening_side = abs(total), DR if total >= 0 else CR
+        ledger.opening_fc_amount, ledger.opening_rate = abs(fc_total), None
+        ledger.save()
+        return
     if total != ledger.opening_signed:
         raise ValidationError(
             {
@@ -256,6 +314,13 @@ def _save(instance, data: dict, fields) -> None:
     except DjangoValidationError as exc:
         raise _django_errors(exc) from exc
     instance.save()
+
+
+class CurrencyListView(APIView):
+    permission_classes = [Signed]
+
+    def get(self, request):
+        return Response(list(Currency.objects.values("code", "name", "symbol")))
 
 
 class StatesView(APIView):
@@ -328,7 +393,11 @@ class CompanyDetailView(APIView):
         # Fiscal year start can change only until vouchers exist (a later piece
         # will refuse it then).
         fields = ["name", "gstin", "pan", "state_code", "address", "pincode"]
-        _save(company, data, [*fields, "fiscal_year_start_month", "books_start"])
+        _save(company, data, [*fields, "fiscal_year_start_month", "books_start", "multi_currency"])
+        if not company.multi_currency and company.ledgers.exclude(currency=None).exists():
+            raise ValidationError(
+                {"multi_currency": ["Some ledgers are in foreign currencies; change them first."]}
+            )
         if LedgerOpeningBill.objects.filter(
             ledger__company=company, bill_date__gte=company.books_start
         ).exists():
@@ -486,6 +555,13 @@ def _ledger_data(ledger: Ledger, data: dict) -> dict:
         data = {**data, **dict.fromkeys(BANK_FIELDS, "")}
     if "name" in data:
         data["name"] = data["name"].strip()
+    if data.get("currency") is not None:
+        if data["currency"].code == ledger.company.base_currency:
+            data["currency"] = None
+        elif not ledger.company.multi_currency:
+            raise ValidationError(
+                {"currency": ["Turn on multiple currencies for this company first."]}
+            )
     return data
 
 
@@ -520,6 +596,7 @@ class LedgerListView(APIView):
             data["bill_wise"] = data["group"].is_under(BILL_WISE_GROUP_CODES)
         _unique_ledger_name(company, data["name"])
         _save(ledger, data, LEDGER_FIELDS)
+        _set_foreign_opening(ledger)
         _save_opening_bills(ledger, bills)
         return Response(LedgerSerializer(ledger).data, status=status.HTTP_201_CREATED)
 
@@ -544,5 +621,6 @@ class LedgerDetailView(APIView):
         if "name" in data:
             _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
         _save(ledger, data, LEDGER_FIELDS)
+        _set_foreign_opening(ledger)
         _save_opening_bills(ledger, bills)
         return Response(LedgerSerializer(ledger).data)
