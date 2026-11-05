@@ -194,16 +194,6 @@ function LedgerForm(props: {
       setError((err as Error).message);
     }
   };
-  const remove = async () => {
-    if (!l || !window.confirm(`Delete the ledger ${l.name}?`)) return;
-    try {
-      await api(`v1/ledgers/${l.id}/`, undefined, "DELETE");
-      props.onDone();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
-
   return (
     <form className="card" onSubmit={save}>
       <h3>{l ? `Edit ${l.name}` : "Add ledger"}</h3>
@@ -249,7 +239,7 @@ function LedgerForm(props: {
       {l && (
         <label className="check">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          Active (untick to stop new entries to this ledger)
+          Active (ledgers are never deleted; untick to stop new entries)
         </label>
       )}
       {error && <p className="error">{error}</p>}
@@ -258,11 +248,6 @@ function LedgerForm(props: {
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
-        {l && (
-          <button type="button" className="link danger" onClick={remove}>
-            Delete ledger
-          </button>
-        )}
       </div>
     </form>
   );

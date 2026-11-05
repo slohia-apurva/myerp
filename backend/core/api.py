@@ -421,9 +421,3 @@ class LedgerDetailView(APIView):
             _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
         _save(ledger, data, ["name", "group", "is_active", "notes", *BANK_FIELDS])
         return Response(LedgerSerializer(ledger).data)
-
-    @tenant_atomic()
-    def delete(self, request, pk: int):
-        # Once vouchers exist: refuse when the ledger has postings.
-        self._ledger(request, pk).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
