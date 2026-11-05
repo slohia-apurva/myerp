@@ -1,7 +1,53 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 
-export type Company = {
+// Address and contact, shared by companies and branches.
+type Contact = { address: string; pincode: string; phone: string; email: string; contact_person: string };
+const NO_CONTACT: Contact = { address: "", pincode: "", phone: "", email: "", contact_person: "" };
+const contactOf = (x: Contact | null | undefined): Contact =>
+  x
+    ? { address: x.address, pincode: x.pincode, phone: x.phone, email: x.email, contact_person: x.contact_person }
+    : NO_CONTACT;
+
+function ContactFields(props: { value: Contact; onChange: (c: Contact) => void }) {
+  const v = props.value;
+  const set = (field: keyof Contact) => (e: { target: { value: string } }) => props.onChange({ ...v, [field]: e.target.value });
+  return (
+    <>
+      <label>
+        Address
+        <textarea rows={2} value={v.address} onChange={set("address")} />
+      </label>
+      <div className="row">
+        <label>
+          PIN code
+          <input value={v.pincode} maxLength={6} inputMode="numeric" onChange={set("pincode")} />
+        </label>
+        <label>
+          Contact person
+          <input value={v.contact_person} onChange={set("contact_person")} />
+        </label>
+      </div>
+      <div className="row">
+        <label>
+          Phone
+          <input type="tel" value={v.phone} maxLength={20} placeholder="+91 98200 12345" onChange={set("phone")} />
+        </label>
+        <label>
+          Email
+          <input type="email" value={v.email} onChange={set("email")} />
+        </label>
+      </div>
+    </>
+  );
+}
+
+function contactLines(x: Contact) {
+  const reach = [x.contact_person, x.phone, x.email].filter(Boolean).join(" · ");
+  return { where: [x.address, x.pincode].filter(Boolean).join(" ") || "—", reach: reach || "—" };
+}
+
+export type Company = Contact & {
   id: number;
   name: string;
   abbr: string;
@@ -9,19 +55,16 @@ export type Company = {
   pan: string;
   state_code: string;
   state: string;
-  address: string;
-  pincode: string;
   fiscal_year_start_month: number;
   books_start: string;
   multi_currency: boolean;
   base_currency: string;
 };
-type Branch = {
+type Branch = Contact & {
   id: number;
   name: string;
   state_code: string;
   gstin: string;
-  address: string;
   is_head_office: boolean;
   is_active: boolean;
 };
@@ -142,8 +185,7 @@ function CompanyForm(props: {
   const [gstin, setGstin] = useState(c?.gstin ?? "");
   const [pan, setPan] = useState(c?.pan ?? "");
   const [stateCode, setStateCode] = useState(c?.state_code ?? "");
-  const [address, setAddress] = useState(c?.address ?? "");
-  const [pincode, setPincode] = useState(c?.pincode ?? "");
+  const [contact, setContact] = useState(contactOf(c));
   const [fyMonth, setFyMonth] = useState(c?.fiscal_year_start_month ?? 4);
   const [booksStart, setBooksStart] = useState(c?.books_start ?? "");
   const [multiCurrency, setMultiCurrency] = useState(c?.multi_currency ?? false);
@@ -165,8 +207,7 @@ function CompanyForm(props: {
       gstin,
       pan,
       state_code: stateCode,
-      address,
-      pincode,
+      ...contact,
       fiscal_year_start_month: fyMonth,
       ...(booksStart ? { books_start: booksStart } : {}),
       multi_currency: multiCurrency,
@@ -202,20 +243,11 @@ function CompanyForm(props: {
           <input value={pan} maxLength={10} onChange={(e) => setPan(e.target.value.toUpperCase())} />
         </label>
       </div>
-      <div className="row">
-        <label>
-          State
-          <StateSelect states={props.states} value={stateCode} onChange={setStateCode} />
-        </label>
-        <label>
-          PIN code
-          <input value={pincode} maxLength={6} inputMode="numeric" onChange={(e) => setPincode(e.target.value)} />
-        </label>
-      </div>
       <label>
-        Address
-        <textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
+        State
+        <StateSelect states={props.states} value={stateCode} onChange={setStateCode} />
       </label>
+      <ContactFields value={contact} onChange={setContact} />
       <label>
         Financial year starts in
         <select value={fyMonth} onChange={(e) => setFyMonth(Number(e.target.value))}>
@@ -298,7 +330,9 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
           <dt>State</dt>
           <dd>{c.state}</dd>
           <dt>Address</dt>
-          <dd>{[c.address, c.pincode].filter(Boolean).join(" ") || "—"}</dd>
+          <dd className="pre">{contactLines(c).where}</dd>
+          <dt>Contact</dt>
+          <dd>{contactLines(c).reach}</dd>
           <dt>Financial year</dt>
           <dd>
             {MONTHS[c.fiscal_year_start_month - 1]} to {MONTHS[(c.fiscal_year_start_month + 10) % 12]}, {c.base_currency}
@@ -356,6 +390,8 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
             <th>Branch</th>
             <th>State</th>
             <th>GSTIN</th>
+            <th>Address</th>
+            <th>Contact</th>
             <th />
           </tr>
         </thead>
@@ -369,6 +405,8 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
               </td>
               <td>{stateName(b.state_code)}</td>
               <td>{b.gstin || <span className="small">Company's</span>}</td>
+              <td className="pre small">{contactLines(b).where}</td>
+              <td className="small">{contactLines(b).reach}</td>
               <td>
                 {props.canEdit && (
                   <button className="link" onClick={() => setEditing(b)}>
@@ -389,14 +427,14 @@ function BranchForm(props: { company: Company; branch: Branch | null; states: St
   const [name, setName] = useState(b?.name ?? "");
   const [stateCode, setStateCode] = useState(b?.state_code ?? props.company.state_code);
   const [gstin, setGstin] = useState(b?.gstin ?? "");
-  const [address, setAddress] = useState(b?.address ?? "");
+  const [contact, setContact] = useState(contactOf(b));
   const [active, setActive] = useState(b?.is_active ?? true);
   const [error, setError] = useState("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    const body = { name, state_code: stateCode, gstin, address, is_active: active };
+    const body = { name, state_code: stateCode, gstin, ...contact, is_active: active };
     try {
       if (b) await api(`v1/branches/${b.id}/`, body, "PATCH");
       else await api(`v1/companies/${props.company.id}/branches/`, body);
@@ -423,10 +461,7 @@ function BranchForm(props: { company: Company; branch: Branch | null; states: St
           <input value={gstin} maxLength={15} onChange={(e) => setGstin(e.target.value.toUpperCase())} />
         </label>
       </div>
-      <label>
-        Address
-        <textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
-      </label>
+      <ContactFields value={contact} onChange={setContact} />
       {b && !b.is_head_office && (
         <label className="check">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />

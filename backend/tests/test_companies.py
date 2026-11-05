@@ -203,3 +203,33 @@ def test_groups_belong_to_one_company(owner, alpha):
     assert response.status_code == 400
     with use_tenant(alpha):
         assert LedgerGroup.objects.filter(company_id=a, code="sundry_debtors").count() == 1
+
+
+def test_contact_details_on_company_and_branches(owner):
+    contact = {
+        "address": "Plot 12, MIDC Bhosari\nPune",
+        "pincode": "411026",
+        "phone": "+91 98200 12345",
+        "email": "accounts@apurvam.in",
+        "contact_person": "Sidharth Lohia",
+    }
+    company = add_company(owner, **contact).json()
+    assert {k: company[k] for k in contact} == contact
+    # The head office starts with the company's address and contact.
+    detail = call(owner, "get", f"companies/{company['id']}/").json()
+    head = detail["branches"][0]
+    assert {k: head[k] for k in contact} == contact
+
+    branch = {"name": "Nagpur depot", "state_code": "27", **contact, "pincode": "440001"}
+    branch["phone"] = "0712-234 5678"
+    response = call(owner, "post", f"companies/{company['id']}/branches/", branch)
+    assert response.status_code == 201, response.json()
+    assert response.json()["phone"] == "0712-234 5678"
+
+    bad = call(owner, "patch", f"branches/{head['id']}/", {"phone": "call me", "pincode": "0123"})
+    assert bad.status_code == 400
+    assert set(bad.json()) >= {"phone"}
+    bad = call(owner, "patch", f"branches/{head['id']}/", {"pincode": "0123"})
+    assert "pincode" in bad.json()
+    bad = call(owner, "patch", f"companies/{company['id']}/", {"email": "not-an-email"})
+    assert "email" in bad.json()
