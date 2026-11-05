@@ -7,9 +7,100 @@ body {
   margin: 0;
 }
 main {
-  max-width: 420px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 32px 16px;
+  padding: 24px 16px;
+}
+main.narrow {
+  max-width: 420px;
+  padding-top: 32px;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #dde1e6;
+  flex-wrap: wrap;
+}
+.topbar nav {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+}
+.topbar a {
+  color: #1b1f24;
+  text-decoration: none;
+}
+.topbar a.active {
+  color: #1f6f43;
+  font-weight: 600;
+}
+.who {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.9rem;
+}
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.page h2 {
+  margin: 0;
+}
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #dde1e6;
+}
+th,
+td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eceef1;
+  vertical-align: top;
+}
+tr.inactive td {
+  color: #888;
+}
+fieldset {
+  border: 1px solid #dde1e6;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+legend {
+  font-size: 0.85rem;
+  color: #555;
+}
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.buttons {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+button.link.danger {
+  color: #b42318;
+}
+h3 {
+  margin: 0;
 }
 .card {
   display: flex;

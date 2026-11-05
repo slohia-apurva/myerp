@@ -1,0 +1,11 @@
+from django.urls import path
+
+from accounts import users_api
+
+urlpatterns = [
+    path("users/", users_api.UserListView.as_view(), name="users"),
+    path("users/<int:pk>/", users_api.UserDetailView.as_view(), name="user"),
+    path("roles/", users_api.RoleListView.as_view(), name="roles"),
+    path("roles/<int:pk>/", users_api.RoleDetailView.as_view(), name="role"),
+    path("companies/", users_api.CompanyListView.as_view(), name="companies"),
+]

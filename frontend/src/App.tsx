@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, Session } from "./api";
+import { api, ApiError, Session, SignedIn } from "./api";
 import { SignIn } from "./Login";
+import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
+type Page = "home" | "users" | "roles";
+
+function pageFromHash(): Page {
+  const page = window.location.hash.replace(/^#\/?/, "");
+  return page === "users" || page === "roles" ? page : "home";
+}
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -16,14 +23,13 @@ export function App() {
   }, []);
   const onChange = useCallback((s: Session) => setSession(s), []);
 
+  if (session?.signed_in) return <Shell session={session} onSignOut={onChange} />;
   return (
-    <main>
+    <main className="narrow">
       <h1>MyERP</h1>
       {error && <p className="error">{error}</p>}
       {session === null ? (
         !error && <p>Loading…</p>
-      ) : session.signed_in ? (
-        <Home session={session} onSignOut={onChange} />
       ) : (
         <SignIn clientId={session.google_client_id} onChange={onChange} />
       )}
@@ -31,43 +37,70 @@ export function App() {
   );
 }
 
-function Home({
-  session,
-  onSignOut,
-}: {
-  session: Extract<Session, { signed_in: true }>;
-  onSignOut: (s: Session) => void;
-}) {
-  const [who, setWho] = useState<WhoAmI | null>(null);
+function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Session) => void }) {
+  const [page, setPage] = useState<Page>(pageFromHash);
   useEffect(() => {
-    api<WhoAmI>("whoami/").then(setWho);
+    const onHash = () => setPage(pageFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  const canManageUsers = session.permissions.includes("users.manage");
   const signOut = () => {
     // Stop Google from signing the person straight back in on this browser.
     if ("google" in window) google.accounts.id.disableAutoSelect();
     api<Session>("auth/logout/", {}).then(onSignOut);
   };
+  const link = (target: Page, label: string) => (
+    <a href={`#/${target === "home" ? "" : target}`} className={page === target ? "active" : ""}>
+      {label}
+    </a>
+  );
+
   return (
-    <div className="card">
-      <p>
-        Signed in as <strong>{session.user.name}</strong>
-        <br />
-        <span className="small">{session.user.email}</span>
-      </p>
+    <>
+      <header className="topbar">
+        <strong>MyERP</strong>
+        <nav>
+          {link("home", "Home")}
+          {canManageUsers && link("users", "Users")}
+          {canManageUsers && link("roles", "Roles")}
+        </nav>
+        <span className="who">
+          {session.user.name}
+          <button className="link" onClick={signOut}>
+            Sign out
+          </button>
+        </span>
+      </header>
+      <main>
+        {page === "users" && canManageUsers ? (
+          <UsersPage session={session} />
+        ) : page === "roles" && canManageUsers ? (
+          <RolesPage session={session} />
+        ) : (
+          <Home session={session} />
+        )}
+      </main>
+    </>
+  );
+}
+
+function Home({ session }: { session: SignedIn }) {
+  const [who, setWho] = useState<WhoAmI | null>(null);
+  useEffect(() => {
+    api<WhoAmI>("whoami/").then(setWho);
+  }, []);
+  return (
+    <section className="page">
+      <h2>Welcome, {session.user.name}</h2>
       {who && (
-        <>
-          <p>
-            {who.name} ({who.tenant})
-          </p>
-          <ul>
-            {who.companies.length === 0 && <li>No companies yet.</li>}
-            {who.companies.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
-        </>
+        <p>
+          {who.name} · {who.companies.length === 0 ? "No companies yet." : who.companies.join(", ")}
+        </p>
       )}
-      <button onClick={signOut}>Sign out</button>
-    </div>
+      {session.permissions.length === 0 && (
+        <p className="small">You have no role yet. Ask your MyERP admin to give you one.</p>
+      )}
+    </section>
   );
 }

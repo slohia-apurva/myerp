@@ -25,7 +25,11 @@ def session_state(request) -> dict:
     """Whether someone is signed in, and what the sign-in screen needs."""
     user = request.user
     if user.is_authenticated:
-        return {"signed_in": True, "user": {"email": user.email, "name": user.display_name}}
+        return {
+            "signed_in": True,
+            "user": {"email": user.email, "name": user.display_name, "is_owner": user.is_owner},
+            "permissions": sorted(user.permission_codes()),
+        }
     return {"signed_in": False, "google_client_id": settings.MYERP_GOOGLE_CLIENT_ID}
 
 

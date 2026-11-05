@@ -46,3 +46,18 @@ def use_tenant(tenant: Tenant) -> Iterator[Tenant]:
         yield tenant
     finally:
         _current_tenant.reset(token)
+
+
+@contextmanager
+def tenant_atomic() -> Iterator[None]:
+    """A transaction on the current tenant's database.
+
+    Use this instead of `django.db.transaction.atomic`, which with no `using`
+    opens the transaction on the platform database: tenant writes inside it
+    would not be atomic, and `select_for_update()` fails.
+    Works as a decorator too (`@tenant_atomic()`).
+    """
+    from django.db import transaction
+
+    with transaction.atomic(using=require_tenant().db_alias):
+        yield

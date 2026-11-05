@@ -6,7 +6,7 @@ MyERP is Apurvam's own web ERP (books, stock, production, purchase, sales, GST, 
 
 - Two ledgers (GL, stock ledger) are the source of truth; posted entries are immutable (cancel + amend, never edit).
 - Money NUMERIC(18,2), qty/rates NUMERIC(18,6). Never floats.
-- Tenant isolation: tenant data is reached only inside `tenancy.context.use_tenant(...)` (the middleware does this per request). Never pass `.using(...)` to reach another tenant. Platform-side apps are listed in `tenancy.router.PLATFORM_APPS`; everything else is tenant-side.
+- Tenant isolation: tenant data is reached only inside `tenancy.context.use_tenant(...)` (the middleware does this per request). Never pass `.using(...)` to reach another tenant. Transactions on tenant data use `tenancy.context.tenant_atomic()`, never bare `transaction.atomic` (that opens on the platform database). Platform-side apps are listed in `tenancy.router.PLATFORM_APPS`; everything else is tenant-side.
 - No tenant-specific code: differences between tenants are data or plan feature flags.
 - Tax rates, TDS sections, payroll rates are dated master data, never constants in code.
 - AI only creates drafts or suggestions; a person submits.

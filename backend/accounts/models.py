@@ -10,6 +10,30 @@ from django.contrib.auth.models import PermissionsMixin
 from django.db import models
 from django.utils import timezone
 
+from accounts import permissions
+from accounts.roles import OWNER
+
+
+class Role(models.Model):
+    """A named set of permissions, e.g. Accountant. Stored per tenant."""
+
+    code = models.SlugField(max_length=50, unique=True)
+    name = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=300, blank=True)
+    permissions = models.JSONField(default=list, blank=True)
+    # Came with MyERP (can be edited, not deleted); Owner cannot be edited.
+    is_standard = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def is_owner(self) -> bool:
+        return self.code == OWNER
+
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -30,6 +54,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Google's permanent account id, recorded at first sign-in. If the email
     # address is later given to a different Google account, it cannot sign in.
     google_sub = models.CharField(max_length=255, blank=True, default="")
+    roles = models.ManyToManyField(Role, blank=True, related_name="users")
+    # Companies this person may work in; none ticked means all companies.
+    companies = models.ManyToManyField("core.Company", blank=True, related_name="+")
 
     objects = UserManager()
 
@@ -50,3 +77,20 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def display_name(self) -> str:
         return self.full_name or self.email
+
+    @property
+    def is_owner(self) -> bool:
+        return self.roles.filter(code=OWNER).exists()
+
+    def permission_codes(self) -> frozenset[str]:
+        if not self.is_active:
+            return frozenset()
+        if self.is_owner:
+            return permissions.ALL
+        codes: set[str] = set()
+        for perms in self.roles.values_list("permissions", flat=True):
+            codes.update(perms)
+        return frozenset(codes & permissions.ALL)
+
+    def can(self, code: str) -> bool:
+        return code in self.permission_codes()
