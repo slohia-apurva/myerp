@@ -1,7 +1,9 @@
 """Creating a company and what every company starts with."""
 
+from datetime import date
+
 from core.ledger_groups import ensure_cash_ledger, ensure_head_office, seed_standard_groups
-from core.models import Branch, Company, Ledger, LedgerGroup
+from core.models import Branch, Company, Ledger, LedgerGroup, fiscal_year_start
 from tenancy.context import tenant_atomic
 
 
@@ -9,6 +11,10 @@ def create_company(**fields) -> Company:
     """A new company with its head office branch, standard ledger groups and
     a Cash ledger."""
     with tenant_atomic():
+        fields.setdefault(
+            "books_start",
+            fiscal_year_start(date.today(), fields.get("fiscal_year_start_month", 4)),
+        )
         company = Company(**fields)
         company.full_clean(exclude=["abbr"] if not company.abbr else None)
         company.save()

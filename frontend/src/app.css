@@ -257,3 +257,28 @@ a.button {
 .filters > select {
   flex: 1 1 200px;
 }
+.num {
+  text-align: right;
+}
+input.num {
+  width: 100%;
+  box-sizing: border-box;
+}
+table.grid {
+  border: 1px solid #dde1e6;
+}
+table.grid td {
+  padding: 4px 6px;
+}
+table.grid input,
+table.grid select {
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+table.grid tfoot td {
+  border-bottom: 0;
+}
+table.grid select {
+  min-width: 68px;
+}

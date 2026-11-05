@@ -10,6 +10,8 @@ Who may do what:
   posting rules rely on them.
 """
 
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
 from django.db.models.functions import Lower
@@ -21,7 +23,15 @@ from rest_framework.views import APIView
 
 from core import india
 from core.companies import create_company, visible_companies
-from core.models import Branch, Company, Ledger, LedgerGroup
+from core.models import (
+    BILL_WISE_GROUP_CODES,
+    DR,
+    Branch,
+    Company,
+    Ledger,
+    LedgerGroup,
+    LedgerOpeningBill,
+)
 from tenancy.context import tenant_atomic
 
 VIEW, EDIT = "masters.view", "masters.edit"
@@ -77,11 +87,16 @@ class CompanySerializer(serializers.ModelSerializer):
             "address",
             "pincode",
             "fiscal_year_start_month",
+            "books_start",
             "base_currency",
         ]
         read_only_fields = ["base_currency"]
         # Uniqueness is checked case-insensitively in the views.
-        extra_kwargs = {"name": {"validators": []}, "abbr": {"required": False, "validators": []}}
+        extra_kwargs = {
+            "name": {"validators": []},
+            "abbr": {"required": False, "validators": []},
+            "books_start": {"required": False},
+        }
 
     def get_state(self, company) -> str:
         return india.STATES.get(company.state_code, "")
@@ -100,6 +115,7 @@ class BranchSerializer(serializers.ModelSerializer):
 class LedgerGroupSerializer(serializers.ModelSerializer):
     ledger_count = serializers.IntegerField(read_only=True, default=0)
     is_bank = serializers.SerializerMethodField()
+    bill_wise_default = serializers.SerializerMethodField()
 
     class Meta:
         model = LedgerGroup
@@ -113,14 +129,24 @@ class LedgerGroupSerializer(serializers.ModelSerializer):
             "is_standard",
             "ledger_count",
             "is_bank",
+            "bill_wise_default",
         ]
         read_only_fields = ["nature", "affects_gross_profit", "code", "is_standard"]
 
     def get_is_bank(self, group) -> bool:
         return group.is_bank_group()
 
+    def get_bill_wise_default(self, group) -> bool:
+        return group.is_under(BILL_WISE_GROUP_CODES)
+
 
 BANK_FIELDS = ["bank_name", "account_number", "ifsc", "bank_branch"]
+
+
+class OpeningBillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LedgerOpeningBill
+        fields = ["ref", "bill_date", "due_date", "amount", "side"]
 
 
 class LedgerSerializer(serializers.ModelSerializer):
@@ -128,10 +154,96 @@ class LedgerSerializer(serializers.ModelSerializer):
     nature = serializers.CharField(source="group.nature", read_only=True)
     ifsc = serializers.CharField(max_length=11, allow_blank=True, required=False)
     validate_ifsc = staticmethod(_upper)
+    opening_bills = OpeningBillSerializer(many=True, required=False)
+    bill_wise = serializers.BooleanField(required=False)
 
     class Meta:
         model = Ledger
-        fields = ["id", "name", "group", "group_name", "nature", "is_active", "notes", *BANK_FIELDS]
+        fields = [
+            "id",
+            "name",
+            "group",
+            "group_name",
+            "nature",
+            "is_active",
+            "notes",
+            *BANK_FIELDS,
+            "opening_amount",
+            "opening_side",
+            "bill_wise",
+            "opening_bills",
+        ]
+
+
+LEDGER_FIELDS = [
+    "name",
+    "group",
+    "is_active",
+    "notes",
+    *BANK_FIELDS,
+    "opening_amount",
+    "opening_side",
+    "bill_wise",
+]
+
+
+def _save_opening_bills(ledger: Ledger, bills: list[dict] | None) -> None:
+    """Replace the ledger's opening bills (when given) and check that they
+    add up to its opening balance. Runs inside tenant_atomic, so raising
+    undoes the whole save."""
+    if not ledger.bill_wise:
+        ledger.opening_bills.all().delete()
+        return
+    if bills is not None:
+        refs = [b["ref"].strip().lower() for b in bills]
+        if any(not r for r in refs):
+            raise ValidationError({"opening_bills": ["Every bill needs a reference."]})
+        if len(set(refs)) != len(refs):
+            raise ValidationError({"opening_bills": ["Each bill reference may appear only once."]})
+        start = ledger.company.books_start
+        for b in bills:
+            if b["bill_date"] >= start:
+                raise ValidationError(
+                    {
+                        "opening_bills": [
+                            f"Bill {b['ref']} must be dated before {start:%d %b %Y}, "
+                            "when the books begin."
+                        ]
+                    }
+                )
+            if b.get("due_date") and b["due_date"] < b["bill_date"]:
+                raise ValidationError(
+                    {"opening_bills": [f"Bill {b['ref']} is due before its own date."]}
+                )
+        ledger.opening_bills.all().delete()
+        LedgerOpeningBill.objects.bulk_create(
+            LedgerOpeningBill(ledger=ledger, **{**b, "ref": b["ref"].strip()}) for b in bills
+        )
+    total = sum((b.signed for b in ledger.opening_bills.all()), Decimal("0"))
+    if total != ledger.opening_signed:
+        raise ValidationError(
+            {
+                "opening_bills": [
+                    f"The bills add up to {_dr_cr(total)} but the opening balance is "
+                    f"{_dr_cr(ledger.opening_signed)}."
+                ]
+            }
+        )
+
+
+def _dr_cr(signed: Decimal) -> str:
+    return f"{abs(signed):,.2f} {'Dr' if signed >= 0 else 'Cr'}"
+
+
+def _opening_totals(company) -> dict:
+    """Total opening debits and credits; they should match, as in Tally."""
+    dr = cr = Decimal("0")
+    for amount, side in company.ledgers.values_list("opening_amount", "opening_side"):
+        if side == DR:
+            dr += amount
+        else:
+            cr += amount
+    return {"dr": str(dr), "cr": str(cr), "difference": str(dr - cr)}
 
 
 def _save(instance, data: dict, fields) -> None:
@@ -188,6 +300,7 @@ class CompanyDetailView(APIView):
             {
                 "company": CompanySerializer(company).data,
                 "branches": BranchSerializer(company.branches.all(), many=True).data,
+                "opening": _opening_totals(company),
                 "ledger_groups": LedgerGroupSerializer(
                     company.ledger_groups.select_related("parent__parent__parent").annotate(
                         ledger_count=Count("ledgers")
@@ -215,7 +328,13 @@ class CompanyDetailView(APIView):
         # Fiscal year start can change only until vouchers exist (a later piece
         # will refuse it then).
         fields = ["name", "gstin", "pan", "state_code", "address", "pincode"]
-        _save(company, data, [*fields, "fiscal_year_start_month"])
+        _save(company, data, [*fields, "fiscal_year_start_month", "books_start"])
+        if LedgerOpeningBill.objects.filter(
+            ledger__company=company, bill_date__gte=company.books_start
+        ).exists():
+            raise ValidationError(
+                {"books_start": ["Some opening bills are dated on or after this day."]}
+            )
         if old_pan and company.pan != old_pan and company.branches.exclude(gstin="").exists():
             # Raising inside tenant_atomic undoes the save above.
             raise ValidationError({"pan": ["Branches have GSTINs under the old PAN."]})
@@ -378,7 +497,7 @@ class LedgerListView(APIView):
     def get(self, request, pk: int):
         _check(request, VIEW)
         company = _company(request, pk)
-        ledgers = company.ledgers.select_related("group")
+        ledgers = company.ledgers.select_related("group").prefetch_related("opening_bills")
         if q := request.query_params.get("q", "").strip():
             ledgers = ledgers.filter(Q(name__icontains=q) | Q(account_number__icontains=q))
         if group_id := request.query_params.get("group"):
@@ -396,8 +515,12 @@ class LedgerListView(APIView):
         serializer.is_valid(raise_exception=True)
         ledger = Ledger(company=company)
         data = _ledger_data(ledger, dict(serializer.validated_data))
+        bills = data.pop("opening_bills", None)
+        if "bill_wise" not in data:
+            data["bill_wise"] = data["group"].is_under(BILL_WISE_GROUP_CODES)
         _unique_ledger_name(company, data["name"])
-        _save(ledger, data, ["name", "group", "is_active", "notes", *BANK_FIELDS])
+        _save(ledger, data, LEDGER_FIELDS)
+        _save_opening_bills(ledger, bills)
         return Response(LedgerSerializer(ledger).data, status=status.HTTP_201_CREATED)
 
 
@@ -417,7 +540,9 @@ class LedgerDetailView(APIView):
         serializer = LedgerSerializer(ledger, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         data = _ledger_data(ledger, dict(serializer.validated_data))
+        bills = data.pop("opening_bills", None)
         if "name" in data:
             _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
-        _save(ledger, data, ["name", "group", "is_active", "notes", *BANK_FIELDS])
+        _save(ledger, data, LEDGER_FIELDS)
+        _save_opening_bills(ledger, bills)
         return Response(LedgerSerializer(ledger).data)

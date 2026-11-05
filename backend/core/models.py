@@ -1,4 +1,6 @@
 import re
+from datetime import date
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -29,6 +31,8 @@ class Company(models.Model):
         default=4, validators=[MinValueValidator(1), MaxValueValidator(12)]
     )
     base_currency = models.CharField(max_length=3, default="INR", editable=False)
+    # "Books beginning from": opening balances are as at the start of this day.
+    books_start = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -41,6 +45,8 @@ class Company(models.Model):
     def save(self, *args, **kwargs):
         if not self.abbr:
             self.abbr = _free_abbr(self.name, exclude=self.pk)
+        if self.books_start is None:
+            self.books_start = fiscal_year_start(date.today(), self.fiscal_year_start_month)
         super().save(*args, **kwargs)
 
     def clean(self):
@@ -58,6 +64,12 @@ class Company(models.Model):
             raise ValidationError({"abbr": "Use 2 to 10 letters or digits, e.g. AOL."})
         if self.pincode and not re.fullmatch(r"[1-9][0-9]{5}", self.pincode):
             raise ValidationError({"pincode": "A PIN code is 6 digits."})
+
+
+def fiscal_year_start(day: date, start_month: int) -> date:
+    """First day of the financial year that `day` falls in."""
+    year = day.year if day.month >= start_month else day.year - 1
+    return date(year, start_month, 1)
 
 
 def _free_abbr(name: str, exclude=None) -> str:
@@ -163,14 +175,17 @@ class LedgerGroup(models.Model):
     def __str__(self) -> str:
         return self.name
 
-    def is_bank_group(self) -> bool:
-        """Under Bank Accounts or Bank OD A/c, at any depth."""
+    def is_under(self, codes) -> bool:
+        """This group or one above it has one of these standard codes."""
         group = self
         while group is not None:
-            if group.code in BANK_GROUP_CODES:
+            if group.code in codes:
                 return True
             group = group.parent
         return False
+
+    def is_bank_group(self) -> bool:
+        return self.is_under(BANK_GROUP_CODES)
 
     def descendant_ids(self) -> set[int]:
         found, frontier = set(), {self.pk}
@@ -183,6 +198,10 @@ class LedgerGroup(models.Model):
 
 
 BANK_GROUP_CODES = ("bank_accounts", "bank_od")
+# Ledgers under these keep balances bill by bill unless told otherwise.
+BILL_WISE_GROUP_CODES = ("sundry_debtors", "sundry_creditors")
+DR, CR = "dr", "cr"
+SIDES = [(DR, "Dr"), (CR, "Cr")]
 
 
 class Ledger(models.Model):
@@ -190,7 +209,11 @@ class Ledger(models.Model):
     Inward. Every ledger sits under a group and takes its nature from it.
 
     Ledgers are never deleted (Sidharth, 5 Nov 2026), only deactivated, so
-    history always resolves. Opening balances arrive with vouchers.
+    history always resolves.
+
+    The opening balance is entered on the ledger, as in Tally, as at the
+    company's books_start. A bill-wise ledger (customers, suppliers) also
+    lists the open bills that make up that balance. See decision 0013.
     """
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="ledgers")
@@ -203,6 +226,11 @@ class Ledger(models.Model):
     account_number = models.CharField(max_length=34, blank=True)
     ifsc = models.CharField(max_length=11, blank=True)
     bank_branch = models.CharField(max_length=100, blank=True)
+    opening_amount = models.DecimalField(
+        max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
+    )
+    opening_side = models.CharField(max_length=2, choices=SIDES, default=DR)
+    bill_wise = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -227,3 +255,36 @@ class Ledger(models.Model):
             raise ValidationError({"group": "Choose a group of this company."})
         if self.ifsc and not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", self.ifsc):
             raise ValidationError({"ifsc": "An IFSC is 11 characters like HDFC0001234."})
+
+    @property
+    def opening_signed(self) -> Decimal:
+        """Debit positive, credit negative."""
+        return self.opening_amount if self.opening_side == DR else -self.opening_amount
+
+
+class LedgerOpeningBill(models.Model):
+    """A bill still open on the day the books begin, e.g. an unpaid sales
+    invoice from the old system. Together they make up a bill-wise ledger's
+    opening balance; receipts and payments will later be set against them."""
+
+    ledger = models.ForeignKey(Ledger, on_delete=models.CASCADE, related_name="opening_bills")
+    ref = models.CharField(max_length=50)
+    bill_date = models.DateField()
+    due_date = models.DateField(null=True, blank=True)
+    amount = models.DecimalField(
+        max_digits=18, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
+    )
+    side = models.CharField(max_length=2, choices=SIDES)
+
+    class Meta:
+        ordering = ["bill_date", "id"]
+        constraints = [
+            models.UniqueConstraint("ledger", Lower("ref"), name="opening_bill_ref_unique"),
+        ]
+
+    def __str__(self) -> str:
+        return self.ref
+
+    @property
+    def signed(self) -> Decimal:
+        return self.amount if self.side == DR else -self.amount
