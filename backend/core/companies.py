@@ -23,6 +23,7 @@ def create_company(**fields) -> Company:
         head = company.branches.get(is_head_office=True)
         for field in ("address", "pincode", "phone", "email", "contact_person"):
             setattr(head, field, getattr(company, field))
+        head.default_billing = head.default_ship_to = head.default_ship_from = True
         head.save()
         seed_standard_groups(LedgerGroup, company)
         ensure_cash_ledger(Ledger, LedgerGroup, company)

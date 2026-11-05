@@ -286,3 +286,11 @@ table.grid select {
 .pre {
   white-space: pre-line;
 }
+
+.warn {
+  color: #9a5b00;
+}
+
+td .tag {
+  margin-right: 4px;
+}
