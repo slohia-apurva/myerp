@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, Session, SignedIn } from "./api";
 import { CompaniesPage, CompanyPage } from "./Companies";
+import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
 type Page = "home" | "users" | "roles" | "companies";
-type Route = { page: Page; id?: number };
+type Route = { page: Page; id?: number; sub?: string; subId?: number };
 
 function routeFromHash(): Route {
-  const [page, id] = window.location.hash.replace(/^#\/?/, "").split("/");
-  if (page === "companies") return { page, id: id ? Number(id) : undefined };
+  const [page, id, sub, subId] = window.location.hash.replace(/^#\/?/, "").split("/");
+  if (page === "companies")
+    return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   return { page: page === "users" || page === "roles" ? page : "home" };
 }
 
@@ -41,7 +43,7 @@ export function App() {
 }
 
 function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Session) => void }) {
-  const [{ page, id }, setRoute] = useState<Route>(routeFromHash);
+  const [{ page, id, sub, subId }, setRoute] = useState<Route>(routeFromHash);
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
     window.addEventListener("hashchange", onHash);
@@ -79,7 +81,9 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
       </header>
       <main>
         {page === "companies" && canSeeMasters ? (
-          id ? (
+          id && sub === "ledgers" ? (
+            <LedgersPage key={`${id}-${subId}`} companyId={id} groupId={subId} session={session} />
+          ) : id ? (
             <CompanyPage key={id} id={id} session={session} />
           ) : (
             <CompaniesPage session={session} />

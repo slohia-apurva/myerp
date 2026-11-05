@@ -80,3 +80,10 @@ def ensure_head_office(Branch, company) -> None:
             gstin=company.gstin,
             is_head_office=True,
         )
+
+
+def ensure_cash_ledger(Ledger, LedgerGroup, company) -> None:
+    """Every company starts with a Cash ledger under Cash-in-Hand."""
+    if not Ledger.objects.filter(company=company, name__iexact="Cash").exists():
+        group = LedgerGroup.objects.get(company=company, code="cash_in_hand")
+        Ledger.objects.create(company=company, group=group, name="Cash")

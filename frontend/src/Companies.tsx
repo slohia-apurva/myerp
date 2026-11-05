@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 
-type Company = {
+export type Company = {
   id: number;
   name: string;
   abbr: string;
@@ -23,7 +23,7 @@ type Branch = {
   is_head_office: boolean;
   is_active: boolean;
 };
-type Group = {
+export type Group = {
   id: number;
   name: string;
   parent: number | null;
@@ -31,6 +31,8 @@ type Group = {
   affects_gross_profit: boolean;
   code: string;
   is_standard: boolean;
+  ledger_count: number;
+  is_bank: boolean;
 };
 type State = { code: string; name: string };
 type Detail = { company: Company; branches: Branch[]; ledger_groups: Group[] };
@@ -244,7 +246,12 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
       </p>
       <div className="page-head">
         <h2>{c.name}</h2>
-        {canEdit && !editing && <button onClick={() => setEditing(true)}>Edit details</button>}
+        <div className="buttons">
+          <a className="button" href={`#/companies/${c.id}/ledgers`}>
+            Ledgers
+          </a>
+          {canEdit && !editing && <button onClick={() => setEditing(true)}>Edit details</button>}
+        </div>
       </div>
       {editing ? (
         <CompanyForm
@@ -418,6 +425,11 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           </span>
         )}
         {!g.is_standard && <span className="tag">added</span>}
+        {g.ledger_count > 0 && (
+          <a className="small" href={`#/companies/${props.company.id}/ledgers/${g.id}`}>
+            {g.ledger_count} {g.ledger_count === 1 ? "ledger" : "ledgers"}
+          </a>
+        )}
         {props.canEdit && (
           <span className="tree-actions">
             <button className="link" onClick={() => setEditing({ group: null, parent: g.id })}>
@@ -452,7 +464,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
       </div>
       <p className="small">
         The 15 primary groups and their standard sub-groups come with every company and cannot be changed. Add your
-        own groups under them, for example Export debtors under Sundry Debtors. Ledgers come in the next piece.
+        own groups under them, for example Export debtors under Sundry Debtors.
       </p>
       <ul className="tree">{(children.get(null) ?? []).map((g) => node(g, 0))}</ul>
     </>

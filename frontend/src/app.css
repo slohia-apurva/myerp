@@ -243,3 +243,17 @@ ul.tree {
 .page a {
   color: #1f6f43;
 }
+a.button {
+  padding: 9px 14px;
+  border: 1px solid #1f6f43;
+  border-radius: 6px;
+  color: #1f6f43;
+  background: #fff;
+  text-decoration: none;
+}
+.filters > input {
+  flex: 2 1 240px;
+}
+.filters > select {
+  flex: 1 1 200px;
+}

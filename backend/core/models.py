@@ -163,6 +163,15 @@ class LedgerGroup(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    def is_bank_group(self) -> bool:
+        """Under Bank Accounts or Bank OD A/c, at any depth."""
+        group = self
+        while group is not None:
+            if group.code in BANK_GROUP_CODES:
+                return True
+            group = group.parent
+        return False
+
     def descendant_ids(self) -> set[int]:
         found, frontier = set(), {self.pk}
         while frontier:
@@ -171,3 +180,50 @@ class LedgerGroup(models.Model):
             )
             found |= frontier
         return found
+
+
+BANK_GROUP_CODES = ("bank_accounts", "bank_od")
+
+
+class Ledger(models.Model):
+    """An account that takes postings, e.g. HDFC Current A/c or Freight
+    Inward. Every ledger sits under a group and takes its nature from it.
+
+    Opening balances and postings arrive with vouchers; a ledger with
+    postings can then only be deactivated, not deleted.
+    """
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="ledgers")
+    group = models.ForeignKey(LedgerGroup, on_delete=models.PROTECT, related_name="ledgers")
+    name = models.CharField(max_length=150)
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=300, blank=True)
+    # For ledgers under Bank Accounts or Bank OD A/c.
+    bank_name = models.CharField(max_length=100, blank=True)
+    account_number = models.CharField(max_length=34, blank=True)
+    ifsc = models.CharField(max_length=11, blank=True)
+    bank_branch = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                "company", Lower("name"), name="ledger_name_unique_per_company"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def nature(self) -> str:
+        return self.group.nature
+
+    def clean(self):
+        self.ifsc = self.ifsc.strip().upper()
+        self.account_number = self.account_number.strip()
+        if self.group.company_id != self.company_id:
+            raise ValidationError({"group": "Choose a group of this company."})
+        if self.ifsc and not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", self.ifsc):
+            raise ValidationError({"ifsc": "An IFSC is 11 characters like HDFC0001234."})

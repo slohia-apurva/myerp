@@ -1,16 +1,17 @@
-"""Companies, branches and ledger groups screens.
+"""Companies, branches, ledger groups and ledgers screens.
 
 Who may do what:
 - Anyone with `masters.view` sees the companies they may work in, with
   their branches and ledger groups. `users.manage` also lists companies, to
   limit users to some of them.
 - Only an Owner can add a company. `masters.edit` changes company details,
-  branches and the groups people add.
+  branches, ledgers and the groups people add.
 - Standard ledger groups come with MyERP and cannot be changed, because
   posting rules rely on them.
 """
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Count, Q
 from django.db.models.functions import Lower
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -20,7 +21,7 @@ from rest_framework.views import APIView
 
 from core import india
 from core.companies import create_company, visible_companies
-from core.models import Branch, Company, LedgerGroup
+from core.models import Branch, Company, Ledger, LedgerGroup
 from tenancy.context import tenant_atomic
 
 VIEW, EDIT = "masters.view", "masters.edit"
@@ -97,10 +98,40 @@ class BranchSerializer(serializers.ModelSerializer):
 
 
 class LedgerGroupSerializer(serializers.ModelSerializer):
+    ledger_count = serializers.IntegerField(read_only=True, default=0)
+    is_bank = serializers.SerializerMethodField()
+
     class Meta:
         model = LedgerGroup
-        fields = ["id", "name", "parent", "nature", "affects_gross_profit", "code", "is_standard"]
+        fields = [
+            "id",
+            "name",
+            "parent",
+            "nature",
+            "affects_gross_profit",
+            "code",
+            "is_standard",
+            "ledger_count",
+            "is_bank",
+        ]
         read_only_fields = ["nature", "affects_gross_profit", "code", "is_standard"]
+
+    def get_is_bank(self, group) -> bool:
+        return group.is_bank_group()
+
+
+BANK_FIELDS = ["bank_name", "account_number", "ifsc", "bank_branch"]
+
+
+class LedgerSerializer(serializers.ModelSerializer):
+    group_name = serializers.CharField(source="group.name", read_only=True)
+    nature = serializers.CharField(source="group.nature", read_only=True)
+    ifsc = serializers.CharField(max_length=11, allow_blank=True, required=False)
+    validate_ifsc = staticmethod(_upper)
+
+    class Meta:
+        model = Ledger
+        fields = ["id", "name", "group", "group_name", "nature", "is_active", "notes", *BANK_FIELDS]
 
 
 def _save(instance, data: dict, fields) -> None:
@@ -157,7 +188,12 @@ class CompanyDetailView(APIView):
             {
                 "company": CompanySerializer(company).data,
                 "branches": BranchSerializer(company.branches.all(), many=True).data,
-                "ledger_groups": LedgerGroupSerializer(company.ledger_groups.all(), many=True).data,
+                "ledger_groups": LedgerGroupSerializer(
+                    company.ledger_groups.select_related("parent__parent__parent").annotate(
+                        ledger_count=Count("ledgers")
+                    ),
+                    many=True,
+                ).data,
             }
         )
 
@@ -294,6 +330,8 @@ class LedgerGroupDetailView(APIView):
         group = self._editable(request, pk)
         if group.children.exists():
             raise ValidationError({"detail": "Move or delete the groups under this one first."})
+        if group.ledgers.exists():
+            raise ValidationError({"detail": "Move or delete the ledgers in this group first."})
         group.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -306,3 +344,86 @@ def _unique_group_name(company, name: str, exclude: int | None = None) -> None:
         clash = clash.exclude(pk=exclude)
     if clash.exists():
         raise ValidationError({"name": ["This company already has a group by that name."]})
+    if Ledger.objects.filter(company=company, name__iexact=name).exists():
+        raise ValidationError({"name": ["This company already has a ledger by that name."]})
+
+
+def _unique_ledger_name(company, name: str, exclude: int | None = None) -> None:
+    clash = Ledger.objects.filter(company=company, name__iexact=name)
+    if exclude is not None:
+        clash = clash.exclude(pk=exclude)
+    if clash.exists():
+        raise ValidationError({"name": ["This company already has a ledger by that name."]})
+    if LedgerGroup.objects.filter(company=company, name__iexact=name).exists():
+        raise ValidationError({"name": ["This company already has a group by that name."]})
+
+
+def _ledger_data(ledger: Ledger, data: dict) -> dict:
+    """Bank details only belong on bank ledgers."""
+    group = data.get("group", getattr(ledger, "group", None))
+    if group is not None and group.company_id != ledger.company_id:
+        raise ValidationError({"group": ["Choose a group of this company."]})
+    if group is not None and not group.is_bank_group():
+        data = {**data, **dict.fromkeys(BANK_FIELDS, "")}
+    if "name" in data:
+        data["name"] = data["name"].strip()
+    return data
+
+
+class LedgerListView(APIView):
+    """GET ?q=text&group=id (group includes the groups under it)."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        company = _company(request, pk)
+        ledgers = company.ledgers.select_related("group")
+        if q := request.query_params.get("q", "").strip():
+            ledgers = ledgers.filter(Q(name__icontains=q) | Q(account_number__icontains=q))
+        if group_id := request.query_params.get("group"):
+            group = company.ledger_groups.filter(pk=group_id).first()
+            if group is None:
+                raise NotFound("No such group.")
+            ledgers = ledgers.filter(group_id__in={group.pk, *group.descendant_ids()})
+        return Response(LedgerSerializer(ledgers, many=True).data)
+
+    @tenant_atomic()
+    def post(self, request, pk: int):
+        _check(request, EDIT)
+        company = _company(request, pk)
+        serializer = LedgerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ledger = Ledger(company=company)
+        data = _ledger_data(ledger, dict(serializer.validated_data))
+        _unique_ledger_name(company, data["name"])
+        _save(ledger, data, ["name", "group", "is_active", "notes", *BANK_FIELDS])
+        return Response(LedgerSerializer(ledger).data, status=status.HTTP_201_CREATED)
+
+
+class LedgerDetailView(APIView):
+    permission_classes = [Signed]
+
+    def _ledger(self, request, pk: int) -> Ledger:
+        _check(request, EDIT)
+        ledger = Ledger.objects.select_for_update().filter(pk=pk).first()
+        if ledger is None or not visible_companies(request.user).filter(pk=ledger.company_id):
+            raise NotFound("No such ledger.")
+        return ledger
+
+    @tenant_atomic()
+    def patch(self, request, pk: int):
+        ledger = self._ledger(request, pk)
+        serializer = LedgerSerializer(ledger, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = _ledger_data(ledger, dict(serializer.validated_data))
+        if "name" in data:
+            _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
+        _save(ledger, data, ["name", "group", "is_active", "notes", *BANK_FIELDS])
+        return Response(LedgerSerializer(ledger).data)
+
+    @tenant_atomic()
+    def delete(self, request, pk: int):
+        # Once vouchers exist: refuse when the ledger has postings.
+        self._ledger(request, pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
