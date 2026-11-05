@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, Session, SignedIn } from "./api";
-import { CompaniesPage, CompanyPage, type Company } from "./Companies";
+import { CompaniesPage, CompanyPage, LedgerGroupsPage, type Company } from "./Companies";
 import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
 import { RolesPage, UsersPage } from "./Users";
@@ -83,6 +83,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         {page === "companies" && canSeeMasters ? (
           id && sub === "ledgers" ? (
             <LedgersPage key={`${id}-${subId}`} companyId={id} groupId={subId} session={session} />
+          ) : id && sub === "groups" ? (
+            <LedgerGroupsPage key={id} id={id} session={session} />
           ) : id ? (
             <CompanyPage key={id} id={id} session={session} />
           ) : (
