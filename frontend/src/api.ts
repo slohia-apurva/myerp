@@ -15,21 +15,40 @@ function csrfToken(): string {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-export async function api<T>(path: string, body?: unknown): Promise<T> {
+// DRF errors come as {"detail": "..."} or {"field": ["...", ...]}.
+function errorMessage(data: unknown, status: number): string {
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    if (typeof record.detail === "string") return record.detail;
+    const parts = Object.values(record).flatMap((v) => (Array.isArray(v) ? v : [v]));
+    const text = parts.filter((p) => typeof p === "string").join(" ");
+    if (text) return text;
+  }
+  return `Something went wrong (HTTP ${status}).`;
+}
+
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
+
+export async function api<T>(path: string, body?: unknown, method?: Method): Promise<T> {
+  const verb: Method = method ?? (body === undefined ? "GET" : "POST");
   const res = await fetch(`/api/${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method: verb,
     credentials: "same-origin",
     headers: {
       Accept: "application/json",
-      ...(body === undefined ? {} : { "Content-Type": "application/json", "X-CSRFToken": csrfToken() }),
+      ...(verb === "GET" ? {} : { "Content-Type": "application/json", "X-CSRFToken": csrfToken() }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const data = (await res.json().catch(() => ({}))) as { detail?: string };
-  if (!res.ok) throw new ApiError(data.detail ?? `Something went wrong (HTTP ${res.status}).`, res.status);
+  const data: unknown = res.status === 204 ? {} : await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status);
   return data as T;
 }
 
-export type Session =
-  | { signed_in: false; google_client_id: string }
-  | { signed_in: true; user: { email: string; name: string } };
+export type SignedIn = {
+  signed_in: true;
+  user: { email: string; name: string; is_owner: boolean };
+  permissions: string[];
+};
+
+export type Session = { signed_in: false; google_client_id: string } | SignedIn;

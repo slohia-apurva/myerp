@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from accounts.models import User
+from accounts.models import Role, User
 from tenancy.context import use_tenant
 from tenancy.models import Tenant
 
@@ -17,8 +17,14 @@ class Command(BaseCommand):
         parser.add_argument("email")
         parser.add_argument("--name", default="", help="Full name (optional)")
         parser.add_argument("--deactivate", action="store_true")
+        parser.add_argument(
+            "--role",
+            action="append",
+            default=[],
+            help="Role code to give, e.g. owner or accountant (repeatable)",
+        )
 
-    def handle(self, *args, tenant, email, name, deactivate, **options):
+    def handle(self, *args, tenant, email, name, deactivate, role, **options):
         item = Tenant.objects.filter(slug=tenant, status=Tenant.Status.ACTIVE).first()
         if item is None:
             raise CommandError(f"No active tenant {tenant!r}")
@@ -29,12 +35,21 @@ class Command(BaseCommand):
             if user is None:
                 if deactivate:
                     raise CommandError(f"No user {email} in {tenant}")
-                User.objects.create_user(email=email, full_name=name)
+                user = User.objects.create_user(email=email, full_name=name)
+                self._give_roles(user, role)
                 self.stdout.write(f"Added {email} to {tenant}. They can sign in with Google now.")
                 return
             user.is_active = not deactivate
             if name:
                 user.full_name = name
             user.save()
+            self._give_roles(user, role)
         state = "deactivated" if deactivate else "active"
         self.stdout.write(f"{email} in {tenant} is now {state}.")
+
+    def _give_roles(self, user, codes):
+        for code in codes:
+            role = Role.objects.filter(code=code).first()
+            if role is None:
+                raise CommandError(f"No role {code!r}")
+            user.roles.add(role)

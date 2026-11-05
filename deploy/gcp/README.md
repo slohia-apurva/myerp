@@ -25,11 +25,11 @@ Start with `myerp-staging`; repeat for `myerp-prod` once staging passes the Phas
    1. *Google Auth Platform > Branding*: app name "MyERP", support email. *Audience*: **External**, then **Publish app** (Internal would admit only apurva.org.in accounts). MyERP asks only for name and email, so publishing needs no Google review.
    2. *Clients > Create client*: type **Web application**, name "MyERP staging". Under *Authorised JavaScript origins* add the app address (staging: `https://myerp-app-fzeilr5lpa-el.a.run.app`) and, for local development, `http://localhost:5173` and `http://localhost`. No redirect URIs are needed.
    3. Put the client id (ends in `.apps.googleusercontent.com`; not a secret) in `environments/staging.tfvars` as `google_client_id`, merge, and run `terraform apply` again.
-5. **Users.** There is no sign-up page. Until the Users screen exists, an Owner adds each person by email from Cloud Shell, reusing the migration job:
+5. **Users.** There is no sign-up page. An Owner adds people on the **Users** screen in MyERP. Only a new tenant's first Owner is added from Cloud Shell, reusing the migration job:
 
    ```sh
    gcloud run jobs execute myerp-migrate --project myerp-staging --region asia-south1 --wait \
-     --args=manage.py,create_tenant_user,apurvam,PERSON@apurva.org.in,--name=FULL_NAME
+     --args=manage.py,create_tenant_user,TENANT,PERSON@example.com,--name=FULL_NAME,--role=owner
    ```
 
    They can then sign in with that Google account. Add `--deactivate` to remove someone's access.

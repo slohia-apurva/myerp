@@ -60,7 +60,8 @@ def test_added_person_signs_in_with_google(client, alpha, sidharth, google):
     response = sign_in(client, "tok")
     assert response.json() == {
         "signed_in": True,
-        "user": {"email": "sidharth@apurva.org.in", "name": "Sidharth"},
+        "user": {"email": "sidharth@apurva.org.in", "name": "Sidharth", "is_owner": False},
+        "permissions": [],
     }
     assert client.get("/api/whoami/", HTTP_HOST=HOST).json()["tenant"] == "alpha"
     with use_tenant(alpha):

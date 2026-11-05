@@ -109,3 +109,22 @@ def test_background_task_runs_inside_named_tenant(alpha, beta):
 def test_create_tenant_rejects_bad_slugs(bad_slug):
     with pytest.raises(ValidationError):
         create_tenant(bad_slug, "Bad")
+
+
+def test_tenant_atomic_opens_the_transaction_on_the_tenant_database(alpha):
+    from tenancy.context import tenant_atomic
+
+    with use_tenant(alpha):
+        alias = alpha.db_alias
+        depth = len(connections[alias].savepoint_ids)
+        with tenant_atomic():
+            # One savepoint deeper on the tenant database, not on the platform one.
+            assert len(connections[alias].savepoint_ids) == depth + 1
+            assert Company.objects.select_for_update().filter(name="Alpha Foods LLP").exists()
+
+
+def test_tenant_atomic_needs_a_tenant(tenants):
+    from tenancy.context import tenant_atomic
+
+    with pytest.raises(NoTenantSelected), tenant_atomic():
+        pass
