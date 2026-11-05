@@ -13,11 +13,12 @@ locals {
 
   # Non-secret settings for the app (see backend/config/settings.py).
   plain_env = {
-    DJANGO_DEBUG          = "0"
-    DJANGO_ALLOWED_HOSTS  = var.allowed_hosts
-    MYERP_BASE_DOMAIN     = var.base_domain
-    MYERP_FALLBACK_TENANT = var.fallback_tenant
-    MYERP_FILES_BUCKET    = google_storage_bucket.files.name
+    DJANGO_DEBUG           = "0"
+    DJANGO_ALLOWED_HOSTS   = var.allowed_hosts
+    MYERP_BASE_DOMAIN      = var.base_domain
+    MYERP_FALLBACK_TENANT  = var.fallback_tenant
+    MYERP_FILES_BUCKET     = google_storage_bucket.files.name
+    MYERP_GOOGLE_CLIENT_ID = var.google_client_id
   }
 
   # Secrets, read by Cloud Run from Secret Manager at start-up.
@@ -302,8 +303,12 @@ resource "google_cloud_run_v2_job" "migrate" {
       }
 
       containers {
-        image   = local.placeholder_image
-        command = ["sh", "-c", "python manage.py migrate && python manage.py migrate_tenants"]
+        image = local.placeholder_image
+
+        # Admin commands reuse this job by overriding the arguments, e.g.
+        #   gcloud run jobs execute myerp-migrate --args=manage.py,create_tenant_user,apurvam,NAME
+        command = ["python"]
+        args    = ["manage.py", "deploy_migrate"]
 
         dynamic "env" {
           for_each = local.plain_env

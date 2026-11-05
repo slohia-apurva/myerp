@@ -1,42 +1,73 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { api, ApiError, Session } from "./api";
+import { SignIn } from "./Login";
+import "./app.css";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
 
-type State =
-  | { kind: "loading" }
-  | { kind: "ready"; data: WhoAmI }
-  | { kind: "error"; message: string };
-
-// Phase 0 placeholder: shows which tenant this subdomain reaches.
 export function App() {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [session, setSession] = useState<Session | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/whoami/")
-      .then(async (res) => {
-        if (!res.ok) throw new Error(res.status === 404 ? "Unknown tenant" : `HTTP ${res.status}`);
-        setState({ kind: "ready", data: (await res.json()) as WhoAmI });
-      })
-      .catch((err: Error) => setState({ kind: "error", message: err.message }));
+    api<Session>("auth/session/")
+      .then(setSession)
+      .catch((err: ApiError) => setError(err.status === 404 ? "Unknown company group address." : err.message));
   }, []);
+  const onChange = useCallback((s: Session) => setSession(s), []);
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24 }}>
+    <main>
       <h1>MyERP</h1>
-      {state.kind === "loading" && <p>Loading…</p>}
-      {state.kind === "error" && <p>Could not load: {state.message}</p>}
-      {state.kind === "ready" && (
+      {error && <p className="error">{error}</p>}
+      {session === null ? (
+        !error && <p>Loading…</p>
+      ) : session.signed_in ? (
+        <Home session={session} onSignOut={onChange} />
+      ) : (
+        <SignIn clientId={session.google_client_id} onChange={onChange} />
+      )}
+    </main>
+  );
+}
+
+function Home({
+  session,
+  onSignOut,
+}: {
+  session: Extract<Session, { signed_in: true }>;
+  onSignOut: (s: Session) => void;
+}) {
+  const [who, setWho] = useState<WhoAmI | null>(null);
+  useEffect(() => {
+    api<WhoAmI>("whoami/").then(setWho);
+  }, []);
+  const signOut = () => {
+    // Stop Google from signing the person straight back in on this browser.
+    if ("google" in window) google.accounts.id.disableAutoSelect();
+    api<Session>("auth/logout/", {}).then(onSignOut);
+  };
+  return (
+    <div className="card">
+      <p>
+        Signed in as <strong>{session.user.name}</strong>
+        <br />
+        <span className="small">{session.user.email}</span>
+      </p>
+      {who && (
         <>
           <p>
-            Tenant: <strong>{state.data.name}</strong> ({state.data.tenant})
+            {who.name} ({who.tenant})
           </p>
           <ul>
-            {state.data.companies.map((c) => (
+            {who.companies.length === 0 && <li>No companies yet.</li>}
+            {who.companies.map((c) => (
               <li key={c}>{c}</li>
             ))}
           </ul>
         </>
       )}
-    </main>
+      <button onClick={signOut}>Sign out</button>
+    </div>
   );
 }

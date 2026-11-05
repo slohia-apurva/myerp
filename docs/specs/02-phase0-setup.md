@@ -17,7 +17,7 @@ Goal: a repo, CI and a running skeleton that every later module builds on, with 
 - [ ] Staging on Google Cloud (Terraform for Cloud Run, Cloud SQL, Memorystore, Storage, Secret Manager, wildcard certificate), deploy on every merge to main
 - [ ] Nightly backups plus point-in-time recovery, and a scripted restore drill
 - [ ] Error alerts (Sentry)
-- [ ] Login with TOTP two-factor for admin and submit roles (tenant-side users)
+- [x] Sign in with Google (tenant-side users, added by email); see decision 0007
 - [ ] PgBouncer / connection limits per tenant
 
 ## Gate
