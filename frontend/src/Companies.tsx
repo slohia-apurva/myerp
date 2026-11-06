@@ -495,7 +495,7 @@ function CompanyForm(props: {
       )}
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button>{c ? "Save" : "Add company"}</button>
+        <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
@@ -1282,7 +1282,7 @@ function GroupForm(props: {
       </div>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button>{g ? "Save" : "Add group"}</button>
+        <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>

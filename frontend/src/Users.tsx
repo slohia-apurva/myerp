@@ -205,7 +205,7 @@ function UserForm(props: {
       )}
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button disabled={busy || (!user && !email)}>{user ? "Save" : "Add user"}</button>
+        <button disabled={busy || (!user && !email)}>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
