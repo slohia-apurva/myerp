@@ -824,3 +824,49 @@ table.by-group .group-name .small {
   justify-content: flex-end;
   margin-bottom: -4px;
 }
+
+/* Bigger fold arrows and the level picker */
+button.fold {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+button.fold:hover:not(:disabled) {
+  background: var(--mint);
+}
+.group-name .branch {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.levels {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.levels .small {
+  margin-right: 6px;
+}
+.levels button {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--field);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 36px;
+}
+.levels button:hover:not(:disabled) {
+  background: var(--mint);
+}
+.levels button.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.levels button.active:hover:not(:disabled) {
+  background: var(--deep-green);
+}

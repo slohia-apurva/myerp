@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
-import { PageHeader } from "./Brand";
+import { Chevron, LevelPicker, PageHeader } from "./Brand";
 
 // Address and contact, shared by companies and branches.
 type Contact = { address: string; pincode: string; phone: string; email: string; contact_person: string };
@@ -1099,9 +1099,26 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
   }, [props.groups]);
 
   const [folded, setFolded] = useState<Set<number>>(new Set());
+  const [level, setLevel] = useState<number | null>(Infinity);
   const tops = children.get(null) ?? [];
+  const depthOf = useMemo(() => {
+    const d = new Map<number, number>();
+    const walk = (parent: number | null, depth: number) =>
+      (children.get(parent) ?? []).forEach((g) => {
+        d.set(g.id, depth);
+        walk(g.id, depth + 1);
+      });
+    walk(null, 0);
+    return d;
+  }, [children]);
+  const deepest = Math.max(0, ...depthOf.values());
+  const showLevels = (n: number) => {
+    setLevel(n);
+    setFolded(new Set(props.groups.filter((g) => children.has(g.id) && (depthOf.get(g.id) ?? 0) >= n - 1).map((g) => g.id)));
+  };
   const toggle = (id: number) =>
     setFolded((f) => {
+      setLevel(null);
       const next = new Set(f);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -1132,7 +1149,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
                 aria-label={`${folded.has(g.id) ? "Show" : "Hide"} groups under ${g.name}`}
                 onClick={() => toggle(g.id)}
               >
-                {folded.has(g.id) ? "▸" : "▾"}
+                <Chevron open={!folded.has(g.id)} />
               </button>
             ) : (
               <span className="branch" aria-hidden="true">
@@ -1196,17 +1213,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           {props.groups.length} groups. The standard groups follow Schedule III of the Companies Act and cannot be
           changed; add your own under them, for example Export debtors under Sundry Debtors.
         </p>
-        <span className="buttons">
-          <button className="link" onClick={() => setFolded(new Set())}>
-            Expand all
-          </button>
-          <button
-            className="link"
-            onClick={() => setFolded(new Set(props.groups.filter((g) => children.has(g.id)).map((g) => g.id)))}
-          >
-            Collapse all
-          </button>
-        </span>
+        <LevelPicker levels={deepest} value={level} onPick={showLevels} />
       </div>
       <table className="groups">
         <thead>
