@@ -463,7 +463,6 @@ table.modules input[type="checkbox"] {
 
 .sch3 {
   color: var(--slate);
-  font-style: italic;
 }
 
 /* Brand finish: buttons, fields, tables and cards */
@@ -715,4 +714,72 @@ table.pick td.num {
 table.modules + .error,
 table.modules ~ .buttons {
   margin-top: 14px;
+}
+
+/* Ledger groups as a folding table */
+table.groups td {
+  vertical-align: middle;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+table.groups tr.group-top td {
+  background: var(--mist);
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+}
+table.groups tr.group-top .sch3 {
+  font-weight: 500;
+}
+table.groups tr.group-top:first-child td {
+  border-top: 0;
+}
+table.groups td:nth-child(2) {
+  white-space: nowrap;
+}
+table.groups .sch3 {
+  font-size: 13px;
+}
+.group-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.group-name .branch {
+  color: var(--field);
+  width: 14px;
+}
+button.fold {
+  background: none;
+  color: var(--green);
+  padding: 0;
+  width: 14px;
+  font-size: 13px;
+  line-height: 1;
+}
+button.fold:hover:not(:disabled) {
+  background: none;
+  color: var(--deep-green);
+}
+.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.row-actions button.link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--slate);
+  margin-left: 12px;
+}
+.row-actions button.link:hover:not(:disabled) {
+  color: var(--green);
+}
+tr.form-row td {
+  background: var(--mint);
+}
+tr.form-row .card.inline {
+  margin: 4px 0;
+}
+.page-head .buttons {
+  white-space: nowrap;
+  flex-shrink: 0;
 }

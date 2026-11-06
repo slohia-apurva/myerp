@@ -1098,57 +1098,125 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
     return map;
   }, [props.groups]);
 
-  const node = (g: Group, depth: number): JSX.Element => (
-    <li key={g.id}>
-      <div className="tree-row" style={{ paddingLeft: 12 + depth * 20 }}>
-        <span className={depth === 0 ? "primary" : ""}>{g.name}</span>
-        {depth === 0 && (
-          <span className="small">
-            {NATURE[g.nature]}
-            {g.affects_gross_profit ? " · trading account" : ""}
-          </span>
-        )}
-        {!g.is_standard && <span className="tag">added</span>}
-        {g.schedule_iii && <span className="small sch3">Schedule III: {g.schedule_iii}</span>}
-        {g.ledger_count > 0 && (
-          <a className="small" href={`#/companies/${props.company.id}/ledgers/${g.id}`}>
-            {g.ledger_count} {g.ledger_count === 1 ? "ledger" : "ledgers"}
-          </a>
-        )}
-        {props.canEdit && (
-          <span className="tree-actions">
-            <button className="link" onClick={() => setEditing({ group: null, parent: g.id })}>
-              Add under
-            </button>
-            {!g.is_standard && (
-              <button className="link" onClick={() => setEditing({ group: g, parent: g.parent })}>
-                Edit
-              </button>
-            )}
-          </span>
-        )}
-      </div>
-      {editing && editing.parent === g.id && editing.group === null && (
-        <GroupForm company={props.company} groups={props.groups} group={null} parent={g.id} onDone={done} onCancel={() => setEditing(null)} />
-      )}
-      {editing?.group?.id === g.id && (
-        <GroupForm company={props.company} groups={props.groups} group={g} parent={g.parent} onDone={done} onCancel={() => setEditing(null)} />
-      )}
-      {(children.get(g.id) ?? []).length > 0 && <ul>{children.get(g.id)!.map((c) => node(c, depth + 1))}</ul>}
-    </li>
-  );
+  const [folded, setFolded] = useState<Set<number>>(new Set());
+  const tops = children.get(null) ?? [];
+  const toggle = (id: number) =>
+    setFolded((f) => {
+      const next = new Set(f);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const total = (g: Group): number => g.ledger_count + (children.get(g.id) ?? []).reduce((t, c) => t + total(c), 0);
   function done() {
     setEditing(null);
     props.reload();
   }
+  const formRow = (key: string, form: JSX.Element) => (
+    <tr key={key} className="form-row">
+      <td colSpan={5}>{form}</td>
+    </tr>
+  );
+
+  const rows = (g: Group, depth: number): JSX.Element[] => {
+    const kids = children.get(g.id) ?? [];
+    const top = depth === 0;
+    const out = [
+      <tr key={g.id} className={top ? "group-top" : ""}>
+        <td>
+          <span className="group-name" style={{ paddingLeft: depth * 22 }}>
+            {top ? (
+              <button
+                className="fold"
+                aria-expanded={!folded.has(g.id)}
+                aria-label={`${folded.has(g.id) ? "Show" : "Hide"} groups under ${g.name}`}
+                onClick={() => toggle(g.id)}
+              >
+                {folded.has(g.id) ? "▸" : "▾"}
+              </button>
+            ) : (
+              <span className="branch" aria-hidden="true">
+                └
+              </span>
+            )}
+            {g.name}
+            {!g.is_standard && <span className="tag">added</span>}
+          </span>
+        </td>
+        <td>
+          {NATURE[g.nature]}
+          {top && g.affects_gross_profit && <span className="small"> · trading</span>}
+        </td>
+        <td className="sch3">{g.schedule_iii || "—"}</td>
+        <td className="num">
+          {total(g) > 0 ? (
+            <a href={`#/companies/${props.company.id}/ledgers/${g.id}`}>{total(g)}</a>
+          ) : (
+            <span className="small">—</span>
+          )}
+        </td>
+        <td className="row-actions">
+          {props.canEdit && (
+            <>
+              <button className="link" onClick={() => setEditing({ group: null, parent: g.id })}>
+                + Sub-group
+              </button>
+              {!g.is_standard && (
+                <button className="link" onClick={() => setEditing({ group: g, parent: g.parent })}>
+                  Edit
+                </button>
+              )}
+            </>
+          )}
+        </td>
+      </tr>,
+    ];
+    if (editing && editing.parent === g.id && editing.group === null)
+      out.push(
+        formRow(
+          `new-${g.id}`,
+          <GroupForm company={props.company} groups={props.groups} group={null} parent={g.id} onDone={done} onCancel={() => setEditing(null)} />,
+        ),
+      );
+    if (editing?.group?.id === g.id)
+      out.push(
+        formRow(
+          `edit-${g.id}`,
+          <GroupForm company={props.company} groups={props.groups} group={g} parent={g.parent} onDone={done} onCancel={() => setEditing(null)} />,
+        ),
+      );
+    if (!(top && folded.has(g.id))) for (const c of kids) out.push(...rows(c, depth + 1));
+    return out;
+  };
 
   return (
     <>
-      <p className="small">
-        The standard groups follow Schedule III of the Companies Act and come with every company; they cannot be
-        changed. Add your own groups under them, for example Export debtors under Sundry Debtors.
-      </p>
-      <ul className="tree">{(children.get(null) ?? []).map((g) => node(g, 0))}</ul>
+      <div className="page-head">
+        <p className="small">
+          {props.groups.length} groups. The standard groups follow Schedule III of the Companies Act and cannot be
+          changed; add your own under them, for example Export debtors under Sundry Debtors.
+        </p>
+        <span className="buttons">
+          <button className="link" onClick={() => setFolded(new Set())}>
+            Expand all
+          </button>
+          <button className="link" onClick={() => setFolded(new Set(tops.map((g) => g.id)))}>
+            Collapse all
+          </button>
+        </span>
+      </div>
+      <table className="groups">
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>Nature</th>
+            <th>Schedule III head</th>
+            <th className="num">Ledgers</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>{tops.flatMap((g) => rows(g, 0))}</tbody>
+      </table>
     </>
   );
 }
