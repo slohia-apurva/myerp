@@ -1125,7 +1125,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
       <tr key={g.id} className={top ? "group-top" : ""}>
         <td>
           <span className="group-name" style={{ paddingLeft: depth * 22 }}>
-            {top ? (
+            {kids.length > 0 ? (
               <button
                 className="fold"
                 aria-expanded={!folded.has(g.id)}
@@ -1136,7 +1136,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
               </button>
             ) : (
               <span className="branch" aria-hidden="true">
-                └
+                {top ? "" : "└"}
               </span>
             )}
             {g.name}
@@ -1185,7 +1185,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           <GroupForm company={props.company} groups={props.groups} group={g} parent={g.parent} onDone={done} onCancel={() => setEditing(null)} />,
         ),
       );
-    if (!(top && folded.has(g.id))) for (const c of kids) out.push(...rows(c, depth + 1));
+    if (!folded.has(g.id)) for (const c of kids) out.push(...rows(c, depth + 1));
     return out;
   };
 
@@ -1200,7 +1200,10 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           <button className="link" onClick={() => setFolded(new Set())}>
             Expand all
           </button>
-          <button className="link" onClick={() => setFolded(new Set(tops.map((g) => g.id)))}>
+          <button
+            className="link"
+            onClick={() => setFolded(new Set(props.groups.filter((g) => children.has(g.id)).map((g) => g.id)))}
+          >
             Collapse all
           </button>
         </span>
