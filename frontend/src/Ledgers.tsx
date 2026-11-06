@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { longDate, money, type Company, type Group } from "./Companies";
 import { PageHeader } from "./Brand";
@@ -73,6 +73,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState(props.groupId ? String(props.groupId) : "");
   const [editing, setEditing] = useState<Ledger | "new" | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const canEdit = props.session.permissions.includes("masters.edit");
   const ordered = useMemo(() => treeOrder(detail?.ledger_groups ?? []), [detail]);
@@ -96,6 +97,23 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
     return () => window.clearTimeout(timer);
   }, [reload]);
 
+  // Keep a ledger selected: the first in the list until the person picks one.
+  const selected = ledgers.find((l) => l.id === selectedId) ?? ledgers[0] ?? null;
+  const pick = (l: Ledger) => {
+    setSelectedId(l.id);
+    setEditing(null);
+  };
+  const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const at = selected ? ledgers.findIndex((l) => l.id === selected.id) : -1;
+    const next = ledgers[Math.min(ledgers.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))];
+    if (next) {
+      pick(next);
+      document.getElementById(`ledger-${next.id}`)?.focus();
+    }
+  };
+
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
     <section className="page">
@@ -105,91 +123,189 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
           { label: "Companies", href: "#/companies" },
           { label: detail.company.name, href: `#/companies/${props.companyId}` },
         ]}
+        sub={`${ledgers.length} ${ledgers.length === 1 ? "ledger" : "ledgers"}${query || groupFilter ? " match" : ""}`}
         actions={canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
       />
       {error && <p className="error">{error}</p>}
-      {editing && (
-        <LedgerForm
-          companyId={props.companyId}
-          ledger={editing === "new" ? null : editing}
-          groups={ordered}
-          defaultGroup={groupFilter}
-          booksStart={detail.company.books_start}
-          multiCurrency={detail.company.multi_currency}
-          onDone={() => {
-            setEditing(null);
-            reload();
-          }}
-          onCancel={() => setEditing(null)}
-        />
-      )}
-      <div className="row filters">
-        <input type="search" placeholder="Search by name or account number" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <GroupSelect groups={ordered} value={groupFilter} onChange={setGroupFilter} all="All groups" />
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Ledger</th>
-            <th>Group</th>
-            <th>Nature</th>
-            <th className="num">Opening</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {ledgers.length === 0 && (
-            <tr>
-              <td colSpan={5} className="small">
-                No ledgers match.
-              </td>
-            </tr>
+      <div className={`split${editing ? " editing" : ""}`}>
+        <div className="split-list">
+          <div className="row filters">
+            <input
+              type="search"
+              placeholder="Search by name or account number"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <GroupSelect groups={ordered} value={groupFilter} onChange={setGroupFilter} all="All groups" />
+          </div>
+          <table className="pick">
+            <thead>
+              <tr>
+                <th>Ledger</th>
+                <th>Group</th>
+                <th className="num">Opening</th>
+              </tr>
+            </thead>
+            <tbody onKeyDown={onListKey}>
+              {ledgers.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="small">
+                    No ledgers match.
+                  </td>
+                </tr>
+              )}
+              {ledgers.map((l) => (
+                <tr
+                  key={l.id}
+                  id={`ledger-${l.id}`}
+                  tabIndex={0}
+                  aria-selected={selected?.id === l.id}
+                  className={[l.is_active ? "" : "inactive", selected?.id === l.id ? "selected" : ""].join(" ")}
+                  onClick={() => pick(l)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") pick(l);
+                  }}
+                >
+                  <td>
+                    {l.name}
+                    {!l.is_active && <span className="small"> · inactive</span>}
+                  </td>
+                  <td>{l.group_name}</td>
+                  <td className="num">
+                    {Number(l.opening_amount) === 0 ? (
+                      <span className="small">—</span>
+                    ) : (
+                      <>
+                        {money(l.opening_amount)} {l.opening_side === "dr" ? "Dr" : "Cr"}
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {ledgers.length > 1 && <p className="small">Tip: click a ledger, then use ↑ and ↓ to move through the list.</p>}
+        </div>
+        <aside className="split-panel" aria-label="Ledger details">
+          {editing ? (
+            <LedgerForm
+              key={editing === "new" ? "new" : editing.id}
+              companyId={props.companyId}
+              ledger={editing === "new" ? null : editing}
+              groups={ordered}
+              defaultGroup={groupFilter}
+              booksStart={detail.company.books_start}
+              multiCurrency={detail.company.multi_currency}
+              onDone={(saved) => {
+                setEditing(null);
+                if (saved) setSelectedId(saved);
+                reload();
+              }}
+              onCancel={() => setEditing(null)}
+            />
+          ) : selected ? (
+            <LedgerPanel ledger={selected} canEdit={canEdit} onEdit={() => setEditing(selected)} />
+          ) : (
+            <div className="card">
+              <p className="small">Pick a ledger to see its details here.</p>
+            </div>
           )}
-          {ledgers.map((l) => (
-            <tr key={l.id} className={l.is_active ? "" : "inactive"}>
-              <td>
-                {l.name}
-                {!l.is_active && <span className="small"> · inactive</span>}
-                {l.account_number && (
-                  <>
-                    <br />
-                    <span className="small">
-                      {[l.bank_name, l.account_number, l.ifsc].filter(Boolean).join(" · ")}
-                    </span>
-                  </>
-                )}
-              </td>
-              <td>{l.group_name}</td>
-              <td>{NATURE[l.nature]}</td>
-              <td className="num">
-                {Number(l.opening_amount) === 0 ? (
-                  <span className="small">—</span>
-                ) : (
-                  <>
-                    {money(l.opening_amount)} {l.opening_side === "dr" ? "Dr" : "Cr"}
-                    {l.currency && (
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function LedgerPanel({ ledger: l, canEdit, onEdit }: { ledger: Ledger; canEdit: boolean; onEdit: () => void }) {
+  const opening = Number(l.opening_amount);
+  const bank = [
+    ["Bank", l.bank_name],
+    ["Account number", l.account_number],
+    ["IFSC", l.ifsc],
+    ["Branch", l.bank_branch],
+  ].filter(([, v]) => v);
+  return (
+    <div className="card panel">
+      <div className="panel-head">
+        <div>
+          <h2>{l.name}</h2>
+          <p className="small">
+            {l.group_name} · {NATURE[l.nature]}
+            {!l.is_active && " · inactive"}
+          </p>
+        </div>
+        {canEdit && <button onClick={onEdit}>Edit</button>}
+      </div>
+      <div className="stat">
+        <span className="stat-label">Opening balance</span>
+        <span className="stat-value">
+          {opening === 0 ? "Nil" : `${money(l.opening_amount)} ${l.opening_side === "dr" ? "Dr" : "Cr"}`}
+        </span>
+        {l.currency && opening !== 0 && (
+          <span className="stat-note">
+            {l.currency} {money(l.opening_fc_amount)}
+            {l.opening_rate && ` at ${Number(l.opening_rate)}`}
+          </span>
+        )}
+      </div>
+      <dl className="kv">
+        <div>
+          <dt>Currency</dt>
+          <dd>{l.currency || "INR"}</dd>
+        </div>
+        <div>
+          <dt>Bill-wise</dt>
+          <dd>{l.bill_wise ? "Yes" : "No"}</dd>
+        </div>
+        {bank.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {l.bill_wise && l.opening_bills.length > 0 && (
+        <>
+          <h3>Opening bills</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Bill</th>
+                <th>Date</th>
+                <th>Due</th>
+                <th className="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {l.opening_bills.map((b, i) => (
+                <tr key={i}>
+                  <td>{b.ref}</td>
+                  <td>{longDate(b.bill_date)}</td>
+                  <td>{b.due_date ? longDate(b.due_date) : "—"}</td>
+                  <td className="num">
+                    {money(b.amount)} {b.side === "dr" ? "Dr" : "Cr"}
+                    {b.fc_amount && Number(b.fc_amount) !== 0 && (
                       <>
                         <br />
                         <span className="small">
-                          {l.currency} {money(l.opening_fc_amount)}
+                          {l.currency} {money(b.fc_amount)}
                         </span>
                       </>
                     )}
-                  </>
-                )}
-              </td>
-              <td>
-                {canEdit && (
-                  <button className="link" onClick={() => setEditing(l)}>
-                    Edit
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      {l.notes && (
+        <>
+          <h3>Notes</h3>
+          <p className="pre">{l.notes}</p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -200,7 +316,7 @@ function LedgerForm(props: {
   defaultGroup: string;
   booksStart: string;
   multiCurrency: boolean;
-  onDone: () => void;
+  onDone: (savedId?: number) => void;
   onCancel: () => void;
 }) {
   const l = props.ledger;
@@ -276,9 +392,10 @@ function LedgerForm(props: {
           : { opening_amount: openingAmount || "0", opening_side: openingSide }),
     };
     try {
-      if (l) await api(`v1/ledgers/${l.id}/`, body, "PATCH");
-      else await api(`v1/companies/${props.companyId}/ledgers/`, body);
-      props.onDone();
+      const saved = l
+        ? await api<Ledger>(`v1/ledgers/${l.id}/`, body, "PATCH")
+        : await api<Ledger>(`v1/companies/${props.companyId}/ledgers/`, body);
+      props.onDone(saved?.id);
     } catch (err) {
       setError((err as Error).message);
     }
