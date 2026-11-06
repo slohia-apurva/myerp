@@ -94,7 +94,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           ) : id && sub === "groups" ? (
             <LedgerGroupsPage key={id} id={id} session={session} />
           ) : id ? (
-            <CompanyPage key={id} id={id} session={session} />
+            <CompanyPage key={id} id={id} session={session} tab={sub} />
           ) : (
             <CompaniesPage session={session} />
           )
