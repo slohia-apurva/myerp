@@ -707,10 +707,6 @@ table.pick tbody tr.selected td:first-child {
 table.pick td.num {
   white-space: nowrap;
 }
-.split.editing table.pick th:nth-child(2),
-.split.editing table.pick td:nth-child(2) {
-  display: none;
-}
 table.modules + .error,
 table.modules ~ .buttons {
   margin-top: 14px;
@@ -796,4 +792,35 @@ table.groups .group-name {
 }
 table.groups .group-name {
   display: flex;
+}
+
+/* Ledgers listed under their groups */
+table.by-group tr.group-row td {
+  background: var(--mist);
+  font-weight: 600;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  cursor: pointer;
+}
+table.by-group tr.group-row.depth-1 td,
+table.by-group tr.group-row.depth-2 td {
+  background: #fff;
+  font-weight: 600;
+  color: var(--slate);
+}
+table.by-group tr.group-row td.num {
+  font-size: 13px;
+  color: var(--slate);
+}
+table.by-group .group-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+table.by-group .group-name .small {
+  font-weight: 400;
+}
+.list-tools {
+  justify-content: flex-end;
+  margin-bottom: -4px;
 }
