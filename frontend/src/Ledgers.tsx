@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { longDate, money, type Company, type Group } from "./Companies";
+import { PageHeader } from "./Brand";
 
 type Ledger = {
   id: number;
@@ -98,13 +99,14 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
     <section className="page">
-      <p className="small">
-        <a href="#/companies">Companies</a> › <a href={`#/companies/${props.companyId}`}>{detail.company.name}</a>
-      </p>
-      <div className="page-head">
-        <h2>Ledgers</h2>
-        {canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
-      </div>
+      <PageHeader
+        title="Ledgers"
+        crumbs={[
+          { label: "Companies", href: "#/companies" },
+          { label: detail.company.name, href: `#/companies/${props.companyId}` },
+        ]}
+        actions={canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
+      />
       {error && <p className="error">{error}</p>}
       {editing && (
         <LedgerForm

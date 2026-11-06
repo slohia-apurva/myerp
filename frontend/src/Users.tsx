@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, SignedIn } from "./api";
+import { PageHeader } from "./Brand";
 
 type Role = {
   id: number;
@@ -81,10 +82,11 @@ export function UsersPage({ session }: { session: SignedIn }) {
 
   return (
     <section className="page">
-      <div className="page-head">
-        <h2>Users</h2>
-        <button onClick={() => setEditing("new")}>Add user</button>
-      </div>
+      <PageHeader
+        title="Users"
+        crumbs={[{ label: "Settings", href: "#/users" }]}
+        actions={<button onClick={() => setEditing("new")}>Add user</button>}
+      />
       <p className="small">
         People sign in with the Google account for their email address. Add them here first; nobody else can sign in.
       </p>
@@ -219,10 +221,11 @@ export function RolesPage({ session }: { session: SignedIn }) {
 
   return (
     <section className="page">
-      <div className="page-head">
-        <h2>Roles</h2>
-        {owner && <button onClick={() => setEditing("new")}>New role</button>}
-      </div>
+      <PageHeader
+        title="Roles"
+        crumbs={[{ label: "Settings", href: "#/users" }]}
+        actions={owner && <button onClick={() => setEditing("new")}>New role</button>}
+      />
       <p className="small">
         {owner
           ? "A role is a set of permissions. Owner can do everything and cannot be changed."

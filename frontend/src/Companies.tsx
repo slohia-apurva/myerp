@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
+import { PageHeader } from "./Brand";
 
 // Address and contact, shared by companies and branches.
 type Contact = { address: string; pincode: string; phone: string; email: string; contact_person: string };
@@ -288,10 +289,11 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
 
   return (
     <section className="page">
-      <div className="page-head">
-        <h2>Companies</h2>
-        {session.user.is_owner && <button onClick={() => setAdding(true)}>Add company</button>}
-      </div>
+      <PageHeader
+        title="Companies"
+        crumbs={[{ label: "Masters", href: "#/companies" }]}
+        actions={session.user.is_owner && <button onClick={() => setAdding(true)}>Add company</button>}
+      />
       <p className="small">
         Each company keeps its own books, GST registration and document numbers. A new company starts with a Head
         office branch and the standard ledger groups.
@@ -506,21 +508,22 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
   const c = detail.company;
   return (
     <section className="page">
-      <p className="small">
-        <a href="#/companies">Companies</a>
-      </p>
-      <div className="page-head">
-        <h2>{c.name}</h2>
-        <div className="buttons">
-          <a className="button" href={`#/companies/${c.id}/groups`}>
-            Ledger groups
-          </a>
-          <a className="button" href={`#/companies/${c.id}/ledgers`}>
-            Ledgers
-          </a>
-          {canEdit && !editing && <button onClick={() => setEditing(true)}>Edit details</button>}
-        </div>
-      </div>
+      <PageHeader
+        title={c.name}
+        crumbs={[{ label: "Companies", href: "#/companies" }]}
+        sub={c.gstin ? `GSTIN ${c.gstin}` : "Unregistered for GST"}
+        actions={
+          <>
+            <a className="button" href={`#/companies/${c.id}/groups`}>
+              Ledger groups
+            </a>
+            <a className="button" href={`#/companies/${c.id}/ledgers`}>
+              Ledgers
+            </a>
+            {canEdit && !editing && <button onClick={() => setEditing(true)}>Edit details</button>}
+          </>
+        }
+      />
       {editing ? (
         <CompanyForm
           company={c}
@@ -935,15 +938,18 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
     <section className="page">
-      <p className="small">
-        <a href="#/companies">Companies</a> › <a href={`#/companies/${id}`}>{detail.company.name}</a>
-      </p>
-      <div className="page-head">
-        <h2>Ledger groups</h2>
-        <a className="button" href={`#/companies/${id}/ledgers`}>
-          Ledgers
-        </a>
-      </div>
+      <PageHeader
+        title="Ledger groups"
+        crumbs={[
+          { label: "Companies", href: "#/companies" },
+          { label: detail.company.name, href: `#/companies/${id}` },
+        ]}
+        actions={
+          <a className="button" href={`#/companies/${id}/ledgers`}>
+            Ledgers
+          </a>
+        }
+      />
       <LedgerGroups
         company={detail.company}
         groups={detail.ledger_groups}
