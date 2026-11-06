@@ -703,7 +703,7 @@ function LedgerForm(props: {
       )}
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button>{l ? "Save" : "Add ledger"}</button>
+        <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
