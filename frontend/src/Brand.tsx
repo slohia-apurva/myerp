@@ -64,3 +64,42 @@ export function PageHeader(props: {
     </header>
   );
 }
+
+/** A fold arrow: points right when closed, down when open. */
+export function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      style={{ transform: open ? "rotate(90deg)" : "none" }}
+    >
+      <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Open a tree to a chosen depth: "1" shows only the main groups, "All" shows everything.
+ * `levels` is how many numbered levels to offer; `value` is the one last picked, if any.
+ */
+export function LevelPicker(props: { levels: number; value: number | null; onPick: (level: number) => void }) {
+  const options = [...Array.from({ length: props.levels }, (_, i) => i + 1), Infinity];
+  return (
+    <span className="levels" role="group" aria-label="Show levels">
+      <span className="small">Show levels</span>
+      {options.map((n) => (
+        <button
+          key={n}
+          type="button"
+          className={props.value === n ? "active" : ""}
+          aria-pressed={props.value === n}
+          onClick={() => props.onPick(n)}
+        >
+          {n === Infinity ? "All" : n}
+        </button>
+      ))}
+    </span>
+  );
+}

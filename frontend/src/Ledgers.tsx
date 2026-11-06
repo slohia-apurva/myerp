@@ -1,7 +1,7 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { longDate, money, type Company, type Group } from "./Companies";
-import { PageHeader } from "./Brand";
+import { Chevron, LevelPicker, PageHeader } from "./Brand";
 
 type Ledger = {
   id: number;
@@ -100,6 +100,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   // The list follows the group tree: each group with ledgers (directly or below it)
   // gets a heading row, its own ledgers come next, then its sub-groups.
   const [folded, setFolded] = useState<Set<number>>(new Set());
+  const [level, setLevel] = useState<number | null>(Infinity);
   const tree = useMemo(() => {
     const own = new Map<number, Ledger[]>();
     for (const l of ledgers) own.set(l.group, [...(own.get(l.group) ?? []), l]);
@@ -133,11 +134,17 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
       }
       for (const l of own.get(group.id) ?? []) rows.push({ kind: "ledger", ledger: l, depth: depth + 1 });
     }
-    return { rows, count, net, withLedgers: groups.filter((g) => count.get(g.id)).map((g) => g.id) };
+    return { rows, count, net };
   }, [ledgers, detail, ordered, folded]);
   const visible = tree.rows.flatMap((r) => (r.kind === "ledger" ? [r.ledger] : []));
+  const deepest = Math.max(0, ...ordered.map((o) => o.depth));
+  const showLevels = (n: number) => {
+    setLevel(n);
+    setFolded(new Set(ordered.filter((o) => o.depth >= n - 1).map((o) => o.group.id)));
+  };
   const toggle = (id: number) =>
     setFolded((f) => {
+      setLevel(null);
       const next = new Set(f);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -172,7 +179,14 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
           { label: detail.company.name, href: `#/companies/${props.companyId}` },
         ]}
         sub={`${ledgers.length} ${ledgers.length === 1 ? "ledger" : "ledgers"}${query || groupFilter ? " match" : ""}`}
-        actions={canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
+        actions={
+          <>
+            <a className="button" href={`#/companies/${props.companyId}/groups`}>
+              Ledger groups
+            </a>
+            {canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
+          </>
+        }
       />
       {error && <p className="error">{error}</p>}
       <div className={`split${editing ? " editing" : ""}`}>
@@ -186,13 +200,8 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
             />
             <GroupSelect groups={ordered} value={groupFilter} onChange={setGroupFilter} all="All groups" />
           </div>
-          <div className="buttons list-tools">
-            <button className="link" onClick={() => setFolded(new Set())}>
-              Expand all
-            </button>
-            <button className="link" onClick={() => setFolded(new Set(tree.withLedgers))}>
-              Collapse all
-            </button>
+          <div className="list-tools">
+            <LevelPicker levels={deepest + 1} value={level} onPick={showLevels} />
           </div>
           <table className="pick by-group">
             <thead>
@@ -227,7 +236,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
                             toggle(r.group.id);
                           }}
                         >
-                          {folded.has(r.group.id) ? "▸" : "▾"}
+                          <Chevron open={!folded.has(r.group.id)} />
                         </button>
                         {r.group.name}
                         <span className="small">({tree.count.get(r.group.id)})</span>
