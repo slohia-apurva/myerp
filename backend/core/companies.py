@@ -25,7 +25,7 @@ def create_company(**fields) -> Company:
             setattr(head, field, getattr(company, field))
         head.default_billing = head.default_ship_to = head.default_ship_from = True
         head.save()
-        seed_standard_groups(LedgerGroup, company)
+        seed_standard_groups(LedgerGroup, company, Ledger)
         ensure_cash_ledger(Ledger, LedgerGroup, company)
     return company
 

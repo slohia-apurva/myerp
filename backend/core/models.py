@@ -314,6 +314,9 @@ class LedgerGroup(models.Model):
     code = models.SlugField(max_length=50, blank=True)
     is_standard = models.BooleanField(default=False)
     sequence = models.PositiveSmallIntegerField(default=100)
+    # Where a standard group is reported under Schedule III of the Companies
+    # Act (decision 0015); groups people add are reported with their parent.
+    schedule_iii = models.CharField(max_length=150, blank=True)
 
     class Meta:
         ordering = ["sequence", "name"]

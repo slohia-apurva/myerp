@@ -236,6 +236,7 @@ export type Group = {
   affects_gross_profit: boolean;
   code: string;
   is_standard: boolean;
+  schedule_iii: string;
   ledger_count: number;
   is_bank: boolean;
   bill_wise_default: boolean;
@@ -972,6 +973,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           </span>
         )}
         {!g.is_standard && <span className="tag">added</span>}
+        {g.schedule_iii && <span className="small sch3">Schedule III: {g.schedule_iii}</span>}
         {g.ledger_count > 0 && (
           <a className="small" href={`#/companies/${props.company.id}/ledgers/${g.id}`}>
             {g.ledger_count} {g.ledger_count === 1 ? "ledger" : "ledgers"}
@@ -1007,8 +1009,8 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
   return (
     <>
       <p className="small">
-        The 15 primary groups and their standard sub-groups come with every company and cannot be changed. Add your
-        own groups under them, for example Export debtors under Sundry Debtors.
+        The standard groups follow Schedule III of the Companies Act and come with every company; they cannot be
+        changed. Add your own groups under them, for example Export debtors under Sundry Debtors.
       </p>
       <ul className="tree">{(children.get(null) ?? []).map((g) => node(g, 0))}</ul>
     </>
