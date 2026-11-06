@@ -616,3 +616,74 @@ dl.kv dd {
   font-size: 14px;
   line-height: 1.6;
 }
+
+/* List on the left, the picked record on the right */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  gap: 20px;
+  align-items: start;
+}
+.split.editing {
+  grid-template-columns: minmax(240px, 3fr) minmax(0, 8fr);
+}
+.split-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.split-panel {
+  position: sticky;
+  top: 16px;
+}
+table.pick tbody tr {
+  cursor: pointer;
+}
+table.pick tbody tr:focus {
+  outline: 2px solid var(--leaf);
+  outline-offset: -2px;
+}
+table.pick tbody tr.selected td {
+  background: var(--mint);
+}
+table.pick tbody tr.selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--green);
+  font-weight: 600;
+}
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.panel-head h2 {
+  margin: 0 0 4px;
+}
+.panel h3 {
+  font-size: 14px;
+  margin-top: 4px;
+}
+.split-panel table.grid {
+  display: block;
+  overflow-x: auto;
+}
+@media (max-width: 900px) {
+  .split,
+  .split.editing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .split-panel {
+    position: static;
+    order: -1;
+  }
+}
+.split-panel fieldset {
+  min-width: 0;
+}
+table.pick td.num {
+  white-space: nowrap;
+}
+.split.editing table.pick th:nth-child(2),
+.split.editing table.pick td:nth-child(2) {
+  display: none;
+}
