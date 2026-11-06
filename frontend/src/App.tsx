@@ -5,6 +5,7 @@ import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
+import { Logo, PageHeader } from "./Brand";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
 type Page = "home" | "users" | "roles" | "companies";
@@ -31,7 +32,9 @@ export function App() {
   if (session?.signed_in) return <Shell session={session} onSignOut={onChange} />;
   return (
     <main className="narrow">
-      <h1>MyERP</h1>
+      <h1 className="login-logo">
+        <Logo size={40} />
+      </h1>
       {error && <p className="error">{error}</p>}
       {session === null ? (
         !error && <p>Loading…</p>
@@ -65,15 +68,20 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
   return (
     <>
       <header className="topbar">
-        <strong>MyERP</strong>
-        <nav>
+        <a href="#/" className="home-link" aria-label="MyERP home">
+          <Logo />
+        </a>
+        <nav aria-label="Modules">
           {link("home", "Home")}
-          {canSeeMasters && link("companies", "Companies")}
+          {canSeeMasters && link("companies", "Masters")}
           {canManageUsers && link("users", "Users")}
           {canManageUsers && link("roles", "Roles")}
         </nav>
         <span className="who">
-          {session.user.name}
+          <span className="avatar" aria-hidden="true">
+            {session.user.name.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+          <span className="who-name">{session.user.name}</span>
           <button className="link" onClick={signOut}>
             Sign out
           </button>
@@ -112,8 +120,7 @@ function Home({ session }: { session: SignedIn }) {
   }, [canSeeMasters]);
   return (
     <section className="page">
-      <h2>Welcome, {session.user.name}</h2>
-      {who && <p className="small">{who.name}</p>}
+      <PageHeader title={`Welcome, ${session.user.name}`} sub={who?.name} />
       {who && who.companies.length === 0 && <p>No companies yet.</p>}
       {companies && companies.length > 0 ? (
         <table>
