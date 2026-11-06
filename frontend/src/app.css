@@ -424,16 +424,41 @@ td .tag {
   margin-right: 4px;
 }
 
-ul.modules {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  columns: 2 320px;
+table.modules td {
+  vertical-align: middle;
 }
-
-ul.modules li {
-  break-inside: avoid;
-  margin-bottom: 4px;
+table.modules th:first-child,
+table.modules td:first-child {
+  width: 96px;
+}
+table.modules .module-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+table.modules tr.off td {
+  color: var(--slate);
+}
+table.modules tr.off .module-name {
+  font-weight: 500;
+}
+table.modules input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+.pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--slate);
+  white-space: nowrap;
+}
+.pill.on {
+  background: var(--mint);
+  color: var(--deep-green);
 }
 
 .sch3 {
@@ -686,4 +711,8 @@ table.pick td.num {
 .split.editing table.pick th:nth-child(2),
 .split.editing table.pick td:nth-child(2) {
   display: none;
+}
+table.modules + .error,
+table.modules ~ .buttons {
+  margin-top: 14px;
 }

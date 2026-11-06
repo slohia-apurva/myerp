@@ -110,25 +110,45 @@ function toggleModule(all: Module[], chosen: string[], code: string, on: boolean
 }
 
 function ModulePicker(props: { modules: Module[]; value: string[]; onChange?: (v: string[]) => void }) {
+  const label = (code: string) => props.modules.find((m) => m.code === code)?.label ?? code;
   return (
-    <ul className="modules">
-      {props.modules.map((m) => (
-        <li key={m.code}>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={props.value.includes(m.code) || m.code === "accounts"}
-              disabled={!props.onChange || m.code === "accounts"}
-              onChange={(e) => props.onChange?.(toggleModule(props.modules, props.value, m.code, e.target.checked))}
-            />
-            <span>
-              {m.label}
-              <span className="small"> · {m.what}</span>
-            </span>
-          </label>
-        </li>
-      ))}
-    </ul>
+    <table className="modules">
+      <thead>
+        <tr>
+          <th>{props.onChange ? "Use" : "Status"}</th>
+          <th>Module</th>
+          <th>What it covers</th>
+          <th>Needs</th>
+        </tr>
+      </thead>
+      <tbody>
+        {props.modules.map((m) => {
+          const on = props.value.includes(m.code) || m.code === "accounts";
+          return (
+            <tr key={m.code} className={on ? "" : "off"}>
+              <td>
+                {props.onChange ? (
+                  <input
+                    type="checkbox"
+                    aria-label={`Use ${m.label}`}
+                    checked={on}
+                    disabled={m.code === "accounts"}
+                    onChange={(e) => props.onChange?.(toggleModule(props.modules, props.value, m.code, e.target.checked))}
+                  />
+                ) : (
+                  <span className={on ? "pill on" : "pill"}>{on ? "In use" : "Not used"}</span>
+                )}
+              </td>
+              <td className="module-name">
+                {m.label}
+              </td>
+              <td>{m.what}</td>
+              <td className="small">{m.needs.length ? m.needs.map(label).join(", ") : "—"}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -157,7 +177,11 @@ function ModulesSection(props: { company: Company; isOwner: boolean; reload: () 
           </button>
         )}
       </div>
-      <div className="card">
+      <p className="small">
+        {all.filter((m) => props.company.modules.includes(m.code) || m.code === "accounts").length} of {all.length} modules in
+        use. Screens for modules that are not used stay hidden for this company.
+      </p>
+      <div>
         {editing ? (
           <>
             <ModulePicker modules={all} value={chosen} onChange={setChosen} />
@@ -176,18 +200,7 @@ function ModulesSection(props: { company: Company; isOwner: boolean; reload: () 
             </div>
           </>
         ) : (
-          <p>
-            {all
-              .filter((m) => props.company.modules.includes(m.code))
-              .map((m) => m.label)
-              .join(" · ")}
-            {all.length > 0 && all.some((m) => !props.company.modules.includes(m.code)) && (
-              <span className="small">
-                {" "}
-                (not used: {all.filter((m) => !props.company.modules.includes(m.code)).map((m) => m.label).join(", ")})
-              </span>
-            )}
-          </p>
+          <ModulePicker modules={all} value={props.company.modules} />
         )}
       </div>
     </>
