@@ -97,8 +97,55 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
     return () => window.clearTimeout(timer);
   }, [reload]);
 
+  // The list follows the group tree: each group with ledgers (directly or below it)
+  // gets a heading row, its own ledgers come next, then its sub-groups.
+  const [folded, setFolded] = useState<Set<number>>(new Set());
+  const tree = useMemo(() => {
+    const own = new Map<number, Ledger[]>();
+    for (const l of ledgers) own.set(l.group, [...(own.get(l.group) ?? []), l]);
+    const groups = detail?.ledger_groups ?? [];
+    const count = new Map<number, number>();
+    const net = new Map<number, number>();
+    const signed = (l: Ledger) => Number(l.opening_amount) * (l.opening_side === "dr" ? 1 : -1);
+    const fill = (g: Group): [number, number] => {
+      let c = own.get(g.id)?.length ?? 0;
+      let n = (own.get(g.id) ?? []).reduce((t, l) => t + signed(l), 0);
+      for (const k of groups.filter((x) => x.parent === g.id)) {
+        const [kc, kn] = fill(k);
+        c += kc;
+        n += kn;
+      }
+      count.set(g.id, c);
+      net.set(g.id, n);
+      return [c, n];
+    };
+    groups.filter((g) => g.parent === null).forEach(fill);
+    const rows: ({ kind: "group"; group: Group; depth: number } | { kind: "ledger"; ledger: Ledger; depth: number })[] = [];
+    let hideBelow: number | null = null;
+    for (const { group, depth } of ordered) {
+      if (hideBelow !== null && depth > hideBelow) continue;
+      hideBelow = null;
+      if (!count.get(group.id)) continue;
+      rows.push({ kind: "group", group, depth });
+      if (folded.has(group.id)) {
+        hideBelow = depth;
+        continue;
+      }
+      for (const l of own.get(group.id) ?? []) rows.push({ kind: "ledger", ledger: l, depth: depth + 1 });
+    }
+    return { rows, count, net, withLedgers: groups.filter((g) => count.get(g.id)).map((g) => g.id) };
+  }, [ledgers, detail, ordered, folded]);
+  const visible = tree.rows.flatMap((r) => (r.kind === "ledger" ? [r.ledger] : []));
+  const toggle = (id: number) =>
+    setFolded((f) => {
+      const next = new Set(f);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   // Keep a ledger selected: the first in the list until the person picks one.
-  const selected = ledgers.find((l) => l.id === selectedId) ?? ledgers[0] ?? null;
+  const selected = ledgers.find((l) => l.id === selectedId) ?? visible[0] ?? null;
   const pick = (l: Ledger) => {
     setSelectedId(l.id);
     setEditing(null);
@@ -106,13 +153,14 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
-    const at = selected ? ledgers.findIndex((l) => l.id === selected.id) : -1;
-    const next = ledgers[Math.min(ledgers.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))];
+    const at = selected ? visible.findIndex((l) => l.id === selected.id) : -1;
+    const next = visible[Math.min(visible.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))];
     if (next) {
       pick(next);
       document.getElementById(`ledger-${next.id}`)?.focus();
     }
   };
+  const dc = (n: number) => (n === 0 ? "" : `${money(Math.abs(n))} ${n > 0 ? "Dr" : "Cr"}`);
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
@@ -138,53 +186,82 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
             />
             <GroupSelect groups={ordered} value={groupFilter} onChange={setGroupFilter} all="All groups" />
           </div>
-          <table className="pick">
+          <div className="buttons list-tools">
+            <button className="link" onClick={() => setFolded(new Set())}>
+              Expand all
+            </button>
+            <button className="link" onClick={() => setFolded(new Set(tree.withLedgers))}>
+              Collapse all
+            </button>
+          </div>
+          <table className="pick by-group">
             <thead>
               <tr>
-                <th>Ledger</th>
-                <th>Group</th>
+                <th>Group / ledger</th>
                 <th className="num">Opening</th>
               </tr>
             </thead>
             <tbody onKeyDown={onListKey}>
-              {ledgers.length === 0 && (
+              {tree.rows.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="small">
+                  <td colSpan={2} className="small">
                     No ledgers match.
                   </td>
                 </tr>
               )}
-              {ledgers.map((l) => (
-                <tr
-                  key={l.id}
-                  id={`ledger-${l.id}`}
-                  tabIndex={0}
-                  aria-selected={selected?.id === l.id}
-                  className={[l.is_active ? "" : "inactive", selected?.id === l.id ? "selected" : ""].join(" ")}
-                  onClick={() => pick(l)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") pick(l);
-                  }}
-                >
-                  <td>
-                    {l.name}
-                    {!l.is_active && <span className="small"> · inactive</span>}
-                  </td>
-                  <td>{l.group_name}</td>
-                  <td className="num">
-                    {Number(l.opening_amount) === 0 ? (
-                      <span className="small">—</span>
-                    ) : (
-                      <>
-                        {money(l.opening_amount)} {l.opening_side === "dr" ? "Dr" : "Cr"}
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {tree.rows.map((r) =>
+                r.kind === "group" ? (
+                  <tr
+                    key={`g${r.group.id}`}
+                    className={`group-row depth-${Math.min(r.depth, 2)}`}
+                    onClick={() => toggle(r.group.id)}
+                  >
+                    <td>
+                      <span className="group-name" style={{ paddingLeft: r.depth * 18 }}>
+                        <button
+                          className="fold"
+                          aria-expanded={!folded.has(r.group.id)}
+                          aria-label={`${folded.has(r.group.id) ? "Show" : "Hide"} ledgers under ${r.group.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle(r.group.id);
+                          }}
+                        >
+                          {folded.has(r.group.id) ? "▸" : "▾"}
+                        </button>
+                        {r.group.name}
+                        <span className="small">({tree.count.get(r.group.id)})</span>
+                      </span>
+                    </td>
+                    <td className="num">{dc(tree.net.get(r.group.id) ?? 0)}</td>
+                  </tr>
+                ) : (
+                  <tr
+                    key={r.ledger.id}
+                    id={`ledger-${r.ledger.id}`}
+                    tabIndex={0}
+                    aria-selected={selected?.id === r.ledger.id}
+                    className={["ledger-row", r.ledger.is_active ? "" : "inactive", selected?.id === r.ledger.id ? "selected" : ""].join(" ")}
+                    onClick={() => pick(r.ledger)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") pick(r.ledger);
+                    }}
+                  >
+                    <td>
+                      <span style={{ paddingLeft: r.depth * 18 + 26, display: "inline-block" }}>
+                        {r.ledger.name}
+                        {!r.ledger.is_active && <span className="small"> · inactive</span>}
+                      </span>
+                    </td>
+                    <td className="num">
+                      {Number(r.ledger.opening_amount) === 0 ? <span className="small">—</span> : dc(Number(r.ledger.opening_amount) * (r.ledger.opening_side === "dr" ? 1 : -1))}
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
-          {ledgers.length > 1 && <p className="small">Tip: click a ledger, then use ↑ and ↓ to move through the list.</p>}
+          {visible.length > 1 && <p className="small">Tip: click a ledger, then use ↑ and ↓ to move through the list.</p>}
         </div>
         <aside className="split-panel" aria-label="Ledger details">
           {editing ? (
