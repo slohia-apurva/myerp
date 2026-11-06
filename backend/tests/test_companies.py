@@ -322,3 +322,33 @@ def test_certificates_with_renewal_dates(owner):
     assert call(owner, "delete", f"certificates/{udyam['id']}/").status_code == 405
     detail = call(owner, "get", f"companies/{company_id}/").json()
     assert [c["kind"] for c in detail["certificates"]] == ["fssai", "iec", "udyam"]
+
+
+def test_modules_chosen_per_company(owner, as_user):
+    company = add_company(owner).json()
+    assert "production" in company["modules"] and company["modules"][0] == "accounts"
+    path = f"companies/{company['id']}/"
+
+    # A trading company: no production or quality. Accounts cannot be removed.
+    trading = ["purchase", "sales", "stock", "gst"]
+    response = call(owner, "patch", path, {"modules": trading})
+    assert response.status_code == 200, response.json()
+    assert response.json()["modules"] == ["accounts", "gst", "stock", "purchase", "sales"]
+
+    bad = call(owner, "patch", path, {"modules": ["accounts", "production"]})
+    assert "Production needs Stock" in str(bad.json())
+    assert "modules" in call(owner, "patch", path, {"modules": ["mining"]}).json()
+
+    editor = as_user("accountant")
+    denied = call(editor, "patch", path, {"modules": ["accounts"]})
+    assert denied.status_code == 403
+    # Saving the form unchanged is fine for an editor.
+    same = call(
+        editor, "patch", path, {"name": company["name"], "modules": response.json()["modules"]}
+    )
+    assert same.status_code == 200, same.json()
+
+    listed = call(owner, "get", "modules/").json()
+    assert {"code": "pos", "label": "Point of sale"}.items() <= next(
+        m for m in listed if m["code"] == "pos"
+    ).items()

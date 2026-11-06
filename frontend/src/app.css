@@ -294,3 +294,15 @@ table.grid select {
 td .tag {
   margin-right: 4px;
 }
+
+ul.modules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  columns: 2 320px;
+}
+
+ul.modules li {
+  break-inside: avoid;
+  margin-bottom: 4px;
+}

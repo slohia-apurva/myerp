@@ -62,6 +62,7 @@ export type Company = Contact & {
   fiscal_year_start_month: number;
   books_start: string;
   multi_currency: boolean;
+  modules: string[];
   base_currency: string;
 };
 type DefaultFlag = "default_billing" | "default_ship_to" | "default_ship_from";
@@ -80,6 +81,117 @@ const ENTITY_TYPES: [string, string][] = [
 ];
 const MCA_TYPES = ["llp", "private_limited", "public_limited", "opc"];
 const cinLabel = (type: string) => (type === "llp" ? "LLPIN" : "CIN");
+
+type Module = { code: string; label: string; what: string; needs: string[] };
+
+function useModules() {
+  const [modules, setModules] = useState<Module[]>([]);
+  useEffect(() => {
+    api<Module[]>("v1/modules/").then(setModules);
+  }, []);
+  return modules;
+}
+
+// Ticking a module also ticks what it needs; unticking one unticks what needs it.
+function toggleModule(all: Module[], chosen: string[], code: string, on: boolean): string[] {
+  const set = new Set(chosen);
+  const add = (c: string) => {
+    set.add(c);
+    all.find((m) => m.code === c)?.needs.forEach(add);
+  };
+  const remove = (c: string) => {
+    set.delete(c);
+    all.filter((m) => m.needs.includes(c) && set.has(m.code)).forEach((m) => remove(m.code));
+  };
+  if (on) add(code);
+  else remove(code);
+  return all.map((m) => m.code).filter((c) => set.has(c) || c === "accounts");
+}
+
+function ModulePicker(props: { modules: Module[]; value: string[]; onChange?: (v: string[]) => void }) {
+  return (
+    <ul className="modules">
+      {props.modules.map((m) => (
+        <li key={m.code}>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={props.value.includes(m.code) || m.code === "accounts"}
+              disabled={!props.onChange || m.code === "accounts"}
+              onChange={(e) => props.onChange?.(toggleModule(props.modules, props.value, m.code, e.target.checked))}
+            />
+            <span>
+              {m.label}
+              <span className="small"> · {m.what}</span>
+            </span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ModulesSection(props: { company: Company; isOwner: boolean; reload: () => void }) {
+  const all = useModules();
+  const [editing, setEditing] = useState(false);
+  const [chosen, setChosen] = useState(props.company.modules);
+  const [error, setError] = useState("");
+  const save = async () => {
+    setError("");
+    try {
+      await api(`v1/companies/${props.company.id}/`, { modules: chosen }, "PATCH");
+      setEditing(false);
+      props.reload();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  return (
+    <>
+      <div className="page-head">
+        <h3>Modules</h3>
+        {props.isOwner && !editing && (
+          <button className="link" onClick={() => setEditing(true)}>
+            Choose modules
+          </button>
+        )}
+      </div>
+      <div className="card">
+        {editing ? (
+          <>
+            <ModulePicker modules={all} value={chosen} onChange={setChosen} />
+            {error && <p className="error">{error}</p>}
+            <div className="buttons">
+              <button onClick={save}>Save</button>
+              <button
+                className="link"
+                onClick={() => {
+                  setChosen(props.company.modules);
+                  setEditing(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <p>
+            {all
+              .filter((m) => props.company.modules.includes(m.code))
+              .map((m) => m.label)
+              .join(" · ")}
+            {all.length > 0 && all.some((m) => !props.company.modules.includes(m.code)) && (
+              <span className="small">
+                {" "}
+                (not used: {all.filter((m) => !props.company.modules.includes(m.code)).map((m) => m.label).join(", ")})
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
 
 type Certificate = {
   id: number;
@@ -241,6 +353,8 @@ function CompanyForm(props: {
   const [fyMonth, setFyMonth] = useState(c?.fiscal_year_start_month ?? 4);
   const [booksStart, setBooksStart] = useState(c?.books_start ?? "");
   const [multiCurrency, setMultiCurrency] = useState(c?.multi_currency ?? false);
+  const allModules = useModules();
+  const [modules, setModules] = useState<string[] | null>(null);
   const [error, setError] = useState("");
 
   // A GSTIN starts with the state code and contains the PAN.
@@ -267,6 +381,7 @@ function CompanyForm(props: {
       fiscal_year_start_month: fyMonth,
       ...(booksStart ? { books_start: booksStart } : {}),
       multi_currency: multiCurrency,
+      ...(!c && modules ? { modules } : {}),
       ...(c ? {} : abbr ? { abbr } : {}),
     };
     try {
@@ -356,6 +471,12 @@ function CompanyForm(props: {
         <input type="checkbox" checked={multiCurrency} onChange={(e) => setMultiCurrency(e.target.checked)} />
         Use foreign currencies (exports, imports, EEFC accounts). Books stay in INR.
       </label>
+      {!c && (
+        <fieldset>
+          <legend>Modules this company uses (the Owner can change them later)</legend>
+          <ModulePicker modules={allModules} value={modules ?? allModules.map((m) => m.code)} onChange={setModules} />
+        </fieldset>
+      )}
       {error && <p className="error">{error}</p>}
       <div className="buttons">
         <button>{c ? "Save" : "Add company"}</button>
@@ -457,6 +578,7 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
         </dl>
       )}
       <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
+      <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
       <Certificates company={c} certificates={detail.certificates} branches={detail.branches} canEdit={canEdit} reload={reload} />
     </section>
   );
