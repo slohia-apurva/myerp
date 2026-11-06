@@ -491,7 +491,8 @@ function CompanyForm(props: {
   );
 }
 
-export function CompanyPage({ id, session }: { id: number; session: SignedIn }) {
+export function CompanyPage(props: { id: number; session: SignedIn; tab?: string }) {
+  const { id, session } = props;
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -506,12 +507,21 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   const c = detail.company;
+  const tab = TABS.some(([code]) => code === props.tab) ? props.tab : "";
+  const sub = [
+    ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1],
+    c.state,
+    c.gstin ? `GSTIN ${c.gstin}` : "Unregistered for GST",
+    `Books from ${longDate(c.books_start)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <section className="page">
       <PageHeader
         title={c.name}
         crumbs={[{ label: "Companies", href: "#/companies" }]}
-        sub={c.gstin ? `GSTIN ${c.gstin}` : "Unregistered for GST"}
+        sub={sub}
         actions={
           <>
             <a className="button" href={`#/companies/${c.id}/groups`}>
@@ -520,71 +530,178 @@ export function CompanyPage({ id, session }: { id: number; session: SignedIn }) 
             <a className="button" href={`#/companies/${c.id}/ledgers`}>
               Ledgers
             </a>
-            {canEdit && !editing && <button onClick={() => setEditing(true)}>Edit details</button>}
+            {canEdit && !editing && (
+              <button
+                onClick={() => {
+                  setEditing(true);
+                  if (tab) window.location.hash = `#/companies/${c.id}`;
+                }}
+              >
+                Edit details
+              </button>
+            )}
           </>
         }
-      />
-      {editing ? (
-        <CompanyForm
-          company={c}
-          states={states}
-          onDone={() => {
-            setEditing(false);
-            reload();
-          }}
-          onCancel={() => setEditing(false)}
-        />
-      ) : (
-        <dl className="facts">
-          <dt>Short code</dt>
-          <dd>{c.abbr}</dd>
-          <dt>GSTIN</dt>
-          <dd>{c.gstin || "Unregistered"}</dd>
-          <dt>PAN</dt>
-          <dd>{c.pan || "—"}</dd>
-          <dt>State</dt>
-          <dd>{c.state}</dd>
-          <dt>Type of entity</dt>
-          <dd>{ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1] ?? "—"}</dd>
-          {MCA_TYPES.includes(c.entity_type) && (
-            <>
-              <dt>{cinLabel(c.entity_type)}</dt>
-              <dd>{c.cin || "—"}</dd>
-            </>
-          )}
-          <dt>Incorporated</dt>
-          <dd>{c.incorporation_date ? longDate(c.incorporation_date) : "—"}</dd>
-          <dt>TAN</dt>
-          <dd>{c.tan || "—"}</dd>
-          <dt>Registered address</dt>
-          <dd className="pre">{contactLines(c).where}</dd>
-          <dt>Contact</dt>
-          <dd>{contactLines(c).reach}</dd>
-          <dt>Financial year</dt>
-          <dd>
-            {MONTHS[c.fiscal_year_start_month - 1]} to {MONTHS[(c.fiscal_year_start_month + 10) % 12]}, {c.base_currency}
-          </dd>
-          <dt>Currencies</dt>
-          <dd>{c.multi_currency ? "INR, plus foreign currencies on ledgers" : "INR only"}</dd>
-          <dt>Books beginning from</dt>
-          <dd>{longDate(c.books_start)}</dd>
-          <dt>Opening balances</dt>
-          <dd>
-            Dr {money(detail.opening.dr)} · Cr {money(detail.opening.cr)}
-            {Number(detail.opening.difference) !== 0 && (
-              <span className="error">
-                {" "}
-                · difference {money(Math.abs(Number(detail.opening.difference)))}{" "}
-                {Number(detail.opening.difference) > 0 ? "Dr" : "Cr"}
-              </span>
-            )}
-          </dd>
-        </dl>
+      >
+        <nav className="tabs" aria-label="Company sections">
+          {TABS.map(([code, label]) => (
+            <a
+              key={code}
+              href={`#/companies/${c.id}${code ? `/${code}` : ""}`}
+              className={tab === code ? "active" : ""}
+              aria-current={tab === code ? "page" : undefined}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+      </PageHeader>
+      {tab === "" &&
+        (editing ? (
+          <CompanyForm
+            company={c}
+            states={states}
+            onDone={() => {
+              setEditing(false);
+              reload();
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        ) : (
+          <Overview detail={detail} />
+        ))}
+      {tab === "branches" && (
+        <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
       )}
-      <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
-      <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
-      <Certificates company={c} certificates={detail.certificates} branches={detail.branches} canEdit={canEdit} reload={reload} />
+      {tab === "certificates" && (
+        <Certificates
+          company={c}
+          certificates={detail.certificates}
+          branches={detail.branches}
+          canEdit={canEdit}
+          reload={reload}
+        />
+      )}
+      {tab === "modules" && (
+        <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
+      )}
     </section>
+  );
+}
+
+const TABS: [string, string][] = [
+  ["", "Overview"],
+  ["branches", "Branches"],
+  ["certificates", "Licences and certificates"],
+  ["modules", "Modules"],
+];
+
+function Overview({ detail }: { detail: Detail }) {
+  const c = detail.company;
+  const diff = Number(detail.opening.difference);
+  const next = detail.certificates
+    .filter((x) => x.valid_until)
+    .sort((a, b) => (a.valid_until! < b.valid_until! ? -1 : 1))[0];
+  const renewal = next ? renewalNote(next.valid_until) : null;
+  const open = detail.branches.filter((b) => b.is_active);
+  const { where, reach } = contactLines(c);
+  return (
+    <>
+      <div className="stats">
+        <div className="stat">
+          <span className="stat-label">Opening balance difference</span>
+          <span className={`stat-value ${diff !== 0 ? "error" : "ok"}`}>
+            {diff === 0 ? "Balanced" : `${money(Math.abs(diff))} ${diff > 0 ? "Dr" : "Cr"}`}
+          </span>
+          <span className="stat-note">
+            Dr {money(detail.opening.dr)} · Cr {money(detail.opening.cr)}
+          </span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Next renewal</span>
+          <span className={`stat-value ${renewal?.cls === "small" ? "" : (renewal?.cls ?? "")}`}>
+            {next ? longDate(next.valid_until!) : "None due"}
+          </span>
+          <span className="stat-note">
+            {next ? `${next.kind === "other" ? next.name : next.kind_label} · ${next.branch_name || "Company"}` : "No licence with a renewal date"}
+          </span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Branches</span>
+          <span className="stat-value">{open.length}</span>
+          <span className="stat-note">{open.map((b) => b.name).join(" · ")}</span>
+        </div>
+      </div>
+      <div className="cards">
+        <div className="card">
+          <h2>Registration</h2>
+          <dl className="kv">
+            <div>
+              <dt>Short code</dt>
+              <dd>{c.abbr}</dd>
+            </div>
+            <div>
+              <dt>Type of entity</dt>
+              <dd>{ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1] ?? "—"}</dd>
+            </div>
+            <div>
+              <dt>GSTIN</dt>
+              <dd>{c.gstin || "Unregistered"}</dd>
+            </div>
+            <div>
+              <dt>PAN</dt>
+              <dd>{c.pan || "—"}</dd>
+            </div>
+            {MCA_TYPES.includes(c.entity_type) && (
+              <div>
+                <dt>{cinLabel(c.entity_type)}</dt>
+                <dd>{c.cin || "—"}</dd>
+              </div>
+            )}
+            <div>
+              <dt>TAN</dt>
+              <dd>{c.tan || "—"}</dd>
+            </div>
+            <div>
+              <dt>Incorporated</dt>
+              <dd>{c.incorporation_date ? longDate(c.incorporation_date) : "—"}</dd>
+            </div>
+            <div>
+              <dt>State</dt>
+              <dd>{c.state}</dd>
+            </div>
+          </dl>
+        </div>
+        <div className="card">
+          <h2>Registered address and contact</h2>
+          <p className="pre">{where}</p>
+          {reach !== "—" && <p>{reach}</p>}
+        </div>
+        <div className="card">
+          <h2>Books</h2>
+          <dl className="kv">
+            <div>
+              <dt>Financial year</dt>
+              <dd>
+                {MONTHS[c.fiscal_year_start_month - 1]} to {MONTHS[(c.fiscal_year_start_month + 10) % 12]}
+              </dd>
+            </div>
+            <div>
+              <dt>Books beginning from</dt>
+              <dd>{longDate(c.books_start)}</dd>
+            </div>
+            <div>
+              <dt>Base currency</dt>
+              <dd>{c.base_currency}</dd>
+            </div>
+            <div>
+              <dt>Currencies</dt>
+              <dd>{c.multi_currency ? "INR, plus foreign currencies on ledgers" : "INR only"}</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </>
   );
 }
 
