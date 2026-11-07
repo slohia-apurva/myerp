@@ -6,15 +6,17 @@ import { SignIn } from "./Login";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 import { Logo, PageHeader } from "./Brand";
+import { HelpPage, helpTopicFor } from "./help/Help";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
-type Page = "home" | "users" | "roles" | "companies";
-type Route = { page: Page; id?: number; sub?: string; subId?: number };
+type Page = "home" | "users" | "roles" | "companies" | "help";
+type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
   const [page, id, sub, subId] = window.location.hash.replace(/^#\/?/, "").split("/");
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
+  if (page === "help") return { page, topic: id };
   return { page: page === "users" || page === "roles" ? page : "home" };
 }
 
@@ -46,7 +48,7 @@ export function App() {
 }
 
 function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Session) => void }) {
-  const [{ page, id, sub, subId }, setRoute] = useState<Route>(routeFromHash);
+  const [{ page, id, sub, subId, topic }, setRoute] = useState<Route>(routeFromHash);
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
     window.addEventListener("hashchange", onHash);
@@ -78,6 +80,13 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {canManageUsers && link("roles", "Roles")}
         </nav>
         <span className="who">
+          <a
+            href={page === "help" ? "#/help" : `#/help/${helpTopicFor(window.location.hash)}`}
+            className={`help-link${page === "help" ? " active" : ""}`}
+            title="Help for this screen"
+          >
+            Help
+          </a>
           <span className="avatar" aria-hidden="true">
             {session.user.name.trim().charAt(0).toUpperCase() || "?"}
           </span>
@@ -88,7 +97,9 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         </span>
       </header>
       <main>
-        {page === "companies" && canSeeMasters ? (
+        {page === "help" ? (
+          <HelpPage topic={topic} />
+        ) : page === "companies" && canSeeMasters ? (
           id && sub === "ledgers" ? (
             <LedgersPage key={`${id}-${subId}`} companyId={id} groupId={subId} session={session} />
           ) : id && sub === "groups" ? (
