@@ -476,7 +476,7 @@ The v1 working method stands: the repo is the project's memory, spec before code
 
 * [ ] **(new)** How many employees in each company, and are any paid daily or through a labour contractor?
 * [ ] **(new)** Which states do staff work in? This decides professional tax and labour welfare fund rules
-* [ ] **(new)** Do you need attendance from a biometric device, or entered by hand?
+* [ ] **(new)** Do you need attendance from a biometric device, or entered by hand? (Biometric: yes, see `04-biometric-attendance.md`)
 * [ ] **(new)** List of current lenders and loans (secured and unsecured), including loans from directors and partners
 * [ ] **(new)** Fixed asset register today: in ERPNext, in Excel, or with your CA only?
 
