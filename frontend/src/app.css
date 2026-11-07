@@ -870,3 +870,166 @@ button.fold:hover:not(:disabled) {
 .levels button.active:hover:not(:disabled) {
   background: var(--deep-green);
 }
+
+/* Help: the user manual */
+button.secondary {
+  background: #fff;
+  color: var(--green);
+  border: 1px solid var(--mint-line);
+}
+button.secondary:hover:not(:disabled) {
+  background: var(--mint);
+}
+.help-link {
+  color: var(--slate);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.help-link:hover,
+.help-link.active {
+  color: var(--deep-green);
+  border-color: var(--mint-line);
+  background: var(--mint);
+}
+.help-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.help-toc {
+  position: sticky;
+  top: 16px;
+}
+.help-toc h3 {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate);
+}
+.help-toc ol {
+  margin: 0;
+  padding: 0 0 0 20px;
+  line-height: 2;
+}
+.help-toc a {
+  text-decoration: none;
+}
+.help-toc a.active {
+  color: var(--deep-green);
+  font-weight: 600;
+}
+.help-body {
+  max-width: 760px;
+  line-height: 1.6;
+}
+.help-chapter h2 {
+  margin: 0 0 4px;
+  color: var(--deep-green);
+}
+.help-chapter h3 {
+  margin: 24px 0 6px;
+  font-size: 1.05rem;
+}
+.help-summary {
+  margin: 0 0 16px;
+  color: var(--slate);
+}
+.help-chapter li {
+  margin-bottom: 4px;
+}
+table.help-fields {
+  margin: 8px 0 12px;
+}
+table.help-fields th {
+  width: 30%;
+  text-align: left;
+  vertical-align: top;
+  font-weight: 600;
+  background: none;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.help-note {
+  background: var(--mint);
+  border-left: 4px solid var(--leaf);
+  padding: 10px 14px;
+  border-radius: 6px;
+}
+.help-pager {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.help-pager a {
+  text-decoration: none;
+}
+.help-cover {
+  display: none;
+}
+@media (max-width: 720px) {
+  .help-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .help-toc {
+    position: static;
+  }
+}
+
+/* Printing: only the page content, black on white, one chapter per page. */
+@media print {
+  .topbar,
+  .band .buttons,
+  .band .crumbs,
+  .help-toc,
+  .help-pager {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .band {
+    background: none;
+    border: 0;
+  }
+  .help .band {
+    display: none;
+  }
+  .help-layout {
+    display: block;
+  }
+  .help-body {
+    max-width: none;
+    font-size: 11pt;
+  }
+  .help-cover {
+    display: block;
+    page-break-after: always;
+    padding-top: 30vh;
+  }
+  .help-cover h1 {
+    font-size: 28pt;
+    color: var(--deep-green);
+  }
+  .help-chapter + .help-chapter {
+    page-break-before: always;
+  }
+  .help-chapter h3,
+  table.help-fields tr,
+  .help-note {
+    page-break-inside: avoid;
+  }
+  .page a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

@@ -17,3 +17,4 @@ MyERP is Apurvam's own web ERP (books, stock, production, purchase, sales, GST, 
 - Checks before pushing: `ruff check . && ruff format --check . && python manage.py makemigrations --check --dry-run && pytest`; frontend `npm ci && npm run build`.
 - Every posting rule gets a test. Every bug found with real data becomes a test before it is fixed.
 - One small, testable slice per pull request.
+- The user manual lives in `frontend/src/help/manual.tsx` (Help in the top menu; printable). Every pull request that adds or changes a screen updates its chapter in the same PR, in plain words with the on-screen labels in quotes. A new screen also gets a line in `helpTopicFor` (Help.tsx).
