@@ -11,6 +11,7 @@ export function helpTopicFor(hash: string): string {
   if (sub === "ledgers") return "ledgers";
   if (sub === "groups") return "ledger-groups";
   if (sub === "branches" || sub === "certificates" || sub === "modules") return sub;
+  if (sub === "history") return "change-log";
   return "companies";
 }
 

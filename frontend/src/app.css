@@ -1033,3 +1033,71 @@ table.help-fields th {
     text-decoration: none;
   }
 }
+
+/* Change log */
+table.changes td {
+  vertical-align: top;
+}
+table.changes .nowrap {
+  white-space: nowrap;
+}
+.change-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 0.9rem;
+}
+.change-list li {
+  margin: 2px 0;
+}
+.change-list del {
+  color: var(--slate);
+}
+.pill.action-create {
+  background: var(--mint);
+  color: var(--deep-green);
+}
+.pill.action-delete {
+  background: #fde8e6;
+  color: var(--red);
+}
+table.changes.compact {
+  font-size: 0.9rem;
+}
+.inline-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-direction: row;
+}
+.panel-head .buttons {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 720px) {
+  /* Each change becomes a small card instead of a wide table row. */
+  table.changes {
+    display: block;
+    overflow: visible;
+  }
+  table.changes thead {
+    display: none;
+  }
+  table.changes tbody,
+  table.changes tr,
+  table.changes td {
+    display: block;
+  }
+  table.changes tr {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.changes td {
+    padding: 0;
+    border: 0;
+  }
+  table.changes td:first-child {
+    font-size: 0.85rem;
+    color: var(--slate);
+  }
+}

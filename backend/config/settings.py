@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     # Tenant side: lives only in each tenant's database.
     "accounts",
     "core",
+    "audit",
 ]
 
 MIDDLEWARE = [
@@ -67,6 +68,8 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Records who changed which master (below authentication: needs the user).
+    "audit.middleware.AuditMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

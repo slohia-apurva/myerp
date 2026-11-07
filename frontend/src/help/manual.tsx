@@ -286,6 +286,10 @@ export const MANUAL: Chapter[] = [
             bank details, opening bills and notes. After clicking a ledger, the ↑ and ↓ keys move through the list. On a
             phone the panel shows above the list.
           </li>
+          <li>
+            <strong>"History"</strong> in the side panel shows every change made to that ledger: who, when, and the
+            old and new values (see "Change log").
+          </li>
         </ul>
         <h3>Add a ledger</h3>
         <ol>
@@ -333,6 +337,7 @@ export const MANUAL: Chapter[] = [
         </ol>
         <h3>Stop someone signing in</h3>
         <p>Click "Edit" on the user, untick "Active" and click "Save". Their past work stays on record.</p>
+        <p>"Change log" at the top shows who added or changed each user, including changes to their roles and companies.</p>
       </>
     ),
   },
@@ -354,6 +359,58 @@ export const MANUAL: Chapter[] = [
           <li>Give it a name and description, tick the permissions in each area, and click "Save".</li>
         </ol>
         <p>Standard roles can be edited but not deleted. Roles you made can be deleted with "Delete role".</p>
+        <p>"Change log" at the top shows every change to roles and their permissions.</p>
+      </>
+    ),
+  },
+  {
+    id: "change-log",
+    title: "Change log",
+    summary: "Who changed which master, when, and what it was before.",
+    body: (
+      <>
+        <p>
+          MyERP records every change to its masters by itself: companies, branches, licences and certificates, ledger
+          groups, ledgers, users and roles. Each change shows who made it, when, and the old and new value of every
+          field that changed. Nobody can edit or delete the log, not even an Owner.
+        </p>
+        <h3>Where to see it</h3>
+        <ul>
+          <li>
+            <strong>A company's changes:</strong> open the company and click the "Change log" tab. Use "Show" to see
+            only one kind of record, such as Ledgers.
+          </li>
+          <li>
+            <strong>One ledger:</strong> click the ledger, then "History" in the side panel.
+          </li>
+          <li>
+            <strong>Users and roles:</strong> click "Change log" on the Users or Roles screen. You need the permission to
+            manage users.
+          </li>
+        </ul>
+        <h3>Reading an entry</h3>
+        <ul>
+          <li>
+            <strong>Added</strong> lists what was filled in when the record was made.
+          </li>
+          <li>
+            <strong>Changed</strong> shows each field as old → new. The old value is struck through; "blank" means
+            the field was empty.
+          </li>
+          <li>
+            <strong>Deleted</strong> lists what the record held when it was deleted (only groups and roles you made can
+            be deleted).
+          </li>
+        </ul>
+        <p>
+          One "Save" makes one entry, even when it changes several things, such as a ledger's balance and its opening
+          bills. A save that fails, or changes nothing, adds nothing. The 50 latest changes show first; click "Show
+          older changes" for more.
+        </p>
+        <Note>
+          What MyERP sets up for a new company by itself (the Head office branch, the standard ledger groups and the
+          Cash ledger) is not listed; the company's own entry is.
+        </Note>
       </>
     ),
   },
