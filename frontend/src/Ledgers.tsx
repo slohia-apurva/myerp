@@ -1,5 +1,6 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
+import { ChangeLog } from "./Audit";
 import { longDate, money, type Company, type Group } from "./Companies";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
 
@@ -290,7 +291,12 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
               onCancel={() => setEditing(null)}
             />
           ) : selected ? (
-            <LedgerPanel ledger={selected} canEdit={canEdit} onEdit={() => setEditing(selected)} />
+            <LedgerPanel
+              ledger={selected}
+              companyId={props.companyId}
+              canEdit={canEdit}
+              onEdit={() => setEditing(selected)}
+            />
           ) : (
             <div className="card">
               <p className="small">Pick a ledger to see its details here.</p>
@@ -302,7 +308,9 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   );
 }
 
-function LedgerPanel({ ledger: l, canEdit, onEdit }: { ledger: Ledger; canEdit: boolean; onEdit: () => void }) {
+function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolean; onEdit: () => void }) {
+  const { ledger: l, canEdit, onEdit } = props;
+  const [history, setHistory] = useState(false);
   const opening = Number(l.opening_amount);
   const bank = [
     ["Bank", l.bank_name],
@@ -320,7 +328,12 @@ function LedgerPanel({ ledger: l, canEdit, onEdit }: { ledger: Ledger; canEdit: 
             {!l.is_active && " · inactive"}
           </p>
         </div>
-        {canEdit && <button onClick={onEdit}>Edit</button>}
+        <div className="buttons">
+          <button className="secondary" onClick={() => setHistory(!history)} aria-pressed={history}>
+            History
+          </button>
+          {canEdit && <button onClick={onEdit}>Edit</button>}
+        </div>
       </div>
       <div className="stat">
         <span className="stat-label">Opening balance</span>
@@ -389,6 +402,12 @@ function LedgerPanel({ ledger: l, canEdit, onEdit }: { ledger: Ledger; canEdit: 
         <>
           <h3>Notes</h3>
           <p className="pre">{l.notes}</p>
+        </>
+      )}
+      {history && (
+        <>
+          <h3>History</h3>
+          <ChangeLog company={props.companyId} type="ledger" id={l.id} stamp={JSON.stringify(l)} compact />
         </>
       )}
     </div>

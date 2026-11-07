@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { CompanyChangeLog } from "./Audit";
 import { api, SignedIn } from "./api";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
 
@@ -598,6 +599,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
       {tab === "modules" && (
         <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
       )}
+      {tab === "history" && <CompanyChangeLog company={c.id} />}
     </section>
   );
 }
@@ -607,6 +609,7 @@ const TABS: [string, string][] = [
   ["branches", "Branches"],
   ["certificates", "Licences and certificates"],
   ["modules", "Modules"],
+  ["history", "Change log"],
 ];
 
 function Overview({ detail }: { detail: Detail }) {

@@ -9,5 +9,6 @@ urlpatterns = [
     # Versioned API for screens and, later, the mobile app (decision 0011).
     path("api/v1/", include("accounts.urls_v1")),
     path("api/v1/", include("core.urls_v1")),
+    path("api/v1/", include("audit.urls_v1")),
     path("api/whoami/", WhoAmIView.as_view(), name="whoami"),
 ]

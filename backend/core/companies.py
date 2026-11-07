@@ -2,6 +2,7 @@
 
 from datetime import date
 
+from audit import recorder
 from core.ledger_groups import ensure_cash_ledger, ensure_head_office, seed_standard_groups
 from core.models import Branch, Company, Ledger, LedgerGroup, fiscal_year_start
 from tenancy.context import tenant_atomic
@@ -18,16 +19,23 @@ def create_company(**fields) -> Company:
         company = Company(**fields)
         company.full_clean(exclude=["abbr"] if not company.abbr else None)
         company.save()
-        ensure_head_office(Branch, company)
-        # The head office starts with the company's address and contact.
-        head = company.branches.get(is_head_office=True)
-        for field in ("address", "pincode", "phone", "email", "contact_person"):
-            setattr(head, field, getattr(company, field))
-        head.default_billing = head.default_ship_to = head.default_ship_from = True
-        head.save()
-        seed_standard_groups(LedgerGroup, company, Ledger)
-        ensure_cash_ledger(Ledger, LedgerGroup, company)
+        # What every company starts with is MyERP's setup, not a change by
+        # the person, so it stays out of the audit log.
+        with recorder.paused():
+            _starting_records(company)
     return company
+
+
+def _starting_records(company: Company) -> None:
+    ensure_head_office(Branch, company)
+    # The head office starts with the company's address and contact.
+    head = company.branches.get(is_head_office=True)
+    for field in ("address", "pincode", "phone", "email", "contact_person"):
+        setattr(head, field, getattr(company, field))
+    head.default_billing = head.default_ship_to = head.default_ship_from = True
+    head.save()
+    seed_standard_groups(LedgerGroup, company, Ledger)
+    ensure_cash_ledger(Ledger, LedgerGroup, company)
 
 
 def visible_companies(user):

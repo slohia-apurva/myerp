@@ -21,6 +21,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from audit import recorder
 from core import india
 from core import modules as company_modules
 from core.companies import create_company, visible_companies
@@ -282,6 +283,7 @@ def _save_opening_bills(ledger: Ledger, bills: list[dict] | None) -> None:
     undoes the whole save."""
     if not ledger.bill_wise:
         ledger.opening_bills.all().delete()
+        recorder.touch(ledger)
         return
     if bills is not None:
         refs = [b["ref"].strip().lower() for b in bills]
@@ -324,6 +326,7 @@ def _save_opening_bills(ledger: Ledger, bills: list[dict] | None) -> None:
         LedgerOpeningBill.objects.bulk_create(
             LedgerOpeningBill(ledger=ledger, **{**b, "ref": b["ref"].strip()}) for b in bills
         )
+        recorder.touch(ledger)
     total = sum((b.signed for b in ledger.opening_bills.all()), Decimal("0"))
     if ledger.currency is not None:
         # Each bill has its own rate, so the INR balance is the bills' total.
@@ -550,7 +553,10 @@ def _move_defaults(branch: Branch, data: dict) -> None:
             continue
         if data[flag]:
             others = Branch.objects.filter(company_id=branch.company_id, **{flag: True})
-            others.exclude(pk=branch.pk).update(**{flag: False})
+            # One by one, not .update(), so the audit log sees each change.
+            for other in others.exclude(pk=branch.pk):
+                setattr(other, flag, False)
+                other.save(update_fields=[flag])
         elif getattr(branch, flag):
             raise ValidationError({flag: ["Tick this default on another branch instead."]})
 
