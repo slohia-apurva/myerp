@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
 
 type Change = { field: string; label: string; old: string | null; new: string | null };
@@ -43,7 +43,7 @@ function Value({ v }: { v: string | null }) {
  * one record); leave it out for users and roles. `stamp` reloads it when the
  * record it shows has just been saved.
  */
-export function ChangeLog(props: { company?: number; type?: string; id?: number; stamp?: string; compact?: boolean }) {
+export function ChangeLog(props: { company?: number; type?: string; id?: number; stamp?: string }) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [more, setMore] = useState(false);
   const [error, setError] = useState("");
@@ -80,53 +80,42 @@ export function ChangeLog(props: { company?: number; type?: string; id?: number;
   if (entries.length === 0) return <p className="small">No changes recorded yet.</p>;
   return (
     <>
-      <table className={`changes${props.compact ? " compact" : ""}`}>
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>Who</th>
-            {!single && <th>What</th>}
-            <th>Change</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.id}>
-              <td className="nowrap">{when(e.at)}</td>
-              <td>{e.user_name}</td>
+      <ol className="feed">
+        {entries.map((e) => (
+          <li key={e.id} className={`feed-item action-${e.action}`}>
+            <div className="feed-meta">
+              <strong>{e.user_name}</strong> · {when(e.at)}
+            </div>
+            <div className="feed-what">
+              <span className={`pill action-${e.action}`}>{e.action_label}</span>
               {!single && (
-                <td>
-                  <span className="small">{e.type_label}</span>
-                  <br />
-                  {e.record_name}
-                </td>
+                <span>
+                  {" "}
+                  {e.type_label.toLowerCase()} <strong>{e.record_name}</strong>
+                </span>
               )}
-              <td>
-                <span className={`pill action-${e.action}`}>{e.action_label}</span>
-                <ul className="change-list">
-                  {e.changes.map((c) => (
-                    <li key={c.field}>
-                      <strong>{c.label}</strong>
-                      {": "}
-                      {e.action === "update" ? (
-                        <>
-                          <del>
-                            <Value v={c.old} />
-                          </del>
-                          {" → "}
-                          <Value v={c.new} />
-                        </>
-                      ) : (
-                        <Value v={e.action === "delete" ? c.old : c.new} />
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </div>
+            <ul className="change-list">
+              {e.changes.map((c) => (
+                <li key={c.field}>
+                  <span className="change-label">{c.label}</span>{" "}
+                  {e.action === "update" ? (
+                    <>
+                      <del>
+                        <Value v={c.old} />
+                      </del>
+                      {" → "}
+                      <Value v={c.new} />
+                    </>
+                  ) : (
+                    <Value v={e.action === "delete" ? c.old : c.new} />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
       {more && (
         <button className="link" onClick={older}>
           Show older changes
@@ -136,29 +125,37 @@ export function ChangeLog(props: { company?: number; type?: string; id?: number;
   );
 }
 
-/** A company's "Change log" tab: everything, or one kind of record. */
-export function CompanyChangeLog({ company }: { company: number }) {
-  const [type, setType] = useState("");
+/**
+ * The activity column beside a page's content (below it on narrow screens):
+ * the change log of what the page shows. `filter` adds a "Show" picker.
+ */
+export function Activity(props: { company?: number; type?: string; filter?: boolean; stamp?: string }) {
+  const [type, setType] = useState(props.type ?? "");
   return (
-    <>
-      <div className="page-head">
-        <h3>Change log</h3>
-        <label className="inline-filter">
-          Show
-          <select value={type} onChange={(e) => setType(e.target.value)}>
+    <aside className="activity" aria-label="Activity">
+      <div className="activity-head">
+        <h3>Activity</h3>
+        {props.filter && (
+          <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Show">
             {RECORD_TYPES.map(([code, label]) => (
               <option key={code} value={code}>
                 {label}
               </option>
             ))}
           </select>
-        </label>
+        )}
       </div>
-      <p className="small">
-        Every change to this company's masters: who made it, when, and what each value was before and after. The log
-        cannot be edited.
-      </p>
-      <ChangeLog company={company} type={type} />
-    </>
+      <ChangeLog company={props.company} type={type} stamp={props.stamp} />
+    </aside>
+  );
+}
+
+/** A page's content with the activity column on its right. */
+export function WithActivity({ activity, children }: { activity: ReactNode; children: ReactNode }) {
+  return (
+    <div className="with-activity">
+      <div className="main-col">{children}</div>
+      {activity}
+    </div>
   );
 }

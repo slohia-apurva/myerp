@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, SignedIn } from "./api";
-import { ChangeLog } from "./Audit";
+import { Activity, WithActivity } from "./Audit";
 import { PageHeader } from "./Brand";
 
 type Role = {
@@ -79,7 +79,6 @@ function Checks<T extends { id: number; name: string }>(props: {
 export function UsersPage({ session }: { session: SignedIn }) {
   const { roles, users, companies, error, reload } = useData();
   const [editing, setEditing] = useState<User | "new" | null>(null);
-  const [log, setLog] = useState(false);
   const roleName = (id: number) => roles.find((r) => r.id === id)?.name ?? "?";
 
   return (
@@ -87,66 +86,55 @@ export function UsersPage({ session }: { session: SignedIn }) {
       <PageHeader
         title="Users"
         crumbs={[{ label: "Settings", href: "#/users" }]}
-        actions={
-          <>
-            <button className="secondary" onClick={() => setLog(!log)} aria-pressed={log}>
-              Change log
-            </button>
-            <button onClick={() => setEditing("new")}>Add user</button>
-          </>
-        }
+        actions={<button onClick={() => setEditing("new")}>Add user</button>}
       />
-      <p className="small">
-        People sign in with the Google account for their email address. Add them here first; nobody else can sign in.
-      </p>
-      {error && <p className="error">{error}</p>}
-      {editing && (
-        <UserForm
-          user={editing === "new" ? null : editing}
-          roles={roles}
-          companies={companies}
-          isOwner={session.user.is_owner}
-          onDone={() => {
-            setEditing(null);
-            reload();
-          }}
-          onCancel={() => setEditing(null)}
-        />
-      )}
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Roles</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr key={u.id} className={u.is_active ? "" : "inactive"}>
-              <td>
-                {u.full_name || u.email}
-                <br />
-                <span className="small">{u.email}</span>
-              </td>
-              <td>{u.roles.map(roleName).join(", ") || <span className="small">No role</span>}</td>
-              <td>{!u.is_active ? "Deactivated" : u.signed_in_before ? "Active" : "Not signed in yet"}</td>
-              <td>
-                <button className="link" onClick={() => setEditing(u)}>
-                  Edit
-                </button>
-              </td>
+      <WithActivity activity={<Activity type="user" stamp={JSON.stringify(users)} />}>
+        <p className="small">
+          People sign in with the Google account for their email address. Add them here first; nobody else can sign in.
+        </p>
+        {error && <p className="error">{error}</p>}
+        {editing && (
+          <UserForm
+            user={editing === "new" ? null : editing}
+            roles={roles}
+            companies={companies}
+            isOwner={session.user.is_owner}
+            onDone={() => {
+              setEditing(null);
+              reload();
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Roles</th>
+              <th>Status</th>
+              <th />
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {log && (
-        <>
-          <h3>Change log</h3>
-          <ChangeLog type="user" stamp={JSON.stringify(users)} />
-        </>
-      )}
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className={u.is_active ? "" : "inactive"}>
+                <td>
+                  {u.full_name || u.email}
+                  <br />
+                  <span className="small">{u.email}</span>
+                </td>
+                <td>{u.roles.map(roleName).join(", ") || <span className="small">No role</span>}</td>
+                <td>{!u.is_active ? "Deactivated" : u.signed_in_before ? "Active" : "Not signed in yet"}</td>
+                <td>
+                  <button className="link" onClick={() => setEditing(u)}>
+                    Edit
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </WithActivity>
     </section>
   );
 }
@@ -232,7 +220,6 @@ function UserForm(props: {
 export function RolesPage({ session }: { session: SignedIn }) {
   const { roles, catalogue, error, reload } = useData();
   const [editing, setEditing] = useState<Role | "new" | null>(null);
-  const [log, setLog] = useState(false);
   const owner = session.user.is_owner;
 
   return (
@@ -240,66 +227,55 @@ export function RolesPage({ session }: { session: SignedIn }) {
       <PageHeader
         title="Roles"
         crumbs={[{ label: "Settings", href: "#/users" }]}
-        actions={
-          <>
-            <button className="secondary" onClick={() => setLog(!log)} aria-pressed={log}>
-              Change log
-            </button>
-            {owner && <button onClick={() => setEditing("new")}>New role</button>}
-          </>
-        }
+        actions={owner && <button onClick={() => setEditing("new")}>New role</button>}
       />
-      <p className="small">
-        {owner
-          ? "A role is a set of permissions. Owner can do everything and cannot be changed."
-          : "Only an Owner can change roles."}
-      </p>
-      {error && <p className="error">{error}</p>}
-      {editing && (
-        <RoleForm
-          role={editing === "new" ? null : editing}
-          catalogue={catalogue}
-          onDone={() => {
-            setEditing(null);
-            reload();
-          }}
-          onCancel={() => setEditing(null)}
-        />
-      )}
-      <table>
-        <thead>
-          <tr>
-            <th>Role</th>
-            <th>Users</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {roles.map((r) => (
-            <tr key={r.id}>
-              <td>
-                {r.name}
-                <br />
-                <span className="small">{r.description}</span>
-              </td>
-              <td>{r.user_count}</td>
-              <td>
-                {owner && r.code !== "owner" && (
-                  <button className="link" onClick={() => setEditing(r)}>
-                    Edit
-                  </button>
-                )}
-              </td>
+      <WithActivity activity={<Activity type="role" stamp={JSON.stringify(roles)} />}>
+        <p className="small">
+          {owner
+            ? "A role is a set of permissions. Owner can do everything and cannot be changed."
+            : "Only an Owner can change roles."}
+        </p>
+        {error && <p className="error">{error}</p>}
+        {editing && (
+          <RoleForm
+            role={editing === "new" ? null : editing}
+            catalogue={catalogue}
+            onDone={() => {
+              setEditing(null);
+              reload();
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Users</th>
+              <th />
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {log && (
-        <>
-          <h3>Change log</h3>
-          <ChangeLog type="role" stamp={JSON.stringify(roles)} />
-        </>
-      )}
+          </thead>
+          <tbody>
+            {roles.map((r) => (
+              <tr key={r.id}>
+                <td>
+                  {r.name}
+                  <br />
+                  <span className="small">{r.description}</span>
+                </td>
+                <td>{r.user_count}</td>
+                <td>
+                  {owner && r.code !== "owner" && (
+                    <button className="link" onClick={() => setEditing(r)}>
+                      Edit
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </WithActivity>
     </section>
   );
 }

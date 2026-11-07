@@ -1034,21 +1034,100 @@ table.help-fields th {
   }
 }
 
-/* Change log */
-table.changes td {
-  vertical-align: top;
+/* Activity: the change log beside each page (right), or below it */
+.with-activity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 28px;
+  align-items: start;
 }
-table.changes .nowrap {
-  white-space: nowrap;
+.main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.activity {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  padding-left: 20px;
+}
+.activity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.activity-head h3,
+.panel-activity h3 {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate);
+}
+.activity-head select {
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  max-width: 180px;
+}
+.panel-activity {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.panel-activity h3 {
+  margin-bottom: 8px;
+}
+ol.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.feed-item {
+  padding: 10px 0 10px 14px;
+  border-left: 2px solid var(--mint-line);
+  position: relative;
+  font-size: 0.9rem;
+}
+.feed-item::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 15px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--leaf);
+}
+.feed-item.action-delete::before {
+  background: var(--red);
+}
+.feed-meta {
+  color: var(--slate);
+  font-size: 0.8rem;
+}
+.feed-meta strong {
+  color: var(--ink);
+}
+.feed-what {
+  margin: 4px 0 2px;
 }
 .change-list {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   padding: 0;
-  font-size: 0.9rem;
 }
 .change-list li {
   margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+.change-label {
+  color: var(--slate);
 }
 .change-list del {
   color: var(--slate);
@@ -1061,43 +1140,16 @@ table.changes .nowrap {
   background: #fde8e6;
   color: var(--red);
 }
-table.changes.compact {
-  font-size: 0.9rem;
-}
-.inline-filter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-direction: row;
-}
-.panel-head .buttons {
-  display: flex;
-  gap: 8px;
-}
-@media (max-width: 720px) {
-  /* Each change becomes a small card instead of a wide table row. */
-  table.changes {
-    display: block;
-    overflow: visible;
+@media (max-width: 1100px) {
+  /* Not enough room beside the page: the activity goes below it. */
+  .with-activity {
+    grid-template-columns: 1fr;
   }
-  table.changes thead {
-    display: none;
-  }
-  table.changes tbody,
-  table.changes tr,
-  table.changes td {
-    display: block;
-  }
-  table.changes tr {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--line);
-  }
-  table.changes td {
-    padding: 0;
-    border: 0;
-  }
-  table.changes td:first-child {
-    font-size: 0.85rem;
-    color: var(--slate);
+  .activity {
+    position: static;
+    max-height: none;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 16px 0 0;
   }
 }

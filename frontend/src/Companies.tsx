@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { CompanyChangeLog } from "./Audit";
+import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
 
@@ -570,36 +570,37 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
           ))}
         </nav>
       </PageHeader>
-      {tab === "" &&
-        (editing ? (
-          <CompanyForm
+      <WithActivity activity={<Activity company={c.id} filter stamp={JSON.stringify(detail)} />}>
+        {tab === "" &&
+          (editing ? (
+            <CompanyForm
+              company={c}
+              states={states}
+              onDone={() => {
+                setEditing(false);
+                reload();
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <Overview detail={detail} />
+          ))}
+        {tab === "branches" && (
+          <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
+        )}
+        {tab === "certificates" && (
+          <Certificates
             company={c}
-            states={states}
-            onDone={() => {
-              setEditing(false);
-              reload();
-            }}
-            onCancel={() => setEditing(false)}
+            certificates={detail.certificates}
+            branches={detail.branches}
+            canEdit={canEdit}
+            reload={reload}
           />
-        ) : (
-          <Overview detail={detail} />
-        ))}
-      {tab === "branches" && (
-        <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
-      )}
-      {tab === "certificates" && (
-        <Certificates
-          company={c}
-          certificates={detail.certificates}
-          branches={detail.branches}
-          canEdit={canEdit}
-          reload={reload}
-        />
-      )}
-      {tab === "modules" && (
-        <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
-      )}
-      {tab === "history" && <CompanyChangeLog company={c.id} />}
+        )}
+        {tab === "modules" && (
+          <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
+        )}
+      </WithActivity>
     </section>
   );
 }
@@ -609,7 +610,6 @@ const TABS: [string, string][] = [
   ["branches", "Branches"],
   ["certificates", "Licences and certificates"],
   ["modules", "Modules"],
-  ["history", "Change log"],
 ];
 
 function Overview({ detail }: { detail: Detail }) {
@@ -1083,12 +1083,14 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
           </a>
         }
       />
-      <LedgerGroups
-        company={detail.company}
-        groups={detail.ledger_groups}
-        canEdit={session.permissions.includes("masters.edit")}
-        reload={reload}
-      />
+      <WithActivity activity={<Activity company={id} type="ledger_group" stamp={JSON.stringify(detail)} />}>
+        <LedgerGroups
+          company={detail.company}
+          groups={detail.ledger_groups}
+          canEdit={session.permissions.includes("masters.edit")}
+          reload={reload}
+        />
+      </WithActivity>
     </section>
   );
 }
