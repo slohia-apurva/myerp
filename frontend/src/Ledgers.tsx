@@ -310,7 +310,6 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
 
 function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolean; onEdit: () => void }) {
   const { ledger: l, canEdit, onEdit } = props;
-  const [history, setHistory] = useState(false);
   const opening = Number(l.opening_amount);
   const bank = [
     ["Bank", l.bank_name],
@@ -328,12 +327,7 @@ function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolea
             {!l.is_active && " · inactive"}
           </p>
         </div>
-        <div className="buttons">
-          <button className="secondary" onClick={() => setHistory(!history)} aria-pressed={history}>
-            History
-          </button>
-          {canEdit && <button onClick={onEdit}>Edit</button>}
-        </div>
+        {canEdit && <button onClick={onEdit}>Edit</button>}
       </div>
       <div className="stat">
         <span className="stat-label">Opening balance</span>
@@ -404,12 +398,10 @@ function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolea
           <p className="pre">{l.notes}</p>
         </>
       )}
-      {history && (
-        <>
-          <h3>History</h3>
-          <ChangeLog company={props.companyId} type="ledger" id={l.id} stamp={JSON.stringify(l)} compact />
-        </>
-      )}
+      <div className="panel-activity">
+        <h3>Activity</h3>
+        <ChangeLog company={props.companyId} type="ledger" id={l.id} stamp={JSON.stringify(l)} />
+      </div>
     </div>
   );
 }

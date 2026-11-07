@@ -58,6 +58,9 @@ export const MANUAL: Chapter[] = [
             page title, key facts, and the page's main buttons on the right.
           </li>
           <li>
+            <strong>Activity</strong> on the right: who changed what on this screen, and when (see "Change log").
+          </li>
+          <li>
             <strong>Tabs</strong> inside the band split a page into sections, for example a company's Overview,
             Branches, Licences and certificates, and Modules.
           </li>
@@ -287,8 +290,8 @@ export const MANUAL: Chapter[] = [
             phone the panel shows above the list.
           </li>
           <li>
-            <strong>"History"</strong> in the side panel shows every change made to that ledger: who, when, and the
-            old and new values (see "Change log").
+            <strong>Activity</strong> at the bottom of the side panel shows every change made to that ledger: who,
+            when, and the old and new values (see "Change log").
           </li>
         </ul>
         <h3>Add a ledger</h3>
@@ -337,7 +340,10 @@ export const MANUAL: Chapter[] = [
         </ol>
         <h3>Stop someone signing in</h3>
         <p>Click "Edit" on the user, untick "Active" and click "Save". Their past work stays on record.</p>
-        <p>"Change log" at the top shows who added or changed each user, including changes to their roles and companies.</p>
+        <p>
+          The Activity column on the right shows who added or changed each user, including changes to their roles and
+          companies.
+        </p>
       </>
     ),
   },
@@ -359,7 +365,7 @@ export const MANUAL: Chapter[] = [
           <li>Give it a name and description, tick the permissions in each area, and click "Save".</li>
         </ol>
         <p>Standard roles can be edited but not deleted. Roles you made can be deleted with "Delete role".</p>
-        <p>"Change log" at the top shows every change to roles and their permissions.</p>
+        <p>The Activity column on the right shows every change to roles and their permissions.</p>
       </>
     ),
   },
@@ -375,17 +381,23 @@ export const MANUAL: Chapter[] = [
           field that changed. Nobody can edit or delete the log, not even an Owner.
         </p>
         <h3>Where to see it</h3>
+        <p>
+          The log shows as "Activity" beside the screen it belongs to: in a column on the right, or below the screen when
+          the window is narrow, such as on a phone. The latest change is at the top.
+        </p>
         <ul>
           <li>
-            <strong>A company's changes:</strong> open the company and click the "Change log" tab. Use "Show" to see
-            only one kind of record, such as Ledgers.
+            <strong>A company:</strong> the company page shows every change to that company's masters. Use the picker
+            next to "Activity" to see only one kind of record, such as Ledgers.
           </li>
           <li>
-            <strong>One ledger:</strong> click the ledger, then "History" in the side panel.
+            <strong>Ledger groups:</strong> the Ledger groups screen shows changes to groups.
           </li>
           <li>
-            <strong>Users and roles:</strong> click "Change log" on the Users or Roles screen. You need the permission to
-            manage users.
+            <strong>One ledger:</strong> click the ledger; its activity is at the bottom of the side panel.
+          </li>
+          <li>
+            <strong>Users and roles:</strong> on the Users and Roles screens. You need the permission to manage users.
           </li>
         </ul>
         <h3>Reading an entry</h3>
