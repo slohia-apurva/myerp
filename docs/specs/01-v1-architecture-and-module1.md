@@ -143,6 +143,8 @@ Built once in Module 1 and reused by every later screen, so all forms and report
 
 - Export to Excel, CSV and PDF
 
+- Charts **(added 8 Nov)**: pie, line and bar from any report's result, switchable on screen, saved with the view, printed and exported with it; used by MIS dashboards and the AI assistant (see [05-ai-assistant.md](05-ai-assistant.md))
+
 ### Masters
 
 | Master               | Key fields                                                                                                                                                       | Rules                                                               |

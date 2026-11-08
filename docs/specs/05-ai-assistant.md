@@ -53,7 +53,17 @@ There are two kinds of request, handled differently:
 
 A **saved report** stores the definition (tool, filters, columns, sort), not a copy of the figures, so opening it next month shows next month's data. Saved reports are private to the person unless they share them with a role. Saving is the only thing the assistant writes in phase A, and it is a user action (a button), not something Claude does on its own.
 
-Charts (bar, line, pie) come with saved reports in phase A4, drawn by MyERP from the result table.
+### Charts (added 8 Nov, Sidharth)
+
+MIS reports have **pie, line and bar charts**, and so do assistant answers and scheduled tasks. Charts are part of the report framework, not something the AI makes up:
+
+- **Drawn by MyERP from the report's result table**, never from Claude's text, so a chart always matches its table and every bar, slice or point drills down to the rows behind it.
+- **Which chart fits**: line for a trend over time (sales by month, cash by day), bar for comparing items or parties (top 10 debtors, stock by warehouse; stacked bars for parts of a whole across periods), pie for shares of one total (sales by state this year), with "Others" grouping the small slices so a pie has at most about 8. A report definition can name its default chart; the person can switch between pie, line, bar or table with one click.
+- **In the assistant**: Claude may suggest a chart type and the columns to plot (for example "bar, party vs balance") as part of its tool call. MyERP checks the columns exist and draws it; if the suggestion does not fit (a pie of negative numbers), it falls back to the table.
+- **Saved reports and scheduled tasks** keep the chosen chart. A scheduled task's email and bell entry show the chart as a picture with the table below, plus the Excel file.
+- **MIS dashboards (Phase 6c)** are pages of saved reports shown as chart tiles; the Home page can pin tiles too.
+- Charts print and export to PDF with the report, use the brand colours (green and grey family, with a colour-blind-safe set of colours for many series), and work on a phone.
+
 
 ### Scheduled tasks (added 8 Nov, Sidharth)
 
