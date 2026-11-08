@@ -77,6 +77,29 @@ A person can ask for something to run on its own on a schedule: "every Monday at
 - **Never acts.** Like the rest of the assistant, a scheduled task only reads and reports. Later drafting features (for example "every evening, draft payment reminders for overdue customers") would create Drafts for a person to send, each behind its own switch.
 - **Logged.** Each run is recorded in "AI activity": which task, when, rows, AI tokens and cost, whether delivery succeeded.
 
+### Metabase (added 8 Nov)
+
+The main plan already says "Reports / MIS: SQL views + Django endpoints; Metabase later if needed". This spec keeps that, and splits the work like this:
+
+| Need | Built into MyERP (charts above) | Metabase (add-on) |
+| --- | --- | --- |
+| Charts on report screens, assistant answers, scheduled tasks, Home tiles, MIS dashboards (6c) | Yes | No |
+| Follows MyERP roles, company scope and payroll masking per person | Yes, every query runs as the person | No: Metabase sees whatever its database login sees; it has its own users and groups |
+| Drill-down to the voucher, print and PDF in MyERP's format | Yes | Links only |
+| Ad-hoc analysis by the Owner or an analyst: drag-and-drop questions, pivots, many-chart dashboards without waiting for a developer | Limited to existing reports | Yes, this is what Metabase is good at |
+
+How Metabase would be added, when it is wanted:
+
+- **Self-hosted** on Cloud Run in Mumbai with its own small metadata database, so data stays in India and on our account.
+- **Reads curated reporting views only**, through a read-only database role per tenant: one view per subject (GL entries, stock ledger, sales and purchase lines, party and item masters), with bank account numbers and salary data left out unless a separate payroll view is granted. Metabase never gets the tables themselves or write access.
+- **One Metabase connection per tenant database** (decision 0003). For Apurvam this is one connection. For SaaS, tenants must not share a Metabase in a way that lets one see another: either a separate Metabase per tenant that buys BI, or one Metabase with each tenant's connection, collections and users fully separated. This is decided at Phase 10.
+- **Who uses it**: the Owner and people the Owner names (a "BI access" permission). Others see charts inside MyERP only.
+- **Inside MyERP**: a "BI" item in the top menu opens Metabase with sign-in from MyERP. Selected Metabase dashboards can be shown inside MyERP screens through Metabase's signed embedding, locked to the person's company.
+- **Licence**: Metabase's free edition is AGPL; finer embedding and per-user data rules for many tenants need its paid edition. Check the licence and price before offering it to SaaS customers.
+- **AI**: the assistant does not go through Metabase. If a question is better answered by a Metabase dashboard someone has built, the assistant can link to it.
+
+Suggested timing: built-in charts with the report framework (they are needed for MIS and the assistant anyway), Metabase as a separate small slice once Accounts data exists (after Phase 2), when there is enough data to analyse.
+
 ## Security
 
 ### Tenant isolation (decision 0003)
@@ -180,4 +203,5 @@ The main plan places "Ask your data" after the Phase 6 gate. This spec proposes 
 6. **Which "other AI"** do you have in mind: Claude Desktop or claude.ai, ChatGPT or Gemini, an agent of your own, or a BI tool? This decides how soon A5 (MCP server) is worth building and whether a plain API comes first.
 7. **Should outside AI apps ever create drafts** (for example a draft sales order from an email)? Recommendation: read-only for now; drafts later, per tool, with their own switch.
 8. **Scheduled tasks**: is delivery inside MyERP plus email to the person's own login enough, or do you want WhatsApp, or email to outside addresses (for example your CA)? Outside addresses would need an Owner approval per task.
-9. **An Anthropic API account**: do you already have one (console.anthropic.com), or should it be set up under Apurvam's billing?
+9. **Metabase**: is it for you (and maybe an analyst or CA) to do your own ad-hoc analysis, or did you plan it as the main MIS screen for everyone? The spec assumes the first: built-in charts for everyone, Metabase for power users after Phase 2.
+10. **An Anthropic API account**: do you already have one (console.anthropic.com), or should it be set up under Apurvam's billing?
