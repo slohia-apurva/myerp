@@ -81,6 +81,26 @@ export const MANUAL: Chapter[] = [
           nothing is saved until you fix it.
         </p>
 
+        <h3>Duplicating a record</h3>
+        <p>
+          To make something that is much like an existing record, click "Duplicate" beside it (for a ledger, in its
+          panel). The usual form opens already filled in, with "(copy)" after the name. Change what differs and click
+          "Save": a new record is made and the original is left as it was. Nothing is saved until you click "Save".
+        </p>
+        <ul>
+          <li>Companies, branches, ledger groups, ledgers, credit terms, users and roles all have "Duplicate". For a ledger group it appears on groups under another group.</li>
+          <li>
+            Things that must be one of a kind are left blank: a company's short code, GSTIN, PAN, CIN and TAN; a
+            branch's GSTIN and default ticks; a certificate's number and dates; a ledger's account number; a user's
+            email.
+          </li>
+          <li>
+            A duplicated ledger does not copy opening balances or bills. Duplicating a customer or supplier makes a
+            new customer or supplier with the same GST details, addresses and contacts, and its own customer or vendor
+            number.
+          </li>
+        </ul>
+
         <h3>Folding lists</h3>
         <p>
           Lists that follow a tree, like ledger groups, have an arrow before each row that has rows under it. Click

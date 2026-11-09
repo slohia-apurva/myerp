@@ -79,6 +79,11 @@ function Checks<T extends { id: number; name: string }>(props: {
 export function UsersPage({ session }: { session: SignedIn }) {
   const { roles, users, companies, error, reload } = useData();
   const [editing, setEditing] = useState<User | "new" | null>(null);
+  const [copyOf, setCopyOf] = useState<User | null>(null);
+  const edit = (value: User | "new" | null, copy: User | null = null) => {
+    setCopyOf(copy);
+    setEditing(value);
+  };
   const roleName = (id: number) => roles.find((r) => r.id === id)?.name ?? "?";
 
   return (
@@ -86,7 +91,7 @@ export function UsersPage({ session }: { session: SignedIn }) {
       <PageHeader
         title="Users"
         crumbs={[{ label: "Settings", href: "#/users" }]}
-        actions={<button onClick={() => setEditing("new")}>Add user</button>}
+        actions={<button onClick={() => edit("new")}>Add user</button>}
       />
       <WithActivity activity={<Activity type="user" stamp={JSON.stringify(users)} />}>
         <p className="small">
@@ -95,15 +100,17 @@ export function UsersPage({ session }: { session: SignedIn }) {
         {error && <p className="error">{error}</p>}
         {editing && (
           <UserForm
+            key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
             user={editing === "new" ? null : editing}
+            copyOf={copyOf}
             roles={roles}
             companies={companies}
             isOwner={session.user.is_owner}
             onDone={() => {
-              setEditing(null);
+              edit(null);
               reload();
             }}
-            onCancel={() => setEditing(null)}
+            onCancel={() => edit(null)}
           />
         )}
         <table>
@@ -126,8 +133,11 @@ export function UsersPage({ session }: { session: SignedIn }) {
                 <td>{u.roles.map(roleName).join(", ") || <span className="small">No role</span>}</td>
                 <td>{!u.is_active ? "Deactivated" : u.signed_in_before ? "Active" : "Not signed in yet"}</td>
                 <td>
-                  <button className="link" onClick={() => setEditing(u)}>
+                  <button className="link" onClick={() => edit(u)}>
                     Edit
+                  </button>{" "}
+                  <button className="link" onClick={() => edit("new", u)}>
+                    Duplicate
                   </button>
                 </td>
               </tr>
@@ -141,6 +151,7 @@ export function UsersPage({ session }: { session: SignedIn }) {
 
 function UserForm(props: {
   user: User | null;
+  copyOf?: User | null;
   roles: Role[];
   companies: Company[];
   isOwner: boolean;
@@ -148,10 +159,11 @@ function UserForm(props: {
   onCancel: () => void;
 }) {
   const { user } = props;
+  const from = user ?? props.copyOf; // a duplicate keeps the roles and companies, not the person
   const [email, setEmail] = useState(user?.email ?? "");
   const [fullName, setFullName] = useState(user?.full_name ?? "");
-  const [roleIds, setRoleIds] = useState<number[]>(user?.roles ?? []);
-  const [companyIds, setCompanyIds] = useState<number[]>(user?.companies ?? []);
+  const [roleIds, setRoleIds] = useState<number[]>(from?.roles ?? []);
+  const [companyIds, setCompanyIds] = useState<number[]>(from?.companies ?? []);
   const [active, setActive] = useState(user?.is_active ?? true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -174,7 +186,7 @@ function UserForm(props: {
 
   return (
     <form className="card" onSubmit={submit}>
-      <h3>{user ? `Edit ${user.email}` : "Add user"}</h3>
+      <h3>{user ? `Edit ${user.email}` : props.copyOf ? `Duplicate ${props.copyOf.full_name || props.copyOf.email}` : "Add user"}</h3>
       {!user && (
         <label>
           Email (their Google account)
@@ -220,6 +232,11 @@ function UserForm(props: {
 export function RolesPage({ session }: { session: SignedIn }) {
   const { roles, catalogue, error, reload } = useData();
   const [editing, setEditing] = useState<Role | "new" | null>(null);
+  const [copyOf, setCopyOf] = useState<Role | null>(null);
+  const edit = (value: Role | "new" | null, copy: Role | null = null) => {
+    setCopyOf(copy);
+    setEditing(value);
+  };
   const owner = session.user.is_owner;
 
   return (
@@ -227,7 +244,7 @@ export function RolesPage({ session }: { session: SignedIn }) {
       <PageHeader
         title="Roles"
         crumbs={[{ label: "Settings", href: "#/users" }]}
-        actions={owner && <button onClick={() => setEditing("new")}>New role</button>}
+        actions={owner && <button onClick={() => edit("new")}>New role</button>}
       />
       <WithActivity activity={<Activity type="role" stamp={JSON.stringify(roles)} />}>
         <p className="small">
@@ -238,13 +255,15 @@ export function RolesPage({ session }: { session: SignedIn }) {
         {error && <p className="error">{error}</p>}
         {editing && (
           <RoleForm
+            key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
             role={editing === "new" ? null : editing}
+            copyOf={copyOf}
             catalogue={catalogue}
             onDone={() => {
-              setEditing(null);
+              edit(null);
               reload();
             }}
-            onCancel={() => setEditing(null)}
+            onCancel={() => edit(null)}
           />
         )}
         <table>
@@ -266,8 +285,13 @@ export function RolesPage({ session }: { session: SignedIn }) {
                 <td>{r.user_count}</td>
                 <td>
                   {owner && r.code !== "owner" && (
-                    <button className="link" onClick={() => setEditing(r)}>
+                    <button className="link" onClick={() => edit(r)}>
                       Edit
+                    </button>
+                  )}{" "}
+                  {owner && (
+                    <button className="link" onClick={() => edit("new", r)}>
+                      Duplicate
                     </button>
                   )}
                 </td>
@@ -280,11 +304,18 @@ export function RolesPage({ session }: { session: SignedIn }) {
   );
 }
 
-function RoleForm(props: { role: Role | null; catalogue: Area[]; onDone: () => void; onCancel: () => void }) {
+function RoleForm(props: {
+  role: Role | null;
+  copyOf?: Role | null;
+  catalogue: Area[];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const { role } = props;
-  const [name, setName] = useState(role?.name ?? "");
-  const [description, setDescription] = useState(role?.description ?? "");
-  const [perms, setPerms] = useState<string[]>(role?.permissions ?? []);
+  const from = role ?? props.copyOf;
+  const [name, setName] = useState(role?.name ?? (props.copyOf ? `${props.copyOf.name} (copy)` : ""));
+  const [description, setDescription] = useState(from?.description ?? "");
+  const [perms, setPerms] = useState<string[]>(from?.permissions ?? []);
   const [error, setError] = useState("");
 
   const toggle = (code: string, on: boolean) => setPerms(on ? [...perms, code] : perms.filter((p) => p !== code));
@@ -313,7 +344,7 @@ function RoleForm(props: { role: Role | null; catalogue: Area[]; onDone: () => v
 
   return (
     <form className="card" onSubmit={save}>
-      <h3>{role ? `Edit ${role.name}` : "New role"}</h3>
+      <h3>{role ? `Edit ${role.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "New role"}</h3>
       <label>
         Name
         <input required value={name} onChange={(e) => setName(e.target.value)} />
