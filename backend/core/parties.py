@@ -99,10 +99,12 @@ class PartySerializer(serializers.ModelSerializer):
 
     def get_companies(self, party) -> list[dict]:
         """The companies that have a ledger for this party."""
-        return [
+        # Sorted here, not by the database, whose collation varies.
+        rows = [
             {"id": ledger.company_id, "name": ledger.company.name, "ledger": ledger.id}
-            for ledger in party.ledgers.select_related("company").order_by("company__name")
+            for ledger in party.ledgers.all()
         ]
+        return sorted(rows, key=lambda r: r["name"].casefold())
 
 
 _NOT_PARTY_FIELDS = (
