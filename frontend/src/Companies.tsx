@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { CreditTerms } from "./CreditTerms";
 import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
@@ -516,7 +515,6 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
-  const [saves, setSaves] = useState(0); // refreshes Activity after a save outside `detail`
   const states = useStates();
   const canEdit = session.permissions.includes("masters.edit");
   const reload = useCallback(() => {
@@ -577,7 +575,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
           ))}
         </nav>
       </PageHeader>
-      <WithActivity activity={<Activity company={c.id} filter stamp={JSON.stringify(detail) + saves} />}>
+      <WithActivity activity={<Activity company={c.id} filter stamp={JSON.stringify(detail)} />}>
         {tab === "" &&
           (editing ? (
             <CompanyForm
@@ -604,7 +602,6 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
             reload={reload}
           />
         )}
-        {tab === "credit-terms" && <CreditTerms companyId={c.id} canEdit={canEdit} onSaved={() => setSaves(saves + 1)} />}
         {tab === "modules" && (
           <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
         )}
@@ -617,7 +614,6 @@ const TABS: [string, string][] = [
   ["", "Overview"],
   ["branches", "Branches"],
   ["certificates", "Licences and certificates"],
-  ["credit-terms", "Credit terms"],
   ["modules", "Modules"],
 ];
 

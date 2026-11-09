@@ -7,8 +7,9 @@ urlpatterns = [
     path("modules/", api.ModulesView.as_view(), name="modules"),
     path("currencies/", api.CurrencyListView.as_view(), name="currencies"),
     path("people/", api.PeopleView.as_view(), name="people"),
+    path("parties/", api.PartyListView.as_view(), name="parties"),
     path(
-        "companies/<int:pk>/credit-terms/",
+        "credit-terms/",
         credit_terms.CreditTermListView.as_view(),
         name="credit_terms",
     ),

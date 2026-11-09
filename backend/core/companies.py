@@ -39,7 +39,7 @@ def _starting_records(company: Company) -> None:
     from core.credit_terms import seed_credit_terms
     from core.models import CreditTerm, CreditTermPart
 
-    seed_credit_terms(CreditTerm, CreditTermPart, company)
+    seed_credit_terms(CreditTerm, CreditTermPart)
 
 
 def visible_companies(user):

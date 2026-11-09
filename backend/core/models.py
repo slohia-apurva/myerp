@@ -400,6 +400,18 @@ class Ledger(models.Model):
         max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
     )
     opening_rate = models.DecimalField(max_digits=18, decimal_places=9, null=True, blank=True)
+    # A customer or supplier ledger belongs to a party shared by the whole
+    # group (decision 0020); balances, bills and the credit limit stay here.
+    party = models.ForeignKey(
+        "Party", null=True, blank=True, on_delete=models.PROTECT, related_name="ledgers"
+    )
+    credit_limit = models.DecimalField(
+        max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
+    )  # 0 = no limit
+    # Each company has its own salesman (customers) or purchaser (suppliers).
+    salesman = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -407,6 +419,11 @@ class Ledger(models.Model):
         constraints = [
             models.UniqueConstraint(
                 "company", Lower("name"), name="ledger_name_unique_per_company"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "party"],
+                condition=models.Q(party__isnull=False),
+                name="one_ledger_per_party_per_company",
             ),
         ]
 
@@ -468,18 +485,16 @@ class CreditTerm(models.Model):
     50% on delivery". A term is split into parts, each a share of the bill
     falling due at an event (order, dispatch, delivery, bill date) plus some
     days. The parts add up to 100%. Never deleted, only made inactive, so
-    old parties and documents keep their terms. See decision 0019."""
+    old parties and documents keep their terms. One list for the whole
+    group of companies. See decisions 0019 and 0020."""
 
-    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="credit_terms")
     name = models.CharField(max_length=80)
     is_active = models.BooleanField(default=True)
     notes = models.CharField(max_length=200, blank=True)
 
     class Meta:
         ordering = ["name"]
-        constraints = [
-            models.UniqueConstraint(fields=["company", "name"], name="credit_term_name_unique")
-        ]
+        constraints = [models.UniqueConstraint(Lower("name"), name="credit_term_name_unique")]
 
     def __str__(self) -> str:
         return self.name
@@ -525,10 +540,11 @@ def describe_part(percent, event: str, days: int) -> str:
 
 
 class Party(models.Model):
-    """Customer or supplier details of a ledger under Sundry Debtors or
-    Sundry Creditors. Parties are ledgers (as in Tally); this holds what a
-    ledger alone does not: GST registration, credit terms and the
-    salesman who looks after the customer. See decision 0018."""
+    """A customer or supplier, shared by every company in the group: GST
+    registration, addresses, contacts and credit terms. Each company that
+    deals with the party has its own ledger for it under Sundry Debtors or
+    Sundry Creditors (Ledger.party), which holds that company's balance,
+    bills, credit limit and salesman or purchaser. Decisions 0018 and 0020."""
 
     REGULAR, COMPOSITION, UNREGISTERED = "regular", "composition", "unregistered"
     CONSUMER, OVERSEAS, SEZ = "consumer", "overseas", "sez"
@@ -542,7 +558,7 @@ class Party(models.Model):
     ]
     NEEDS_GSTIN = (REGULAR, COMPOSITION, SEZ)
 
-    ledger = models.OneToOneField(Ledger, on_delete=models.CASCADE, related_name="party")
+    name = models.CharField(max_length=150, default="")
     gst_type = models.CharField(max_length=15, choices=GST_TYPES, default=UNREGISTERED)
     gstin = models.CharField(max_length=15, blank=True, validators=[india.validate_gstin])
     pan = models.CharField(max_length=10, blank=True, validators=[india.validate_pan])
@@ -550,22 +566,16 @@ class Party(models.Model):
     # supply. Blank for overseas parties.
     state_code = models.CharField(max_length=2, blank=True, validators=[india.validate_state_code])
     country = models.CharField(max_length=60, default="India")
-    # 0 = no limit.
-    credit_limit = models.DecimalField(
-        max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
-    )
     credit_term = models.ForeignKey(
         CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="parties"
-    )
-    salesman = models.ForeignKey(
-        "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
 
     class Meta:
         verbose_name_plural = "parties"
+        constraints = [models.UniqueConstraint(Lower("name"), name="party_name_unique")]
 
     def __str__(self) -> str:
-        return self.ledger.name
+        return self.name
 
     def clean(self):
         self.gstin = self.gstin.strip().upper()
@@ -577,7 +587,6 @@ class Party(models.Model):
             if self.gstin:
                 raise ValidationError({"gstin": "An overseas party has no GSTIN."})
             self.state_code = ""
-            self._check_term()
             return
         if self.country.lower() != "india":
             raise ValidationError(
@@ -602,11 +611,6 @@ class Party(models.Model):
                 raise ValidationError({"gstin": "This GSTIN belongs to a different state."})
         if not self.state_code:
             raise ValidationError({"state_code": "Choose the party's state."})
-        self._check_term()
-
-    def _check_term(self):
-        if self.credit_term_id and self.credit_term.company_id != self.ledger.company_id:
-            raise ValidationError({"credit_term": "Choose credit terms of this company."})
 
 
 class PartyAddress(models.Model):

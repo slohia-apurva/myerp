@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useCreditTerms } from "./CreditTerms";
-import { money, StateSelect, useStates, type State } from "./Companies";
+import { money, type Company, StateSelect, useStates, type State } from "./Companies";
 
 /** Customer or supplier details kept beside a debtor or creditor ledger. */
 export type PartyAddress = {
@@ -22,6 +22,10 @@ export type PartyContact = {
   is_primary: boolean;
 };
 export type Party = {
+  id?: number;
+  name?: string;
+  /** Companies that have a ledger for this party (shared by the group). */
+  companies?: { id: number; name: string; ledger: number }[];
   gst_type: string;
   gstin: string;
   pan: string;
@@ -79,17 +83,30 @@ type Tab = "details" | "addresses" | "contacts" | "extra";
 export function PartyFields({
   value: p,
   onChange,
+  supplier,
   extraTab,
   companyId,
+  alsoIn,
+  onAlsoIn,
 }: {
   value: Party;
+  /** A supplier has a purchaser where a customer has a salesman. */
+  supplier: boolean;
   companyId: number;
+  /** Other companies to add this party's ledger to on Save. */
+  alsoIn: number[];
+  onAlsoIn: (ids: number[]) => void;
   onChange: (p: Party) => void;
   /** One more tab from the ledger form, such as the opening bills. */
   extraTab?: { label: string; content: ReactNode };
 }) {
   const states = useStates();
-  const { terms } = useCreditTerms(companyId);
+  const { terms } = useCreditTerms();
+  const [companies, setCompanies] = useState<Company[]>([]);
+  useEffect(() => {
+    api<Company[]>("v1/companies/").then(setCompanies);
+  }, []);
+  const linked = new Set([companyId, ...(p.companies ?? []).map((c) => c.id)]);
   const term = terms.find((t) => t.id === p.credit_term);
   const [people, setPeople] = useState<Person[]>([]);
   useEffect(() => {
@@ -164,6 +181,27 @@ export function PartyFields({
         ))}
       </div>
       <div data-tab="details" hidden={tab !== "details"}>
+      <p className="note">
+        Shared by all companies in the group: GST details, addresses, contacts and credit terms changed here change for
+        every company. The {supplier ? "purchaser" : "salesman"}, credit limit, balance and bills belong to this
+        company.
+      </p>
+      {companies.length > 1 && (
+        <div className="company-ticks">
+          <span className="small">Companies that deal with this party</span>
+          {companies.map((c) => (
+            <label key={c.id} className="check">
+              <input
+                type="checkbox"
+                disabled={linked.has(c.id)}
+                checked={linked.has(c.id) || alsoIn.includes(c.id)}
+                onChange={(e) => onAlsoIn(e.target.checked ? [...alsoIn, c.id] : alsoIn.filter((x) => x !== c.id))}
+              />
+              {c.name}
+            </label>
+          ))}
+        </div>
+      )}
       <div className="row">
         <label>
           GST type
@@ -240,7 +278,7 @@ export function PartyFields({
           {term && <span className="small">{term.summary}</span>}
         </label>
         <label>
-          Salesman
+          {supplier ? "Purchaser" : "Salesman"}
           <select
             value={p.salesman ?? ""}
             onChange={(e) => set({ salesman: e.target.value ? Number(e.target.value) : null })}
@@ -431,7 +469,7 @@ export function PartyFields({
 }
 
 /** Party details in the ledger side panel. */
-export function PartySummary({ party: p, states }: { party: Party; states?: State[] }) {
+export function PartySummary({ party: p, states, supplier }: { party: Party; states?: State[]; supplier?: boolean }) {
   const gstType = GST_TYPES.find(([code]) => code === p.gst_type)?.[1] ?? p.gst_type;
   const stateName = (code: string) => states?.find((s) => s.code === code)?.name ?? code;
   const place = p.gst_type === "overseas" ? p.country : stateName(p.state_code);
@@ -441,7 +479,7 @@ export function PartySummary({ party: p, states }: { party: Party; states?: Stat
     ["PAN", p.pan],
     ["Credit limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit terms", p.credit_term_name ?? ""],
-    ["Salesman", p.salesman_name ?? ""],
+    [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
   ];
   return (
     <>

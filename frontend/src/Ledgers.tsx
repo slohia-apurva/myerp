@@ -361,7 +361,7 @@ function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolea
           </div>
         ))}
       </dl>
-      {l.party && <PartySummary party={l.party} states={states} />}
+      {l.party && <PartySummary party={l.party} states={states} supplier={l.nature === "liability"} />}
       {l.bill_wise && l.opening_bills.length > 0 && (
         <>
           <h3>Opening bills</h3>
@@ -441,6 +441,13 @@ function LedgerForm(props: {
   const [fcAmount, setFcAmount] = useState(l && Number(l.opening_fc_amount) ? l.opening_fc_amount : "");
   const [rate, setRate] = useState(l?.opening_rate ?? "");
   const [party, setParty] = useState<Party>(l?.party ?? blankParty(props.companyState));
+  // A customer or supplier another company already has (decision 0020).
+  const [partyId, setPartyId] = useState<number | null>(null);
+  const [alsoIn, setAlsoIn] = useState<number[]>([]);
+  const [existing, setExisting] = useState<Party[]>([]);
+  useEffect(() => {
+    if (!l) api<Party[]>(`v1/parties/?not_in=${props.companyId}`).then(setExisting);
+  }, [l, props.companyId]);
   useEffect(() => {
     if (props.multiCurrency) api<Currency[]>("v1/currencies/").then(setCurrencies);
   }, [props.multiCurrency]);
@@ -483,7 +490,13 @@ function LedgerForm(props: {
       bank_branch: bankBranch,
       bill_wise: billWise,
       currency: foreign ? currency : null,
-      ...(isParty ? { party: { ...party, credit_limit: party.credit_limit || "0" } } : {}),
+      ...(isParty
+        ? {
+            party: { ...party, credit_limit: party.credit_limit || "0" },
+            also_in: alsoIn,
+            ...(partyId ? { party_id: partyId } : {}),
+          }
+        : {}),
       ...(billWise
         ? {
             opening_amount: Math.abs(billsTotal).toFixed(2),
@@ -688,8 +701,36 @@ function LedgerForm(props: {
           </select>
         </label>
       )}
+      {isParty && !l && existing.length > 0 && (
+        <label>
+          Existing customer or supplier (from another company)
+          <select
+            value={partyId ?? ""}
+            onChange={(e) => {
+              const picked = existing.find((x) => x.id === Number(e.target.value));
+              setPartyId(picked?.id ?? null);
+              if (picked) {
+                setName(picked.name ?? "");
+                setParty({ ...picked, credit_limit: "", salesman: null });
+              } else setParty(blankParty(props.companyState));
+            }}
+          >
+            <option value="">None: a new customer or supplier</option>
+            {existing.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+                {x.gstin ? ` · ${x.gstin}` : ""}
+                {x.companies?.length ? ` (in ${x.companies.map((c) => c.name).join(", ")})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {isParty && (
         <PartyFields
+          supplier={chosen?.nature === "liability"}
+          alsoIn={alsoIn}
+          onAlsoIn={setAlsoIn}
           value={party}
           onChange={setParty}
           companyId={props.companyId}
