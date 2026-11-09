@@ -302,6 +302,31 @@ export const MANUAL: Chapter[] = [
           <li>For a bank ledger, fill in the bank, account number, IFSC and branch.</li>
           <li>Enter the opening balance (see below) and click "Save".</li>
         </ol>
+        <h3>Customers and suppliers</h3>
+        <p>
+          A ledger under Sundry Debtors is a customer, and one under Sundry Creditors is a supplier. Their form has a
+          "Party details" section:
+        </p>
+        <Fields
+          rows={[
+            [
+              "GST type",
+              "Registered (regular or composition), unregistered business, consumer, SEZ, or overseas. A registered party needs its GSTIN.",
+            ],
+            ["GSTIN", "Typing it fills in the PAN and state. The state decides the place of supply on invoices."],
+            ["Country", "For an overseas party, in place of the state."],
+            ["Contact person, phone, email", "Who to call about orders and payments."],
+            ["Credit limit", "Leave blank for no limit."],
+            ["Credit days", "How many days after the bill payment is due."],
+            ["Salesman", "The person who looks after this customer."],
+          ]}
+        />
+        <p>
+          Click "+ Add address" for each place the party has: office, godown, shop. Give each a name, and tick which one
+          is the default billing address and which the default shipping address; documents pick these first. If the
+          party is registered in another state too, enter that GSTIN on that address. Clicking a party shows its details
+          and addresses in the side panel.
+        </p>
         <h3>Opening balances</h3>
         <p>
           The opening balance is the balance on the date the company's books begin. Enter the amount and choose Dr or Cr.

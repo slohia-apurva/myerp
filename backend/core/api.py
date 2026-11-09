@@ -37,6 +37,7 @@ from core.models import (
     LedgerGroup,
     LedgerOpeningBill,
 )
+from core.parties import PartySerializer, save_party
 from tenancy.context import tenant_atomic
 
 VIEW, EDIT = "masters.view", "masters.edit"
@@ -221,6 +222,7 @@ class LedgerSerializer(serializers.ModelSerializer):
         slug_field="code", queryset=Currency.objects.all(), allow_null=True, required=False
     )
     bill_wise = serializers.BooleanField(required=False)
+    party = PartySerializer(required=False, allow_null=True)
 
     class Meta:
         model = Ledger
@@ -240,6 +242,7 @@ class LedgerSerializer(serializers.ModelSerializer):
             "currency",
             "opening_fc_amount",
             "opening_rate",
+            "party",
         ]
 
 
@@ -709,7 +712,9 @@ class LedgerListView(APIView):
     def get(self, request, pk: int):
         _check(request, VIEW)
         company = _company(request, pk)
-        ledgers = company.ledgers.select_related("group").prefetch_related("opening_bills")
+        ledgers = company.ledgers.select_related("group", "party__salesman").prefetch_related(
+            "opening_bills", "party__addresses"
+        )
         if q := request.query_params.get("q", "").strip():
             ledgers = ledgers.filter(Q(name__icontains=q) | Q(account_number__icontains=q))
         if group_id := request.query_params.get("group"):
@@ -728,12 +733,14 @@ class LedgerListView(APIView):
         ledger = Ledger(company=company)
         data = _ledger_data(ledger, dict(serializer.validated_data))
         bills = data.pop("opening_bills", None)
+        party = data.pop("party", None)
         if "bill_wise" not in data:
             data["bill_wise"] = data["group"].is_under(BILL_WISE_GROUP_CODES)
         _unique_ledger_name(company, data["name"])
         _save(ledger, data, LEDGER_FIELDS)
         _set_foreign_opening(ledger)
         _save_opening_bills(ledger, bills)
+        save_party(ledger, party)
         return Response(LedgerSerializer(ledger).data, status=status.HTTP_201_CREATED)
 
 
@@ -754,9 +761,24 @@ class LedgerDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         data = _ledger_data(ledger, dict(serializer.validated_data))
         bills = data.pop("opening_bills", None)
+        party = data.pop("party", None)
         if "name" in data:
             _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
         _save(ledger, data, LEDGER_FIELDS)
         _set_foreign_opening(ledger)
         _save_opening_bills(ledger, bills)
+        save_party(ledger, party)
         return Response(LedgerSerializer(ledger).data)
+
+
+class PeopleView(APIView):
+    """Active users, for pickers such as a customer's salesman."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _check(request, VIEW)
+        from accounts.models import User
+
+        people = User.objects.filter(is_active=True).order_by("full_name", "email")
+        return Response([{"id": u.pk, "name": u.display_name} for u in people])

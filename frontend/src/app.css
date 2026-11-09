@@ -1153,3 +1153,39 @@ ol.feed {
     padding: 16px 0 0;
   }
 }
+
+/* Customers and suppliers */
+.addresses {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.address-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--mist);
+}
+.address-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+.address-flags .danger {
+  margin-left: auto;
+}
+ul.address-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+ul.address-list .pill {
+  margin-left: 6px;
+}
