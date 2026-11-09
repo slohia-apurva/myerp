@@ -2,7 +2,9 @@
 
 - ?company=ID lists changes to that company's masters (needs masters.view
   and access to the company). Add &type=ledger&id=5 for one record.
-- With no company it lists changes to users and roles (needs users.manage).
+- With no company it lists changes to group-wide records: users and roles
+  (needs users.manage), or with &type=credit_term the credit terms (needs
+  masters.view).
 - &before=ENTRY_ID gives the next page.
 """
 
@@ -16,6 +18,7 @@ from core.companies import visible_companies
 
 PAGE = 50
 GROUP_TYPES = ("user", "role")
+SHARED_MASTER_TYPES = ("credit_term",)  # group-wide masters
 
 
 def _int(value, name):
@@ -38,6 +41,10 @@ class AuditLogView(APIView):
             if not company.exists():
                 raise NotFound("No such company.")
             entries = AuditEntry.objects.filter(company_id=params["company"])
+        elif record_type in SHARED_MASTER_TYPES:
+            if not request.user.can("masters.view"):
+                raise PermissionDenied("Your role does not allow this.")
+            entries = AuditEntry.objects.filter(company=None)
         else:
             if not request.user.can("users.manage"):
                 raise PermissionDenied("Your role does not allow this.")

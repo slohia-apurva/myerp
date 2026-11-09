@@ -47,7 +47,7 @@ def group_id(client, company, name):
 
 
 def term_id(client, company, name):
-    terms = call(client, "get", f"companies/{company}/credit-terms/").json()
+    terms = call(client, "get", "credit-terms/").json()
     return next(t["id"] for t in terms if t["name"] == name)
 
 
@@ -189,3 +189,55 @@ def test_people_list_for_the_salesman_picker(accountant, alpha):
         client = Client()
         client.force_login(nobody)
     assert call(client, "get", "people/").status_code == 403
+
+
+@pytest.fixture
+def second(alpha):
+    with use_tenant(alpha):
+        return create_company(name="Apurva Organics Ltd", state_code="27").pk
+
+
+def test_a_party_is_shared_by_the_group(accountant, company, second):
+    """One party, a ledger in each company: details shared, balances and
+    credit limit per company (decision 0020)."""
+    party = {"gst_type": "regular", "gstin": gstin("29"), "credit_limit": "100000"}
+    first = add_ledger(accountant, company, "Sundry Debtors", party=party, also_in=[second])
+    assert first.status_code == 201, first.json()
+    shared = first.json()["party"]
+    assert [c["name"] for c in shared["companies"]] == [
+        "Apurva Organics Ltd",
+        "Apurvam Organics LLP",
+    ]
+    other_id = next(c["ledger"] for c in shared["companies"] if c["id"] == second)
+    other = call(accountant, "get", f"companies/{second}/ledgers/").json()
+    other = next(x for x in other if x["id"] == other_id)
+    assert other["group_name"] == "Sundry Debtors"
+    assert other["party"]["gstin"] == gstin("29")
+    assert other["party"]["credit_limit"] == "0.00"  # per company
+
+    # A change made in one company shows in the other.
+    change = {"party": {"contacts": [{"name": "Mr Rao", "is_primary": True}]}}
+    assert call(accountant, "patch", f"ledgers/{other_id}/", change).status_code == 200
+    again = call(accountant, "get", f"companies/{company}/ledgers/").json()
+    again = next(x for x in again if x["id"] == first.json()["id"])
+    assert again["party"]["contacts"][0]["name"] == "Mr Rao"
+    assert again["party"]["credit_limit"] == "100000.00"
+
+
+def test_pick_an_existing_party(accountant, company, second):
+    made = add_ledger(accountant, company, "Sundry Debtors", party={"gst_type": "consumer"})
+    party_id = made.json()["party"]["id"]
+    choices = call(accountant, "get", f"parties/?not_in={second}").json()
+    assert [p["id"] for p in choices] == [party_id]
+    assert call(accountant, "get", f"parties/?not_in={company}").json() == []
+
+    # The same name without picking it is refused.
+    again = add_ledger(accountant, second, "Sundry Debtors")
+    assert "Existing customer or supplier" in str(again.json())
+    linked = add_ledger(accountant, second, "Sundry Debtors", party_id=party_id)
+    assert linked.status_code == 201, linked.json()
+    assert linked.json()["party"]["id"] == party_id
+    assert linked.json()["party"]["gst_type"] == "consumer"
+    # Only once per company.
+    twice = add_ledger(accountant, second, "Sundry Debtors", name="Fresh Mart 2", party_id=party_id)
+    assert "already has a ledger" in str(twice.json())

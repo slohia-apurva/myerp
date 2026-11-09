@@ -59,6 +59,7 @@ LABELS = {
     "opening_fc_amount": "Opening balance (foreign currency)",
     "opening_rate": "Opening rate",
     "full_name": "Full name",
+    "credit_limit": "Credit limit (₹)",
 }
 
 # Fields that are internal or change by themselves.
@@ -74,6 +75,7 @@ SKIP = {
     "date_joined",
     "google_sub",
     "is_superuser",
+    "party",  # a ledger's party shows through its party extras
 }
 
 Snapshot = dict[str, tuple[str, Any]]  # field -> (label, value as shown)
@@ -146,7 +148,7 @@ def _register() -> None:
             CreditTerm: Tracked(
                 "credit_term",
                 "Credit terms",
-                by_company,
+                lambda r: None,
                 extras={"parts": ("Parts", lambda t: "; ".join(map(str, t.parts.all())) or None)},
             ),
             User: Tracked(

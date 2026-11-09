@@ -226,14 +226,14 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          Credit terms are a list kept per company. Each customer or supplier picks one on its ledger, and sales and
-          purchase documents will work out when each part of a bill is due from it. Every company starts with the usual
-          ones: "Full advance", "50% advance, 50% on delivery", "50% advance, 50% before dispatch", "On delivery", and
+          Credit terms are one list shared by every company in the group. Each customer or supplier picks one on its
+          ledger, and sales and purchase documents will work out when each part of a bill is due from it. The list starts
+          with the usual ones: "Full advance", "50% advance, 50% on delivery", "50% advance, 50% before dispatch", "On delivery", and
           15, 30, 45 and 60 days.
         </p>
         <h3>Add credit terms</h3>
         <ol>
-          <li>Open the company and click the "Credit terms" tab.</li>
+          <li>Click "Masters" in the top menu, then "Credit terms".</li>
           <li>Click "Add credit terms" and give them a name, such as "30% advance, 70% in 15 days".</li>
           <li>
             Fill in one row per part: the share of the bill, when it falls "Due" (with the order as an advance, before
@@ -342,8 +342,28 @@ export const MANUAL: Chapter[] = [
         </ol>
         <h3>Customers and suppliers</h3>
         <p>
-          A ledger under Sundry Debtors is a customer, and one under Sundry Creditors is a supplier. Their form has a
-          "Party details" section with four tabs. The "GST and credit" tab has:
+          A ledger under Sundry Debtors is a customer, and one under Sundry Creditors is a supplier. A customer or
+          supplier is shared by all companies in the group: its GST details, addresses, contacts, credit terms and
+          salesman are kept once, and a change made in one company shows in every company. Each company has its own
+          ledger for the party, with its own balance, bills and credit limit.
+        </p>
+        <ul>
+          <li>
+            To add a party another company already deals with, click "Add ledger", choose Sundry Debtors or Sundry
+            Creditors, and pick it under "Existing customer or supplier". Its details fill in; enter this company's
+            credit limit and opening balance, and click "Save".
+          </li>
+          <li>
+            To add a party to more companies in one go, tick them under "Companies that deal with this party" and click
+            "Save". Each ticked company gets a ledger for the party under the same group.
+          </li>
+          <li>
+            A new party's name must not be used by a customer or supplier of another company; pick the existing one
+            instead.
+          </li>
+        </ul>
+        <p>
+          The form has a "Party details" section with four tabs. The "GST and credit" tab has:
         </p>
         <Fields
           rows={[
