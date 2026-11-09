@@ -246,6 +246,7 @@ Design rules for these modules:
 - **Email from the app:** send invoice/PO PDF to the party's email.
 - **Generic import/export:** CSV/Excel import for every master and opening balance, with a dry-run that shows errors before saving.
 - **Barcode scanning** on pick lists, GRNs and stock counts (USB or phone camera).
+- **Warehouse mobile app (added 9 Nov):** one installable app with workspaces by role (Receive, Job work, Dispatch, Move, Count, Sales, Approvals) for GRN, customer material for job work, delivery, return of customer goods and moves within or between sites, built alongside Phases 3 to 5. Spec: [05-warehouse-mobile-app.md](05-warehouse-mobile-app.md)
 
 ## AI in MyERP (added 3 Nov)
 
@@ -463,11 +464,11 @@ The v1 working method stands: the repo is the project's memory, spec before code
 - [x] Stack: Django + React (decided 4 Nov)
 - [x] Default stock valuation: FIFO for all items (decided)
 - [ ] Hosting: VPS you manage, or a managed platform (Render / Railway / AWS) at higher cost
-- [ ] Mobile/tablet screens in v1 for production, stores or sales?
+- [ ] Mobile/tablet screens in v1 for production, stores or sales? (Stores: yes, a warehouse mobile app, see `05-warehouse-mobile-app.md`; devices, network and labels still to answer)
 - [ ] E-invoice and e-way bill: direct NIC API or via a GSP
 - [ ] Who validates posting rules: you alone, or with your CA per module
 - [ ] Budget for running costs (server, backups, GSP fees)
-- [ ] **(new)** Do you do job work (send material out for processing, or process for others)? Decides ITC-04 and job work challans
+- [ ] **(new)** Do you do job work (send material out for processing, or process for others)? Decides ITC-04 and job work challans (Processing customers' material: yes, 9 Nov, see `05-warehouse-mobile-app.md`; sending out still to confirm)
 - [ ] **(new)** Any exports or foreign-currency purchases? Decides multi-currency in v1
 - [ ] **(new)** Are products FSSAI-licensed and organic-certified? Decides batch traceability depth and label formats
 - [ ] **(new)** How many users per role, and real yearly volumes (invoices, GRNs, items)?
