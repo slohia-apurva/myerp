@@ -87,6 +87,81 @@ main.narrow {
   font-weight: 600;
   box-shadow: inset 0 -3px 0 var(--green);
 }
+/* Dropdown menus in the top menu (Masters) */
+.topbar .menu {
+  position: relative;
+  display: flex;
+}
+.topbar .menu > button {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0 14px;
+  color: var(--slate);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.topbar .menu > button:hover {
+  color: var(--ink);
+  background: none;
+}
+.topbar .menu.active > button {
+  color: var(--green);
+  font-weight: 600;
+  box-shadow: inset 0 -3px 0 var(--green);
+}
+.menu-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 8px 24px rgba(31, 41, 51, 0.12);
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+}
+.topbar .menu-panel a {
+  padding: 10px 16px;
+  color: var(--ink);
+}
+.topbar .menu-panel a:hover,
+.topbar .menu-panel a:focus {
+  background: var(--mint);
+  color: var(--deep-green);
+}
+@media (max-width: 720px) {
+  /* Full-width list under the top menu, so it never runs off the screen. */
+  .topbar {
+    position: relative;
+  }
+  .topbar .menu {
+    position: static;
+  }
+  .menu-panel {
+    left: 16px;
+    right: 16px;
+    min-width: 0;
+    border-radius: 10px;
+  }
+}
+.menu-company {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 16px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--slate);
+}
 .who {
   display: flex;
   gap: 10px;

@@ -7,6 +7,7 @@ import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 import { Logo, PageHeader } from "./Brand";
 import { HelpPage, helpTopicFor } from "./help/Help";
+import { MastersMenu } from "./MastersMenu";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
 type Page = "home" | "users" | "roles" | "companies" | "help";
@@ -75,9 +76,14 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         </a>
         <nav aria-label="Modules">
           {link("home", "Home")}
-          {canSeeMasters && link("companies", "Masters")}
-          {canManageUsers && link("users", "Users")}
-          {canManageUsers && link("roles", "Roles")}
+          {(canSeeMasters || canManageUsers) && (
+            <MastersMenu
+              active={page === "companies" || page === "users" || page === "roles"}
+              routeCompany={page === "companies" ? id : undefined}
+              canSeeMasters={canSeeMasters}
+              canManageUsers={canManageUsers}
+            />
+          )}
         </nav>
         <span className="who">
           <a

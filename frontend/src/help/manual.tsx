@@ -50,8 +50,11 @@ export const MANUAL: Chapter[] = [
         <h3>The screen</h3>
         <ul>
           <li>
-            <strong>Top menu</strong> (white bar): the modules you may use, such as Home, Masters, Users and Roles. You
-            only see the ones your role allows. "Help" opens this manual at the page for the screen you are on.
+            <strong>Top menu</strong> (white bar): the modules you may use, such as Home and Masters. You only see the
+            ones your role allows. Click "Masters" to open its list: "Company", "Ledger groups", "Ledgers", "Credit
+            terms", "Users" and "User roles". Ledger groups, ledgers and credit terms open for the company you are
+            working in; if there are several companies, pick one at the top of the list. "Help" opens this manual at the
+            page for the screen you are on.
           </li>
           <li>
             <strong>Green band</strong>: where you are (the small links above the title take you back a step), the
@@ -93,7 +96,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           A company is one legal entity with its own books, GST registration and document numbers. Open them from
-          Masters in the top menu. A new company starts with a Head office branch and the standard ledger groups.
+          "Masters", then "Company", in the top menu. A new company starts with a Head office branch and the standard ledger groups.
         </p>
 
         <h3>Add a company</h3>
@@ -396,7 +399,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a user</h3>
         <ol>
-          <li>Click "Users" in the top menu, then "Add user".</li>
+          <li>Click "Masters" in the top menu, then "Users", then "Add user".</li>
           <li>Enter their email (their Google account) and full name.</li>
           <li>Tick their roles. Only an Owner can make someone an Owner.</li>
           <li>Tick the companies they may work in. None ticked means all companies.</li>
@@ -425,7 +428,7 @@ export const MANUAL: Chapter[] = [
         <p>Owner can do everything and cannot be changed. Only an Owner can change roles.</p>
         <h3>Make or change a role</h3>
         <ol>
-          <li>Click "Roles" in the top menu, then "New role", or "Edit" on a role.</li>
+          <li>Click "Masters" in the top menu, then "User roles", then "New role", or "Edit" on a role.</li>
           <li>Give it a name and description, tick the permissions in each area, and click "Save".</li>
         </ol>
         <p>Standard roles can be edited but not deleted. Roles you made can be deleted with "Delete role".</p>
