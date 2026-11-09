@@ -7,6 +7,7 @@ import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 import { Logo, PageHeader } from "./Brand";
 import { HelpPage, helpTopicFor } from "./help/Help";
+import { CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
 
 type WhoAmI = { tenant: string; name: string; companies: string[] };
 type Page = "home" | "users" | "roles" | "companies" | "help";
@@ -56,6 +57,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
   }, []);
   const canManageUsers = session.permissions.includes("users.manage");
   const canSeeMasters = session.permissions.includes("masters.view");
+  const current = useCurrentCompany(page === "companies" ? id : undefined, canSeeMasters);
   const signOut = () => {
     // Stop Google from signing the person straight back in on this browser.
     if ("google" in window) google.accounts.id.disableAutoSelect();
@@ -75,11 +77,17 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         </a>
         <nav aria-label="Modules">
           {link("home", "Home")}
-          {canSeeMasters && link("companies", "Masters")}
-          {canManageUsers && link("users", "Users")}
-          {canManageUsers && link("roles", "Roles")}
+          {(canSeeMasters || canManageUsers) && (
+            <MastersMenu
+              active={page === "companies" || page === "users" || page === "roles"}
+              company={current.company}
+              canSeeMasters={canSeeMasters}
+              canManageUsers={canManageUsers}
+            />
+          )}
         </nav>
         <span className="who">
+          <CompanyPicker companies={current.companies} company={current.company} onChoose={current.choose} />
           <a
             href={page === "help" ? "#/help" : `#/help/${helpTopicFor(window.location.hash)}`}
             className={`help-link${page === "help" ? " active" : ""}`}
