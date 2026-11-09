@@ -57,8 +57,10 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
     party = {
         "gst_type": "regular",
         "gstin": gstin("29").lower(),
-        "contact_person": "Mr Rao",
-        "phone": "9876543210",
+        "contacts": [
+            {"name": "Mr Rao", "designation": "Owner", "phone": "9876543210", "is_primary": True},
+            {"name": "Meena", "designation": "Accounts", "email": "accounts@freshmart.in"},
+        ],
         "credit_limit": "500000",
         "credit_days": 30,
         "salesman": salesman,
@@ -87,11 +89,16 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
     assert saved["state_code"] == "29"
     assert saved["salesman_name"] == "Ravi"
     assert [a["label"] for a in saved["addresses"]] == ["Bengaluru office", "Pune godown"]
+    assert [(c["name"], c["is_primary"]) for c in saved["contacts"]] == [
+        ("Mr Rao", True),
+        ("Meena", False),
+    ]
 
     # Not sending party leaves it as it is.
     url = f"ledgers/{response.json()['id']}/"
     again = call(accountant, "patch", url, {"notes": "Key account"}).json()
     assert again["party"]["credit_days"] == 30
+    assert len(again["party"]["contacts"]) == 2
 
 
 def test_party_checks(accountant, company):
@@ -111,6 +118,10 @@ def test_party_checks(accountant, company):
         {"label": "B", "address": "y", "state_code": "27", "is_billing": True},
     ]
     assert "only one default billing" in error(state_code="27", addresses=two_billing)
+    two_main = [{"name": "A", "is_primary": True}, {"name": "B", "is_primary": True}]
+    assert "only one main contact" in error(state_code="27", contacts=two_main)
+    bad_email = [{"name": "A", "email": "not-an-email"}]
+    assert "email" in error(state_code="27", contacts=bad_email)
     other_pan = [{"label": "A", "address": "x", "gstin": gstin("29", pan="ABCPE1234F")}]
     assert "another PAN" in error(gst_type="regular", gstin=gstin("27"), addresses=other_pan)
 
@@ -141,7 +152,12 @@ def test_only_debtors_and_creditors_are_parties(accountant, company):
 def test_party_changes_are_in_the_ledger_activity(accountant, company):
     created = add_ledger(accountant, company, "Sundry Debtors").json()
     url = f"ledgers/{created['id']}/"
-    party = {"gst_type": "regular", "gstin": gstin("27"), "credit_days": 45}
+    party = {
+        "gst_type": "regular",
+        "gstin": gstin("27"),
+        "credit_days": 45,
+        "contacts": [{"name": "Mr Rao", "phone": "9876543210", "is_primary": True}],
+    }
     assert call(accountant, "patch", url, {"party": party}).status_code == 200
     entries = call(
         accountant, "get", f"audit/?company={company}&type=ledger&id={created['id']}"
@@ -153,6 +169,7 @@ def test_party_changes_are_in_the_ledger_activity(accountant, company):
         "GSTIN": (None, gstin("27")),
         "PAN": (None, "AAPFU0939F"),
         "Credit days": (None, "45"),
+        "Contacts": (None, "Mr Rao, 9876543210 (main)"),
     }
     # The party made with the ledger is part of the ledger's "Added" entry.
     added = {c["label"] for c in entries[1]["changes"]}

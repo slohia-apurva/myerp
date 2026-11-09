@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { money, StateSelect, useStates, type State } from "./Companies";
 
@@ -13,20 +13,25 @@ export type PartyAddress = {
   is_billing: boolean;
   is_shipping: boolean;
 };
+export type PartyContact = {
+  name: string;
+  designation: string;
+  phone: string;
+  email: string;
+  is_primary: boolean;
+};
 export type Party = {
   gst_type: string;
   gstin: string;
   pan: string;
   state_code: string;
   country: string;
-  contact_person: string;
-  phone: string;
-  email: string;
   credit_limit: string;
   credit_days: number | null;
   salesman: number | null;
   salesman_name?: string;
   addresses: PartyAddress[];
+  contacts: PartyContact[];
 };
 
 export const GST_TYPES: [string, string][] = [
@@ -45,13 +50,11 @@ export const blankParty = (stateCode: string): Party => ({
   pan: "",
   state_code: stateCode,
   country: "India",
-  contact_person: "",
-  phone: "",
-  email: "",
   credit_limit: "",
   credit_days: null,
   salesman: null,
   addresses: [],
+  contacts: [],
 });
 
 const blankAddress = (stateCode: string): PartyAddress => ({
@@ -65,7 +68,10 @@ const blankAddress = (stateCode: string): PartyAddress => ({
   is_shipping: false,
 });
 
+const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false });
+
 type Person = { id: number; name: string };
+type Tab = "details" | "addresses" | "contacts";
 
 /** The "Party details" part of the ledger form. */
 export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p: Party) => void }) {
@@ -73,6 +79,23 @@ export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p
   const [people, setPeople] = useState<Person[]>([]);
   useEffect(() => {
     api<Person[]>("v1/people/").then(setPeople);
+  }, []);
+  const [tab, setTab] = useState<Tab>("details");
+  const box = useRef<HTMLFieldSetElement>(null);
+  useEffect(() => {
+    // A required field left empty on a hidden tab: open that tab and point at it.
+    const el = box.current;
+    if (!el) return;
+    const onInvalid = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const panel = target.closest<HTMLElement>("[data-tab]");
+      if (panel?.hidden) {
+        setTab(panel.dataset.tab as Tab);
+        requestAnimationFrame(() => target.reportValidity());
+      }
+    };
+    el.addEventListener("invalid", onInvalid, true);
+    return () => el.removeEventListener("invalid", onInvalid, true);
   }, []);
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
   const overseas = p.gst_type === "overseas";
@@ -95,10 +118,36 @@ export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p
         return { ...a, ...off };
       }),
     });
+  const setContact = (i: number, change: Partial<PartyContact>) =>
+    set({
+      contacts: p.contacts.map((c, j) =>
+        j === i ? { ...c, ...change } : change.is_primary ? { ...c, is_primary: false } : c,
+      ),
+    });
+  const tabs: [Tab, string][] = [
+    ["details", "GST and credit"],
+    ["addresses", `Addresses (${p.addresses.length})`],
+    ["contacts", `Contacts (${p.contacts.length})`],
+  ];
 
   return (
-    <fieldset>
+    <fieldset ref={box}>
       <legend>Party details</legend>
+      <div className="form-tabs" role="tablist">
+        {tabs.map(([code, label]) => (
+          <button
+            key={code}
+            type="button"
+            role="tab"
+            aria-selected={tab === code}
+            className={tab === code ? "active" : ""}
+            onClick={() => setTab(code)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div data-tab="details" hidden={tab !== "details"}>
       <div className="row">
         <label>
           GST type
@@ -149,20 +198,6 @@ export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p
       </div>
       <div className="row">
         <label>
-          Contact person
-          <input value={p.contact_person} onChange={(e) => set({ contact_person: e.target.value })} />
-        </label>
-        <label>
-          Phone
-          <input value={p.phone} onChange={(e) => set({ phone: e.target.value })} />
-        </label>
-        <label>
-          Email
-          <input type="email" value={p.email} onChange={(e) => set({ email: e.target.value })} />
-        </label>
-      </div>
-      <div className="row">
-        <label>
           Credit limit (₹, blank = no limit)
           <input
             className="num"
@@ -195,8 +230,10 @@ export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p
           </select>
         </label>
       </div>
+      </div>
 
-      <h4>Addresses</h4>
+      <div data-tab="addresses" hidden={tab !== "addresses"}>
+      {p.addresses.length === 0 && <p className="small">No addresses yet.</p>}
       {p.addresses.length > 0 && (
         <div className="addresses">
           {p.addresses.map((a, i) => (
@@ -297,6 +334,69 @@ export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p
       >
         + Add address
       </button>
+      </div>
+
+      <div data-tab="contacts" hidden={tab !== "contacts"}>
+      {p.contacts.length === 0 && <p className="small">No contacts yet.</p>}
+      {p.contacts.length > 0 && (
+        <div className="addresses">
+          {p.contacts.map((c, i) => (
+            <div className="address-card" key={i}>
+              <div className="row">
+                <label>
+                  Name
+                  <input required value={c.name} onChange={(e) => setContact(i, { name: e.target.value })} />
+                </label>
+                <label>
+                  Designation
+                  <input
+                    value={c.designation}
+                    placeholder="e.g. Purchase manager, Accounts"
+                    onChange={(e) => setContact(i, { designation: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="row">
+                <label>
+                  Phone
+                  <input value={c.phone} onChange={(e) => setContact(i, { phone: e.target.value })} />
+                </label>
+                <label>
+                  Email
+                  <input type="email" value={c.email} onChange={(e) => setContact(i, { email: e.target.value })} />
+                </label>
+              </div>
+              <div className="address-flags">
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={c.is_primary}
+                    onChange={(e) => setContact(i, { is_primary: e.target.checked })}
+                  />
+                  Main contact
+                </label>
+                <button
+                  type="button"
+                  className="link danger"
+                  onClick={() => set({ contacts: p.contacts.filter((_, j) => j !== i) })}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        className="link"
+        onClick={() =>
+          set({ contacts: [...p.contacts, { ...blankContact(), is_primary: p.contacts.length === 0 }] })
+        }
+      >
+        + Add contact
+      </button>
+      </div>
     </fieldset>
   );
 }
@@ -310,7 +410,6 @@ export function PartySummary({ party: p, states }: { party: Party; states?: Stat
     ["GST", p.gstin ? `${gstType} · ${p.gstin}` : gstType],
     ["State / country", place],
     ["PAN", p.pan],
-    ["Contact", [p.contact_person, p.phone, p.email].filter(Boolean).join(" · ")],
     ["Credit limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit days", p.credit_days !== null ? String(p.credit_days) : ""],
     ["Salesman", p.salesman_name ?? ""],
@@ -343,6 +442,21 @@ export function PartySummary({ party: p, states }: { party: Party; states?: Stat
                     .filter(Boolean)
                     .join(" · ")}
                 </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {p.contacts.length > 0 && (
+        <>
+          <h3>Contacts</h3>
+          <ul className="address-list">
+            {p.contacts.map((c, i) => (
+              <li key={i}>
+                <strong>{c.name}</strong>
+                {c.designation && <span className="small"> · {c.designation}</span>}
+                {c.is_primary && <span className="pill on">Main</span>}
+                <div className="small">{[c.phone, c.email].filter(Boolean).join(" · ")}</div>
               </li>
             ))}
           </ul>

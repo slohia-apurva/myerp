@@ -466,7 +466,7 @@ class LedgerOpeningBill(models.Model):
 class Party(models.Model):
     """Customer or supplier details of a ledger under Sundry Debtors or
     Sundry Creditors. Parties are ledgers (as in Tally); this holds what a
-    ledger alone does not: GST registration, contact, credit terms and the
+    ledger alone does not: GST registration, credit terms and the
     salesman who looks after the customer. See decision 0018."""
 
     REGULAR, COMPOSITION, UNREGISTERED = "regular", "composition", "unregistered"
@@ -489,9 +489,6 @@ class Party(models.Model):
     # supply. Blank for overseas parties.
     state_code = models.CharField(max_length=2, blank=True, validators=[india.validate_state_code])
     country = models.CharField(max_length=60, default="India")
-    contact_person = models.CharField(max_length=100, blank=True)
-    phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
-    email = models.EmailField(blank=True)
     # 0 = no limit.
     credit_limit = models.DecimalField(
         max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
@@ -563,3 +560,21 @@ class PartyAddress(models.Model):
 
     def __str__(self) -> str:
         return self.label
+
+
+class PartyContact(models.Model):
+    """A person to deal with at a customer or supplier: the owner, the
+    purchase manager, accounts. One can be ticked as the main contact."""
+
+    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="contacts")
+    name = models.CharField(max_length=100)
+    designation = models.CharField(max_length=60, blank=True)  # e.g. "Purchase manager"
+    phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
+    email = models.EmailField(blank=True)
+    is_primary = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return self.name

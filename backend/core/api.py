@@ -713,7 +713,7 @@ class LedgerListView(APIView):
         _check(request, VIEW)
         company = _company(request, pk)
         ledgers = company.ledgers.select_related("group", "party__salesman").prefetch_related(
-            "opening_bills", "party__addresses"
+            "opening_bills", "party__addresses", "party__contacts"
         )
         if q := request.query_params.get("q", "").strip():
             ledgers = ledgers.filter(Q(name__icontains=q) | Q(account_number__icontains=q))
