@@ -197,7 +197,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
           <div className="row filters">
             <input
               type="search"
-              placeholder="Search by name or account number"
+              placeholder="Search by name, account number or customer or vendor number"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -718,7 +718,7 @@ function LedgerForm(props: {
             <option value="">None: a new customer or supplier</option>
             {existing.map((x) => (
               <option key={x.id} value={x.id}>
-                {x.name}
+                {[x.customer_number, x.vendor_number].filter(Boolean).join(" ")} {x.name}
                 {x.gstin ? ` · ${x.gstin}` : ""}
                 {x.companies?.length ? ` (in ${x.companies.map((c) => c.name).join(", ")})` : ""}
               </option>

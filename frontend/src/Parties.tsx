@@ -26,6 +26,9 @@ export type Party = {
   name?: string;
   /** Companies that have a ledger for this party (shared by the group). */
   companies?: { id: number; name: string; ledger: number }[];
+  /** Given on Save the first time a company deals with the party as a customer or supplier. */
+  customer_number: string;
+  vendor_number: string;
   gst_type: string;
   gstin: string;
   pan: string;
@@ -51,6 +54,8 @@ export const GST_TYPES: [string, string][] = [
 const REGISTERED = ["regular", "composition", "sez"];
 
 export const blankParty = (stateCode: string): Party => ({
+  customer_number: "",
+  vendor_number: "",
   gst_type: "unregistered",
   gstin: "",
   pan: "",
@@ -202,6 +207,19 @@ export function PartyFields({
           ))}
         </div>
       )}
+      <div className="row">
+        <label>
+          {supplier ? "Vendor number" : "Customer number"}
+          <input
+            value={supplier ? p.vendor_number : p.customer_number}
+            maxLength={20}
+            placeholder="Assigned when you save"
+            onChange={(e) =>
+              set(supplier ? { vendor_number: e.target.value.toUpperCase() } : { customer_number: e.target.value.toUpperCase() })
+            }
+          />
+        </label>
+      </div>
       <div className="row">
         <label>
           GST type
@@ -474,6 +492,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
   const stateName = (code: string) => states?.find((s) => s.code === code)?.name ?? code;
   const place = p.gst_type === "overseas" ? p.country : stateName(p.state_code);
   const rows: [string, string][] = [
+    supplier ? ["Vendor number", p.vendor_number] : ["Customer number", p.customer_number],
     ["GST", p.gstin ? `${gstType} · ${p.gstin}` : gstType],
     ["State / country", place],
     ["PAN", p.pan],

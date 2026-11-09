@@ -25,6 +25,7 @@ from core.models import (
     PartyAddress,
     PartyContact,
 )
+from core.numbering import next_number
 
 
 def _upper(value: str) -> str:
@@ -78,6 +79,10 @@ class PartySerializer(serializers.ModelSerializer):
         queryset=CreditTerm.objects.all(), allow_null=True, required=False
     )
     credit_term_name = serializers.CharField(source="credit_term.name", read_only=True)
+    # Given on Save when blank; may be typed over, but stay unique.
+    customer_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
+    vendor_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
+    validate_customer_number = validate_vendor_number = staticmethod(_upper)
     addresses = PartyAddressSerializer(many=True, required=False)
     contacts = PartyContactSerializer(many=True, required=False)
 
@@ -87,6 +92,8 @@ class PartySerializer(serializers.ModelSerializer):
             "id",
             "name",
             "companies",
+            "customer_number",
+            "vendor_number",
             "gst_type",
             "gstin",
             "pan",
@@ -195,6 +202,9 @@ def save_party(
         party.name = ledger.name
     addresses = data.pop("addresses", None)
     contacts = data.pop("contacts", None)
+    for field in ("customer_number", "vendor_number"):
+        if not data.get(field):
+            data.pop(field, None)  # blank keeps the number it has
     for field in PARTY_FIELDS:
         if field in data:
             value = data[field]
@@ -205,6 +215,7 @@ def save_party(
         party.full_clean(validate_constraints=False)
     except DjangoValidationError as exc:
         raise _errors(exc) from exc
+    _number(ledger, party)
     party.save()
     if addresses is not None:
         _save_addresses(party, addresses)
@@ -216,6 +227,27 @@ def save_party(
     if also_in is not None:
         _add_to_companies(ledger, party, also_in)
     recorder.touch(ledger)
+
+
+NUMBER_FIELDS = {"sundry_debtors": "customer", "sundry_creditors": "vendor"}
+
+
+def _number(ledger: Ledger, party: Party) -> None:
+    """Give the party a customer or vendor number if this ledger makes it
+    one and it has none yet; check a number typed in by hand."""
+    group = ledger.group
+    while group.code not in NUMBER_FIELDS:
+        group = group.parent
+    for kind in ("customer", "vendor"):
+        field = f"{kind}_number"
+        value = getattr(party, field)
+        taken = lambda n, f=field: Party.objects.filter(**{f: n}).exclude(pk=party.pk).exists()  # noqa: E731
+        if value and taken(value):
+            raise ValidationError(
+                {"party": {field: [f"{value} is already used by another party."]}}
+            )
+        if not value and kind == NUMBER_FIELDS[group.code]:
+            setattr(party, field, next_number(kind, taken))
 
 
 def _add_to_companies(ledger: Ledger, party: Party, companies) -> None:
@@ -329,6 +361,8 @@ def party_extras() -> dict:
             "Salesman or purchaser",
             lambda ledger: ledger.salesman.display_name if ledger.salesman_id else None,
         ),
+        "party_customer_number": ("Customer number", read(lambda p: blank(p.customer_number))),
+        "party_vendor_number": ("Vendor number", read(lambda p: blank(p.vendor_number))),
         "party_gst_type": ("GST type", read(lambda p: p.get_gst_type_display())),
         "party_gstin": ("GSTIN", read(lambda p: blank(p.gstin))),
         "party_pan": ("PAN", read(lambda p: blank(p.pan))),
