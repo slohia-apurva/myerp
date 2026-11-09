@@ -20,6 +20,7 @@ export const RECORD_TYPES: [string, string][] = [
   ["company", "Company details"],
   ["branch", "Branches"],
   ["certificate", "Licences and certificates"],
+  ["credit_term", "Credit terms"],
   ["ledger_group", "Ledger groups"],
   ["ledger", "Ledgers"],
 ];

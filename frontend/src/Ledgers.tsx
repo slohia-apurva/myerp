@@ -692,6 +692,7 @@ function LedgerForm(props: {
         <PartyFields
           value={party}
           onChange={setParty}
+          companyId={props.companyId}
           extraTab={{
             label: "Opening balance",
             content: (

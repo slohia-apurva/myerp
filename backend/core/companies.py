@@ -36,6 +36,10 @@ def _starting_records(company: Company) -> None:
     head.save()
     seed_standard_groups(LedgerGroup, company, Ledger)
     ensure_cash_ledger(Ledger, LedgerGroup, company)
+    from core.credit_terms import seed_credit_terms
+    from core.models import CreditTerm, CreditTermPart
+
+    seed_credit_terms(CreditTerm, CreditTermPart, company)
 
 
 def visible_companies(user):

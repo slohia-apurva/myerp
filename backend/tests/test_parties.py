@@ -46,6 +46,11 @@ def group_id(client, company, name):
     return next(g["id"] for g in detail["ledger_groups"] if g["name"] == name)
 
 
+def term_id(client, company, name):
+    terms = call(client, "get", f"companies/{company}/credit-terms/").json()
+    return next(t["id"] for t in terms if t["name"] == name)
+
+
 def add_ledger(client, company, group, **extra):
     data = {"name": "Fresh Mart", "group": group_id(client, company, group), **extra}
     return call(client, "post", f"companies/{company}/ledgers/", data)
@@ -62,7 +67,7 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
             {"name": "Meena", "designation": "Accounts", "email": "accounts@freshmart.in"},
         ],
         "credit_limit": "500000",
-        "credit_days": 30,
+        "credit_term": term_id(accountant, company, "30 days"),
         "salesman": salesman,
         "addresses": [
             {
@@ -97,7 +102,7 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
     # Not sending party leaves it as it is.
     url = f"ledgers/{response.json()['id']}/"
     again = call(accountant, "patch", url, {"notes": "Key account"}).json()
-    assert again["party"]["credit_days"] == 30
+    assert again["party"]["credit_term_name"] == "30 days"
     assert len(again["party"]["contacts"]) == 2
 
 
@@ -155,7 +160,7 @@ def test_party_changes_are_in_the_ledger_activity(accountant, company):
     party = {
         "gst_type": "regular",
         "gstin": gstin("27"),
-        "credit_days": 45,
+        "credit_term": term_id(accountant, company, "45 days"),
         "contacts": [{"name": "Mr Rao", "phone": "9876543210", "is_primary": True}],
     }
     assert call(accountant, "patch", url, {"party": party}).status_code == 200
@@ -168,7 +173,7 @@ def test_party_changes_are_in_the_ledger_activity(accountant, company):
         "GST type": ("Unregistered business", "Registered (regular)"),
         "GSTIN": (None, gstin("27")),
         "PAN": (None, "AAPFU0939F"),
-        "Credit days": (None, "45"),
+        "Credit terms": (None, "45 days"),
         "Contacts": (None, "Mr Rao, 9876543210 (main)"),
     }
     # The party made with the ledger is part of the ledger's "Added" entry.
