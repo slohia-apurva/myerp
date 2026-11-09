@@ -75,7 +75,12 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState(props.groupId ? String(props.groupId) : "");
-  const [editing, setEditing] = useState<Ledger | "new" | null>(null);
+  const [editing, setEditingNow] = useState<Ledger | "new" | null>(null);
+  const [copyOf, setCopyOf] = useState<Ledger | null>(null);
+  const setEditing = (value: Ledger | "new" | null) => {
+    setCopyOf(null); // only the Duplicate button below sets it again
+    setEditingNow(value);
+  };
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const canEdit = props.session.permissions.includes("masters.edit");
@@ -278,9 +283,10 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
         <aside className="split-panel" aria-label="Ledger details">
           {editing ? (
             <LedgerForm
-              key={editing === "new" ? "new" : editing.id}
+              key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
               companyId={props.companyId}
               ledger={editing === "new" ? null : editing}
+              copyOf={copyOf}
               groups={ordered}
               defaultGroup={groupFilter}
               booksStart={detail.company.books_start}
@@ -299,6 +305,10 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
               companyId={props.companyId}
               canEdit={canEdit}
               onEdit={() => setEditing(selected)}
+              onDuplicate={() => {
+                setEditingNow("new");
+                setCopyOf(selected);
+              }}
             />
           ) : (
             <div className="card">
@@ -311,8 +321,14 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   );
 }
 
-function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolean; onEdit: () => void }) {
-  const { ledger: l, canEdit, onEdit } = props;
+function LedgerPanel(props: {
+  ledger: Ledger;
+  companyId: number;
+  canEdit: boolean;
+  onEdit: () => void;
+  onDuplicate: () => void;
+}) {
+  const { ledger: l, canEdit, onEdit, onDuplicate } = props;
   const states = useStates();
   const opening = Number(l.opening_amount);
   const bank = [
@@ -331,7 +347,14 @@ function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolea
             {!l.is_active && " · inactive"}
           </p>
         </div>
-        {canEdit && <button onClick={onEdit}>Edit</button>}
+        {canEdit && (
+          <div className="buttons">
+            <button onClick={onEdit}>Edit</button>
+            <button type="button" className="link" onClick={onDuplicate}>
+              Duplicate
+            </button>
+          </div>
+        )}
       </div>
       <div className="stat">
         <span className="stat-label">Opening balance</span>
@@ -414,6 +437,8 @@ function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolea
 function LedgerForm(props: {
   companyId: number;
   ledger: Ledger | null;
+  /** Duplicate: start as a copy of this ledger, saved as a new one. */
+  copyOf?: Ledger | null;
   groups: { group: Group; depth: number }[];
   defaultGroup: string;
   booksStart: string;
@@ -423,24 +448,34 @@ function LedgerForm(props: {
   onCancel: () => void;
 }) {
   const l = props.ledger;
-  const [name, setName] = useState(l?.name ?? "");
-  const [group, setGroup] = useState(l ? String(l.group) : props.defaultGroup);
-  const [notes, setNotes] = useState(l?.notes ?? "");
+  // A duplicate copies the setup, not the name, account number, party numbers or balances.
+  const c = props.copyOf;
+  const from = l ?? c;
+  const [name, setName] = useState(l?.name ?? (c ? `${c.name} (copy)` : ""));
+  const [group, setGroup] = useState(from ? String(from.group) : props.defaultGroup);
+  const [notes, setNotes] = useState(from?.notes ?? "");
   const [active, setActive] = useState(l?.is_active ?? true);
-  const [bankName, setBankName] = useState(l?.bank_name ?? "");
+  const [bankName, setBankName] = useState(from?.bank_name ?? "");
   const [accountNumber, setAccountNumber] = useState(l?.account_number ?? "");
-  const [ifsc, setIfsc] = useState(l?.ifsc ?? "");
-  const [bankBranch, setBankBranch] = useState(l?.bank_branch ?? "");
+  const [ifsc, setIfsc] = useState(from?.ifsc ?? "");
+  const [bankBranch, setBankBranch] = useState(from?.bank_branch ?? "");
   const [openingAmount, setOpeningAmount] = useState(l && Number(l.opening_amount) ? l.opening_amount : "");
   const [openingSide, setOpeningSide] = useState<Side>(l?.opening_side ?? "dr");
   const groupOf = (id: string) => props.groups.find((g) => String(g.group.id) === id)?.group;
-  const [billWise, setBillWise] = useState(l ? l.bill_wise : (groupOf(props.defaultGroup)?.bill_wise_default ?? false));
+  const [billWise, setBillWise] = useState(
+    l ? l.bill_wise : (groupOf(from ? String(from.group) : props.defaultGroup)?.bill_wise_default ?? false),
+  );
   const [bills, setBills] = useState<Bill[]>(l?.opening_bills ?? []);
-  const [currency, setCurrency] = useState(l?.currency ?? "");
+  const [currency, setCurrency] = useState(from?.currency ?? "");
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [fcAmount, setFcAmount] = useState(l && Number(l.opening_fc_amount) ? l.opening_fc_amount : "");
   const [rate, setRate] = useState(l?.opening_rate ?? "");
-  const [party, setParty] = useState<Party>(l?.party ?? blankParty(props.companyState));
+  const [party, setParty] = useState<Party>(
+    l?.party ??
+      (c?.party
+        ? { ...c.party, id: undefined, name: undefined, companies: undefined, customer_number: "", vendor_number: "" }
+        : blankParty(props.companyState)),
+  );
   // A customer or supplier another company already has (decision 0020).
   const [partyId, setPartyId] = useState<number | null>(null);
   const [alsoIn, setAlsoIn] = useState<number[]>([]);
@@ -677,7 +712,7 @@ function LedgerForm(props: {
   );
   return (
     <form className="card" onSubmit={save}>
-      <h3>{l ? `Edit ${l.name}` : "Add ledger"}</h3>
+      <h3>{l ? `Edit ${l.name}` : c ? `Duplicate ${c.name}` : "Add ledger"}</h3>
       <div className="row">
         <label>
           Name
