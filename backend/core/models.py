@@ -463,6 +463,67 @@ class LedgerOpeningBill(models.Model):
         return self.amount if self.side == DR else -self.amount
 
 
+class CreditTerm(models.Model):
+    """How a customer pays or a supplier is paid: "30 days", "50% advance,
+    50% on delivery". A term is split into parts, each a share of the bill
+    falling due at an event (order, dispatch, delivery, bill date) plus some
+    days. The parts add up to 100%. Never deleted, only made inactive, so
+    old parties and documents keep their terms. See decision 0019."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="credit_terms")
+    name = models.CharField(max_length=80)
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["company", "name"], name="credit_term_name_unique")
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class CreditTermPart(models.Model):
+    ORDER, DISPATCH, DELIVERY, BILL = "order", "dispatch", "delivery", "bill"
+    EVENTS = [
+        (ORDER, "With the order (advance)"),
+        (DISPATCH, "Before dispatch"),
+        (DELIVERY, "On delivery"),
+        (BILL, "After the bill date"),
+    ]
+
+    term = models.ForeignKey(CreditTerm, on_delete=models.CASCADE, related_name="parts")
+    percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01")), MaxValueValidator(Decimal("100"))],
+    )
+    event = models.CharField(max_length=10, choices=EVENTS)
+    days = models.PositiveSmallIntegerField(default=0)  # days after the event
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return describe_part(self.percent, self.event, self.days)
+
+
+def describe_part(percent, event: str, days: int) -> str:
+    share = format(Decimal(percent).normalize(), "f")
+    if event == CreditTermPart.BILL:
+        when = f"{days} days after the bill" if days else "on the bill date"
+    else:
+        label = {
+            CreditTermPart.ORDER: "advance with the order",
+            CreditTermPart.DISPATCH: "before dispatch",
+            CreditTermPart.DELIVERY: "on delivery",
+        }[event]
+        when = f"{label} + {days} days" if days else label
+    return f"{share}% {when}"
+
+
 class Party(models.Model):
     """Customer or supplier details of a ledger under Sundry Debtors or
     Sundry Creditors. Parties are ledgers (as in Tally); this holds what a
@@ -493,7 +554,9 @@ class Party(models.Model):
     credit_limit = models.DecimalField(
         max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
     )
-    credit_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    credit_term = models.ForeignKey(
+        CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="parties"
+    )
     salesman = models.ForeignKey(
         "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
@@ -514,6 +577,7 @@ class Party(models.Model):
             if self.gstin:
                 raise ValidationError({"gstin": "An overseas party has no GSTIN."})
             self.state_code = ""
+            self._check_term()
             return
         if self.country.lower() != "india":
             raise ValidationError(
@@ -538,6 +602,11 @@ class Party(models.Model):
                 raise ValidationError({"gstin": "This GSTIN belongs to a different state."})
         if not self.state_code:
             raise ValidationError({"state_code": "Choose the party's state."})
+        self._check_term()
+
+    def _check_term(self):
+        if self.credit_term_id and self.credit_term.company_id != self.ledger.company_id:
+            raise ValidationError({"credit_term": "Choose credit terms of this company."})
 
 
 class PartyAddress(models.Model):

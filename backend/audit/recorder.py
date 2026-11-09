@@ -99,7 +99,7 @@ def _register() -> None:
     from accounts.models import Role, User
     from core import india
     from core import modules as company_modules
-    from core.models import Branch, Certificate, Company, Ledger, LedgerGroup
+    from core.models import Branch, Certificate, Company, CreditTerm, Ledger, LedgerGroup
     from core.parties import party_extras
 
     def state(code):
@@ -142,6 +142,12 @@ def _register() -> None:
                 "Ledger",
                 by_company,
                 extras={"opening_bills": ("Opening bills", bills), **party_extras()},
+            ),
+            CreditTerm: Tracked(
+                "credit_term",
+                "Credit terms",
+                by_company,
+                extras={"parts": ("Parts", lambda t: "; ".join(map(str, t.parts.all())) or None)},
             ),
             User: Tracked(
                 "user",

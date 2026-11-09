@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
+import { useCreditTerms } from "./CreditTerms";
 import { money, StateSelect, useStates, type State } from "./Companies";
 
 /** Customer or supplier details kept beside a debtor or creditor ledger. */
@@ -27,7 +28,8 @@ export type Party = {
   state_code: string;
   country: string;
   credit_limit: string;
-  credit_days: number | null;
+  credit_term: number | null;
+  credit_term_name?: string;
   salesman: number | null;
   salesman_name?: string;
   addresses: PartyAddress[];
@@ -51,7 +53,7 @@ export const blankParty = (stateCode: string): Party => ({
   state_code: stateCode,
   country: "India",
   credit_limit: "",
-  credit_days: null,
+  credit_term: null,
   salesman: null,
   addresses: [],
   contacts: [],
@@ -78,13 +80,17 @@ export function PartyFields({
   value: p,
   onChange,
   extraTab,
+  companyId,
 }: {
   value: Party;
+  companyId: number;
   onChange: (p: Party) => void;
   /** One more tab from the ledger form, such as the opening bills. */
   extraTab?: { label: string; content: ReactNode };
 }) {
   const states = useStates();
+  const { terms } = useCreditTerms(companyId);
+  const term = terms.find((t) => t.id === p.credit_term);
   const [people, setPeople] = useState<Person[]>([]);
   useEffect(() => {
     api<Person[]>("v1/people/").then(setPeople);
@@ -217,13 +223,21 @@ export function PartyFields({
           />
         </label>
         <label>
-          Credit days
-          <input
-            className="num"
-            inputMode="numeric"
-            value={p.credit_days ?? ""}
-            onChange={(e) => set({ credit_days: e.target.value === "" ? null : Number(e.target.value) || 0 })}
-          />
+          Credit terms
+          <select
+            value={p.credit_term ?? ""}
+            onChange={(e) => set({ credit_term: e.target.value ? Number(e.target.value) : null })}
+          >
+            <option value="">None</option>
+            {terms
+              .filter((t) => t.is_active || t.id === p.credit_term)
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+          </select>
+          {term && <span className="small">{term.summary}</span>}
         </label>
         <label>
           Salesman
@@ -426,7 +440,7 @@ export function PartySummary({ party: p, states }: { party: Party; states?: Stat
     ["State / country", place],
     ["PAN", p.pan],
     ["Credit limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
-    ["Credit days", p.credit_days !== null ? String(p.credit_days) : ""],
+    ["Credit terms", p.credit_term_name ?? ""],
     ["Salesman", p.salesman_name ?? ""],
   ];
   return (

@@ -12,7 +12,14 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.models import User
 from audit import recorder
-from core.models import BILL_WISE_GROUP_CODES, Ledger, Party, PartyAddress, PartyContact
+from core.models import (
+    BILL_WISE_GROUP_CODES,
+    CreditTerm,
+    Ledger,
+    Party,
+    PartyAddress,
+    PartyContact,
+)
 
 
 def _upper(value: str) -> str:
@@ -51,6 +58,10 @@ class PartySerializer(serializers.ModelSerializer):
         queryset=User.objects.filter(is_active=True), allow_null=True, required=False
     )
     salesman_name = serializers.CharField(source="salesman.display_name", read_only=True)
+    credit_term = serializers.PrimaryKeyRelatedField(
+        queryset=CreditTerm.objects.all(), allow_null=True, required=False
+    )
+    credit_term_name = serializers.CharField(source="credit_term.name", read_only=True)
     addresses = PartyAddressSerializer(many=True, required=False)
     contacts = PartyContactSerializer(many=True, required=False)
 
@@ -63,7 +74,8 @@ class PartySerializer(serializers.ModelSerializer):
             "state_code",
             "country",
             "credit_limit",
-            "credit_days",
+            "credit_term",
+            "credit_term_name",
             "salesman",
             "salesman_name",
             "addresses",
@@ -71,9 +83,8 @@ class PartySerializer(serializers.ModelSerializer):
         ]
 
 
-PARTY_FIELDS = [
-    f for f in PartySerializer.Meta.fields if f not in ("salesman_name", "addresses", "contacts")
-]
+_NOT_PARTY_FIELDS = ("salesman_name", "credit_term_name", "addresses", "contacts")
+PARTY_FIELDS = [f for f in PartySerializer.Meta.fields if f not in _NOT_PARTY_FIELDS]
 
 
 def is_party_ledger(ledger: Ledger) -> bool:
@@ -109,7 +120,7 @@ def save_party(ledger: Ledger, data: dict | None) -> None:
     for field in PARTY_FIELDS:
         if field in data:
             value = data[field]
-            if value is None and field not in ("credit_days", "salesman"):
+            if value is None and field not in ("credit_term", "salesman"):
                 value = ""
             setattr(party, field, value)
     try:
@@ -218,9 +229,9 @@ def party_extras() -> dict:
             "Credit limit (₹)",
             read(lambda p: str(p.credit_limit) if p.credit_limit else None),
         ),
-        "party_credit_days": (
-            "Credit days",
-            read(lambda p: str(p.credit_days) if p.credit_days is not None else None),
+        "party_credit_term": (
+            "Credit terms",
+            read(lambda p: p.credit_term.name if p.credit_term_id else None),
         ),
         "party_salesman": (
             "Salesman",

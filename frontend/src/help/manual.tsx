@@ -212,6 +212,36 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "credit-terms",
+    title: "Credit terms",
+    summary: "How customers pay and suppliers are paid: 30 days, full advance, 50% advance and 50% on delivery.",
+    body: (
+      <>
+        <p>
+          Credit terms are a list kept per company. Each customer or supplier picks one on its ledger, and sales and
+          purchase documents will work out when each part of a bill is due from it. Every company starts with the usual
+          ones: "Full advance", "50% advance, 50% on delivery", "50% advance, 50% before dispatch", "On delivery", and
+          15, 30, 45 and 60 days.
+        </p>
+        <h3>Add credit terms</h3>
+        <ol>
+          <li>Open the company and click the "Credit terms" tab.</li>
+          <li>Click "Add credit terms" and give them a name, such as "30% advance, 70% in 15 days".</li>
+          <li>
+            Fill in one row per part: the share of the bill, when it falls "Due" (with the order as an advance, before
+            dispatch, on delivery, or after the bill date), and any "Plus days" after that. Click "Add part" for another
+            row.
+          </li>
+          <li>The shares must add up to 100%; the total under the rows turns red until they do. Click "Save".</li>
+        </ol>
+        <p>
+          The list shows each term in words and how many parties use it. Credit terms are never deleted: click "Edit"
+          and untick "Active" to stop offering them to new parties. Parties that already have them keep them.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "modules",
     title: "Modules",
     summary: "Choosing which parts of MyERP a company uses.",
@@ -316,7 +346,10 @@ export const MANUAL: Chapter[] = [
             ["GSTIN", "Typing it fills in the PAN and state. The state decides the place of supply on invoices."],
             ["Country", "For an overseas party, in place of the state."],
             ["Credit limit", "Leave blank for no limit."],
-            ["Credit days", "How many days after the bill payment is due."],
+            [
+              "Credit terms",
+              'When payment is due, picked from the company\'s "Credit terms" list, such as 30 days or 50% advance and 50% on delivery. The words under the box spell out the parts.',
+            ],
             ["Salesman", "The person who looks after this customer."],
           ]}
         />
