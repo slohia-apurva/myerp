@@ -1,7 +1,8 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
-import { longDate, money, type Company, type Group } from "./Companies";
+import { blankParty, PartyFields, PartySummary, type Party } from "./Parties";
+import { longDate, money, useStates, type Company, type Group } from "./Companies";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
 
 type Ledger = {
@@ -23,6 +24,7 @@ type Ledger = {
   currency: string | null;
   opening_fc_amount: string;
   opening_rate: string | null;
+  party: Party | null;
 };
 type Currency = { code: string; name: string; symbol: string };
 type Side = "dr" | "cr";
@@ -283,6 +285,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
               defaultGroup={groupFilter}
               booksStart={detail.company.books_start}
               multiCurrency={detail.company.multi_currency}
+              companyState={detail.company.state_code}
               onDone={(saved) => {
                 setEditing(null);
                 if (saved) setSelectedId(saved);
@@ -310,6 +313,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
 
 function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolean; onEdit: () => void }) {
   const { ledger: l, canEdit, onEdit } = props;
+  const states = useStates();
   const opening = Number(l.opening_amount);
   const bank = [
     ["Bank", l.bank_name],
@@ -357,6 +361,7 @@ function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolea
           </div>
         ))}
       </dl>
+      {l.party && <PartySummary party={l.party} states={states} />}
       {l.bill_wise && l.opening_bills.length > 0 && (
         <>
           <h3>Opening bills</h3>
@@ -413,6 +418,7 @@ function LedgerForm(props: {
   defaultGroup: string;
   booksStart: string;
   multiCurrency: boolean;
+  companyState: string;
   onDone: (savedId?: number) => void;
   onCancel: () => void;
 }) {
@@ -434,6 +440,7 @@ function LedgerForm(props: {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [fcAmount, setFcAmount] = useState(l && Number(l.opening_fc_amount) ? l.opening_fc_amount : "");
   const [rate, setRate] = useState(l?.opening_rate ?? "");
+  const [party, setParty] = useState<Party>(l?.party ?? blankParty(props.companyState));
   useEffect(() => {
     if (props.multiCurrency) api<Currency[]>("v1/currencies/").then(setCurrencies);
   }, [props.multiCurrency]);
@@ -443,6 +450,8 @@ function LedgerForm(props: {
   const [error, setError] = useState("");
   const chosen = groupOf(group);
   const isBank = chosen?.is_bank ?? false;
+  // Ledgers under Sundry Debtors or Creditors are customers and suppliers.
+  const isParty = chosen?.bill_wise_default ?? false;
   const usualSide: Side = chosen?.nature === "asset" || chosen?.nature === "expense" ? "dr" : "cr";
 
   const pickGroup = (id: string) => {
@@ -474,6 +483,7 @@ function LedgerForm(props: {
       bank_branch: bankBranch,
       bill_wise: billWise,
       currency: foreign ? currency : null,
+      ...(isParty ? { party: { ...party, credit_limit: party.credit_limit || "0" } } : {}),
       ...(billWise
         ? {
             opening_amount: Math.abs(billsTotal).toFixed(2),
@@ -497,59 +507,8 @@ function LedgerForm(props: {
       setError((err as Error).message);
     }
   };
-  return (
-    <form className="card" onSubmit={save}>
-      <h3>{l ? `Edit ${l.name}` : "Add ledger"}</h3>
-      <div className="row">
-        <label>
-          Name
-          <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label>
-          Under group
-          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
-        </label>
-      </div>
-      {props.multiCurrency && (
-        <label>
-          Currency
-          <select value={currency || "INR"} onChange={(e) => setCurrency(e.target.value === "INR" ? "" : e.target.value)}>
-            {currencies.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} · {c.name}
-                {c.code === "INR" ? " (base)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {isBank && (
-        <fieldset>
-          <legend>Bank details</legend>
-          <div className="row">
-            <label>
-              Bank
-              <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
-            </label>
-            <label>
-              Account number
-              <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-            </label>
-          </div>
-          <div className="row">
-            <label>
-              IFSC
-              <input value={ifsc} maxLength={11} onChange={(e) => setIfsc(e.target.value.toUpperCase())} />
-            </label>
-            <label>
-              Branch
-              <input value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} />
-            </label>
-          </div>
-        </fieldset>
-      )}
-      <fieldset>
-        <legend>Opening balance as at {longDate(props.booksStart)}</legend>
+  const openingFields = (
+    <>
         <label className="check">
           <input type="checkbox" checked={billWise} onChange={(e) => setBillWise(e.target.checked)} />
           Maintain balances bill by bill (customers, suppliers)
@@ -701,7 +660,80 @@ function LedgerForm(props: {
             </label>
           </div>
         )}
-      </fieldset>
+    </>
+  );
+  return (
+    <form className="card" onSubmit={save}>
+      <h3>{l ? `Edit ${l.name}` : "Add ledger"}</h3>
+      <div className="row">
+        <label>
+          Name
+          <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label>
+          Under group
+          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
+        </label>
+      </div>
+      {props.multiCurrency && (
+        <label>
+          Currency
+          <select value={currency || "INR"} onChange={(e) => setCurrency(e.target.value === "INR" ? "" : e.target.value)}>
+            {currencies.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} · {c.name}
+                {c.code === "INR" ? " (base)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {isParty && (
+        <PartyFields
+          value={party}
+          onChange={setParty}
+          extraTab={{
+            label: "Opening balance",
+            content: (
+              <>
+                <p className="small">As at {longDate(props.booksStart)}, the day the books begin.</p>
+                {openingFields}
+              </>
+            ),
+          }}
+        />
+      )}
+      {isBank && (
+        <fieldset>
+          <legend>Bank details</legend>
+          <div className="row">
+            <label>
+              Bank
+              <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
+            </label>
+            <label>
+              Account number
+              <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              IFSC
+              <input value={ifsc} maxLength={11} onChange={(e) => setIfsc(e.target.value.toUpperCase())} />
+            </label>
+            <label>
+              Branch
+              <input value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} />
+            </label>
+          </div>
+        </fieldset>
+      )}
+      {!isParty && (
+        <fieldset>
+          <legend>Opening balance as at {longDate(props.booksStart)}</legend>
+          {openingFields}
+        </fieldset>
+      )}
       <label>
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />

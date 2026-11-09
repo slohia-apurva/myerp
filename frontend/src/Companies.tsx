@@ -256,7 +256,7 @@ export type Group = {
   is_bank: boolean;
   bill_wise_default: boolean;
 };
-type State = { code: string; name: string };
+export type State = { code: string; name: string };
 type Opening = { dr: string; cr: string; difference: string };
 type Detail = { company: Company; branches: Branch[]; certificates: Certificate[]; ledger_groups: Group[]; opening: Opening };
 
@@ -268,7 +268,7 @@ export const longDate = (iso: string) =>
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const NATURE = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
 
-function useStates() {
+export function useStates() {
   const [states, setStates] = useState<State[]>([]);
   useEffect(() => {
     api<State[]>("v1/states/").then(setStates);
@@ -276,9 +276,14 @@ function useStates() {
   return states;
 }
 
-function StateSelect(props: { states: State[]; value: string; onChange: (code: string) => void }) {
+export function StateSelect(props: {
+  states: State[];
+  value: string;
+  onChange: (code: string) => void;
+  optional?: boolean;
+}) {
   return (
-    <select required value={props.value} onChange={(e) => props.onChange(e.target.value)}>
+    <select required={!props.optional} value={props.value} onChange={(e) => props.onChange(e.target.value)}>
       <option value="">Choose…</option>
       {props.states.map((s) => (
         <option key={s.code} value={s.code}>

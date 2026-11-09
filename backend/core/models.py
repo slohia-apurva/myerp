@@ -461,3 +461,120 @@ class LedgerOpeningBill(models.Model):
     @property
     def signed(self) -> Decimal:
         return self.amount if self.side == DR else -self.amount
+
+
+class Party(models.Model):
+    """Customer or supplier details of a ledger under Sundry Debtors or
+    Sundry Creditors. Parties are ledgers (as in Tally); this holds what a
+    ledger alone does not: GST registration, credit terms and the
+    salesman who looks after the customer. See decision 0018."""
+
+    REGULAR, COMPOSITION, UNREGISTERED = "regular", "composition", "unregistered"
+    CONSUMER, OVERSEAS, SEZ = "consumer", "overseas", "sez"
+    GST_TYPES = [
+        (REGULAR, "Registered (regular)"),
+        (COMPOSITION, "Registered (composition)"),
+        (UNREGISTERED, "Unregistered business"),
+        (CONSUMER, "Consumer"),
+        (SEZ, "SEZ unit or developer"),
+        (OVERSEAS, "Overseas"),
+    ]
+    NEEDS_GSTIN = (REGULAR, COMPOSITION, SEZ)
+
+    ledger = models.OneToOneField(Ledger, on_delete=models.CASCADE, related_name="party")
+    gst_type = models.CharField(max_length=15, choices=GST_TYPES, default=UNREGISTERED)
+    gstin = models.CharField(max_length=15, blank=True, validators=[india.validate_gstin])
+    pan = models.CharField(max_length=10, blank=True, validators=[india.validate_pan])
+    # The state of the party's main (billing) address; it decides the place of
+    # supply. Blank for overseas parties.
+    state_code = models.CharField(max_length=2, blank=True, validators=[india.validate_state_code])
+    country = models.CharField(max_length=60, default="India")
+    # 0 = no limit.
+    credit_limit = models.DecimalField(
+        max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
+    )
+    credit_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    salesman = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        verbose_name_plural = "parties"
+
+    def __str__(self) -> str:
+        return self.ledger.name
+
+    def clean(self):
+        self.gstin = self.gstin.strip().upper()
+        self.pan = self.pan.strip().upper()
+        self.country = self.country.strip() or "India"
+        if self.gst_type == self.OVERSEAS:
+            if self.country.lower() == "india":
+                raise ValidationError({"country": "Give the country of an overseas party."})
+            if self.gstin:
+                raise ValidationError({"gstin": "An overseas party has no GSTIN."})
+            self.state_code = ""
+            return
+        if self.country.lower() != "india":
+            raise ValidationError(
+                {"country": "Choose Overseas as the GST type for a party abroad."}
+            )
+        self.country = "India"
+        if self.gst_type in self.NEEDS_GSTIN:
+            if not self.gstin:
+                raise ValidationError({"gstin": "A registered party needs its GSTIN."})
+        elif self.gstin:
+            raise ValidationError(
+                {"gst_type": "This party has a GSTIN; choose a registered GST type."}
+            )
+        if self.gstin:
+            if not self.pan:
+                self.pan = self.gstin[2:12]
+            elif self.gstin[2:12] != self.pan:
+                raise ValidationError({"pan": "The PAN must match the one inside the GSTIN."})
+            if not self.state_code:
+                self.state_code = self.gstin[:2]
+            elif self.gstin[:2] != self.state_code:
+                raise ValidationError({"gstin": "This GSTIN belongs to a different state."})
+        if not self.state_code:
+            raise ValidationError({"state_code": "Choose the party's state."})
+
+
+class PartyAddress(models.Model):
+    """One of a party's addresses: its office, a godown, a shop. Documents
+    pick the default billing and shipping addresses first."""
+
+    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="addresses")
+    label = models.CharField(max_length=60)  # e.g. "Head office", "Bhiwandi godown"
+    address = models.TextField()
+    pincode = models.CharField(max_length=10, blank=True)
+    state_code = models.CharField(max_length=2, blank=True, validators=[india.validate_state_code])
+    country = models.CharField(max_length=60, default="India")
+    # A party registered in several states has a GSTIN per state.
+    gstin = models.CharField(max_length=15, blank=True, validators=[india.validate_gstin])
+    is_billing = models.BooleanField(default=False)
+    is_shipping = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return self.label
+
+
+class PartyContact(models.Model):
+    """A person to deal with at a customer or supplier: the owner, the
+    purchase manager, accounts. One can be ticked as the main contact."""
+
+    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="contacts")
+    name = models.CharField(max_length=100)
+    designation = models.CharField(max_length=60, blank=True)  # e.g. "Purchase manager"
+    phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
+    email = models.EmailField(blank=True)
+    is_primary = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return self.name

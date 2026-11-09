@@ -302,6 +302,36 @@ export const MANUAL: Chapter[] = [
           <li>For a bank ledger, fill in the bank, account number, IFSC and branch.</li>
           <li>Enter the opening balance (see below) and click "Save".</li>
         </ol>
+        <h3>Customers and suppliers</h3>
+        <p>
+          A ledger under Sundry Debtors is a customer, and one under Sundry Creditors is a supplier. Their form has a
+          "Party details" section with four tabs. The "GST and credit" tab has:
+        </p>
+        <Fields
+          rows={[
+            [
+              "GST type",
+              "Registered (regular or composition), unregistered business, consumer, SEZ, or overseas. A registered party needs its GSTIN.",
+            ],
+            ["GSTIN", "Typing it fills in the PAN and state. The state decides the place of supply on invoices."],
+            ["Country", "For an overseas party, in place of the state."],
+            ["Credit limit", "Leave blank for no limit."],
+            ["Credit days", "How many days after the bill payment is due."],
+            ["Salesman", "The person who looks after this customer."],
+          ]}
+        />
+        <p>
+          On the "Addresses" tab, click "+ Add address" for each place the party has: office, godown, shop. Give each a
+          name, and tick which one is the default billing address and which the default shipping address; documents pick
+          these first. If the party is registered in another state too, enter that GSTIN on that address.
+        </p>
+        <p>
+          On the "Contacts" tab, click "+ Add contact" for each person you deal with: the owner, the purchase manager,
+          accounts. Give each a name, and add their designation, phone and email. Tick "Main contact" on the one to call
+          first. The tab names show how many addresses and contacts the party has. If you click "Save" while a required
+          field on another tab is empty, MyERP opens that tab and points to the field.
+        </p>
+        <p>Clicking a party shows its details, addresses and contacts in the side panel.</p>
         <h3>Opening balances</h3>
         <p>
           The opening balance is the balance on the date the company's books begin. Enter the amount and choose Dr or Cr.
@@ -309,7 +339,8 @@ export const MANUAL: Chapter[] = [
           out for you.
         </p>
         <p>
-          For customers and suppliers, tick "Maintain balances bill by bill" and enter each unpaid bill with its
+          For customers and suppliers, the opening balance is on the "Opening balance" tab of "Party details". Tick
+          "Maintain balances bill by bill" there and enter each unpaid bill with its
           reference, date, due date and amount. The opening balance is then the total of the bills. Bills must be dated
           before the books begin.
         </p>

@@ -100,6 +100,7 @@ def _register() -> None:
     from core import india
     from core import modules as company_modules
     from core.models import Branch, Certificate, Company, Ledger, LedgerGroup
+    from core.parties import party_extras
 
     def state(code):
         return india.STATES.get(code, code) if code else None
@@ -140,7 +141,7 @@ def _register() -> None:
                 "ledger",
                 "Ledger",
                 by_company,
-                extras={"opening_bills": ("Opening bills", bills)},
+                extras={"opening_bills": ("Opening bills", bills), **party_extras()},
             ),
             User: Tracked(
                 "user",
