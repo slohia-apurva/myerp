@@ -87,6 +87,31 @@ main.narrow {
   font-weight: 600;
   box-shadow: inset 0 -3px 0 var(--green);
 }
+/* The company being worked in, top right */
+.company-pick {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--deep-green);
+}
+.company-pick select {
+  font-weight: 600;
+  color: var(--deep-green);
+  background-color: var(--mint);
+  border-color: var(--mint-line);
+  max-width: 260px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* Dropdown menus in the top menu (Masters) */
 .topbar .menu {
   position: relative;
@@ -611,6 +636,7 @@ ul.tree {
 }
 .who button.link {
   align-self: center;
+  white-space: nowrap;
 }
 @media (max-width: 720px) {
   table {

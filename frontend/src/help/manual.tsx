@@ -53,8 +53,13 @@ export const MANUAL: Chapter[] = [
             <strong>Top menu</strong> (white bar): the modules you may use, such as Home and Masters. You only see the
             ones your role allows. Click "Masters" to open its list: "Company", "Ledger groups", "Ledgers", "Credit
             terms", "Users" and "User roles". Ledger groups, ledgers and credit terms open for the company you are
-            working in; if there are several companies, pick one at the top of the list. "Help" opens this manual at the
+            working in. "Help" opens this manual at the
             page for the screen you are on.
+          </li>
+          <li>
+            <strong>Company</strong> (top right, beside "Help"): the company you are working in. Check it before you
+            enter anything. If there are several companies, click it to pick another; on a company's screen, MyERP then
+            opens the same screen for the company you picked.
           </li>
           <li>
             <strong>Green band</strong>: where you are (the small links above the title take you back a step), the

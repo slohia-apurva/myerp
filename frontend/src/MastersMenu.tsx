@@ -20,23 +20,62 @@ function remember(id: number) {
   }
 }
 
-/** "Masters" in the top menu: a dropdown of the master lists. Company-wise
- * masters open for the company on screen, else the last one used. */
-export function MastersMenu(props: { active: boolean; routeCompany?: number; canSeeMasters: boolean; canManageUsers: boolean }) {
-  const [open, setOpen] = useState(false);
+/** The company being worked in: the one on screen, else the last one
+ * picked, else the first. Shown at the top right of every screen. */
+export function useCurrentCompany(routeCompany: number | undefined, canSeeMasters: boolean) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [chosen, setChosen] = useState<number | null>(remembered);
-  const box = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    if (props.canSeeMasters) api<Company[]>("v1/companies/").then(setCompanies);
-  }, [props.canSeeMasters]);
+    if (canSeeMasters) api<Company[]>("v1/companies/").then(setCompanies);
+  }, [canSeeMasters]);
   useEffect(() => {
-    if (props.routeCompany) {
-      setChosen(props.routeCompany);
-      remember(props.routeCompany);
+    if (routeCompany) {
+      setChosen(routeCompany);
+      remember(routeCompany);
     }
-  }, [props.routeCompany]);
+  }, [routeCompany]);
+  const company = companies.find((c) => c.id === chosen) ?? companies[0];
+  const choose = (id: number) => {
+    setChosen(id);
+    remember(id);
+    // On a company's screen, open the same screen for the company picked.
+    const parts = window.location.hash.replace(/^#\/?/, "").split("/");
+    if (parts[0] === "companies" && parts[1]) {
+      const sub = parts[2] ?? ""; // a ledger group filter belongs to the old company, so drop it
+      window.location.hash = `#/companies/${id}${sub ? `/${sub}` : ""}`;
+    }
+  };
+  return { companies, company, choose };
+}
+
+/** The company picker at the top right. */
+export function CompanyPicker(props: { companies: Company[]; company?: Company; onChoose: (id: number) => void }) {
+  if (!props.company) return null;
+  if (props.companies.length < 2)
+    return (
+      <span className="company-pick" title="Company">
+        {props.company.name}
+      </span>
+    );
+  return (
+    <label className="company-pick" title="Company you are working in">
+      <span className="sr-only">Company</span>
+      <select value={props.company.id} onChange={(e) => props.onChoose(Number(e.target.value))}>
+        {props.companies.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** "Masters" in the top menu: a dropdown of the master lists. Company-wise
+ * masters open for the company picked at the top right. */
+export function MastersMenu(props: { active: boolean; company?: Company; canSeeMasters: boolean; canManageUsers: boolean }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => {
@@ -53,7 +92,7 @@ export function MastersMenu(props: { active: boolean; routeCompany?: number; can
     };
   }, [open]);
 
-  const company = companies.find((c) => c.id === chosen) ?? companies[0];
+  const company = props.company;
   const items: [string, string, boolean][] = [
     ["Company", "#/companies", props.canSeeMasters],
     ["Ledger groups", company ? `#/companies/${company.id}/groups` : "", props.canSeeMasters && !!company],
@@ -70,24 +109,6 @@ export function MastersMenu(props: { active: boolean; routeCompany?: number; can
       </button>
       {open && (
         <div className="menu-panel" role="menu">
-          {companies.length > 1 && (
-            <label className="menu-company">
-              Company
-              <select
-                value={company?.id}
-                onChange={(e) => {
-                  setChosen(Number(e.target.value));
-                  remember(Number(e.target.value));
-                }}
-              >
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           {items
             .filter(([, , show]) => show)
             .map(([label, href]) => (
