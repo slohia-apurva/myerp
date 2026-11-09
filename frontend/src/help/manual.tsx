@@ -305,7 +305,7 @@ export const MANUAL: Chapter[] = [
         <h3>Customers and suppliers</h3>
         <p>
           A ledger under Sundry Debtors is a customer, and one under Sundry Creditors is a supplier. Their form has a
-          "Party details" section with three tabs. The "GST and credit" tab has:
+          "Party details" section with four tabs. The "GST and credit" tab has:
         </p>
         <Fields
           rows={[
@@ -339,7 +339,8 @@ export const MANUAL: Chapter[] = [
           out for you.
         </p>
         <p>
-          For customers and suppliers, tick "Maintain balances bill by bill" and enter each unpaid bill with its
+          For customers and suppliers, the opening balance is on the "Opening balance" tab of "Party details". Tick
+          "Maintain balances bill by bill" there and enter each unpaid bill with its
           reference, date, due date and amount. The opening balance is then the total of the bills. Bills must be dated
           before the books begin.
         </p>

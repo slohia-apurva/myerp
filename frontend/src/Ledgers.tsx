@@ -507,60 +507,8 @@ function LedgerForm(props: {
       setError((err as Error).message);
     }
   };
-  return (
-    <form className="card" onSubmit={save}>
-      <h3>{l ? `Edit ${l.name}` : "Add ledger"}</h3>
-      <div className="row">
-        <label>
-          Name
-          <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label>
-          Under group
-          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
-        </label>
-      </div>
-      {props.multiCurrency && (
-        <label>
-          Currency
-          <select value={currency || "INR"} onChange={(e) => setCurrency(e.target.value === "INR" ? "" : e.target.value)}>
-            {currencies.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} · {c.name}
-                {c.code === "INR" ? " (base)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {isParty && <PartyFields value={party} onChange={setParty} />}
-      {isBank && (
-        <fieldset>
-          <legend>Bank details</legend>
-          <div className="row">
-            <label>
-              Bank
-              <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
-            </label>
-            <label>
-              Account number
-              <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-            </label>
-          </div>
-          <div className="row">
-            <label>
-              IFSC
-              <input value={ifsc} maxLength={11} onChange={(e) => setIfsc(e.target.value.toUpperCase())} />
-            </label>
-            <label>
-              Branch
-              <input value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} />
-            </label>
-          </div>
-        </fieldset>
-      )}
-      <fieldset>
-        <legend>Opening balance as at {longDate(props.booksStart)}</legend>
+  const openingFields = (
+    <>
         <label className="check">
           <input type="checkbox" checked={billWise} onChange={(e) => setBillWise(e.target.checked)} />
           Maintain balances bill by bill (customers, suppliers)
@@ -712,7 +660,80 @@ function LedgerForm(props: {
             </label>
           </div>
         )}
-      </fieldset>
+    </>
+  );
+  return (
+    <form className="card" onSubmit={save}>
+      <h3>{l ? `Edit ${l.name}` : "Add ledger"}</h3>
+      <div className="row">
+        <label>
+          Name
+          <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label>
+          Under group
+          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
+        </label>
+      </div>
+      {props.multiCurrency && (
+        <label>
+          Currency
+          <select value={currency || "INR"} onChange={(e) => setCurrency(e.target.value === "INR" ? "" : e.target.value)}>
+            {currencies.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} · {c.name}
+                {c.code === "INR" ? " (base)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {isParty && (
+        <PartyFields
+          value={party}
+          onChange={setParty}
+          extraTab={{
+            label: "Opening balance",
+            content: (
+              <>
+                <p className="small">As at {longDate(props.booksStart)}, the day the books begin.</p>
+                {openingFields}
+              </>
+            ),
+          }}
+        />
+      )}
+      {isBank && (
+        <fieldset>
+          <legend>Bank details</legend>
+          <div className="row">
+            <label>
+              Bank
+              <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
+            </label>
+            <label>
+              Account number
+              <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              IFSC
+              <input value={ifsc} maxLength={11} onChange={(e) => setIfsc(e.target.value.toUpperCase())} />
+            </label>
+            <label>
+              Branch
+              <input value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} />
+            </label>
+          </div>
+        </fieldset>
+      )}
+      {!isParty && (
+        <fieldset>
+          <legend>Opening balance as at {longDate(props.booksStart)}</legend>
+          {openingFields}
+        </fieldset>
+      )}
       <label>
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />

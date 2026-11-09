@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { money, StateSelect, useStates, type State } from "./Companies";
 
@@ -71,10 +71,19 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false });
 
 type Person = { id: number; name: string };
-type Tab = "details" | "addresses" | "contacts";
+type Tab = "details" | "addresses" | "contacts" | "extra";
 
 /** The "Party details" part of the ledger form. */
-export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p: Party) => void }) {
+export function PartyFields({
+  value: p,
+  onChange,
+  extraTab,
+}: {
+  value: Party;
+  onChange: (p: Party) => void;
+  /** One more tab from the ledger form, such as the opening bills. */
+  extraTab?: { label: string; content: ReactNode };
+}) {
   const states = useStates();
   const [people, setPeople] = useState<Person[]>([]);
   useEffect(() => {
@@ -128,6 +137,7 @@ export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p
     ["details", "GST and credit"],
     ["addresses", `Addresses (${p.addresses.length})`],
     ["contacts", `Contacts (${p.contacts.length})`],
+    ...(extraTab ? [["extra", extraTab.label] as [Tab, string]] : []),
   ];
 
   return (
@@ -397,6 +407,11 @@ export function PartyFields({ value: p, onChange }: { value: Party; onChange: (p
         + Add contact
       </button>
       </div>
+      {extraTab && (
+        <div data-tab="extra" hidden={tab !== "extra"}>
+          {extraTab.content}
+        </div>
+      )}
     </fieldset>
   );
 }
