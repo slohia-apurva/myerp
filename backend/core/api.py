@@ -736,7 +736,12 @@ class LedgerListView(APIView):
             "opening_bills", "party__addresses", "party__contacts", "party__ledgers__company"
         )
         if q := request.query_params.get("q", "").strip():
-            ledgers = ledgers.filter(Q(name__icontains=q) | Q(account_number__icontains=q))
+            ledgers = ledgers.filter(
+                Q(name__icontains=q)
+                | Q(account_number__icontains=q)
+                | Q(party__customer_number__icontains=q)
+                | Q(party__vendor_number__icontains=q)
+            )
         if group_id := request.query_params.get("group"):
             group = company.ledger_groups.filter(pk=group_id).first()
             if group is None:

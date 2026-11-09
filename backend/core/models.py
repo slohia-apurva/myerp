@@ -569,10 +569,27 @@ class Party(models.Model):
     credit_term = models.ForeignKey(
         CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="parties"
     )
+    # Given automatically the first time a company deals with the party as a
+    # customer (Sundry Debtors) or a supplier (Sundry Creditors); one party
+    # can be both. Unique across the group. Decision 0021.
+    customer_number = models.CharField(max_length=20, blank=True)
+    vendor_number = models.CharField(max_length=20, blank=True)
 
     class Meta:
         verbose_name_plural = "parties"
-        constraints = [models.UniqueConstraint(Lower("name"), name="party_name_unique")]
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="party_name_unique"),
+            models.UniqueConstraint(
+                "customer_number",
+                condition=~models.Q(customer_number=""),
+                name="party_customer_number_unique",
+            ),
+            models.UniqueConstraint(
+                "vendor_number",
+                condition=~models.Q(vendor_number=""),
+                name="party_vendor_number_unique",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -651,3 +668,20 @@ class PartyContact(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class NumberSeries(models.Model):
+    """A running number handed out as PREFIX + zero-padded count, e.g.
+    CUST-00012. One row per kind of record (`customer`, `vendor`), shared by
+    every company in the group. Use core.numbering.next_number()."""
+
+    key = models.CharField(max_length=30, unique=True)
+    prefix = models.CharField(max_length=10, blank=True)
+    width = models.PositiveSmallIntegerField(default=5)
+    last = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name_plural = "number series"
+
+    def __str__(self) -> str:
+        return self.key
