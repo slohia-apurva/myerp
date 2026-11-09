@@ -361,7 +361,7 @@ function LedgerPanel(props: { ledger: Ledger; companyId: number; canEdit: boolea
           </div>
         ))}
       </dl>
-      {l.party && <PartySummary party={l.party} states={states} />}
+      {l.party && <PartySummary party={l.party} states={states} supplier={l.nature === "liability"} />}
       {l.bill_wise && l.opening_bills.length > 0 && (
         <>
           <h3>Opening bills</h3>
@@ -711,7 +711,7 @@ function LedgerForm(props: {
               setPartyId(picked?.id ?? null);
               if (picked) {
                 setName(picked.name ?? "");
-                setParty({ ...picked, credit_limit: "" });
+                setParty({ ...picked, credit_limit: "", salesman: null });
               } else setParty(blankParty(props.companyState));
             }}
           >
@@ -728,6 +728,7 @@ function LedgerForm(props: {
       )}
       {isParty && (
         <PartyFields
+          supplier={chosen?.nature === "liability"}
           alsoIn={alsoIn}
           onAlsoIn={setAlsoIn}
           value={party}

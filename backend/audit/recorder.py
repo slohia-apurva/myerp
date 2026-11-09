@@ -76,6 +76,7 @@ SKIP = {
     "google_sub",
     "is_superuser",
     "party",  # a ledger's party shows through its party extras
+    "salesman",  # likewise, by name
 }
 
 Snapshot = dict[str, tuple[str, Any]]  # field -> (label, value as shown)

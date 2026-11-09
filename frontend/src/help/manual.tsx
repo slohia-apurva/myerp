@@ -343,9 +343,10 @@ export const MANUAL: Chapter[] = [
         <h3>Customers and suppliers</h3>
         <p>
           A ledger under Sundry Debtors is a customer, and one under Sundry Creditors is a supplier. A customer or
-          supplier is shared by all companies in the group: its GST details, addresses, contacts, credit terms and
-          salesman are kept once, and a change made in one company shows in every company. Each company has its own
-          ledger for the party, with its own balance, bills and credit limit.
+          supplier is shared by all companies in the group: its GST details, addresses, contacts and credit terms are
+          kept once, and a change made in one company shows in every company. Each company has its own ledger for the
+          party, with its own balance, bills, credit limit and salesman (for a customer) or purchaser (for a supplier),
+          so each company can have different people looking after the same party.
         </p>
         <ul>
           <li>
@@ -373,12 +374,15 @@ export const MANUAL: Chapter[] = [
             ],
             ["GSTIN", "Typing it fills in the PAN and state. The state decides the place of supply on invoices."],
             ["Country", "For an overseas party, in place of the state."],
-            ["Credit limit", "Leave blank for no limit."],
+            ["Credit limit", "This company's limit for the party. Leave blank for no limit."],
             [
               "Credit terms",
-              'When payment is due, picked from the company\'s "Credit terms" list, such as 30 days or 50% advance and 50% on delivery. The words under the box spell out the parts.',
+              'When payment is due, picked from the "Credit terms" list shared by the group, such as 30 days or 50% advance and 50% on delivery. The words under the box spell out the parts.',
             ],
-            ["Salesman", "The person who looks after this customer."],
+            [
+              "Salesman or Purchaser",
+              "The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser). Other companies can choose someone else for the same party.",
+            ],
           ]}
         />
         <p>

@@ -197,10 +197,18 @@ def second(alpha):
         return create_company(name="Apurva Organics Ltd", state_code="27").pk
 
 
-def test_a_party_is_shared_by_the_group(accountant, company, second):
-    """One party, a ledger in each company: details shared, balances and
-    credit limit per company (decision 0020)."""
-    party = {"gst_type": "regular", "gstin": gstin("29"), "credit_limit": "100000"}
+def test_a_party_is_shared_by_the_group(accountant, company, second, alpha):
+    """One party, a ledger in each company: details shared, balances,
+    credit limit and salesman per company (decision 0020)."""
+    with use_tenant(alpha):
+        ravi = User.objects.create_user("ravi@x.in", full_name="Ravi").pk
+        meena = User.objects.create_user("meena@x.in", full_name="Meena").pk
+    party = {
+        "gst_type": "regular",
+        "gstin": gstin("29"),
+        "credit_limit": "100000",
+        "salesman": ravi,
+    }
     first = add_ledger(accountant, company, "Sundry Debtors", party=party, also_in=[second])
     assert first.status_code == 201, first.json()
     shared = first.json()["party"]
@@ -214,6 +222,8 @@ def test_a_party_is_shared_by_the_group(accountant, company, second):
     assert other["group_name"] == "Sundry Debtors"
     assert other["party"]["gstin"] == gstin("29")
     assert other["party"]["credit_limit"] == "0.00"  # per company
+    assert other["party"]["salesman"] is None  # per company
+    assert shared["salesman_name"] == "Ravi"
 
     # A change made in one company shows in the other.
     change = {"party": {"contacts": [{"name": "Mr Rao", "is_primary": True}]}}
@@ -222,6 +232,20 @@ def test_a_party_is_shared_by_the_group(accountant, company, second):
     again = next(x for x in again if x["id"] == first.json()["id"])
     assert again["party"]["contacts"][0]["name"] == "Mr Rao"
     assert again["party"]["credit_limit"] == "100000.00"
+
+    # Each company has its own salesman.
+    assert (
+        call(
+            accountant, "patch", f"ledgers/{other_id}/", {"party": {"salesman": meena}}
+        ).status_code
+        == 200
+    )
+    names = {}
+    for firm in (company, second):
+        for x in call(accountant, "get", f"companies/{firm}/ledgers/").json():
+            if x["party"]:
+                names[firm] = x["party"]["salesman_name"]
+    assert names == {company: "Ravi", second: "Meena"}
 
 
 def test_pick_an_existing_party(accountant, company, second):

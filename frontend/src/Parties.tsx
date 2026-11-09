@@ -83,12 +83,15 @@ type Tab = "details" | "addresses" | "contacts" | "extra";
 export function PartyFields({
   value: p,
   onChange,
+  supplier,
   extraTab,
   companyId,
   alsoIn,
   onAlsoIn,
 }: {
   value: Party;
+  /** A supplier has a purchaser where a customer has a salesman. */
+  supplier: boolean;
   companyId: number;
   /** Other companies to add this party's ledger to on Save. */
   alsoIn: number[];
@@ -179,8 +182,9 @@ export function PartyFields({
       </div>
       <div data-tab="details" hidden={tab !== "details"}>
       <p className="note">
-        Shared by all companies in the group: GST details, addresses, contacts, credit terms and salesman changed here
-        change for every company. The credit limit, balance and bills belong to this company.
+        Shared by all companies in the group: GST details, addresses, contacts and credit terms changed here change for
+        every company. The {supplier ? "purchaser" : "salesman"}, credit limit, balance and bills belong to this
+        company.
       </p>
       {companies.length > 1 && (
         <div className="company-ticks">
@@ -274,7 +278,7 @@ export function PartyFields({
           {term && <span className="small">{term.summary}</span>}
         </label>
         <label>
-          Salesman
+          {supplier ? "Purchaser" : "Salesman"}
           <select
             value={p.salesman ?? ""}
             onChange={(e) => set({ salesman: e.target.value ? Number(e.target.value) : null })}
@@ -465,7 +469,7 @@ export function PartyFields({
 }
 
 /** Party details in the ledger side panel. */
-export function PartySummary({ party: p, states }: { party: Party; states?: State[] }) {
+export function PartySummary({ party: p, states, supplier }: { party: Party; states?: State[]; supplier?: boolean }) {
   const gstType = GST_TYPES.find(([code]) => code === p.gst_type)?.[1] ?? p.gst_type;
   const stateName = (code: string) => states?.find((s) => s.code === code)?.name ?? code;
   const place = p.gst_type === "overseas" ? p.country : stateName(p.state_code);
@@ -475,7 +479,7 @@ export function PartySummary({ party: p, states }: { party: Party; states?: Stat
     ["PAN", p.pan],
     ["Credit limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit terms", p.credit_term_name ?? ""],
-    ["Salesman", p.salesman_name ?? ""],
+    [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
   ];
   return (
     <>

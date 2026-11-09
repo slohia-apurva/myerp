@@ -235,6 +235,11 @@ class LedgerSerializer(serializers.ModelSerializer):
         data = super().to_representation(ledger)
         if data.get("party") is not None:
             data["party"]["credit_limit"] = str(ledger.credit_limit)
+            # Each company's own salesman or purchaser.
+            data["party"]["salesman"] = ledger.salesman_id
+            data["party"]["salesman_name"] = (
+                ledger.salesman.display_name if ledger.salesman_id else ""
+            )
         return data
 
     class Meta:
@@ -727,7 +732,7 @@ class LedgerListView(APIView):
     def get(self, request, pk: int):
         _check(request, VIEW)
         company = _company(request, pk)
-        ledgers = company.ledgers.select_related("group", "party__salesman").prefetch_related(
+        ledgers = company.ledgers.select_related("group", "party", "salesman").prefetch_related(
             "opening_bills", "party__addresses", "party__contacts", "party__ledgers__company"
         )
         if q := request.query_params.get("q", "").strip():
@@ -810,7 +815,7 @@ class PartyListView(APIView):
 
     def get(self, request):
         _check(request, VIEW)
-        parties = Party.objects.select_related("salesman", "credit_term").prefetch_related(
+        parties = Party.objects.select_related("credit_term").prefetch_related(
             "addresses", "contacts", "ledgers__company"
         )
         if "not_in" in request.query_params:

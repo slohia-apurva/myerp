@@ -18,6 +18,10 @@ class Migration(migrations.Migration):
             name="ledger",
         ),
         migrations.RemoveField(
+            model_name="party",
+            name="salesman",
+        ),
+        migrations.RemoveField(
             model_name="creditterm",
             name="company",
         ),

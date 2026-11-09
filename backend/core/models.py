@@ -408,6 +408,10 @@ class Ledger(models.Model):
     credit_limit = models.DecimalField(
         max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
     )  # 0 = no limit
+    # Each company has its own salesman (customers) or purchaser (suppliers).
+    salesman = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -537,10 +541,10 @@ def describe_part(percent, event: str, days: int) -> str:
 
 class Party(models.Model):
     """A customer or supplier, shared by every company in the group: GST
-    registration, addresses, contacts, credit terms and the salesman. Each
-    company that deals with the party has its own ledger for it under
-    Sundry Debtors or Sundry Creditors (Ledger.party), which holds that
-    company's balance, bills and credit limit. Decisions 0018 and 0020."""
+    registration, addresses, contacts and credit terms. Each company that
+    deals with the party has its own ledger for it under Sundry Debtors or
+    Sundry Creditors (Ledger.party), which holds that company's balance,
+    bills, credit limit and salesman or purchaser. Decisions 0018 and 0020."""
 
     REGULAR, COMPOSITION, UNREGISTERED = "regular", "composition", "unregistered"
     CONSUMER, OVERSEAS, SEZ = "consumer", "overseas", "sez"
@@ -564,9 +568,6 @@ class Party(models.Model):
     country = models.CharField(max_length=60, default="India")
     credit_term = models.ForeignKey(
         CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="parties"
-    )
-    salesman = models.ForeignKey(
-        "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
 
     class Meta:

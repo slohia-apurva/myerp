@@ -15,8 +15,8 @@ def share_masters(apps, schema_editor):
     Credit terms with the same name in several companies become one. Each
     party ledger gets a group party: parties with the same GSTIN, or else
     the same name, become one, keeping the first one's details and adding
-    the others' addresses and contacts. The credit limit moves to the
-    company's ledger."""
+    the others' addresses and contacts. The credit limit and the salesman
+    move to the company's ledger."""
     CreditTerm = apps.get_model("core", "CreditTerm")
     Party = apps.get_model("core", "Party")
     Ledger = apps.get_model("core", "Ledger")
@@ -57,7 +57,9 @@ def share_masters(apps, schema_editor):
                     c.is_primary = False
                     c.save()
         Ledger.objects.filter(pk=ledger.pk).update(
-            party_id=first.pk, credit_limit=party.credit_limit
+            party_id=first.pk,
+            credit_limit=party.credit_limit,
+            salesman_id=party.salesman_id,
         )
     linked = set(
         Ledger.objects.filter(party_id__isnull=False).values_list("party_id", flat=True)
@@ -106,6 +108,17 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.PROTECT,
                 related_name="ledgers",
                 to="core.party",
+            ),
+        ),
+        migrations.AddField(
+            model_name="ledger",
+            name="salesman",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="+",
+                to=settings.AUTH_USER_MODEL,
             ),
         ),
         migrations.AddField(

@@ -66,10 +66,14 @@ class PartySerializer(serializers.ModelSerializer):
     gstin = serializers.CharField(max_length=15, allow_blank=True, required=False)
     pan = serializers.CharField(max_length=10, allow_blank=True, required=False)
     validate_gstin = validate_pan = staticmethod(_upper)
+    # Each company's own salesman (customers) or purchaser (suppliers), kept
+    # on its ledger; LedgerSerializer adds both to the output.
     salesman = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True), allow_null=True, required=False
+        queryset=User.objects.filter(is_active=True),
+        allow_null=True,
+        required=False,
+        write_only=True,
     )
-    salesman_name = serializers.CharField(source="salesman.display_name", read_only=True)
     credit_term = serializers.PrimaryKeyRelatedField(
         queryset=CreditTerm.objects.all(), allow_null=True, required=False
     )
@@ -92,7 +96,6 @@ class PartySerializer(serializers.ModelSerializer):
             "credit_term",
             "credit_term_name",
             "salesman",
-            "salesman_name",
             "addresses",
             "contacts",
         ]
@@ -112,7 +115,7 @@ _NOT_PARTY_FIELDS = (
     "name",
     "companies",
     "credit_limit",
-    "salesman_name",
+    "salesman",
     "credit_term_name",
     "addresses",
     "contacts",
@@ -151,9 +154,15 @@ def save_party(
             ledger.save(update_fields=["party"])
         return
     data = dict(data or {})
+    own = []  # what belongs to this company's ledger, not the shared party
     if "credit_limit" in data:
         ledger.credit_limit = data.pop("credit_limit") or 0
-        ledger.save(update_fields=["credit_limit"])
+        own.append("credit_limit")
+    if "salesman" in data:
+        ledger.salesman = data.pop("salesman")
+        own.append("salesman")
+    if own:
+        ledger.save(update_fields=own)
     party = ledger.party
     if party is None and party_id:
         party = Party.objects.select_for_update().filter(pk=party_id).first()
@@ -189,7 +198,7 @@ def save_party(
     for field in PARTY_FIELDS:
         if field in data:
             value = data[field]
-            if value is None and field not in ("credit_term", "salesman"):
+            if value is None and field != "credit_term":
                 value = ""
             setattr(party, field, value)
     try:
@@ -315,6 +324,11 @@ def party_extras() -> dict:
         return value if value not in ("", None) else None
 
     return {
+        # On the ledger itself, so it is this company's own.
+        "party_salesman": (
+            "Salesman or purchaser",
+            lambda ledger: ledger.salesman.display_name if ledger.salesman_id else None,
+        ),
         "party_gst_type": ("GST type", read(lambda p: p.get_gst_type_display())),
         "party_gstin": ("GSTIN", read(lambda p: blank(p.gstin))),
         "party_pan": ("PAN", read(lambda p: blank(p.pan))),
@@ -326,10 +340,6 @@ def party_extras() -> dict:
         "party_credit_term": (
             "Credit terms",
             read(lambda p: p.credit_term.name if p.credit_term_id else None),
-        ),
-        "party_salesman": (
-            "Salesman",
-            read(lambda p: p.salesman.display_name if p.salesman_id else None),
         ),
         "party_addresses": ("Addresses", read(address_text)),
         "party_contacts": ("Contacts", read(contact_text)),
