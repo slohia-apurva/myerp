@@ -1392,6 +1392,14 @@ td button.link.quiet:hover:not(:disabled) {
   min-width: 0;
 }
 
+/* Party details: room between the heading and its tabs */
+fieldset > legend {
+  padding: 0 8px;
+}
+fieldset > legend + .form-tabs {
+  margin-top: 14px;
+}
+
 /* Type-to-search picker for masters */
 .combo {
   position: relative;
