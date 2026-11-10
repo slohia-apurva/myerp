@@ -25,6 +25,7 @@ locals {
   secret_env = {
     DJANGO_SECRET_KEY     = google_secret_manager_secret.django_secret_key.secret_id
     PLATFORM_DATABASE_URL = google_secret_manager_secret.platform_database_url.secret_id
+    GSTINAPI_KEY          = data.google_secret_manager_secret.gstinapi_key.secret_id
   }
 
   # Cloud Run needs an image to create the service; CI replaces it on deploy.
@@ -151,6 +152,12 @@ resource "google_secret_manager_secret" "django_secret_key" {
 resource "google_secret_manager_secret_version" "django_secret_key" {
   secret      = google_secret_manager_secret.django_secret_key.id
   secret_data = random_password.django_secret_key.result
+}
+
+# The gstinapi.in key is created by hand in the console (never in code or
+# state); Terraform only points Cloud Run at it and must not read its value.
+data "google_secret_manager_secret" "gstinapi_key" {
+  secret_id = "gstinapi-key"
 }
 
 resource "google_secret_manager_secret" "platform_database_url" {
