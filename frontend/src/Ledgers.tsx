@@ -1,3 +1,4 @@
+import { Combobox } from "./Combobox";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
@@ -59,15 +60,14 @@ function treeOrder(groups: Group[]): { group: Group; depth: number }[] {
 
 function GroupSelect(props: { groups: { group: Group; depth: number }[]; value: string; onChange: (v: string) => void; all?: string }) {
   return (
-    <select value={props.value} required={!props.all} onChange={(e) => props.onChange(e.target.value)}>
-      <option value="">{props.all ?? "Choose a group…"}</option>
-      {props.groups.map(({ group, depth }) => (
-        <option key={group.id} value={group.id}>
-          {"   ".repeat(depth)}
-          {group.name}
-        </option>
-      ))}
-    </select>
+    <Combobox
+      value={props.value}
+      required={!props.all}
+      empty={props.all}
+      placeholder="Type to search groups…"
+      options={props.groups.map(({ group, depth }) => ({ value: String(group.id), label: group.name, indent: depth }))}
+      onChange={props.onChange}
+    />
   );
 }
 
@@ -729,39 +729,36 @@ function LedgerForm(props: {
       {props.multiCurrency && (
         <label>
           Currency
-          <select value={currency || "INR"} onChange={(e) => setCurrency(e.target.value === "INR" ? "" : e.target.value)}>
-            {currencies.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} · {c.name}
-                {c.code === "INR" ? " (base)" : ""}
-              </option>
-            ))}
-          </select>
+          <Combobox
+            required
+            value={currency || "INR"}
+            placeholder="Type a currency code or name…"
+            options={currencies.map((c) => ({ value: c.code, label: `${c.code} · ${c.name}${c.code === "INR" ? " (base)" : ""}` }))}
+            onChange={(v) => setCurrency(v === "INR" ? "" : v)}
+          />
         </label>
       )}
       {isParty && !l && existing.length > 0 && (
         <label>
           Existing customer or supplier (from another company)
-          <select
-            value={partyId ?? ""}
-            onChange={(e) => {
-              const picked = existing.find((x) => x.id === Number(e.target.value));
+          <Combobox
+            value={partyId === null ? "" : String(partyId)}
+            empty="None: a new customer or supplier"
+            placeholder="Type a name, number or GSTIN…"
+            options={existing.map((x) => ({
+              value: String(x.id),
+              label: `${[x.customer_number, x.vendor_number].filter(Boolean).join(" ")} ${x.name}`.trim(),
+              hint: `${x.gstin ? `· ${x.gstin}` : ""}${x.companies?.length ? ` (in ${x.companies.map((c) => c.name).join(", ")})` : ""}`,
+            }))}
+            onChange={(v) => {
+              const picked = existing.find((x) => x.id === Number(v));
               setPartyId(picked?.id ?? null);
               if (picked) {
                 setName(picked.name ?? "");
                 setParty({ ...picked, credit_limit: "", salesman: null });
               } else setParty(blankParty(props.companyState));
             }}
-          >
-            <option value="">None: a new customer or supplier</option>
-            {existing.map((x) => (
-              <option key={x.id} value={x.id}>
-                {[x.customer_number, x.vendor_number].filter(Boolean).join(" ")} {x.name}
-                {x.gstin ? ` · ${x.gstin}` : ""}
-                {x.companies?.length ? ` (in ${x.companies.map((c) => c.name).join(", ")})` : ""}
-              </option>
-            ))}
-          </select>
+          />
         </label>
       )}
       {isParty && (
