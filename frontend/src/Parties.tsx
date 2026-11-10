@@ -590,7 +590,7 @@ export function GstinField(props: {
       if (r.address && p.addresses.length === 0)
         change.addresses = [
           {
-            label: "Principal place",
+            label: r.trade_name || r.legal_name,
             address: r.address,
             pincode: r.pincode,
             state_code: r.state_code,
