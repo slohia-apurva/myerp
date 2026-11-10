@@ -1,4 +1,4 @@
-"""Credit terms: the company's list of how bills are paid (decision 0019)."""
+"""Credit terms: the group's list of how bills are paid (decisions 0019, 0020)."""
 
 import pytest
 from django.test import Client
@@ -35,11 +35,11 @@ def call(client, method, path, data=None):
     return getattr(client, method)(f"/api/v1/{path}", **kwargs)
 
 
-def terms(client, company):
-    return {t["name"]: t for t in call(client, "get", f"companies/{company}/credit-terms/").json()}
+def terms(client, company=None):
+    return {t["name"]: t for t in call(client, "get", "credit-terms/").json()}
 
 
-def test_a_new_company_starts_with_the_usual_terms(accountant, company):
+def test_the_group_starts_with_the_usual_terms(accountant, company):
     have = terms(accountant, company)
     assert {"Full advance", "50% advance, 50% on delivery", "30 days"} <= set(have)
     assert have["50% advance, 50% on delivery"]["summary"] == (
@@ -49,7 +49,7 @@ def test_a_new_company_starts_with_the_usual_terms(accountant, company):
 
 
 def test_add_and_change_a_term(accountant, company):
-    url = f"companies/{company}/credit-terms/"
+    url = "credit-terms/"
     data = {
         "name": "30% advance, 70% in 15 days",
         "parts": [
@@ -67,16 +67,14 @@ def test_add_and_change_a_term(accountant, company):
     assert changed.json()["is_active"] is False
     assert len(changed.json()["parts"]) == 2  # parts not sent: kept
 
-    entries = call(
-        accountant, "get", f"audit/?company={company}&type=credit_term&id={term['id']}"
-    ).json()["entries"]
+    entries = call(accountant, "get", f"audit/?type=credit_term&id={term['id']}").json()["entries"]
     assert [e["action"] for e in entries] == ["update", "create"]
     added = {c["label"]: c["new"] for c in entries[1]["changes"]}
     assert added["Parts"] == "30% advance with the order; 70% 15 days after the bill"
 
 
 def test_term_checks(accountant, company):
-    url = f"companies/{company}/credit-terms/"
+    url = "credit-terms/"
 
     def error(**data):
         response = call(accountant, "post", url, {"name": "X", "parts": [], **data})
@@ -88,20 +86,8 @@ def test_term_checks(accountant, company):
     assert "already" in error(name="30 DAYS", parts=[{"percent": "100", "event": "bill"}])
 
 
-def test_a_party_takes_terms_of_its_own_company(accountant, company, alpha):
+def test_one_list_for_all_companies(accountant, company, alpha):
     with use_tenant(alpha):
-        other = create_company(name="Apurva Organics Ltd", state_code="27").pk
-    detail = call(accountant, "get", f"companies/{company}/").json()
-    debtors = next(g["id"] for g in detail["ledger_groups"] if g["name"] == "Sundry Debtors")
-    data = {
-        "name": "Fresh Mart",
-        "group": debtors,
-        "party": {"credit_term": terms(accountant, other)["30 days"]["id"]},
-    }
-    response = call(accountant, "post", f"companies/{company}/ledgers/", data)
-    assert "this company" in str(response.json())
-    data["party"]["credit_term"] = terms(accountant, company)["30 days"]["id"]
-    response = call(accountant, "post", f"companies/{company}/ledgers/", data)
-    assert response.status_code == 201
-    assert response.json()["party"]["credit_term_name"] == "30 days"
-    assert terms(accountant, company)["30 days"]["party_count"] == 1
+        create_company(name="Apurva Organics Ltd", state_code="27")
+    names = [t["name"] for t in call(accountant, "get", "credit-terms/").json()]
+    assert names.count("30 days") == 1  # a second company adds no copies

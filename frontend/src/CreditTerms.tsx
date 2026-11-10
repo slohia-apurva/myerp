@@ -1,5 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api } from "./api";
+import { api, type SignedIn } from "./api";
+import { Activity, WithActivity } from "./Audit";
+import { PageHeader } from "./Brand";
 
 /** Credit terms: how a party's bills are paid, split into parts. */
 export type TermPart = { percent: string; event: string; days: number };
@@ -20,43 +22,54 @@ export const EVENTS: [string, string][] = [
   ["bill", "After the bill date"],
 ];
 
-export function useCreditTerms(companyId: number) {
+export function useCreditTerms() {
   const [terms, setTerms] = useState<CreditTerm[]>([]);
   const reload = useCallback(() => {
-    api<CreditTerm[]>(`v1/companies/${companyId}/credit-terms/`).then(setTerms);
-  }, [companyId]);
+    api<CreditTerm[]>("v1/credit-terms/").then(setTerms);
+  }, []);
   useEffect(reload, [reload]);
   return { terms, reload };
 }
 
-/** The "Credit terms" tab of the company page. */
-export function CreditTerms(props: { companyId: number; canEdit: boolean; onSaved: () => void }) {
-  const { terms, reload } = useCreditTerms(props.companyId);
+/** Masters > Credit terms: one list for every company in the group. */
+export function CreditTermsPage({ session }: { session: SignedIn }) {
+  const canEdit = session.permissions.includes("masters.edit");
+  const { terms, reload } = useCreditTerms();
   const [editing, setEditing] = useState<CreditTerm | "new" | null>(null);
+  const [copyOf, setCopyOf] = useState<CreditTerm | null>(null);
   const done = () => {
     setEditing(null);
+    setCopyOf(null);
     reload();
-    props.onSaved();
   };
   return (
-    <>
-      <div className="page-head">
-        <h3>Credit terms</h3>
-        {props.canEdit && (
-          <button className="link" onClick={() => setEditing("new")}>
-            Add credit terms
-          </button>
-        )}
-      </div>
-      <p className="small">
-        How customers pay and suppliers are paid. Each customer or supplier picks one of these on its ledger.
-      </p>
+    <section className="page">
+      <PageHeader
+        title="Credit terms"
+        sub="How customers pay and suppliers are paid. One list for every company in the group."
+        actions={
+          canEdit && (
+            <button
+              onClick={() => {
+                setCopyOf(null);
+                setEditing("new");
+              }}
+            >
+              Add credit terms
+            </button>
+          )
+        }
+      />
+      <WithActivity activity={<Activity type="credit_term" stamp={JSON.stringify(terms)} />}>
       {editing && (
         <TermForm
-          companyId={props.companyId}
           term={editing === "new" ? null : editing}
+          copyOf={copyOf}
           onDone={done}
-          onCancel={() => setEditing(null)}
+          onCancel={() => {
+            setEditing(null);
+            setCopyOf(null);
+          }}
         />
       )}
       <table>
@@ -79,26 +92,45 @@ export function CreditTerms(props: { companyId: number; canEdit: boolean; onSave
               <td>{t.summary}</td>
               <td className="num">{t.party_count || ""}</td>
               <td>
-                {props.canEdit && (
-                  <button className="link" onClick={() => setEditing(t)}>
-                    Edit
-                  </button>
+                {canEdit && (
+                  <>
+                    <button
+                      className="link"
+                      onClick={() => {
+                        setCopyOf(null);
+                        setEditing(t);
+                      }}
+                    >
+                      Edit
+                    </button>{" "}
+                    <button
+                      className="link"
+                      onClick={() => {
+                        setCopyOf(t);
+                        setEditing("new");
+                      }}
+                    >
+                      Duplicate
+                    </button>
+                  </>
                 )}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </>
+      </WithActivity>
+    </section>
   );
 }
 
-function TermForm(props: { companyId: number; term: CreditTerm | null; onDone: () => void; onCancel: () => void }) {
+function TermForm(props: { term: CreditTerm | null; copyOf?: CreditTerm | null; onDone: () => void; onCancel: () => void }) {
   const t = props.term;
-  const [name, setName] = useState(t?.name ?? "");
-  const [notes, setNotes] = useState(t?.notes ?? "");
+  const from = t ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
+  const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (t?.name ?? ""));
+  const [notes, setNotes] = useState(from?.notes ?? "");
   const [active, setActive] = useState(t?.is_active ?? true);
-  const [parts, setParts] = useState<TermPart[]>(t?.parts ?? [{ percent: "100", event: "bill", days: 30 }]);
+  const [parts, setParts] = useState<TermPart[]>(from?.parts ?? [{ percent: "100", event: "bill", days: 30 }]);
   const [error, setError] = useState("");
   const total = parts.reduce((sum, p) => sum + (Number(p.percent) || 0), 0);
   const setPart = (i: number, change: Partial<TermPart>) =>
@@ -110,7 +142,7 @@ function TermForm(props: { companyId: number; term: CreditTerm | null; onDone: (
     const body = { name, notes, is_active: active, parts };
     try {
       if (t) await api(`v1/credit-terms/${t.id}/`, body, "PATCH");
-      else await api(`v1/companies/${props.companyId}/credit-terms/`, body);
+      else await api("v1/credit-terms/", body);
       props.onDone();
     } catch (err) {
       setError((err as Error).message);
@@ -119,7 +151,7 @@ function TermForm(props: { companyId: number; term: CreditTerm | null; onDone: (
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{t ? `Edit ${t.name}` : "Add credit terms"}</h4>
+      <h4>{t ? `Edit ${t.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add credit terms"}</h4>
       <label>
         Name
         <input

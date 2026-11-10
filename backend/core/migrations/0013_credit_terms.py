@@ -6,17 +6,33 @@ from decimal import Decimal
 from django.db import migrations, models
 
 
+# The standard terms as they were when this migration was written (frozen).
+STANDARD_TERMS_V1 = [
+    ("Full advance", [(100, "order", 0)]),
+    ("50% advance, 50% on delivery", [(50, "order", 0), (50, "delivery", 0)]),
+    ("50% advance, 50% before dispatch", [(50, "order", 0), (50, "dispatch", 0)]),
+    ("On delivery", [(100, "delivery", 0)]),
+    ("15 days", [(100, "bill", 15)]),
+    ("30 days", [(100, "bill", 30)]),
+    ("45 days", [(100, "bill", 45)]),
+    ("60 days", [(100, "bill", 60)]),
+]
+
+
 def fill_terms(apps, schema_editor):
     """Every company gets the standard credit terms; a party's credit days
     become the matching "N days" term."""
-    from core.credit_terms import seed_credit_terms
-
     Company = apps.get_model("core", "Company")
     CreditTerm = apps.get_model("core", "CreditTerm")
     CreditTermPart = apps.get_model("core", "CreditTermPart")
     Party = apps.get_model("core", "Party")
     for company in Company.objects.all():
-        seed_credit_terms(CreditTerm, CreditTermPart, company)
+        for name, parts in STANDARD_TERMS_V1:
+            if CreditTerm.objects.filter(company=company, name=name).exists():
+                continue
+            term = CreditTerm.objects.create(company=company, name=name)
+            for percent, event, days in parts:
+                CreditTermPart.objects.create(term=term, percent=percent, event=event, days=days)
     for party in Party.objects.exclude(credit_days=None).select_related("ledger"):
         name = f"{party.credit_days} days"
         term = CreditTerm.objects.filter(company_id=party.ledger.company_id, name=name).first()

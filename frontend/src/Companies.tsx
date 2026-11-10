@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { CreditTerms } from "./CreditTerms";
 import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
@@ -298,6 +297,7 @@ export function StateSelect(props: {
 export function CompaniesPage({ session }: { session: SignedIn }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [adding, setAdding] = useState(false);
+  const [copyOf, setCopyOf] = useState<Company | null>(null);
   const [error, setError] = useState("");
   const states = useStates();
   const reload = useCallback(() => {
@@ -312,7 +312,18 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
       <PageHeader
         title="Companies"
         crumbs={[{ label: "Masters", href: "#/companies" }]}
-        actions={session.user.is_owner && <button onClick={() => setAdding(true)}>Add company</button>}
+        actions={
+          session.user.is_owner && (
+            <button
+              onClick={() => {
+                setCopyOf(null);
+                setAdding(true);
+              }}
+            >
+              Add company
+            </button>
+          )
+        }
       />
       <p className="small">
         Each company keeps its own books, GST registration and document numbers. A new company starts with a Head
@@ -321,7 +332,9 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
       {error && <p className="error">{error}</p>}
       {adding && (
         <CompanyForm
+          key={copyOf?.id ?? "new"}
           company={null}
+          copyOf={copyOf}
           states={states}
           onDone={(c) => {
             setAdding(false);
@@ -337,6 +350,7 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
             <th>Short code</th>
             <th>GSTIN</th>
             <th>State</th>
+            <th />
           </tr>
         </thead>
         <tbody>
@@ -348,6 +362,19 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
               <td>{c.abbr}</td>
               <td>{c.gstin || <span className="small">Unregistered</span>}</td>
               <td>{c.state}</td>
+              <td>
+                {session.user.is_owner && (
+                  <button
+                    className="link"
+                    onClick={() => {
+                      setCopyOf(c);
+                      setAdding(true);
+                    }}
+                  >
+                    Duplicate
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -358,26 +385,29 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
 
 function CompanyForm(props: {
   company: Company | null;
+  /** Duplicate: the setup of this company, but not its name, code or registrations. */
+  copyOf?: Company | null;
   states: State[];
   onDone: (c: Company) => void;
   onCancel: () => void;
 }) {
   const c = props.company;
+  const from = c ?? props.copyOf;
   const [name, setName] = useState(c?.name ?? "");
   const [abbr, setAbbr] = useState(c?.abbr ?? "");
   const [gstin, setGstin] = useState(c?.gstin ?? "");
   const [pan, setPan] = useState(c?.pan ?? "");
-  const [entityType, setEntityType] = useState(c?.entity_type ?? "");
+  const [entityType, setEntityType] = useState(from?.entity_type ?? "");
   const [cin, setCin] = useState(c?.cin ?? "");
   const [incorporated, setIncorporated] = useState(c?.incorporation_date ?? "");
   const [tan, setTan] = useState(c?.tan ?? "");
-  const [stateCode, setStateCode] = useState(c?.state_code ?? "");
-  const [contact, setContact] = useState(contactOf(c));
-  const [fyMonth, setFyMonth] = useState(c?.fiscal_year_start_month ?? 4);
+  const [stateCode, setStateCode] = useState(from?.state_code ?? "");
+  const [contact, setContact] = useState(contactOf(from));
+  const [fyMonth, setFyMonth] = useState(from?.fiscal_year_start_month ?? 4);
   const [booksStart, setBooksStart] = useState(c?.books_start ?? "");
-  const [multiCurrency, setMultiCurrency] = useState(c?.multi_currency ?? false);
+  const [multiCurrency, setMultiCurrency] = useState(from?.multi_currency ?? false);
   const allModules = useModules();
-  const [modules, setModules] = useState<string[] | null>(null);
+  const [modules, setModules] = useState<string[] | null>(props.copyOf?.modules ?? null);
   const [error, setError] = useState("");
 
   // A GSTIN starts with the state code and contains the PAN.
@@ -416,7 +446,7 @@ function CompanyForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h3>{c ? `Edit ${c.name}` : "Add company"}</h3>
+      <h3>{c ? `Edit ${c.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add company"}</h3>
       <label>
         Legal name
         <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
@@ -516,7 +546,6 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
-  const [saves, setSaves] = useState(0); // refreshes Activity after a save outside `detail`
   const states = useStates();
   const canEdit = session.permissions.includes("masters.edit");
   const reload = useCallback(() => {
@@ -577,7 +606,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
           ))}
         </nav>
       </PageHeader>
-      <WithActivity activity={<Activity company={c.id} filter stamp={JSON.stringify(detail) + saves} />}>
+      <WithActivity activity={<Activity company={c.id} filter stamp={JSON.stringify(detail)} />}>
         {tab === "" &&
           (editing ? (
             <CompanyForm
@@ -604,7 +633,6 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
             reload={reload}
           />
         )}
-        {tab === "credit-terms" && <CreditTerms companyId={c.id} canEdit={canEdit} onSaved={() => setSaves(saves + 1)} />}
         {tab === "modules" && (
           <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
         )}
@@ -617,7 +645,6 @@ const TABS: [string, string][] = [
   ["", "Overview"],
   ["branches", "Branches"],
   ["certificates", "Licences and certificates"],
-  ["credit-terms", "Credit terms"],
   ["modules", "Modules"],
 ];
 
@@ -732,13 +759,20 @@ function Overview({ detail }: { detail: Detail }) {
 
 function Branches(props: { company: Company; branches: Branch[]; states: State[]; canEdit: boolean; reload: () => void }) {
   const [editing, setEditing] = useState<Branch | "new" | null>(null);
+  const [copyOf, setCopyOf] = useState<Branch | null>(null);
   const stateName = (code: string) => props.states.find((s) => s.code === code)?.name ?? code;
   return (
     <>
       <div className="page-head">
         <h3>Branches</h3>
         {props.canEdit && (
-          <button className="link" onClick={() => setEditing("new")}>
+          <button
+            className="link"
+            onClick={() => {
+              setCopyOf(null);
+              setEditing("new");
+            }}
+          >
             Add branch
           </button>
         )}
@@ -747,12 +781,17 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
         <BranchForm
           company={props.company}
           branch={editing === "new" ? null : editing}
+          copyOf={copyOf}
           states={props.states}
           onDone={() => {
             setEditing(null);
+            setCopyOf(null);
             props.reload();
           }}
-          onCancel={() => setEditing(null)}
+          onCancel={() => {
+            setEditing(null);
+            setCopyOf(null);
+          }}
         />
       )}
       <table>
@@ -787,9 +826,26 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
               <td className="small">{contactLines(b).reach}</td>
               <td>
                 {props.canEdit && (
-                  <button className="link" onClick={() => setEditing(b)}>
-                    Edit
-                  </button>
+                  <>
+                    <button
+                      className="link"
+                      onClick={() => {
+                        setCopyOf(null);
+                        setEditing(b);
+                      }}
+                    >
+                      Edit
+                    </button>{" "}
+                    <button
+                      className="link"
+                      onClick={() => {
+                        setCopyOf(b);
+                        setEditing("new");
+                      }}
+                    >
+                      Duplicate
+                    </button>
+                  </>
                 )}
               </td>
             </tr>
@@ -800,12 +856,20 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
   );
 }
 
-function BranchForm(props: { company: Company; branch: Branch | null; states: State[]; onDone: () => void; onCancel: () => void }) {
+function BranchForm(props: {
+  company: Company;
+  branch: Branch | null;
+  copyOf?: Branch | null;
+  states: State[];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const b = props.branch;
+  const from = b ?? props.copyOf; // a duplicate copies the place and contacts, not the name, GSTIN or defaults
   const [name, setName] = useState(b?.name ?? "");
-  const [stateCode, setStateCode] = useState(b?.state_code ?? props.company.state_code);
+  const [stateCode, setStateCode] = useState(from?.state_code ?? props.company.state_code);
   const [gstin, setGstin] = useState(b?.gstin ?? "");
-  const [contact, setContact] = useState(contactOf(b));
+  const [contact, setContact] = useState(contactOf(from));
   const [active, setActive] = useState(b?.is_active ?? true);
   const [flags, setFlags] = useState<Record<DefaultFlag, boolean>>({
     default_billing: b?.default_billing ?? false,
@@ -831,7 +895,7 @@ function BranchForm(props: { company: Company; branch: Branch | null; states: St
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{b ? `Edit ${b.name}` : "Add branch"}</h4>
+      <h4>{b ? `Edit ${b.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add branch"}</h4>
       <label>
         Name
         <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Bhiwandi warehouse" />
@@ -895,12 +959,19 @@ function Certificates(props: {
   reload: () => void;
 }) {
   const [editing, setEditing] = useState<Certificate | "new" | null>(null);
+  const [copyOf, setCopyOf] = useState<Certificate | null>(null);
   return (
     <>
       <div className="page-head">
         <h3>Licences and certificates</h3>
         {props.canEdit && (
-          <button className="link" onClick={() => setEditing("new")}>
+          <button
+            className="link"
+            onClick={() => {
+              setCopyOf(null);
+              setEditing("new");
+            }}
+          >
             Add certificate
           </button>
         )}
@@ -909,12 +980,17 @@ function Certificates(props: {
         <CertificateForm
           company={props.company}
           certificate={editing === "new" ? null : editing}
+          copyOf={copyOf}
           branches={props.branches}
           onDone={() => {
             setEditing(null);
+            setCopyOf(null);
             props.reload();
           }}
-          onCancel={() => setEditing(null)}
+          onCancel={() => {
+            setEditing(null);
+            setCopyOf(null);
+          }}
         />
       )}
       {props.certificates.length === 0 ? (
@@ -947,9 +1023,26 @@ function Certificates(props: {
                   <td className={note.cls}>{note.text}</td>
                   <td>
                     {props.canEdit && (
-                      <button className="link" onClick={() => setEditing(x)}>
-                        Edit
-                      </button>
+                      <>
+                        <button
+                          className="link"
+                          onClick={() => {
+                            setCopyOf(null);
+                            setEditing(x);
+                          }}
+                        >
+                          Edit
+                        </button>{" "}
+                        <button
+                          className="link"
+                          onClick={() => {
+                            setCopyOf(x);
+                            setEditing("new");
+                          }}
+                        >
+                          Duplicate
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
@@ -965,19 +1058,21 @@ function Certificates(props: {
 function CertificateForm(props: {
   company: Company;
   certificate: Certificate | null;
+  copyOf?: Certificate | null;
   branches: Branch[];
   onDone: () => void;
   onCancel: () => void;
 }) {
   const x = props.certificate;
-  const [kind, setKind] = useState(x?.kind ?? "fssai");
-  const [name, setName] = useState(x?.name ?? "");
+  const from = x ?? props.copyOf; // a duplicate keeps the kind and issuer, not the number or dates
+  const [kind, setKind] = useState(from?.kind ?? "fssai");
+  const [name, setName] = useState(from?.name ?? "");
   const [number, setNumber] = useState(x?.number ?? "");
-  const [issuedBy, setIssuedBy] = useState(x?.issued_by ?? "");
-  const [branch, setBranch] = useState<number | null>(x?.branch ?? null);
+  const [issuedBy, setIssuedBy] = useState(from?.issued_by ?? "");
+  const [branch, setBranch] = useState<number | null>(from?.branch ?? null);
   const [validFrom, setValidFrom] = useState(x?.valid_from ?? "");
   const [validUntil, setValidUntil] = useState(x?.valid_until ?? "");
-  const [notes, setNotes] = useState(x?.notes ?? "");
+  const [notes, setNotes] = useState(from?.notes ?? "");
   const [error, setError] = useState("");
 
   const save = async (event: FormEvent) => {
@@ -1004,7 +1099,7 @@ function CertificateForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{x ? `Edit ${x.kind_label}` : "Add certificate"}</h4>
+      <h4>{x ? `Edit ${x.kind_label}` : props.copyOf ? "Duplicate certificate" : "Add certificate"}</h4>
       <div className="row">
         <label>
           Type
@@ -1105,7 +1200,7 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
 }
 
 function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boolean; reload: () => void }) {
-  const [editing, setEditing] = useState<{ group: Group | null; parent: number | null } | null>(null);
+  const [editing, setEditing] = useState<{ group: Group | null; parent: number | null; copyName?: string } | null>(null);
   const children = useMemo(() => {
     const map = new Map<number | null, Group[]>();
     for (const g of props.groups) map.set(g.parent, [...(map.get(g.parent) ?? []), g]);
@@ -1197,6 +1292,14 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
                   Edit
                 </button>
               )}
+              {g.parent !== null && (
+                <button
+                  className="link"
+                  onClick={() => setEditing({ group: null, parent: g.parent, copyName: `${g.name} (copy)` })}
+                >
+                  Duplicate
+                </button>
+              )}
             </>
           )}
         </td>
@@ -1206,7 +1309,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
       out.push(
         formRow(
           `new-${g.id}`,
-          <GroupForm company={props.company} groups={props.groups} group={null} parent={g.id} onDone={done} onCancel={() => setEditing(null)} />,
+          <GroupForm company={props.company} groups={props.groups} group={null} parent={g.id} initialName={editing.copyName} onDone={done} onCancel={() => setEditing(null)} />,
         ),
       );
     if (editing?.group?.id === g.id)
@@ -1250,11 +1353,12 @@ function GroupForm(props: {
   groups: Group[];
   group: Group | null;
   parent: number | null;
+  initialName?: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const g = props.group;
-  const [name, setName] = useState(g?.name ?? "");
+  const [name, setName] = useState(g?.name ?? props.initialName ?? "");
   const [parent, setParent] = useState<number | null>(props.parent);
   const [error, setError] = useState("");
 

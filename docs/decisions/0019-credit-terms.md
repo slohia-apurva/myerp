@@ -4,7 +4,7 @@ Date: 9 Nov 2026. Asked by Sidharth: "credit terms should be a master as sometim
 
 ## Decision
 
-Each company keeps a list of credit terms (`core.CreditTerm`). A term is split into parts (`core.CreditTermPart`), each a share of the bill (percent) falling due at an event plus some days:
+Each company keeps a list of credit terms (superseded by 0020: one list for the group) (`core.CreditTerm`). A term is split into parts (`core.CreditTermPart`), each a share of the bill (percent) falling due at an event plus some days:
 
 | Event | Meaning |
 |---|---|

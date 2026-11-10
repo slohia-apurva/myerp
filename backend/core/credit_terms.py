@@ -1,4 +1,5 @@
-"""Credit terms: a company's list of how bills are paid (decision 0019).
+"""Credit terms: the group's list of how bills are paid (decisions 0019,
+0020). One list shared by every company in the group.
 
 A term such as "50% advance, 50% on delivery" is split into parts; each is
 a share of the bill due at an event plus some days, and the shares add up
@@ -16,12 +17,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core.api import EDIT, VIEW, Signed, _check, _company
-from core.companies import visible_companies
+from core.api import EDIT, VIEW, Signed, _check
 from core.models import CreditTerm, CreditTermPart, describe_part
 from tenancy.context import tenant_atomic
 
-# name, parts as (percent, event, days). Every new company starts with these.
+# name, parts as (percent, event, days). The group starts with these.
 STANDARD_TERMS = [
     ("Full advance", [(100, "order", 0)]),
     ("50% advance, 50% on delivery", [(50, "order", 0), (50, "delivery", 0)]),
@@ -34,14 +34,14 @@ STANDARD_TERMS = [
 ]
 
 
-def seed_credit_terms(CreditTerm, CreditTermPart, company) -> None:
-    """Add the standard terms a company lacks. Takes the models so that
+def seed_credit_terms(CreditTerm, CreditTermPart) -> None:
+    """Add the standard terms the group lacks. Takes the models so that
     migrations can pass their historical versions."""
-    have = set(CreditTerm.objects.filter(company=company).values_list("name", flat=True))
+    have = {n.lower() for n in CreditTerm.objects.values_list("name", flat=True)}
     for name, parts in STANDARD_TERMS:
-        if name in have:
+        if name.lower() in have:
             continue
-        term = CreditTerm.objects.create(company=company, name=name)
+        term = CreditTerm.objects.create(name=name)
         for percent, event, days in parts:
             CreditTermPart.objects.create(term=term, percent=percent, event=event, days=days)
 
@@ -73,7 +73,7 @@ def _save_term(term: CreditTerm, data: dict) -> None:
     parts = data.pop("parts", None)
     if "name" in data:
         data["name"] = data["name"].strip()
-        clash = CreditTerm.objects.filter(company=term.company, name__iexact=data["name"])
+        clash = CreditTerm.objects.filter(name__iexact=data["name"])
         if term.pk:
             clash = clash.exclude(pk=term.pk)
         if clash.exists():
@@ -90,7 +90,7 @@ def _save_term(term: CreditTerm, data: dict) -> None:
                 {"parts": [f"The parts add up to {total.normalize():f}%; make them 100%."]}
             )
     try:
-        term.full_clean(exclude=["company"], validate_constraints=False)
+        term.full_clean(validate_constraints=False)
     except DjangoValidationError as exc:
         raise ValidationError(exc.message_dict) from exc
     term.save()
@@ -104,23 +104,21 @@ def _save_term(term: CreditTerm, data: dict) -> None:
 class CreditTermListView(APIView):
     permission_classes = [Signed]
 
-    def get(self, request, pk: int):
+    def get(self, request):
         _check(request, VIEW)
-        company = _company(request, pk)
         terms = (
-            company.credit_terms.annotate(party_count=Count("parties"))
+            CreditTerm.objects.annotate(party_count=Count("parties"))
             .prefetch_related("parts")
             .order_by("name")
         )
         return Response(CreditTermSerializer(terms, many=True).data)
 
     @tenant_atomic()
-    def post(self, request, pk: int):
+    def post(self, request):
         _check(request, EDIT)
-        company = _company(request, pk)
         serializer = CreditTermSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        term = CreditTerm(company=company)
+        term = CreditTerm()
         _save_term(term, dict(serializer.validated_data))
         return Response(CreditTermSerializer(term).data, status=status.HTTP_201_CREATED)
 
@@ -134,7 +132,7 @@ class CreditTermDetailView(APIView):
     def patch(self, request, pk: int):
         _check(request, EDIT)
         term = CreditTerm.objects.select_for_update().filter(pk=pk).first()
-        if term is None or not visible_companies(request.user).filter(pk=term.company_id):
+        if term is None:
             raise NotFound("No such credit terms.")
         serializer = CreditTermSerializer(term, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

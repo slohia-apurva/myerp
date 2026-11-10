@@ -36,6 +36,7 @@ from core.models import (
     Ledger,
     LedgerGroup,
     LedgerOpeningBill,
+    Party,
 )
 from core.parties import PartySerializer, save_party
 from tenancy.context import tenant_atomic
@@ -223,6 +224,23 @@ class LedgerSerializer(serializers.ModelSerializer):
     )
     bill_wise = serializers.BooleanField(required=False)
     party = PartySerializer(required=False, allow_null=True)
+    # Link a new ledger to a party another company has (decision 0020) and
+    # add the party's ledger to more companies.
+    party_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+    also_in = serializers.ListField(
+        child=serializers.IntegerField(), required=False, write_only=True
+    )
+
+    def to_representation(self, ledger):
+        data = super().to_representation(ledger)
+        if data.get("party") is not None:
+            data["party"]["credit_limit"] = str(ledger.credit_limit)
+            # Each company's own salesman or purchaser.
+            data["party"]["salesman"] = ledger.salesman_id
+            data["party"]["salesman_name"] = (
+                ledger.salesman.display_name if ledger.salesman_id else ""
+            )
+        return data
 
     class Meta:
         model = Ledger
@@ -243,6 +261,8 @@ class LedgerSerializer(serializers.ModelSerializer):
             "opening_fc_amount",
             "opening_rate",
             "party",
+            "party_id",
+            "also_in",
         ]
 
 
@@ -712,11 +732,16 @@ class LedgerListView(APIView):
     def get(self, request, pk: int):
         _check(request, VIEW)
         company = _company(request, pk)
-        ledgers = company.ledgers.select_related("group", "party__salesman").prefetch_related(
-            "opening_bills", "party__addresses", "party__contacts"
+        ledgers = company.ledgers.select_related("group", "party", "salesman").prefetch_related(
+            "opening_bills", "party__addresses", "party__contacts", "party__ledgers__company"
         )
         if q := request.query_params.get("q", "").strip():
-            ledgers = ledgers.filter(Q(name__icontains=q) | Q(account_number__icontains=q))
+            ledgers = ledgers.filter(
+                Q(name__icontains=q)
+                | Q(account_number__icontains=q)
+                | Q(party__customer_number__icontains=q)
+                | Q(party__vendor_number__icontains=q)
+            )
         if group_id := request.query_params.get("group"):
             group = company.ledger_groups.filter(pk=group_id).first()
             if group is None:
@@ -734,13 +759,15 @@ class LedgerListView(APIView):
         data = _ledger_data(ledger, dict(serializer.validated_data))
         bills = data.pop("opening_bills", None)
         party = data.pop("party", None)
+        party_id = data.pop("party_id", None)
+        also_in = _also_in(request, data.pop("also_in", None))
         if "bill_wise" not in data:
             data["bill_wise"] = data["group"].is_under(BILL_WISE_GROUP_CODES)
         _unique_ledger_name(company, data["name"])
         _save(ledger, data, LEDGER_FIELDS)
         _set_foreign_opening(ledger)
         _save_opening_bills(ledger, bills)
-        save_party(ledger, party)
+        save_party(ledger, party, party_id, also_in)
         return Response(LedgerSerializer(ledger).data, status=status.HTTP_201_CREATED)
 
 
@@ -762,13 +789,47 @@ class LedgerDetailView(APIView):
         data = _ledger_data(ledger, dict(serializer.validated_data))
         bills = data.pop("opening_bills", None)
         party = data.pop("party", None)
+        data.pop("party_id", None)  # only when adding a ledger
+        also_in = _also_in(request, data.pop("also_in", None))
         if "name" in data:
             _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
         _save(ledger, data, LEDGER_FIELDS)
         _set_foreign_opening(ledger)
         _save_opening_bills(ledger, bills)
-        save_party(ledger, party)
+        save_party(ledger, party, None, also_in)
         return Response(LedgerSerializer(ledger).data)
+
+
+def _also_in(request, ids):
+    """The companies, among those this person may work in, to add a
+    party's ledger to."""
+    if ids is None:
+        return None
+    companies = visible_companies(request.user).filter(pk__in=ids)
+    if companies.count() != len(set(ids)):
+        raise ValidationError({"also_in": ["No such company."]})
+    return companies
+
+
+class PartyListView(APIView):
+    """GET /parties/?not_in=COMPANY: the group's customers and suppliers,
+    optionally only those that company has no ledger for yet (to pick when
+    adding a party ledger)."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _check(request, VIEW)
+        parties = Party.objects.select_related("credit_term").prefetch_related(
+            "addresses", "contacts", "ledgers__company"
+        )
+        if "not_in" in request.query_params:
+            try:
+                company = int(request.query_params["not_in"])
+            except ValueError:
+                raise ValidationError({"not_in": ["Give a number."]}) from None
+            parties = parties.exclude(ledgers__company=company)
+        return Response(PartySerializer(parties.order_by("name"), many=True).data)
 
 
 class PeopleView(APIView):
