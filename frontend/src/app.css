@@ -1363,3 +1363,13 @@ td button.link.quiet {
 td button.link.quiet:hover:not(:disabled) {
   color: var(--green);
 }
+
+.inline {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.inline input {
+  flex: 1;
+  min-width: 0;
+}

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from core import api, credit_terms
+from core import api, credit_terms, gstin_lookup
 
 urlpatterns = [
     path("states/", api.StatesView.as_view(), name="states"),
@@ -8,6 +8,7 @@ urlpatterns = [
     path("currencies/", api.CurrencyListView.as_view(), name="currencies"),
     path("people/", api.PeopleView.as_view(), name="people"),
     path("parties/", api.PartyListView.as_view(), name="parties"),
+    path("gstin-lookup/", gstin_lookup.GstinLookupView.as_view(), name="gstin_lookup"),
     path(
         "credit-terms/",
         credit_terms.CreditTermListView.as_view(),
