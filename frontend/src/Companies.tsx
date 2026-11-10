@@ -943,7 +943,7 @@ function BranchForm(props: {
   );
 }
 
-function renewalNote(until: string | null) {
+export function renewalNote(until: string | null) {
   if (!until) return { text: "No renewal", cls: "small" };
   const days = Math.ceil((new Date(until).getTime() - Date.now()) / 86400000);
   if (days < 0) return { text: `Expired ${longDate(until)}`, cls: "error" };
