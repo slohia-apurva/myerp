@@ -1,8 +1,8 @@
 import { Combobox } from "./Combobox";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
-import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, type Party } from "./Parties";
+import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, PartyTabBar, type Party, type PartyTab } from "./Parties";
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
 import { ActiveButton } from "./RowActions";
@@ -455,6 +455,23 @@ function LedgerForm(props: {
   const [name, setName] = useState(l?.name ?? (c ? `${c.name} (copy)` : ""));
   const [group, setGroup] = useState(from ? String(from.group) : props.defaultGroup);
   const [notes, setNotes] = useState(from?.notes ?? "");
+  const [tab, setTab] = useState<PartyTab>("general");
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    // A required field left empty on a hidden tab: open that tab and point at it.
+    const el = formRef.current;
+    if (!el) return;
+    const onInvalid = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const panel = target.closest<HTMLElement>("[data-tab]");
+      if (panel?.hidden) {
+        setTab(panel.dataset.tab as PartyTab);
+        requestAnimationFrame(() => target.reportValidity());
+      }
+    };
+    el.addEventListener("invalid", onInvalid, true);
+    return () => el.removeEventListener("invalid", onInvalid, true);
+  }, []);
   const [bankName, setBankName] = useState(from?.bank_name ?? "");
   const [accountNumber, setAccountNumber] = useState(l?.account_number ?? "");
   const [ifsc, setIfsc] = useState(from?.ifsc ?? "");
@@ -710,8 +727,10 @@ function LedgerForm(props: {
     </>
   );
   return (
-    <form className="card" onSubmit={save}>
+    <form className="card" onSubmit={save} ref={formRef}>
       <h3>{l ? `Edit ${l.name}` : c ? `Duplicate ${c.name}` : "Add ledger"}</h3>
+      {isParty && <PartyTabBar tab={tab} onTab={setTab} party={party} extraLabel="Opening balance" />}
+      <div className="tab-general" data-tab="general" hidden={isParty && tab !== "general"}>
       <div className="row">
         <label>
           Under group
@@ -761,8 +780,10 @@ function LedgerForm(props: {
           />
         </label>
       )}
+      </div>
       {isParty && (
         <PartyFields
+          tab={tab}
           supplier={chosen?.nature === "liability"}
           alsoIn={alsoIn}
           onAlsoIn={setAlsoIn}
@@ -811,7 +832,7 @@ function LedgerForm(props: {
           {openingFields}
         </fieldset>
       )}
-      <label>
+      <label hidden={isParty && tab !== "general"}>
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
