@@ -404,8 +404,9 @@ export const MANUAL: Chapter[] = [
           </li>
         </ul>
         <p>
-          At the top of the form, "Under group" is followed by the "Customer number" (or "Vendor number") and then the
-          "GSTIN". The number is given automatically when you Save (CUST-00001, VEND-00001 and so on, running on across
+          A customer or supplier form has tabs along the top: "General", "GST and credit", "Addresses", "Contacts" and
+          "Opening balance". "Save" and "Cancel" are at the bottom of every tab. On the "General" tab, "Under group" is
+          followed by the "Customer number" (or "Vendor number") and then the "GSTIN". The number is given automatically when you Save (CUST-00001, VEND-00001 and so on, running on across
           the group); a party that is a customer in one company and a vendor in another has both. You may type your own
           number over it, but no two parties can share one. Search for a ledger by its number in the Ledgers list.
           Typing the GSTIN makes the party a registered one and fills in the state and PAN; the state decides the place of
@@ -414,7 +415,7 @@ export const MANUAL: Chapter[] = [
           the credits are used up, or the GST system is down) it says so, and you enter the details by hand.
         </p>
         <p>
-          The form has a "Party details" section with four tabs. The "GST and credit" tab has:
+          The "GST and credit" tab has:
         </p>
         <Fields
           rows={[
@@ -454,7 +455,7 @@ export const MANUAL: Chapter[] = [
           out for you.
         </p>
         <p>
-          For customers and suppliers, the opening balance is on the "Opening balance" tab of "Party details". Tick
+          For customers and suppliers, the opening balance is on the "Opening balance" tab. Tick
           "Maintain balances bill by bill" there and enter each unpaid bill with its
           reference, date, due date and amount. The opening balance is then the total of the bills. Bills must be dated
           before the books begin.

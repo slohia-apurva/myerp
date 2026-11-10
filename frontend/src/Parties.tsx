@@ -1,5 +1,5 @@
 import { Combobox } from "./Combobox";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useCreditTerms } from "./CreditTerms";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
@@ -83,7 +83,39 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false });
 
 type Person = { id: number; name: string };
-type Tab = "details" | "addresses" | "contacts" | "extra";
+export type PartyTab = "general" | "details" | "addresses" | "contacts" | "extra";
+
+/** The tab strip at the top of a customer/supplier ledger form. */
+export function PartyTabBar(props: {
+  tab: PartyTab;
+  onTab: (t: PartyTab) => void;
+  party: Party;
+  extraLabel: string;
+}) {
+  const tabs: [PartyTab, string][] = [
+    ["general", "General"],
+    ["details", "GST and credit"],
+    ["addresses", `Addresses (${props.party.addresses.length})`],
+    ["contacts", `Contacts (${props.party.contacts.length})`],
+    ["extra", props.extraLabel],
+  ];
+  return (
+    <div className="form-tabs" role="tablist">
+      {tabs.map(([code, label]) => (
+        <button
+          key={code}
+          type="button"
+          role="tab"
+          aria-selected={props.tab === code}
+          className={props.tab === code ? "active" : ""}
+          onClick={() => props.onTab(code)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** The "Party details" part of the ledger form. */
 export function PartyFields({
@@ -91,6 +123,7 @@ export function PartyFields({
   onChange,
   supplier,
   extraTab,
+  tab,
   companyId,
   alsoIn,
   onAlsoIn,
@@ -103,7 +136,9 @@ export function PartyFields({
   alsoIn: number[];
   onAlsoIn: (ids: number[]) => void;
   onChange: (p: Party) => void;
-  /** One more tab from the ledger form, such as the opening bills. */
+  /** The tab being shown; the strip itself is PartyTabBar, at the top of the form. */
+  tab: PartyTab;
+  /** The content of the "Opening balance" tab, from the ledger form. */
   extraTab?: { label: string; content: ReactNode };
 }) {
   const states = useStates();
@@ -117,23 +152,6 @@ export function PartyFields({
   const [people, setPeople] = useState<Person[]>([]);
   useEffect(() => {
     api<Person[]>("v1/people/").then(setPeople);
-  }, []);
-  const [tab, setTab] = useState<Tab>("details");
-  const box = useRef<HTMLFieldSetElement>(null);
-  useEffect(() => {
-    // A required field left empty on a hidden tab: open that tab and point at it.
-    const el = box.current;
-    if (!el) return;
-    const onInvalid = (e: Event) => {
-      const target = e.target as HTMLInputElement;
-      const panel = target.closest<HTMLElement>("[data-tab]");
-      if (panel?.hidden) {
-        setTab(panel.dataset.tab as Tab);
-        requestAnimationFrame(() => target.reportValidity());
-      }
-    };
-    el.addEventListener("invalid", onInvalid, true);
-    return () => el.removeEventListener("invalid", onInvalid, true);
   }, []);
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
   const overseas = p.gst_type === "overseas";
@@ -155,30 +173,8 @@ export function PartyFields({
         j === i ? { ...c, ...change } : change.is_primary ? { ...c, is_primary: false } : c,
       ),
     });
-  const tabs: [Tab, string][] = [
-    ["details", "GST and credit"],
-    ["addresses", `Addresses (${p.addresses.length})`],
-    ["contacts", `Contacts (${p.contacts.length})`],
-    ...(extraTab ? [["extra", extraTab.label] as [Tab, string]] : []),
-  ];
-
   return (
-    <fieldset ref={box}>
-      <legend>Party details</legend>
-      <div className="form-tabs" role="tablist">
-        {tabs.map(([code, label]) => (
-          <button
-            key={code}
-            type="button"
-            role="tab"
-            aria-selected={tab === code}
-            className={tab === code ? "active" : ""}
-            onClick={() => setTab(code)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+    <div hidden={tab === "general"}>
       <div data-tab="details" hidden={tab !== "details"}>
       <p className="note">
         Shared by all companies in the group: GST details, addresses, contacts and credit terms changed here change for
@@ -447,7 +443,7 @@ export function PartyFields({
           {extraTab.content}
         </div>
       )}
-    </fieldset>
+    </div>
   );
 }
 

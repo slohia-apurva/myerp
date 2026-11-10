@@ -1439,3 +1439,14 @@ fieldset > legend + .form-tabs {
   width: 100%;
   box-sizing: border-box;
 }
+
+/* The General tab of a ledger form: its fields stay part of the form's flow */
+.tab-general {
+  display: contents;
+}
+.tab-general[hidden] {
+  display: none;
+}
+label[hidden] {
+  display: none;
+}
