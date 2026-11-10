@@ -1246,7 +1246,10 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
                 {top ? "" : "└"}
               </span>
             )}
-            {g.name}
+            <span className="gname">
+              {g.name}
+              {g.schedule_iii && <span className="sch3 sub">{g.schedule_iii}</span>}
+            </span>
             {!g.is_standard && <span className="tag">added</span>}
           </span>
         </td>
@@ -1254,7 +1257,6 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           {NATURE[g.nature]}
           {top && g.affects_gross_profit && <span className="small"> · trading</span>}
         </td>
-        <td className="sch3">{g.schedule_iii || "—"}</td>
         <td className="num">
           {total(g) > 0 ? (
             <a href={`#/companies/${props.company.id}/ledgers/${g.id}`}>{total(g)}</a>
@@ -1318,7 +1320,6 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           <tr>
             <th>Group</th>
             <th>Nature</th>
-            <th>Schedule III head</th>
             <th className="num">Ledgers</th>
             <th />
           </tr>

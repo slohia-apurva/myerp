@@ -316,7 +316,7 @@ export const MANUAL: Chapter[] = [
         <p>
           Every ledger sits in a group, and groups sit under other groups, as deep as you need. The standard groups come
           with MyERP and follow Schedule III of the Companies Act, so the balance sheet and profit and loss come out in
-          the right form. Their familiar names are kept, with the Schedule III head shown beside each.
+          the right form. Their familiar names are kept, with the Schedule III head shown in small print under each name.
         </p>
         <p>
           Open them from "Masters" › "Ledger groups", or with the "Ledger groups" button on the Ledgers screen. The table shows each
