@@ -437,7 +437,8 @@ export const MANUAL: Chapter[] = [
         <p>
           On the "Addresses" tab, click "+ Add address" for each place the party has: office, godown, shop. Give each a
           name, and tick which one is the default billing address and which the default shipping address; documents pick
-          these first. If the party is registered in another state too, enter that GSTIN on that address.
+          these first. If the party is registered in another state too, enter that GSTIN on that address, then click "Fetch details" beside it:
+          the address's name, state, address and PIN code are filled in from the GST portal, and you can change any of them.
         </p>
         <p>
           On the "Contacts" tab, click "+ Add contact" for each person you deal with: the owner, the purchase manager,

@@ -323,10 +323,10 @@ export function PartyFields({
                 {registered && (
                   <label>
                     GSTIN at this address (if different)
-                    <input
+                    <AddressGstin
                       value={a.gstin}
-                      maxLength={15}
-                      onChange={(e) => setAddress(i, { gstin: e.target.value.toUpperCase() })}
+                      onChange={(gstin) => setAddress(i, { gstin })}
+                      onFound={(change) => setAddress(i, change)}
                     />
                   </label>
                 )}
@@ -527,6 +527,47 @@ type GstinDetails = {
   address: string;
   pincode: string;
 };
+
+/** The GSTIN of one extra address, with "Fetch details" to fill that address
+ * (name, state, address, PIN). Everything stays editable afterwards. */
+function AddressGstin(props: {
+  value: string;
+  onChange: (gstin: string) => void;
+  onFound: (change: Partial<PartyAddress>) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const fetchDetails = async () => {
+    setBusy(true);
+    setNote("");
+    try {
+      const r = await api<GstinDetails>(`v1/gstin-lookup/?gstin=${props.value}`);
+      props.onFound({
+        label: r.trade_name || r.legal_name,
+        address: r.address,
+        pincode: r.pincode,
+        state_code: r.state_code,
+      });
+      const found = r.legal_name ? `Found: ${r.legal_name}` : "Found.";
+      setNote(r.status && r.status !== "Active" ? `${found} Warning: this GSTIN is ${r.status}.` : found);
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <span className="inline">
+        <input value={props.value} maxLength={15} onChange={(e) => props.onChange(e.target.value.toUpperCase())} />
+        <button type="button" disabled={props.value.length !== 15 || busy} onClick={fetchDetails}>
+          Fetch details
+        </button>
+      </span>
+      {note && <span className="small">{note}</span>}
+    </>
+  );
+}
 
 /** The customer or vendor number, at the top of a party ledger form. */
 export function PartyNumber(props: { party: Party; supplier: boolean; onChange: (p: Party) => void }) {
