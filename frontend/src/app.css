@@ -836,6 +836,24 @@ table.groups td:nth-child(2) {
 table.groups .sch3 {
   font-size: 13px;
 }
+/* A group's name wraps inside its own space; the "added" tag stays beside it */
+table.groups .gname {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+table.groups .gname .sub {
+  display: block;
+  font-weight: 400;
+  color: var(--slate);
+  margin-top: 1px;
+}
+table.groups .tag {
+  margin-left: 8px;
+  white-space: nowrap;
+  flex: none;
+}
 .group-name {
   display: inline-flex;
   align-items: center;
