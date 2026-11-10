@@ -1398,6 +1398,8 @@ fieldset > legend {
 }
 fieldset > legend + .form-tabs {
   margin-top: 14px;
+}
+
 /* Type-to-search picker for masters */
 .combo {
   position: relative;
