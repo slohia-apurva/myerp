@@ -402,8 +402,9 @@ export const MANUAL: Chapter[] = [
           the group); a party that is a customer in one company and a vendor in another has both. You may type your own
           number over it, but no two parties can share one. Search for a ledger by its number in the Ledgers list.
           Typing the GSTIN makes the party a registered one and fills in the state and PAN; the state decides the place of
-          supply on invoices. "Fetch details" asks the GST portal for the name and address and fills them in; until a
-          GST provider is connected it says that lookup is not set up, and you enter the details by hand.
+          supply on invoices. "Fetch details" asks the GST portal for the name and address and fills them in; and
+          warns if the GSTIN is not "Active" (cancelled or suspended). If the lookup is not available (the key is not set,
+          the credits are used up, or the GST system is down) it says so, and you enter the details by hand.
         </p>
         <p>
           The form has a "Party details" section with four tabs. The "GST and credit" tab has:

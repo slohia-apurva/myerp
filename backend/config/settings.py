@@ -99,6 +99,9 @@ WHITENOISE_INDEX_FILE = True
 AUTH_USER_MODEL = "accounts.User"
 # OAuth client id from Google Cloud (APIs & Services > Credentials). Not a secret.
 MYERP_GOOGLE_CLIENT_ID = env("MYERP_GOOGLE_CLIENT_ID", "")
+# GSTIN lookup (core/gstin_lookup.py). The provider reads its own key from the
+# GSTINAPI_KEY environment variable; without it the lookup says it is not set up.
+GSTIN_LOOKUP_PROVIDER = env("GSTIN_LOOKUP_PROVIDER", "core.gstinapi.lookup")
 # A sign-in lasts a working day; closing the browser does not end it.
 SESSION_COOKIE_AGE = 60 * 60 * 12
 SESSION_COOKIE_HTTPONLY = True
