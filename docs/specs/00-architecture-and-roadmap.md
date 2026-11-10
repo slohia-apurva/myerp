@@ -247,6 +247,7 @@ Design rules for these modules:
 - **Generic import/export:** CSV/Excel import for every master and opening balance, with a dry-run that shows errors before saving.
 - **Barcode scanning** on pick lists, GRNs and stock counts (USB or phone camera).
 - **Warehouse mobile app (added 9 Nov):** one installable app with workspaces by role (Receive, Job work, Dispatch, Move, Count, Sales, Approvals) for GRN, customer material for job work, delivery, return of customer goods and moves within or between sites, built alongside Phases 3 to 5. Spec: [05-warehouse-mobile-app.md](05-warehouse-mobile-app.md)
+- **Shipment (AWB) tracking and daily despatch email (added 10 Nov):** every sales consignment's AWB, docket or LR is tracked through an aggregator or the carrier's API (or typed in), updated daily and by webhook, with one consolidated email each morning to the despatch team listing deliveries, exceptions and despatches without an AWB. Hangs off the delivery note in Phase 4; the first steps can run earlier. Spec: [06-shipment-tracking.md](06-shipment-tracking.md)
 
 ## AI in MyERP (added 3 Nov)
 
