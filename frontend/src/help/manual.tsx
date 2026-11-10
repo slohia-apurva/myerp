@@ -47,6 +47,13 @@ export const MANUAL: Chapter[] = [
         </p>
         <p>To sign out, click "Sign out" at the top right. On a shared computer, always sign out when you finish.</p>
 
+        <h3>Picking from a list</h3>
+        <p>
+          Wherever you pick a group, state, currency, credit term, salesman or an existing customer or supplier, click the
+          box and start typing: the list narrows to what matches (type any part of the name, in any order). Use the up
+          and down arrow keys and Enter, or click the one you want. Press Esc to close the list without changing it.
+        </p>
+
         <h3>The screen</h3>
         <ul>
           <li>

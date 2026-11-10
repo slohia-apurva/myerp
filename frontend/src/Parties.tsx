@@ -1,3 +1,4 @@
+import { Combobox } from "./Combobox";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { useCreditTerms } from "./CreditTerms";
@@ -254,34 +255,24 @@ export function PartyFields({
         </label>
         <label>
           Credit terms
-          <select
-            value={p.credit_term ?? ""}
-            onChange={(e) => set({ credit_term: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">None</option>
-            {terms
+          <Combobox
+            value={p.credit_term === null ? "" : String(p.credit_term)}
+            empty="None"
+            options={terms
               .filter((t) => t.is_active || t.id === p.credit_term)
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-          </select>
+              .map((t) => ({ value: String(t.id), label: t.name }))}
+            onChange={(v) => set({ credit_term: v ? Number(v) : null })}
+          />
           {term && <span className="small">{term.summary}</span>}
         </label>
         <label>
           {supplier ? "Purchaser" : "Salesman"}
-          <select
-            value={p.salesman ?? ""}
-            onChange={(e) => set({ salesman: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">None</option>
-            {people.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.name}
-              </option>
-            ))}
-          </select>
+          <Combobox
+            value={p.salesman === null ? "" : String(p.salesman)}
+            empty="None"
+            options={people.map((person) => ({ value: String(person.id), label: person.name }))}
+            onChange={(v) => set({ salesman: v ? Number(v) : null })}
+          />
         </label>
       </div>
       </div>
