@@ -1,3 +1,4 @@
+import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
@@ -284,14 +285,13 @@ export function StateSelect(props: {
   optional?: boolean;
 }) {
   return (
-    <select required={!props.optional} value={props.value} onChange={(e) => props.onChange(e.target.value)}>
-      <option value="">Choose…</option>
-      {props.states.map((s) => (
-        <option key={s.code} value={s.code}>
-          {s.name} ({s.code})
-        </option>
-      ))}
-    </select>
+    <Combobox
+      required={!props.optional}
+      value={props.value}
+      placeholder="Type a state or its code…"
+      options={props.states.map((s) => ({ value: s.code, label: `${s.name} (${s.code})` }))}
+      onChange={props.onChange}
+    />
   );
 }
 
@@ -1108,14 +1108,12 @@ function CertificateForm(props: {
       </div>
       <label>
         Branch (for licences issued per premises)
-        <select value={branch ?? ""} onChange={(e) => setBranch(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">Whole company</option>
-          {props.branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        <Combobox
+          value={branch === null ? "" : String(branch)}
+          empty="Whole company"
+          options={props.branches.map((b) => ({ value: String(b.id), label: b.name }))}
+          onChange={(v) => setBranch(v ? Number(v) : null)}
+        />
       </label>
       <div className="row">
         <label>
@@ -1375,15 +1373,12 @@ function GroupForm(props: {
         {g && (
           <label>
             Under
-            <select value={parent ?? ""} onChange={(e) => setParent(Number(e.target.value))}>
-              {props.groups
-                .filter((o) => o.id !== g.id)
-                .map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-            </select>
+            <Combobox
+              required
+              value={parent === null ? "" : String(parent)}
+              options={props.groups.filter((o) => o.id !== g.id).map((o) => ({ value: String(o.id), label: o.name }))}
+              onChange={(v) => setParent(Number(v))}
+            />
           </label>
         )}
       </div>
