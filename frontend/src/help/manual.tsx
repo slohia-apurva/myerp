@@ -397,19 +397,23 @@ export const MANUAL: Chapter[] = [
           </li>
         </ul>
         <p>
+          At the top of the form, "Under group" is followed by the "Customer number" (or "Vendor number") and then the
+          "GSTIN". The number is given automatically when you Save (CUST-00001, VEND-00001 and so on, running on across
+          the group); a party that is a customer in one company and a vendor in another has both. You may type your own
+          number over it, but no two parties can share one. Search for a ledger by its number in the Ledgers list.
+          Typing the GSTIN makes the party a registered one and fills in the state and PAN; the state decides the place of
+          supply on invoices. "Fetch details" asks the GST portal for the name and address and fills them in; until a
+          GST provider is connected it says that lookup is not set up, and you enter the details by hand.
+        </p>
+        <p>
           The form has a "Party details" section with four tabs. The "GST and credit" tab has:
         </p>
         <Fields
           rows={[
             [
-              "Customer number or Vendor number",
-              'Given automatically when you Save (CUST-00001, VEND-00001 and so on, running on across the group). A party that is a customer in one company and a vendor in another has both. You may type your own number over it, but no two parties can share one. Search for a ledger by its number in the Ledgers list.',
-            ],
-            [
               "GST type",
               "Registered (regular or composition), unregistered business, consumer, SEZ, or overseas. A registered party needs its GSTIN.",
             ],
-            ["GSTIN", "Typing it fills in the PAN and state. The state decides the place of supply on invoices."],
             ["Country", "For an overseas party, in place of the state."],
             ["Credit limit", "This company's limit for the party. Leave blank for no limit."],
             [

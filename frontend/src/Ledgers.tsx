@@ -1,7 +1,7 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
-import { blankParty, PartyFields, PartySummary, type Party } from "./Parties";
+import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, type Party } from "./Parties";
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
 import { ActiveButton } from "./RowActions";
@@ -714,14 +714,18 @@ function LedgerForm(props: {
       <h3>{l ? `Edit ${l.name}` : c ? `Duplicate ${c.name}` : "Add ledger"}</h3>
       <div className="row">
         <label>
-          Name
-          <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label>
           Under group
           <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
         </label>
+        {isParty && <PartyNumber party={party} supplier={chosen?.nature === "liability"} onChange={setParty} />}
       </div>
+      {isParty && (
+        <GstinField party={party} onChange={setParty} onName={(found) => name.trim() === "" && setName(found)} />
+      )}
+      <label>
+        Name
+        <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
       {props.multiCurrency && (
         <label>
           Currency

@@ -137,13 +137,6 @@ export function PartyFields({
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
   const overseas = p.gst_type === "overseas";
   const registered = REGISTERED.includes(p.gst_type);
-  const onGstin = (raw: string) => {
-    const v = raw.toUpperCase();
-    const change: Partial<Party> = { gstin: v };
-    if (v.length >= 2 && states.some((s) => s.code === v.slice(0, 2))) change.state_code = v.slice(0, 2);
-    if (v.length >= 12) change.pan = v.slice(2, 12);
-    set(change);
-  };
   const setAddress = (i: number, change: Partial<PartyAddress>) =>
     set({
       addresses: p.addresses.map((a, j) => {
@@ -209,19 +202,6 @@ export function PartyFields({
       )}
       <div className="row">
         <label>
-          {supplier ? "Vendor number" : "Customer number"}
-          <input
-            value={supplier ? p.vendor_number : p.customer_number}
-            maxLength={20}
-            placeholder="Assigned when you save"
-            onChange={(e) =>
-              set(supplier ? { vendor_number: e.target.value.toUpperCase() } : { customer_number: e.target.value.toUpperCase() })
-            }
-          />
-        </label>
-      </div>
-      <div className="row">
-        <label>
           GST type
           <select
             value={p.gst_type}
@@ -242,12 +222,6 @@ export function PartyFields({
             ))}
           </select>
         </label>
-        {registered && (
-          <label>
-            GSTIN
-            <input required value={p.gstin} maxLength={15} onChange={(e) => onGstin(e.target.value)} />
-          </label>
-        )}
       </div>
       <div className="row">
         {overseas ? (
@@ -549,5 +523,103 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
         </>
       )}
     </>
+  );
+}
+
+type GstinDetails = {
+  state_code: string;
+  pan: string;
+  legal_name: string;
+  trade_name: string;
+  gst_type: string;
+  address: string;
+  pincode: string;
+};
+
+/** The customer or vendor number, at the top of a party ledger form. */
+export function PartyNumber(props: { party: Party; supplier: boolean; onChange: (p: Party) => void }) {
+  const { party: p, supplier } = props;
+  const set = (change: Partial<Party>) => props.onChange({ ...p, ...change });
+  return (
+    <label>
+      {supplier ? "Vendor number" : "Customer number"}
+      <input
+        value={supplier ? p.vendor_number : p.customer_number}
+        maxLength={20}
+        placeholder="Assigned when you save"
+        onChange={(e) =>
+          set(supplier ? { vendor_number: e.target.value.toUpperCase() } : { customer_number: e.target.value.toUpperCase() })
+        }
+      />
+    </label>
+  );
+}
+
+/** The GSTIN, first among the party's details: it fills in the state and PAN
+ * and can fetch the rest from the GST portal. */
+export function GstinField(props: {
+  party: Party;
+  onChange: (p: Party) => void;
+  /** The registered name found on the portal, to offer as the ledger's name. */
+  onName: (name: string) => void;
+}) {
+  const { party: p } = props;
+  const states = useStates();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const registered = REGISTERED.includes(p.gst_type);
+  const valid = p.gstin.length === 15;
+  const set = (change: Partial<Party>) => props.onChange({ ...p, ...change });
+  const onGstin = (raw: string) => {
+    const v = raw.toUpperCase();
+    const change: Partial<Party> = { gstin: v };
+    // Typing a GSTIN makes the party a registered one, unless it already is.
+    if (v && !REGISTERED.includes(p.gst_type)) change.gst_type = "regular";
+    if (v.length >= 2 && states.some((s) => s.code === v.slice(0, 2))) change.state_code = v.slice(0, 2);
+    if (v.length >= 12) change.pan = v.slice(2, 12);
+    setNote("");
+    set(change);
+  };
+  const fetchDetails = async () => {
+    setBusy(true);
+    setNote("");
+    try {
+      const r = await api<GstinDetails>(`v1/gstin-lookup/?gstin=${p.gstin}`);
+      const change: Partial<Party> = { state_code: r.state_code, pan: r.pan, gst_type: r.gst_type || "regular" };
+      if (r.address && p.addresses.length === 0)
+        change.addresses = [
+          {
+            label: "Principal place",
+            address: r.address,
+            pincode: r.pincode,
+            state_code: r.state_code,
+            country: "India",
+            gstin: "",
+            is_billing: true,
+            is_shipping: true,
+          },
+        ];
+      set(change);
+      props.onName(r.trade_name || r.legal_name);
+      setNote(r.legal_name ? `Found: ${r.legal_name}` : "Found.");
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div>
+      <label>
+        GSTIN
+        <span className="inline">
+          <input required={registered} value={p.gstin} maxLength={15} onChange={(e) => onGstin(e.target.value)} />
+          <button type="button" disabled={!valid || busy} onClick={fetchDetails}>
+            Fetch details
+          </button>
+        </span>
+      </label>
+      {note && <span className="small">{note}</span>}
+    </div>
   );
 }
