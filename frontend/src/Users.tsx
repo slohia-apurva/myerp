@@ -136,7 +136,7 @@ export function UsersPage({ session }: { session: SignedIn }) {
                   <button className="link" onClick={() => edit(u)}>
                     Edit
                   </button>{" "}
-                  <button className="link" onClick={() => edit("new", u)}>
+                  <button className="link quiet" onClick={() => edit("new", u)}>
                     Duplicate
                   </button>
                 </td>
@@ -290,7 +290,7 @@ export function RolesPage({ session }: { session: SignedIn }) {
                     </button>
                   )}{" "}
                   {owner && (
-                    <button className="link" onClick={() => edit("new", r)}>
+                    <button className="link quiet" onClick={() => edit("new", r)}>
                       Duplicate
                     </button>
                   )}

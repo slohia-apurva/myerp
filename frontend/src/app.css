@@ -1342,3 +1342,18 @@ ul.address-list .pill {
 .attention li {
   margin: 4px 0;
 }
+
+/* Edit and Duplicate side by side in a table row: apart, with a divider, Duplicate quieter. */
+td button.link + button.link {
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+}
+td button.link.quiet {
+  color: var(--slate);
+  font-weight: 500;
+}
+td button.link.quiet:hover:not(:disabled) {
+  color: var(--green);
+}

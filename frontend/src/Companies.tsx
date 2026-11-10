@@ -365,7 +365,7 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
               <td>
                 {session.user.is_owner && (
                   <button
-                    className="link"
+                    className="link quiet"
                     onClick={() => {
                       setCopyOf(c);
                       setAdding(true);
@@ -831,7 +831,7 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
                       Edit
                     </button>{" "}
                     <button
-                      className="link"
+                      className="link quiet"
                       onClick={() => {
                         setCopyOf(b);
                         setEditing("new");
@@ -1028,7 +1028,7 @@ function Certificates(props: {
                           Edit
                         </button>{" "}
                         <button
-                          className="link"
+                          className="link quiet"
                           onClick={() => {
                             setCopyOf(x);
                             setEditing("new");
@@ -1288,7 +1288,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
               )}
               {g.parent !== null && (
                 <button
-                  className="link"
+                  className="link quiet"
                   onClick={() => setEditing({ group: null, parent: g.parent, copyName: `${g.name} (copy)` })}
                 >
                   Duplicate

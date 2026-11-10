@@ -104,7 +104,7 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
                       Edit
                     </button>{" "}
                     <button
-                      className="link"
+                      className="link quiet"
                       onClick={() => {
                         setCopyOf(t);
                         setEditing("new");
