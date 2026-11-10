@@ -1342,3 +1342,24 @@ ul.address-list .pill {
 .attention li {
   margin: 4px 0;
 }
+
+fieldset.plain {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+td.act {
+  width: 1%;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* Duplicate quieter than Edit. */
+td button.link.quiet {
+  color: var(--slate);
+  font-weight: 500;
+}
+td button.link.quiet:hover:not(:disabled) {
+  color: var(--green);
+}

@@ -86,6 +86,15 @@ export const MANUAL: Chapter[] = [
           To make something that is much like an existing record, click "Duplicate" beside it (for a ledger, in its
           panel). The usual form opens already filled in, with "(copy)" after the name. Change what differs and click
           "Save": a new record is made and the original is left as it was. Nothing is saved until you click "Save".
+          "Duplicate" is in its own column at the end of each row, after "Edit".
+        </p>
+        <h3>Viewing, editing and disabling</h3>
+        <p>
+          At the end of each row is "Edit" if your role lets you change that master, or "View" if you may only look. "View"
+          opens the same form with everything locked and no "Save" button; "Close" shuts it. Records are never deleted.
+          While you are editing a record, a "Disable" button (or "Enable", for one already disabled) sits beside "Save"
+          and "Cancel". It asks you to confirm and then takes effect at once, without needing "Save". A disabled
+          record stays on the list, greyed, and cannot be picked in new entries. The Head office branch cannot be disabled.
         </p>
         <ul>
           <li>Companies, branches, ledger groups, ledgers, credit terms, users and roles all have "Duplicate". For a ledger group it appears on groups under another group.</li>
@@ -211,7 +220,6 @@ export const MANUAL: Chapter[] = [
               "Default addresses",
               "Tick Default billing address, Default ship to or Default ship from. Each can be on only one branch; documents pick it first and you can change it on each document. To move a default, tick it on the other branch.",
             ],
-            ["Open", "Untick when a branch closes. The Head office cannot be closed."],
           ]}
         />
       </>
@@ -270,7 +278,7 @@ export const MANUAL: Chapter[] = [
         </ol>
         <p>
           The list shows each term in words and how many parties use it. Credit terms are never deleted: click "Edit"
-          and untick "Active" to stop offering them to new parties. Parties that already have them keep them.
+          and then the "Disable" button to stop offering them to new parties ("Enable" brings them back). Parties that already have them keep them.
         </p>
       </>
     ),
@@ -440,7 +448,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <Note>
           Ledgers are never deleted, so past entries always have their account. When a ledger is no longer needed, click
-          "Edit" and untick "Active"; it then cannot be used in new entries.
+          "Edit" and then "Disable"; it then cannot be used in new entries. "Enable" brings it back.
         </Note>
       </>
     ),
@@ -464,7 +472,7 @@ export const MANUAL: Chapter[] = [
           <li>Click "Save".</li>
         </ol>
         <h3>Stop someone signing in</h3>
-        <p>Click "Edit" on the user, untick "Active" and click "Save". Their past work stays on record.</p>
+        <p>Click "Edit" on the user, then "Disable". They can no longer sign in; "Enable" lets them back. Their past work stays on record.</p>
         <p>
           The Activity column on the right shows who added or changed each user, including changes to their roles and
           companies.

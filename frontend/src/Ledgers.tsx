@@ -4,6 +4,7 @@ import { ChangeLog } from "./Audit";
 import { blankParty, PartyFields, PartySummary, type Party } from "./Parties";
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
+import { ActiveButton } from "./RowActions";
 
 type Ledger = {
   id: number;
@@ -454,7 +455,6 @@ function LedgerForm(props: {
   const [name, setName] = useState(l?.name ?? (c ? `${c.name} (copy)` : ""));
   const [group, setGroup] = useState(from ? String(from.group) : props.defaultGroup);
   const [notes, setNotes] = useState(from?.notes ?? "");
-  const [active, setActive] = useState(l?.is_active ?? true);
   const [bankName, setBankName] = useState(from?.bank_name ?? "");
   const [accountNumber, setAccountNumber] = useState(l?.account_number ?? "");
   const [ifsc, setIfsc] = useState(from?.ifsc ?? "");
@@ -518,7 +518,6 @@ function LedgerForm(props: {
       name,
       group: Number(group),
       notes,
-      is_active: active,
       bank_name: bankName,
       account_number: accountNumber,
       ifsc,
@@ -815,18 +814,21 @@ function LedgerForm(props: {
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
-      {l && (
-        <label className="check">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          Active (ledgers are never deleted; untick to stop new entries)
-        </label>
-      )}
       {error && <p className="error">{error}</p>}
       <div className="buttons">
         <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
+        {l && (
+          <ActiveButton
+            url={`v1/ledgers/${l.id}/`}
+            active={l.is_active}
+            what={`the ledger ${l.name}`}
+            onDone={() => props.onDone(l.id)}
+            onError={setError}
+          />
+        )}
       </div>
     </form>
   );
