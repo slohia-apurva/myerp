@@ -403,7 +403,7 @@ export const MANUAL: Chapter[] = [
           number over it, but no two parties can share one. Search for a ledger by its number in the Ledgers list.
           Typing the GSTIN makes the party a registered one and fills in the state and PAN; the state decides the place of
           supply on invoices. "Fetch details" asks the GST portal for the name and address and fills them in. The registered address goes on the
-          "Addresses" tab, where you give it a name such as "Head office". It also warns if the GSTIN is not "Active" (cancelled or suspended). If the lookup is not available (the key is not set,
+          "Addresses" tab, named after the party; you can rename it, for example "Head office". It also warns if the GSTIN is not "Active" (cancelled or suspended). If the lookup is not available (the key is not set,
           the credits are used up, or the GST system is down) it says so, and you enter the details by hand.
         </p>
         <p>
