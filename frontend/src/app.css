@@ -1334,3 +1334,11 @@ ul.address-list {
 ul.address-list .pill {
   margin-left: 6px;
 }
+
+.attention {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.attention li {
+  margin: 4px 0;
+}

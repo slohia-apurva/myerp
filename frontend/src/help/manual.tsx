@@ -50,7 +50,7 @@ export const MANUAL: Chapter[] = [
         <h3>The screen</h3>
         <ul>
           <li>
-            <strong>Top menu</strong> (white bar): the modules you may use, such as Home and Masters. You only see the
+            <strong>Top menu</strong> (white bar): the modules you may use, such as Dashboard and Masters. You only see the
             ones your role allows. Click "Masters" to open its list: "Company", "Ledger groups", "Ledgers", "Credit
             terms", "Users" and "User roles". Ledger groups, ledgers and credit terms open for the company you are
             working in. "Help" opens this manual at the
@@ -108,8 +108,15 @@ export const MANUAL: Chapter[] = [
           There is no limit to how deep a tree can go; the buttons match the deepest level in use.
         </p>
 
-        <h3>Home</h3>
-        <p>Home lists the companies you work in, with a link to each company and its ledgers.</p>
+        <h3>Dashboard</h3>
+        <p>
+          The "Dashboard" is the first screen after you sign in, and the first item in the top menu. It shows the
+          company picked at the top right: how many ledgers, customers, suppliers and branches it has, and a list
+          headed "Needs your attention" for things to fix, such as opening balances that do not balance or a licence
+          or certificate that is expired or due for renewal within 90 days. The buttons under "Go to" open the
+          company's ledgers, ledger groups, the credit terms, and the list of all companies. "Activity" on the right
+          shows the latest changes in this company. Change the company at the top right to see another one.
+        </p>
       </>
     ),
   },
@@ -331,7 +338,7 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          A ledger is one account: a customer, a supplier, a bank, an expense or an income head. Open Ledgers from Home or
+          A ledger is one account: a customer, a supplier, a bank, an expense or an income head. Open Ledgers from the Dashboard or
           from the company page. Use the "Ledger groups" button to go back to the groups.
         </p>
         <h3>The screen</h3>

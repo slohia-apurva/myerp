@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, Session, SignedIn } from "./api";
-import { CompaniesPage, CompanyPage, LedgerGroupsPage, type Company } from "./Companies";
+import { CompaniesPage, CompanyPage, LedgerGroupsPage } from "./Companies";
 import { CreditTermsPage } from "./CreditTerms";
+import { Dashboard } from "./Dashboard";
 import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
-import { Logo, PageHeader } from "./Brand";
+import { Logo } from "./Brand";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
 
-type WhoAmI = { tenant: string; name: string; companies: string[] };
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
@@ -31,7 +31,11 @@ export function App() {
       .then(setSession)
       .catch((err: ApiError) => setError(err.status === 404 ? "Unknown company group address." : err.message));
   }, []);
-  const onChange = useCallback((s: Session) => setSession(s), []);
+  const onChange = useCallback((s: Session) => {
+    // Signing in always starts at the dashboard, not wherever the address bar was left.
+    if (s.signed_in) window.location.hash = "#/";
+    setSession(s);
+  }, []);
 
   if (session?.signed_in) return <Shell session={session} onSignOut={onChange} />;
   return (
@@ -77,7 +81,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <Logo />
         </a>
         <nav aria-label="Modules">
-          {link("home", "Home")}
+          {link("home", "Dashboard")}
           {(canSeeMasters || canManageUsers) && (
             <MastersMenu
               active={page === "companies" || page === "users" || page === "roles" || page === "credit-terms"}
@@ -125,68 +129,9 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         ) : page === "roles" && canManageUsers ? (
           <RolesPage session={session} />
         ) : (
-          <Home session={session} />
+          <Dashboard session={session} company={current.company} />
         )}
       </main>
     </>
-  );
-}
-
-function Home({ session }: { session: SignedIn }) {
-  const [who, setWho] = useState<WhoAmI | null>(null);
-  const [companies, setCompanies] = useState<Company[] | null>(null);
-  const canSeeMasters = session.permissions.includes("masters.view");
-  useEffect(() => {
-    api<WhoAmI>("whoami/").then(setWho);
-    if (canSeeMasters) api<Company[]>("v1/companies/").then(setCompanies);
-  }, [canSeeMasters]);
-  return (
-    <section className="page">
-      <PageHeader title={`Welcome, ${session.user.name}`} sub={who?.name} />
-      {who && who.companies.length === 0 && <p>No companies yet.</p>}
-      {companies && companies.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>Company</th>
-              <th>GSTIN</th>
-              <th>State</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {companies.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  <a href={`#/companies/${c.id}`}>{c.name}</a>
-                </td>
-                <td>{c.gstin || <span className="small">Unregistered</span>}</td>
-                <td>{c.state}</td>
-                <td>
-                  <a href={`#/companies/${c.id}/ledgers`}>Ledgers</a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        who &&
-        !canSeeMasters &&
-        who.companies.length > 0 && (
-          <table>
-            <tbody>
-              {who.companies.map((name) => (
-                <tr key={name}>
-                  <td>{name}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )
-      )}
-      {session.permissions.length === 0 && (
-        <p className="small">You have no role yet. Ask your MyERP admin to give you one.</p>
-      )}
-    </section>
   );
 }
