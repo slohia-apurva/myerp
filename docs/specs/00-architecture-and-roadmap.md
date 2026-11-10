@@ -279,7 +279,7 @@ Yes, MyERP should use AI, but only as an assistant that prepares drafts and flag
 
 ### How it is built
 
-A small `ai/` app in the backend calls the Claude API (Anthropic). Slow jobs such as bill reading, anomaly runs and forecasting run on the existing Celery workers. "Ask your data" gives the model a fixed set of tools, one per report, that apply the user's permissions. Forecasting starts with standard statistical methods; the language model only explains the result. None of these features is on the cutover path, so a delay in AI never delays replacing ERPNext.
+A small `ai/` app in the backend calls the Claude API (Anthropic). Slow jobs such as bill reading, anomaly runs and forecasting run on the existing Celery workers. "Ask your data" gives the model a fixed set of tools, one per report, that apply the user's permissions. Forecasting starts with standard statistical methods; the language model only explains the result. None of these features is on the cutover path, so a delay in AI never delays replacing ERPNext. The detailed spec, including outside AI apps (MCP) and scheduled tasks, is [05-ai-assistant.md](05-ai-assistant.md) (added 8 Nov).
 
 ## Compliance requirements
 
