@@ -166,8 +166,8 @@ export const MANUAL: Chapter[] = [
 
         <h3>The company page</h3>
         <p>
-          Click a company's name. The band shows its GSTIN, PAN and state, and "Ledgers" and "Ledger groups" buttons. The
-          Overview tab shows:
+          Click a company's name. The band shows its GSTIN, PAN and state. Ledgers and ledger groups are
+          opened from the "Masters" menu. The Overview tab shows:
         </p>
         <ul>
           <li>
@@ -312,7 +312,7 @@ export const MANUAL: Chapter[] = [
           the right form. Their familiar names are kept, with the Schedule III head shown beside each.
         </p>
         <p>
-          Open them with the "Ledger groups" button on the company page or on the Ledgers screen. The table shows each
+          Open them from "Masters" › "Ledger groups", or with the "Ledger groups" button on the Ledgers screen. The table shows each
           group's nature (asset, liability, income or expense), its Schedule III head and how many ledgers it holds.
           Click a group's ledger count to see those ledgers.
         </p>
@@ -338,8 +338,7 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          A ledger is one account: a customer, a supplier, a bank, an expense or an income head. Open Ledgers from the Dashboard or
-          from the company page. Use the "Ledger groups" button to go back to the groups.
+          A ledger is one account: a customer, a supplier, a bank, an expense or an income head. Open Ledgers from "Masters" › "Ledgers" or the Dashboard. Use the "Ledger groups" button to go back to the groups.
         </p>
         <h3>The screen</h3>
         <ul>
