@@ -114,8 +114,7 @@ export const MANUAL: Chapter[] = [
           company picked at the top right: how many ledgers, customers, suppliers and branches it has, and a list
           headed "Needs your attention" for things to fix, such as opening balances that do not balance or a licence
           or certificate that is expired or due for renewal within 90 days. The buttons under "Go to" open the
-          company's ledgers, ledger groups, the credit terms, and the list of all companies. "Activity" on the right
-          shows the latest changes in this company. Change the company at the top right to see another one.
+          company's ledgers, ledger groups, the credit terms, and the list of all companies. Change the company at the top right to see another one.
         </p>
       </>
     ),
