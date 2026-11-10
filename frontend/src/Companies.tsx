@@ -574,12 +574,6 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         sub={sub}
         actions={
           <>
-            <a className="button" href={`#/companies/${c.id}/groups`}>
-              Ledger groups
-            </a>
-            <a className="button" href={`#/companies/${c.id}/ledgers`}>
-              Ledgers
-            </a>
             {canEdit && !editing && (
               <button
                 onClick={() => {
