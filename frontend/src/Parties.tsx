@@ -527,6 +527,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
 }
 
 type GstinDetails = {
+  status?: string;
   state_code: string;
   pan: string;
   legal_name: string;
@@ -601,7 +602,8 @@ export function GstinField(props: {
         ];
       set(change);
       props.onName(r.trade_name || r.legal_name);
-      setNote(r.legal_name ? `Found: ${r.legal_name}` : "Found.");
+      const found = r.legal_name ? `Found: ${r.legal_name}` : "Found.";
+      setNote(r.status && r.status !== "Active" ? `${found} Warning: this GSTIN is ${r.status}.` : found);
     } catch (err) {
       setNote((err as Error).message);
     } finally {

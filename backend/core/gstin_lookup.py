@@ -6,7 +6,9 @@ takes a GSTIN and returns a dict), the endpoint says it is not set up, and
 the screens still work: the state and PAN come from the number itself.
 
 The provider function returns any of: legal_name, trade_name, status,
-gst_type, address, pincode. State and PAN are worked out here.
+gst_type, address, pincode, or raises LookupFailed (or NotSetUp). State and
+PAN are worked out here. The connected provider is core.gstinapi (gstinapi.in),
+which reads its key from the GSTINAPI_KEY environment variable.
 """
 
 from django.conf import settings
@@ -27,6 +29,14 @@ class NotSetUp(APIException):
         "filled in from the GSTIN."
     )
     default_code = "gst_lookup_not_set_up"
+
+
+class LookupFailed(APIException):
+    """The provider could not give the details; `detail` says why in plain words."""
+
+    def __init__(self, detail: str, status_code: int = 502):
+        super().__init__(detail)
+        self.status_code = status_code
 
 
 class GstinLookupView(APIView):
