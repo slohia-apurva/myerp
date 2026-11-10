@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
+import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
 type Contact = { address: string; pincode: string; phone: string; email: string; contact_person: string };
@@ -362,10 +363,10 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
               <td>{c.abbr}</td>
               <td>{c.gstin || <span className="small">Unregistered</span>}</td>
               <td>{c.state}</td>
-              <td>
+              <td className="act">
                 {session.user.is_owner && (
                   <button
-                    className="link"
+                    className="link quiet"
                     onClick={() => {
                       setCopyOf(c);
                       setAdding(true);
@@ -774,8 +775,10 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
       {editing && (
         <BranchForm
           company={props.company}
+          key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
           branch={editing === "new" ? null : editing}
           copyOf={copyOf}
+          readOnly={!props.canEdit}
           states={props.states}
           onDone={() => {
             setEditing(null);
@@ -796,7 +799,7 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
             <th>GSTIN</th>
             <th>Address</th>
             <th>Contact</th>
-            <th />
+            <ActionHeads />
           </tr>
         </thead>
         <tbody>
@@ -818,30 +821,17 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
               <td>{b.gstin || <span className="small">Company's</span>}</td>
               <td className="pre small">{contactLines(b).where}</td>
               <td className="small">{contactLines(b).reach}</td>
-              <td>
-                {props.canEdit && (
-                  <>
-                    <button
-                      className="link"
-                      onClick={() => {
-                        setCopyOf(null);
-                        setEditing(b);
-                      }}
-                    >
-                      Edit
-                    </button>{" "}
-                    <button
-                      className="link"
-                      onClick={() => {
-                        setCopyOf(b);
-                        setEditing("new");
-                      }}
-                    >
-                      Duplicate
-                    </button>
-                  </>
-                )}
-              </td>
+              <ActionCells
+                canEdit={props.canEdit}
+                onOpen={() => {
+                  setCopyOf(null);
+                  setEditing(b);
+                }}
+                onDuplicate={() => {
+                  setCopyOf(b);
+                  setEditing("new");
+                }}
+              />
             </tr>
           ))}
         </tbody>
@@ -854,6 +844,7 @@ function BranchForm(props: {
   company: Company;
   branch: Branch | null;
   copyOf?: Branch | null;
+  readOnly?: boolean;
   states: State[];
   onDone: () => void;
   onCancel: () => void;
@@ -864,7 +855,6 @@ function BranchForm(props: {
   const [stateCode, setStateCode] = useState(from?.state_code ?? props.company.state_code);
   const [gstin, setGstin] = useState(b?.gstin ?? "");
   const [contact, setContact] = useState(contactOf(from));
-  const [active, setActive] = useState(b?.is_active ?? true);
   const [flags, setFlags] = useState<Record<DefaultFlag, boolean>>({
     default_billing: b?.default_billing ?? false,
     default_ship_to: b?.default_ship_to ?? false,
@@ -877,7 +867,7 @@ function BranchForm(props: {
     setError("");
     // Only newly ticked defaults are sent; ticking moves it from the other branch.
     const ticked = Object.fromEntries(DEFAULTS.filter(([f]) => flags[f] && !b?.[f]).map(([f]) => [f, true]));
-    const body = { name, state_code: stateCode, gstin, ...contact, is_active: active, ...ticked };
+    const body = { name, state_code: stateCode, gstin, ...contact, ...ticked };
     try {
       if (b) await api(`v1/branches/${b.id}/`, body, "PATCH");
       else await api(`v1/companies/${props.company.id}/branches/`, body);
@@ -889,7 +879,8 @@ function BranchForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{b ? `Edit ${b.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add branch"}</h4>
+      <h4>{b ? `${props.readOnly ? "View" : "Edit"} ${b.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add branch"}</h4>
+      <FormBody readOnly={props.readOnly}>
       <label>
         Name
         <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Bhiwandi warehouse" />
@@ -920,18 +911,22 @@ function BranchForm(props: {
           </label>
         ))}
       </fieldset>
-      {b && !b.is_head_office && (
-        <label className="check">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          Open (untick when the branch closes)
-        </label>
-      )}
+      </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button>Save</button>
+        {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>
-          Cancel
+          {props.readOnly ? "Close" : "Cancel"}
         </button>
+        {b && !b.is_head_office && !props.readOnly && (
+          <ActiveButton
+            url={`v1/branches/${b.id}/`}
+            active={b.is_active}
+            what={`the branch ${b.name}`}
+            onDone={props.onDone}
+            onError={setError}
+          />
+        )}
       </div>
     </form>
   );
@@ -973,8 +968,10 @@ function Certificates(props: {
       {editing && (
         <CertificateForm
           company={props.company}
+          key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
           certificate={editing === "new" ? null : editing}
           copyOf={copyOf}
+          readOnly={!props.canEdit}
           branches={props.branches}
           onDone={() => {
             setEditing(null);
@@ -997,7 +994,7 @@ function Certificates(props: {
               <th>Number</th>
               <th>Branch</th>
               <th>Renewal</th>
-              <th />
+              <ActionHeads />
             </tr>
           </thead>
           <tbody>
@@ -1015,30 +1012,17 @@ function Certificates(props: {
                   </td>
                   <td>{x.branch_name || <span className="small">Whole company</span>}</td>
                   <td className={note.cls}>{note.text}</td>
-                  <td>
-                    {props.canEdit && (
-                      <>
-                        <button
-                          className="link"
-                          onClick={() => {
-                            setCopyOf(null);
-                            setEditing(x);
-                          }}
-                        >
-                          Edit
-                        </button>{" "}
-                        <button
-                          className="link"
-                          onClick={() => {
-                            setCopyOf(x);
-                            setEditing("new");
-                          }}
-                        >
-                          Duplicate
-                        </button>
-                      </>
-                    )}
-                  </td>
+                  <ActionCells
+                    canEdit={props.canEdit}
+                    onOpen={() => {
+                      setCopyOf(null);
+                      setEditing(x);
+                    }}
+                    onDuplicate={() => {
+                      setCopyOf(x);
+                      setEditing("new");
+                    }}
+                  />
                 </tr>
               );
             })}
@@ -1053,6 +1037,7 @@ function CertificateForm(props: {
   company: Company;
   certificate: Certificate | null;
   copyOf?: Certificate | null;
+  readOnly?: boolean;
   branches: Branch[];
   onDone: () => void;
   onCancel: () => void;
@@ -1093,7 +1078,8 @@ function CertificateForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{x ? `Edit ${x.kind_label}` : props.copyOf ? "Duplicate certificate" : "Add certificate"}</h4>
+      <h4>{x ? `${props.readOnly ? "View" : "Edit"} ${x.kind_label}` : props.copyOf ? "Duplicate certificate" : "Add certificate"}</h4>
+      <FormBody readOnly={props.readOnly}>
       <div className="row">
         <label>
           Type
@@ -1146,11 +1132,12 @@ function CertificateForm(props: {
         <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
       <p className="small">A renewed certificate is added as a new one, so the old one stays on record.</p>
+      </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button>Save</button>
+        {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>
-          Cancel
+          {props.readOnly ? "Close" : "Cancel"}
         </button>
       </div>
     </form>

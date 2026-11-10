@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Activity, WithActivity } from "./Audit";
 import { PageHeader } from "./Brand";
 import { money, renewalNote, type Company } from "./Companies";
 
@@ -52,7 +51,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
   return (
     <section className="page">
       <PageHeader title={hello} sub={company.name} />
-      <WithActivity activity={<Activity company={company.id} filter stamp={`${ledgers.length}${overview?.opening.difference}`} />}>
+      <div className="main-col">
         <div className="stats">
           <div className="stat">
             <span className="stat-label">Ledgers</span>
@@ -112,7 +111,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
             All companies
           </a>
         </div>
-      </WithActivity>
+      </div>
     </section>
   );
 }

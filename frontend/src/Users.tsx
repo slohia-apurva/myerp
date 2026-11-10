@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
+import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 import { PageHeader } from "./Brand";
 
 type Role = {
@@ -119,7 +120,7 @@ export function UsersPage({ session }: { session: SignedIn }) {
               <th>Name</th>
               <th>Roles</th>
               <th>Status</th>
-              <th />
+              <ActionHeads />
             </tr>
           </thead>
           <tbody>
@@ -132,14 +133,7 @@ export function UsersPage({ session }: { session: SignedIn }) {
                 </td>
                 <td>{u.roles.map(roleName).join(", ") || <span className="small">No role</span>}</td>
                 <td>{!u.is_active ? "Deactivated" : u.signed_in_before ? "Active" : "Not signed in yet"}</td>
-                <td>
-                  <button className="link" onClick={() => edit(u)}>
-                    Edit
-                  </button>{" "}
-                  <button className="link" onClick={() => edit("new", u)}>
-                    Duplicate
-                  </button>
-                </td>
+                <ActionCells canEdit onOpen={() => edit(u)} onDuplicate={() => edit("new", u)} />
               </tr>
             ))}
           </tbody>
@@ -164,7 +158,6 @@ function UserForm(props: {
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [roleIds, setRoleIds] = useState<number[]>(from?.roles ?? []);
   const [companyIds, setCompanyIds] = useState<number[]>(from?.companies ?? []);
-  const [active, setActive] = useState(user?.is_active ?? true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -172,7 +165,7 @@ function UserForm(props: {
     event.preventDefault();
     setBusy(true);
     setError("");
-    const body = { full_name: fullName, roles: roleIds, companies: companyIds, is_active: active };
+    const body = { full_name: fullName, roles: roleIds, companies: companyIds };
     try {
       if (user) await api(`v1/users/${user.id}/`, body, "PATCH");
       else await api("v1/users/", { ...body, email });
@@ -187,6 +180,7 @@ function UserForm(props: {
   return (
     <form className="card" onSubmit={submit}>
       <h3>{user ? `Edit ${user.email}` : props.copyOf ? `Duplicate ${props.copyOf.full_name || props.copyOf.email}` : "Add user"}</h3>
+      <FormBody>
       {!user && (
         <label>
           Email (their Google account)
@@ -212,18 +206,22 @@ function UserForm(props: {
           <Checks items={props.companies} selected={companyIds} onChange={setCompanyIds} />
         </fieldset>
       )}
-      {user && (
-        <label className="check">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          Active (untick to stop this person signing in)
-        </label>
-      )}
+      </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
         <button disabled={busy || (!user && !email)}>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
+        {user && (
+          <ActiveButton
+            url={`v1/users/${user.id}/`}
+            active={user.is_active}
+            what={`${user.full_name || user.email}`}
+            onDone={props.onDone}
+            onError={setError}
+          />
+        )}
       </div>
     </form>
   );
@@ -258,6 +256,7 @@ export function RolesPage({ session }: { session: SignedIn }) {
             key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
             role={editing === "new" ? null : editing}
             copyOf={copyOf}
+            readOnly={editing !== "new" && !(owner && editing.code !== "owner")}
             catalogue={catalogue}
             onDone={() => {
               edit(null);
@@ -271,7 +270,7 @@ export function RolesPage({ session }: { session: SignedIn }) {
             <tr>
               <th>Role</th>
               <th>Users</th>
-              <th />
+              <ActionHeads />
             </tr>
           </thead>
           <tbody>
@@ -283,18 +282,12 @@ export function RolesPage({ session }: { session: SignedIn }) {
                   <span className="small">{r.description}</span>
                 </td>
                 <td>{r.user_count}</td>
-                <td>
-                  {owner && r.code !== "owner" && (
-                    <button className="link" onClick={() => edit(r)}>
-                      Edit
-                    </button>
-                  )}{" "}
-                  {owner && (
-                    <button className="link" onClick={() => edit("new", r)}>
-                      Duplicate
-                    </button>
-                  )}
-                </td>
+                <ActionCells
+                  canEdit={owner && r.code !== "owner"}
+                  canDuplicate={owner}
+                  onOpen={() => edit(r)}
+                  onDuplicate={() => edit("new", r)}
+                />
               </tr>
             ))}
           </tbody>
@@ -307,6 +300,7 @@ export function RolesPage({ session }: { session: SignedIn }) {
 function RoleForm(props: {
   role: Role | null;
   copyOf?: Role | null;
+  readOnly?: boolean;
   catalogue: Area[];
   onDone: () => void;
   onCancel: () => void;
@@ -344,7 +338,8 @@ function RoleForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h3>{role ? `Edit ${role.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "New role"}</h3>
+      <h3>{role ? `${props.readOnly ? "View" : "Edit"} ${role.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "New role"}</h3>
+      <FormBody readOnly={props.readOnly}>
       <label>
         Name
         <input required value={name} onChange={(e) => setName(e.target.value)} />
@@ -366,13 +361,14 @@ function RoleForm(props: {
           </div>
         </fieldset>
       ))}
+      </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button>Save</button>
+        {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>
-          Cancel
+          {props.readOnly ? "Close" : "Cancel"}
         </button>
-        {role && !role.is_standard && (
+        {role && !role.is_standard && !props.readOnly && (
           <button type="button" className="link danger" onClick={remove}>
             Delete role
           </button>

@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader } from "./Brand";
+import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 /** Credit terms: how a party's bills are paid, split into parts. */
 export type TermPart = { percent: string; event: string; days: number };
@@ -63,8 +64,10 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
       <WithActivity activity={<Activity type="credit_term" stamp={JSON.stringify(terms)} />}>
       {editing && (
         <TermForm
+          key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
           term={editing === "new" ? null : editing}
           copyOf={copyOf}
+          readOnly={!canEdit}
           onDone={done}
           onCancel={() => {
             setEditing(null);
@@ -78,7 +81,7 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
             <th>Name</th>
             <th>When payment is due</th>
             <th className="num">Parties</th>
-            <th />
+            <ActionHeads />
           </tr>
         </thead>
         <tbody>
@@ -91,30 +94,17 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
               </td>
               <td>{t.summary}</td>
               <td className="num">{t.party_count || ""}</td>
-              <td>
-                {canEdit && (
-                  <>
-                    <button
-                      className="link"
-                      onClick={() => {
-                        setCopyOf(null);
-                        setEditing(t);
-                      }}
-                    >
-                      Edit
-                    </button>{" "}
-                    <button
-                      className="link"
-                      onClick={() => {
-                        setCopyOf(t);
-                        setEditing("new");
-                      }}
-                    >
-                      Duplicate
-                    </button>
-                  </>
-                )}
-              </td>
+              <ActionCells
+                canEdit={canEdit}
+                onOpen={() => {
+                  setCopyOf(null);
+                  setEditing(t);
+                }}
+                onDuplicate={() => {
+                  setCopyOf(t);
+                  setEditing("new");
+                }}
+              />
             </tr>
           ))}
         </tbody>
@@ -124,12 +114,17 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
   );
 }
 
-function TermForm(props: { term: CreditTerm | null; copyOf?: CreditTerm | null; onDone: () => void; onCancel: () => void }) {
+function TermForm(props: {
+  term: CreditTerm | null;
+  copyOf?: CreditTerm | null;
+  readOnly?: boolean;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const t = props.term;
   const from = t ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (t?.name ?? ""));
   const [notes, setNotes] = useState(from?.notes ?? "");
-  const [active, setActive] = useState(t?.is_active ?? true);
   const [parts, setParts] = useState<TermPart[]>(from?.parts ?? [{ percent: "100", event: "bill", days: 30 }]);
   const [error, setError] = useState("");
   const total = parts.reduce((sum, p) => sum + (Number(p.percent) || 0), 0);
@@ -139,7 +134,7 @@ function TermForm(props: { term: CreditTerm | null; copyOf?: CreditTerm | null; 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    const body = { name, notes, is_active: active, parts };
+    const body = { name, notes, parts };
     try {
       if (t) await api(`v1/credit-terms/${t.id}/`, body, "PATCH");
       else await api("v1/credit-terms/", body);
@@ -151,7 +146,8 @@ function TermForm(props: { term: CreditTerm | null; copyOf?: CreditTerm | null; 
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{t ? `Edit ${t.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add credit terms"}</h4>
+      <h4>{t ? `${props.readOnly ? "View" : "Edit"} ${t.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add credit terms"}</h4>
+      <FormBody readOnly={props.readOnly}>
       <label>
         Name
         <input
@@ -237,18 +233,22 @@ function TermForm(props: { term: CreditTerm | null; copyOf?: CreditTerm | null; 
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
-      {t && (
-        <label className="check">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          Active (untick to stop offering these terms to new parties)
-        </label>
-      )}
+      </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
-        <button>Save</button>
+        {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>
-          Cancel
+          {props.readOnly ? "Close" : "Cancel"}
         </button>
+        {t && !props.readOnly && (
+          <ActiveButton
+            url={`v1/credit-terms/${t.id}/`}
+            active={t.is_active}
+            what={`the credit terms ${t.name}`}
+            onDone={props.onDone}
+            onError={setError}
+          />
+        )}
       </div>
     </form>
   );
