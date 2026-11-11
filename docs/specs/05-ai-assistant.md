@@ -120,7 +120,19 @@ Suggested timing: built-in charts with the report framework (they are needed for
 
 The main plan already says every tenant customisation is **data in the tenant's own database**, never code (architecture, "Customisation without code forks"). The AI works only on that layer.
 
-**Never touched by AI** (nor by tenants): MyERP's code, its standard screens, standard reports and standard print formats, posting rules, both ledgers, tax and payroll rates, other tenants, and the platform. Posted documents stay immutable (rule 1). AI still never posts, submits, approves or pays (decision 0006).
+**Never touched by AI** (nor by tenants): MyERP's code, its standard screens, standard reports and standard print formats, posting rules, both ledgers, tax and payroll rates, other tenants, and the platform.
+
+**Who may change what** (Sidharth, 11 Nov: "Only people with permission should be allowed to build new reports. Standard reports cannot be modified by anyone except the super admin, i.e. owner of MyERP"):
+
+| What | Who may change it |
+| --- | --- |
+| Standard reports, standard print formats, standard screens and fields | Only the **MyERP super admin** (the owner of MyERP, on the platform side). Changes ship in a MyERP release to every tenant. No tenant user, not even a tenant's Owner, can edit them, with or without AI |
+| A copy of a standard report or print format | Anyone with the matching permission below can "Save as copy" and change the copy. The standard one stays as it is and remains available |
+| New screen reports | Only people with **"Build reports"** (`reports.build`). The tenant's Owner ticks it for the roles that should have it; nobody has it by default except the Owner |
+| New print formats | Only people with **"Design print formats"** (`printformats.manage`), Owner by default |
+| Custom fields | Only people with **"Add custom fields"** (`customfields.manage`), Owner by default |
+
+Everyone else can run the reports and use the print formats their role allows, but cannot create or change them. The AI offers its draft-writing tools only to a person who holds the matching permission, so asking the AI does not get round these rules. Posted documents stay immutable (rule 1). AI still never posts, submits, approves or pays (decision 0006).
 
 **What AI may draft, in the tenant's database only:**
 
@@ -133,7 +145,7 @@ The main plan already says every tenant customisation is **data in the tenant's 
 
 **How it works:**
 
-1. A person with the new **"Customise"** permission (`customise.manage`, Owner only by default) asks, for example: "add a field 'Transporter GSTIN' to delivery notes and print it under the vehicle number", or "make a screen report of pending orders by salesman with a bar chart".
+1. A person with the matching permission ("Build reports", "Design print formats" or "Add custom fields") asks, for example: "add a field 'Transporter GSTIN' to delivery notes and print it under the vehicle number", or "make a screen report of pending orders by salesman with a bar chart".
 2. The AI fills in a **Draft** customisation through a draft-writing tool. These tools are the only tools that write anything, and they can write only to the draft customisation tables.
 3. MyERP checks the draft (the right-hand column above) and shows a preview: the form with the new field, the print on a real document, the report with real data.
 4. The person clicks **"Activate"** or asks the AI for changes. Nothing reaches other users until someone activates it.
@@ -164,7 +176,7 @@ People can make the same customisations by hand on the same screens without AI. 
 - Every tool is a read-only function that calls the same query code the report screens use. There is no tool that creates, edits, submits, cancels or deletes anything, and no free-form SQL or "run code" tool.
 - Tools run on a read-only database connection where the database supports it, as a second guard.
 - When drafting features arrive later (bill capture etc.), they are separate tools that create **Draft** documents only (decision 0006), each switched on separately.
-- The one exception in this spec is the customisation tools above: they write only to the tenant's draft customisation tables, are offered only to people with `customise.manage`, and nothing they write takes effect until a person activates it.
+- The one exception in this spec is the customisation tools above: they write only to the tenant's draft customisation tables, are offered only to people with the matching build permission, and nothing they write takes effect until a person activates it.
 
 ### Prompt injection
 
@@ -223,7 +235,7 @@ Each line is one or more small pull requests, built only after Sidharth sees the
 | A4b | **Scheduled tasks**: schedule a saved report (daily, weekly, monthly), optional AI note, bell notification and email to the person's own address, "My scheduled tasks" list, re-check of permissions at each run. | A4 |
 | A5 | **MCP server** for outside AI apps: OAuth sign-in, "Connected AI apps", tenant switch, `ai.connect` permission. | A1; answer to open question 6 |
 | A6 | **More providers**: OpenAI and Gemini adapters, each passing the test questions before it is listed as supported. | A1 |
-| A7 | **AI customisation**: draft-writing tools, preview, Activate, versions, `customise.manage`; one kind at a time as each builder exists: screen reports (report framework), custom fields, print formats. | The matching builder in Phase 1 (report framework, custom fields, print formats) |
+| A7 | **AI customisation**: draft-writing tools, preview, Activate, versions, the three build permissions; one kind at a time as each builder exists: screen reports (report framework), custom fields, print formats. | The matching builder in Phase 1 (report framework, custom fields, print formats) |
 | Later | Drafting features from the main plan (bill capture, bank matching, month-end note), each its own spec and switch. | Their module gates |
 
 The main plan places "Ask your data" after the Phase 6 gate. This spec proposes building A1 now, alongside the masters work, because it is small, it is off the cutover path, and each module then adds its tools as it is built instead of all at the end. If Sidharth prefers, A1 can wait for Phase 2, when the answers become much more useful (open question 1).
@@ -251,4 +263,4 @@ The main plan places "Ask your data" after the Phase 6 gate. This spec proposes 
 8. **Scheduled tasks**: is delivery inside MyERP plus email to the person's own login enough, or do you want WhatsApp, or email to outside addresses (for example your CA)? Outside addresses would need an Owner approval per task.
 9. **Metabase**: is it for you (and maybe an analyst or CA) to do your own ad-hoc analysis, or did you plan it as the main MIS screen for everyone? The spec assumes the first: built-in charts for everyone, Metabase for power users after Phase 2.
 10. **Apurvam's AI key**: Apurvam enters its own key on the AI settings screen like any tenant. Do you already have an account with the provider you want?
-11. **Who may customise**: Owner only, or also a named "admin" role? And may a tenant customise standard print formats (as a copy), or only make new ones?
+11. **Who may customise**: answered 11 Nov. Building reports, print formats and custom fields each needs its own permission; standard reports and print formats are changed only by the MyERP super admin, and tenants work on copies.
