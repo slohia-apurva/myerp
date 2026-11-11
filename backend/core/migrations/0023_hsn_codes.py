@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("core", "0021_unit_gst_code"),
+        ("core", "0022_remove_item_legacy_code"),
     ]
 
     operations = [
