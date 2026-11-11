@@ -30,6 +30,10 @@ type Ledger = {
 };
 type Currency = { code: string; name: string; symbol: string };
 type Side = "dr" | "cr";
+const SIDES = [
+  { value: "dr", label: "Dr" },
+  { value: "cr", label: "Cr" },
+];
 type Bill = {
   ref: string;
   bill_date: string;
@@ -640,10 +644,11 @@ function LedgerForm(props: {
                       )}
                     </td>
                     <td>
-                      <select value={b.side} onChange={(e) => setBill(i, { side: e.target.value as Side })}>
-                        <option value="dr">Dr</option>
-                        <option value="cr">Cr</option>
-                      </select>
+                      <Combobox
+                        value={b.side}
+                        onChange={(v) => setBill(i, { side: v as Side })}
+                        options={SIDES}
+                      />
                     </td>
                     <td>
                       <button type="button" className="link danger" onClick={() => setBills(bills.filter((_, j) => j !== i))}>
@@ -717,10 +722,7 @@ function LedgerForm(props: {
             )}
             <label>
               Dr/Cr
-              <select value={openingSide} onChange={(e) => setOpeningSide(e.target.value as Side)}>
-                <option value="dr">Dr</option>
-                <option value="cr">Cr</option>
-              </select>
+              <Combobox value={openingSide} onChange={(v) => setOpeningSide(v as Side)} options={SIDES} />
             </label>
           </div>
         )}

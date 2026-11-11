@@ -1,3 +1,4 @@
+import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
@@ -162,14 +163,13 @@ function UnitForm(props: {
             </label>
             <label>
               GST unit code
-              <select required value={gstCode} onChange={(e) => setGstCode(e.target.value)}>
-                <option value="">Pick a code</option>
-                {codes.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} - {c.name}
-                  </option>
-                ))}
-              </select>
+              <Combobox
+                required
+                value={gstCode}
+                onChange={setGstCode}
+                empty="Pick a code"
+                options={codes.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))}
+              />
             </label>
           </div>
           <label className="check">

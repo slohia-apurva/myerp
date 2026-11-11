@@ -1,3 +1,4 @@
+import { Combobox } from "./Combobox";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
 
@@ -139,13 +140,12 @@ export function Activity(props: { company?: number; type?: string; filter?: bool
       <div className="activity-head">
         <h3>Activity</h3>
         {props.filter && (
-          <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Show">
-            {RECORD_TYPES.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Combobox
+            ariaLabel="Show"
+            value={type}
+            onChange={setType}
+            options={RECORD_TYPES.map(([value, label]) => ({ value, label }))}
+          />
         )}
       </div>
       <ChangeLog company={props.company} type={type} stamp={props.stamp} />

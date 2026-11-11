@@ -476,14 +476,12 @@ function CompanyForm(props: {
       <div className="row">
         <label>
           Type of entity
-          <select value={entityType} onChange={(e) => setEntityType(e.target.value)}>
-            <option value="">Choose…</option>
-            {ENTITY_TYPES.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Combobox
+            value={entityType}
+            onChange={setEntityType}
+            empty="Choose…"
+            options={ENTITY_TYPES.map(([value, label]) => ({ value, label }))}
+          />
         </label>
         {MCA_TYPES.includes(entityType) && (
           <label>
@@ -514,13 +512,11 @@ function CompanyForm(props: {
       <Section title="Books">
       <label>
         Financial year starts in
-        <select value={fyMonth} onChange={(e) => setFyMonth(Number(e.target.value))}>
-          {MONTHS.map((m, i) => (
-            <option key={m} value={i + 1}>
-              {m}
-            </option>
-          ))}
-        </select>
+        <Combobox
+          value={String(fyMonth)}
+          onChange={(v) => setFyMonth(Number(v))}
+          options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+        />
       </label>
       <label>
         Books beginning from (opening balances are as at this date; blank = start of this financial year)
@@ -1094,13 +1090,11 @@ function CertificateForm(props: {
       <div className="row">
         <label>
           Type
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            {CERTIFICATE_KINDS.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Combobox
+            value={kind}
+            onChange={setKind}
+            options={CERTIFICATE_KINDS.map(([value, label]) => ({ value, label }))}
+          />
         </label>
         <label>
           Name {kind === "other" ? "" : "(optional, e.g. ISO 9001:2015)"}

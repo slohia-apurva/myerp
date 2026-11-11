@@ -1,3 +1,4 @@
+import { Combobox } from "./Combobox";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Company } from "./Companies";
@@ -60,13 +61,11 @@ export function CompanyPicker(props: { companies: Company[]; company?: Company; 
   return (
     <label className="company-pick" title="Company you are working in">
       <span className="sr-only">Company</span>
-      <select value={props.company.id} onChange={(e) => props.onChoose(Number(e.target.value))}>
-        {props.companies.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+      <Combobox
+        value={String(props.company.id)}
+        onChange={(v) => props.onChoose(Number(v))}
+        options={props.companies.map((c) => ({ value: String(c.id), label: c.name }))}
+      />
     </label>
   );
 }
