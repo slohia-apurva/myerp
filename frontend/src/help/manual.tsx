@@ -58,9 +58,9 @@ export const MANUAL: Chapter[] = [
         <ul>
           <li>
             <strong>Top menu</strong> (white bar): the modules you may use, such as Dashboard and Masters. You only see the
-            ones your role allows. Click "Masters" to open its list: "Company", "Ledger groups", "Ledgers", "Credit
-            terms", "Users" and "User roles". Ledger groups, ledgers and credit terms open for the company you are
-            working in. "Help" opens this manual at the
+            ones your role allows. Click "Masters" to open its list: "Ledger groups", "Ledgers", "Credit terms",
+            "Items" and "Units". Ledger groups and ledgers open for the company you are working in. Owners also see
+            "Admin", which holds "Company", "Users" and "User roles". "Help" opens this manual at the
             page for the screen you are on.
           </li>
           <li>
@@ -143,13 +143,13 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           A company is one legal entity with its own books, GST registration and document numbers. Open them from
-          "Masters", then "Company", in the top menu. A new company starts with a Head office branch and the standard ledger groups.
+          "Admin", then "Company", in the top menu (Owners only). A new company starts with a Head office branch and the standard ledger groups.
         </p>
 
         <h3>Add a company</h3>
         <p>Only an Owner can add a company.</p>
         <ol>
-          <li>Go to Masters and click "Add company".</li>
+          <li>Go to Admin, then "Company", and click "Add company".</li>
           <li>Fill in the details below and tick the modules the company uses.</li>
           <li>Click "Save". The company's page opens.</li>
         </ol>
@@ -182,7 +182,7 @@ export const MANUAL: Chapter[] = [
         <h3>The company page</h3>
         <p>
           Click a company's name. The band shows its GSTIN, PAN and state. Ledgers and ledger groups are
-          opened from the "Masters" menu. The Overview tab shows:
+          opened from "Admin", then "Company". The Overview tab shows:
         </p>
         <ul>
           <li>
@@ -570,7 +570,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a user</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Users", then "Add user".</li>
+          <li>Click "Admin" in the top menu, then "Users", then "Add user".</li>
           <li>Enter their email (their Google account) and full name.</li>
           <li>Tick their roles. Only an Owner can make someone an Owner.</li>
           <li>Tick the companies they may work in. None ticked means all companies.</li>
@@ -599,7 +599,7 @@ export const MANUAL: Chapter[] = [
         <p>Owner can do everything and cannot be changed. Only an Owner can change roles.</p>
         <h3>Make or change a role</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "User roles", then "New role", or "Edit" on a role.</li>
+          <li>Click "Admin" in the top menu, then "User roles", then "New role", or "Edit" on a role.</li>
           <li>Give it a name and description, tick the permissions in each area, and click "Save".</li>
         </ol>
         <p>Standard roles can be edited but not deleted. Roles you made can be deleted with "Delete role".</p>
