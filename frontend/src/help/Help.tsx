@@ -5,7 +5,8 @@ import { MANUAL, type Chapter } from "./manual";
 /** The manual chapter for the screen at this hash, for the Help link. */
 export function helpTopicFor(hash: string): string {
   const [page, id, sub] = hash.replace(/^#\/?/, "").split("/");
-  if (page === "users" || page === "roles" || page === "credit-terms" || page === "units") return page;
+  if (page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "items")
+    return page;
   if (page !== "companies") return "start";
   if (!id) return "companies";
   if (sub === "ledgers") return "ledgers";

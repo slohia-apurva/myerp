@@ -2,7 +2,7 @@
 
 from core.models import NumberSeries
 
-DEFAULTS = {"customer": "CUST-", "vendor": "VEND-"}
+DEFAULTS = {"customer": "CUST-", "vendor": "VEND-", "item": "ITEM-"}
 
 
 def format_number(series: NumberSeries, n: int) -> str:

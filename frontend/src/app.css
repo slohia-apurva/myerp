@@ -1578,3 +1578,14 @@ form.card fieldset:not(.plain) > legend {
 ul.address-list.cards-2 > li.address-card > div:first-child .pill {
   margin-left: 0;
 }
+
+.scroll-x {
+  overflow-x: auto;
+}
+.scroll-x table.grid td:has(.checks) .checks {
+  flex-direction: column;
+  gap: 2px;
+}
+form.card .address-card {
+  background: #fff;
+}

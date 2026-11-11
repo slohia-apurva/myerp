@@ -291,6 +291,51 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "items",
+    title: "Items",
+    summary: "The catalogue of products, materials and services, each with its units, sizes, weights and barcodes.",
+    body: (
+      <>
+        <p>
+          Items are one catalogue shared by every company in the group. Each item gets a number such as ITEM-00001. Click
+          an item in the list and its details show on the right in boxes: "Item", "Stock and quality" and "Units of
+          measure", with the change log, "Activity", below. Type in the search box to find an item by name, number, HSN or
+          barcode.
+        </p>
+        <h3>Add an item</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Items", then "Add item".</li>
+          <li>
+            Under "Item", give the "Name", the "Type" (goods you stock, or a service), the "Stock unit" (the unit stock is
+            counted in, such as Packet) and the "HSN" code if you know it.
+          </li>
+          <li>
+            Under "Stock and quality", fill in the "Shelf life (days)" if the item expires, tick "Track batches" if you
+            must follow batch numbers, and tick "Quality check on receipt" if goods must be checked when they arrive.
+            "Old ERPNext code" is only for matching records when data is brought across.
+          </li>
+          <li>
+            Under "Units of measure", click "Add unit" for each other unit the item is bought, sold or moved in. The
+            stock unit is added for you. For a Carton, say it contains 4 of "Inner box", and for an Inner box that it
+            contains 6 of "Packet"; the "= Packet" column then shows 24 by itself. Fill in the length, breadth and height
+            in centimetres, the net and gross weight in kilograms, and the barcode. Volume is worked out from the size.
+            Under "Used for", tick where each unit is the usual one.
+          </li>
+          <li>Click "Save".</li>
+        </ol>
+        <Note>
+          A missing size is only a reminder under the table, not an error, so you can add an item before it has been
+          measured. "Whole numbers only" on a unit (for example cartons) will stop a quantity such as 2.5 on documents.
+          A barcode can belong to one item only.
+        </Note>
+        <p>
+          Items are never deleted: click "Edit" and then the "Disable" button to stop using one ("Enable" brings it
+          back). Use "Duplicate" to start a new item from an existing one; barcodes are not copied.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "units",
     title: "Units",
     summary: "The list of units of measure (Packet, Carton, Kilogram) that items will use.",
