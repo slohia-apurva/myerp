@@ -142,6 +142,7 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
         ["Company", "#/companies", props.canSeeMasters],
         ["Users", "#/users", props.canManageUsers],
         ["User roles", "#/roles", props.canManageUsers],
+        ["Reset data", "#/reset", true],
       ]}
     />
   );

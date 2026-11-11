@@ -60,7 +60,7 @@ export const MANUAL: Chapter[] = [
             <strong>Top menu</strong> (white bar): the modules you may use, such as Dashboard and Masters. You only see the
             ones your role allows. Click "Masters" to open its list: "Ledger groups", "Ledgers", "Credit terms",
             "Items" and "Units". Ledger groups and ledgers open for the company you are working in. Owners also see
-            "Admin", which holds "Company", "Users" and "User roles". "Help" opens this manual at the
+            "Admin", which holds "Company", "Users", "User roles" and "Reset data". "Help" opens this manual at the
             page for the screen you are on.
           </li>
           <li>
@@ -354,6 +354,44 @@ export const MANUAL: Chapter[] = [
           "turmeric", and click the code you want. A code that is not in the list can still be typed in. If a code you
           need is missing, tell us and it will be added for everyone.
         </p>
+      </>
+    ),
+  },
+  {
+    id: "reset",
+    title: "Reset data",
+    summary: "For Owners: clear a company, or the whole group, back to a clean start.",
+    body: (
+      <>
+        <p>
+          This is for staging and trial runs, to start again without setting everything up from scratch. It is switched
+          off on live books, and only an Owner sees it: click "Admin" in the top menu, then "Reset data".
+        </p>
+        <h3>The three levels</h3>
+        <ul>
+          <li>
+            <strong>Entries only</strong>: vouchers and stock entries are removed. Masters and opening balances stay.
+          </li>
+          <li>
+            <strong>Entries and the masters added to this company</strong>: also removes the company's ledgers (with their
+            opening balances), its own ledger groups, branches other than the head office, licences and certificates, and
+            customers or suppliers no other company uses. The standard groups, the head office and the Cash ledger stay.
+          </li>
+          <li>
+            <strong>Whole group back to blank</strong>: every company is cleared as above, and the shared items, the credit
+            terms and units you added, and the running numbers start again. Companies, users and roles stay.
+          </li>
+        </ul>
+        <h3>Clear data</h3>
+        <ol>
+          <li>Choose the "Level" and, for the first two, the "Company". The list under "This will remove" shows what will go.</li>
+          <li>Under "Confirm", type the company name exactly (or RESET ALL DATA for the whole group).</li>
+          <li>Click "Reset data" and confirm.</li>
+        </ol>
+        <Note>
+          A backup file of everything removed is saved to your computer the moment the reset is done. Keep it: it is the
+          only way to get the data back. The reset is also written to the company's "Activity".
+        </Note>
       </>
     ),
   },

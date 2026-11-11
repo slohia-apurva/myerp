@@ -102,6 +102,9 @@ MYERP_GOOGLE_CLIENT_ID = env("MYERP_GOOGLE_CLIENT_ID", "")
 # GSTIN lookup (core/gstin_lookup.py). The provider reads its own key from the
 # GSTINAPI_KEY environment variable; without it the lookup says it is not set up.
 GSTIN_LOOKUP_PROVIDER = env("GSTIN_LOOKUP_PROVIDER", "core.gstinapi.lookup")
+# The Owner's "Reset data" tool (core/data_reset.py) is refused unless this is
+# on. Turn it on for staging and trial runs, never for live books.
+ALLOW_DATA_RESET = env_bool("MYERP_ALLOW_DATA_RESET", False)
 # A sign-in lasts a working day; closing the browser does not end it.
 SESSION_COOKIE_AGE = 60 * 60 * 12
 SESSION_COOKIE_HTTPONLY = True

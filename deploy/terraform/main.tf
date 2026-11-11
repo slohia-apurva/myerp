@@ -19,6 +19,8 @@ locals {
     MYERP_FALLBACK_TENANT  = var.fallback_tenant
     MYERP_FILES_BUCKET     = google_storage_bucket.files.name
     MYERP_GOOGLE_CLIENT_ID = var.google_client_id
+    # The Owner's "Reset data" tool: off unless an environment turns it on.
+    MYERP_ALLOW_DATA_RESET = var.allow_data_reset ? "1" : "0"
   }
 
   # Secrets, read by Cloud Run from Secret Manager at start-up.
