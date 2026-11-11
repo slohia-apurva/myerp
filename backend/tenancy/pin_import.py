@@ -6,7 +6,7 @@ import csv
 import io
 import re
 
-from tenancy.models import CourierPin, PinCode, State
+from tenancy.models import Carrier, CourierPin, PinCode, State
 from tenancy.reference_data import STATE_ALIASES
 
 PIN_RE = re.compile(r"[1-9][0-9]{5}")
@@ -44,9 +44,13 @@ def _state_ids() -> dict[str, int]:
 def load(rows: list[dict], courier: str) -> dict:
     """Add PINs we lack (an existing PIN keeps its city, and gets a state if it
     had none) and replace this courier's coverage with the file's."""
-    courier = courier.strip()
-    if not courier:
+    name = courier.strip()
+    if not name:
         raise ValueError("Say which courier the file is from.")
+    carrier = Carrier.objects.filter(name__iexact=name).first()
+    if carrier is None:
+        known = ", ".join(Carrier.objects.values_list("name", flat=True))
+        raise ValueError(f"No courier called {name} in the courier list (known: {known}).")
     states = _state_ids()
     have = {p.pin: p for p in PinCode.objects.all()}
     new, fill = [], []
@@ -66,11 +70,11 @@ def load(rows: list[dict], courier: str) -> dict:
     PinCode.objects.bulk_create(new)
     PinCode.objects.bulk_update(fill, ["state"])
     ids = dict(PinCode.objects.values_list("pin", "pk"))
-    removed, _ = CourierPin.objects.filter(courier=courier).delete()
+    removed, _ = CourierPin.objects.filter(carrier=carrier).delete()
     CourierPin.objects.bulk_create(
         [
             CourierPin(
-                courier=courier,
+                carrier=carrier,
                 pin_id=ids[r["pin"]],
                 oda=r["oda"],
                 dispatch_center=r["dispatch_center"],
