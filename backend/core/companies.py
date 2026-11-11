@@ -30,7 +30,7 @@ def _starting_records(company: Company) -> None:
     ensure_head_office(Branch, company)
     # The head office starts with the company's address and contact.
     head = company.branches.get(is_head_office=True)
-    for field in ("address", "pincode", "phone", "email", "contact_person"):
+    for field in ("address", "pincode", "city", "phone", "email", "contact_person"):
         setattr(head, field, getattr(company, field))
     head.default_billing = head.default_ship_to = head.default_ship_from = True
     head.save()

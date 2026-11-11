@@ -60,6 +60,7 @@ class Company(models.Model):
     state_code = models.CharField(max_length=2, validators=[india.validate_state_code])
     address = models.TextField(blank=True)
     pincode = models.CharField(max_length=6, blank=True)
+    city = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
     email = models.EmailField(blank=True)
     contact_person = models.CharField(max_length=100, blank=True)
@@ -154,6 +155,7 @@ class Branch(models.Model):
     gstin = models.CharField(max_length=15, blank=True, validators=[india.validate_gstin])
     address = models.TextField(blank=True)
     pincode = models.CharField(max_length=6, blank=True)
+    city = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
     email = models.EmailField(blank=True)
     contact_person = models.CharField(max_length=100, blank=True)
@@ -744,6 +746,7 @@ class PartyAddress(models.Model):
     label = models.CharField(max_length=60)  # e.g. "Head office", "Bhiwandi godown"
     address = models.TextField()
     pincode = models.CharField(max_length=10, blank=True)
+    city = models.CharField(max_length=100, blank=True)
     state_code = models.CharField(max_length=2, blank=True, validators=[india.validate_state_code])
     country = models.CharField(max_length=60, default="India")
     # A party registered in several states has a GSTIN per state.

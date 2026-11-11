@@ -37,6 +37,7 @@ LABELS = {
     "cin": "CIN / LLPIN",
     "state_code": "State",
     "pincode": "PIN code",
+    "city": "City",
     "fiscal_year_start_month": "Financial year starts in",
     "books_start": "Books beginning from",
     "multi_currency": "Foreign currencies",

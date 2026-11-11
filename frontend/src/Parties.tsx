@@ -11,6 +11,7 @@ export type PartyAddress = {
   label: string;
   address: string;
   pincode: string;
+  city: string;
   state_code: string;
   country: string;
   gstin: string;
@@ -87,6 +88,7 @@ const blankAddress = (stateCode: string): PartyAddress => ({
   label: "",
   address: "",
   pincode: "",
+  city: "",
   state_code: stateCode,
   country: "India",
   gstin: "",
@@ -332,9 +334,16 @@ export function PartyFields({
                     value={a.pincode}
                     onChange={(pincode) => setAddress(i, { pincode })}
                     onFound={(f) => {
-                      if (!overseas && !a.state_code && f.state_code) setAddress(i, { state_code: f.state_code });
+                      const change: Partial<PartyAddress> = {};
+                      if (!a.city && f.city) change.city = f.city;
+                      if (!overseas && !a.state_code && f.state_code) change.state_code = f.state_code;
+                      if (Object.keys(change).length) setAddress(i, change);
                     }}
                   />
+                </label>
+                <label>
+                  City
+                  <input value={a.city} onChange={(e) => setAddress(i, { city: e.target.value })} />
                 </label>
                 {registered && (
                   <label>
@@ -524,7 +533,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
                 </div>
                 <div className="pre">{a.address}</div>
                 <div className="small">
-                  {[a.pincode, a.state_code ? stateName(a.state_code) : a.country, a.gstin && `GSTIN ${a.gstin}`]
+                  {[a.city, a.pincode, a.state_code ? stateName(a.state_code) : a.country, a.gstin && `GSTIN ${a.gstin}`]
                     .filter(Boolean)
                     .join(" · ")}
                 </div>
@@ -674,6 +683,7 @@ export function GstinField(props: {
             label: r.trade_name || r.legal_name,
             address: r.address,
             pincode: r.pincode,
+            city: "",
             state_code: r.state_code,
             country: "India",
             gstin: "",
