@@ -58,9 +58,9 @@ export const MANUAL: Chapter[] = [
         <ul>
           <li>
             <strong>Top menu</strong> (white bar): the modules you may use, such as Dashboard and Masters. You only see the
-            ones your role allows. Click "Masters" to open its list: "Company", "Ledger groups", "Ledgers", "Credit
-            terms", "Users" and "User roles". Ledger groups, ledgers and credit terms open for the company you are
-            working in. "Help" opens this manual at the
+            ones your role allows. Click "Masters" to open its list: "Ledger groups", "Ledgers", "Credit terms",
+            "Items" and "Units". Ledger groups and ledgers open for the company you are working in. Owners also see
+            "Admin", which holds "Company", "Users" and "User roles". "Help" opens this manual at the
             page for the screen you are on.
           </li>
           <li>
@@ -143,13 +143,13 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           A company is one legal entity with its own books, GST registration and document numbers. Open them from
-          "Masters", then "Company", in the top menu. A new company starts with a Head office branch and the standard ledger groups.
+          "Admin", then "Company", in the top menu (Owners only). A new company starts with a Head office branch and the standard ledger groups.
         </p>
 
         <h3>Add a company</h3>
         <p>Only an Owner can add a company.</p>
         <ol>
-          <li>Go to Masters and click "Add company".</li>
+          <li>Go to Admin, then "Company", and click "Add company".</li>
           <li>Fill in the details below and tick the modules the company uses.</li>
           <li>Click "Save". The company's page opens.</li>
         </ol>
@@ -182,7 +182,7 @@ export const MANUAL: Chapter[] = [
         <h3>The company page</h3>
         <p>
           Click a company's name. The band shows its GSTIN, PAN and state. Ledgers and ledger groups are
-          opened from the "Masters" menu. The Overview tab shows:
+          opened from "Admin", then "Company". The Overview tab shows:
         </p>
         <ul>
           <li>
@@ -341,31 +341,18 @@ export const MANUAL: Chapter[] = [
   {
     id: "hsn",
     title: "HSN codes",
-    summary: "The list of HSN and SAC codes that the item form searches as you type.",
+    summary: "The central list of HSN and SAC codes that the item form searches as you type.",
     body: (
       <>
         <p>
-          HSN codes are one list shared by every company in the group. On the item form, the "HSN" box searches this
-          list: type a few digits of the code, or words from the description (for example "turmeric"), and click the
-          code you want. A code that is not in the list can still be typed in.
+          MyERP keeps one list of HSN and SAC codes for everyone, so it is the same in every company and is looked after
+          centrally. You cannot change it, but you can search it: click "Masters" in the top menu, then "HSN codes", and
+          type a few digits of the code or words from the description.
         </p>
-        <h3>Load the official list</h3>
-        <ol>
-          <li>Click "Masters" in the top menu, then "HSN codes", then "Import".</li>
-          <li>
-            Choose a CSV or tab-separated file with the code in the first column and the description in the second.
-            Heading lines are skipped.
-          </li>
-          <li>Check the number of codes found, then click "Save".</li>
-        </ol>
         <p>
-          New codes are added and codes already in the list get the new description, so you can import an updated list
-          again later. If any row is wrong, nothing is imported and the message names the row.
-        </p>
-        <h3>Add or correct one code</h3>
-        <p>
-          Click "Add HSN code" for a single code, or "Edit" on a row to change its description. A code itself cannot be
-          changed. Codes are never deleted: click "Edit" and then "Disable" to stop offering one in the item form.
+          On the item form, the "HSN" box searches this list as you type. Type a few digits, or words such as
+          "turmeric", and click the code you want. A code that is not in the list can still be typed in. If a code you
+          need is missing, tell us and it will be added for everyone.
         </p>
       </>
     ),
@@ -602,7 +589,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a user</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Users", then "Add user".</li>
+          <li>Click "Admin" in the top menu, then "Users", then "Add user".</li>
           <li>Enter their email (their Google account) and full name.</li>
           <li>Tick their roles. Only an Owner can make someone an Owner.</li>
           <li>Tick the companies they may work in. None ticked means all companies.</li>
@@ -631,7 +618,7 @@ export const MANUAL: Chapter[] = [
         <p>Owner can do everything and cannot be changed. Only an Owner can change roles.</p>
         <h3>Make or change a role</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "User roles", then "New role", or "Edit" on a role.</li>
+          <li>Click "Admin" in the top menu, then "User roles", then "New role", or "Edit" on a role.</li>
           <li>Give it a name and description, tick the permissions in each area, and click "Save".</li>
         </ol>
         <p>Standard roles can be edited but not deleted. Roles you made can be deleted with "Delete role".</p>

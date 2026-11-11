@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 
@@ -37,3 +38,25 @@ class Tenant(models.Model):
     @property
     def db_alias(self) -> str:
         return "tenant_" + self.slug.replace("-", "_")
+
+
+class HsnCode(models.Model):
+    """An HSN (goods) or SAC (services) code with its description. One central
+    list for every tenant (decision: global masters live in the platform
+    database), searched as people type an item's HSN and read-only to them.
+    Loaded with `manage.py import_hsn`. The GST rate belongs to a separate
+    dated master."""
+
+    hsn_code = models.CharField(max_length=8, unique=True)
+    description = models.CharField(max_length=500)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["hsn_code"]
+
+    def __str__(self) -> str:
+        return f"{self.hsn_code} {self.description}"
+
+    def clean(self):
+        if not self.hsn_code.isdigit() or len(self.hsn_code) not in (2, 4, 6, 8):
+            raise ValidationError({"hsn_code": "An HSN code is 2, 4, 6 or 8 digits."})

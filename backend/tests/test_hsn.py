@@ -1,11 +1,16 @@
-"""HSN codes: the shared list, its import and the picker search."""
+"""HSN codes: the central list in the platform database, its import and the picker search."""
+
+import io
 
 import pytest
+from django.core.management import CommandError, call_command
 from django.test import Client
 
 from accounts.models import Role, User
 from core.companies import create_company
+from tenancy import hsn_import
 from tenancy.context import use_tenant
+from tenancy.models import HsnCode
 
 pytestmark = pytest.mark.django_db(databases="__all__")
 
@@ -46,13 +51,10 @@ def call(client, method, path, data=None):
 
 
 ROWS = [
-    {"hsn_code": "1701", "description": "Cane or beet sugar and chemically pure sucrose"},
-    {"hsn_code": "170199", "description": "Jaggery and other sugar, in solid form"},
-    {
-        "hsn_code": "0910",
-        "description": "Ginger, saffron, turmeric (curcuma), thyme, bay leaves, curry",
-    },
-    {"hsn_code": "4819", "description": "Cartons, boxes, cases of corrugated paper"},
+    ("1701", "Cane or beet sugar and chemically pure sucrose"),
+    ("170199", "Jaggery and other sugar, in solid form"),
+    ("0910", "Ginger, saffron, turmeric (curcuma), thyme, bay leaves, curry"),
+    ("4819", "Cartons, boxes, cases of corrugated paper"),
 ]
 
 
@@ -61,76 +63,57 @@ def results(client, query=""):
 
 
 def test_import_adds_updates_and_searches(accountant, company):
-    done = call(accountant, "post", "hsn/import/", {"rows": ROWS})
-    assert done.status_code == 200, done.json()
-    assert done.json() == {"added": 4, "updated": 0, "unchanged": 0}
+    assert hsn_import.load(ROWS) == {"added": 4, "updated": 0, "unchanged": 0}
+    again = hsn_import.load([*ROWS[:2], (ROWS[2][0], "Turmeric and spices")])
+    assert again == {"added": 0, "updated": 1, "unchanged": 2}
 
-    again = call(
-        accountant,
-        "post",
-        "hsn/import/",
-        {"rows": [*ROWS[:2], {**ROWS[2], "description": "Turmeric and spices"}]},
-    )
-    assert again.json() == {"added": 0, "updated": 1, "unchanged": 2}
-
-    by_code = [r["hsn_code"] for r in results(accountant, "q=17")]
-    assert by_code == ["1701", "170199"]
+    assert [r["hsn_code"] for r in results(accountant, "q=17")] == ["1701", "170199"]
     assert [r["hsn_code"] for r in results(accountant, "q=turmeric")] == ["0910"]
-    assert [
-        r["hsn_code"] for r in results(accountant, "q=carton%20ginger")
-    ] == []  # every word must match
+    assert [r["hsn_code"] for r in results(accountant, "q=carton%20ginger")] == []  # every word
     assert [r["hsn_code"] for r in results(accountant, "q=carton%20corrugated")] == ["4819"]
     assert call(accountant, "get", "hsn/").json()["total"] == 4
 
 
-def test_a_bad_row_stops_the_whole_import(accountant, company):
-    bad = call(
-        accountant,
-        "post",
-        "hsn/import/",
-        {"rows": [ROWS[0], {"hsn_code": "17x", "description": "Oops"}]},
-    )
-    assert bad.status_code == 400 and "Row 2" in bad.json()["rows"][0]
-    assert call(accountant, "get", "hsn/").json()["total"] == 0
-    blank = call(
-        accountant, "post", "hsn/import/", {"rows": [{"hsn_code": "1701", "description": " "}]}
-    )
-    assert blank.status_code == 400
-    assert call(accountant, "post", "hsn/import/", {"rows": []}).status_code == 400
+def test_every_tenant_sees_the_same_central_list(accountant, company):
+    hsn_import.load(ROWS)
+    # The list lives in the platform database, not in any tenant's own.
+    assert HsnCode.objects.db_manager("default").count() == 4
+    assert [r["hsn_code"] for r in results(accountant, "limit=pick&q=sugar")] == ["1701", "170199"]
 
 
-def test_add_edit_and_disable_one_code(accountant, company):
-    made = call(accountant, "post", "hsn/", {"hsn_code": "1701", "description": "Sugar"})
-    assert made.status_code == 201, made.json()
-    code = made.json()
-    assert (
-        call(accountant, "post", "hsn/", {"hsn_code": "1701", "description": "Again"}).status_code
-        == 400
-    )
-    assert (
-        call(
-            accountant, "post", "hsn/", {"hsn_code": "12345", "description": "Five digits"}
-        ).status_code
-        == 400
-    )
-    assert call(accountant, "patch", f"hsn/{code['id']}/", {"hsn_code": "1702"}).status_code == 400
-    assert (
-        call(
-            accountant, "patch", f"hsn/{code['id']}/", {"description": "Sugar, all kinds"}
-        ).status_code
-        == 200
-    )
-    assert call(accountant, "patch", f"hsn/{code['id']}/", {"is_active": False}).status_code == 200
-    assert results(accountant, "active=1&q=1701") == []
-    assert len(results(accountant, "q=1701")) == 1
-    entries = call(accountant, "get", f"audit/?type=hsn&id={code['id']}").json()["entries"]
-    assert entries[-1]["action"] == "create"
+def test_picker_shows_only_active_codes(accountant, company):
+    hsn_import.load(ROWS)
+    HsnCode.objects.filter(hsn_code="1701").update(is_active=False)
+    assert "1701" not in [r["hsn_code"] for r in results(accountant, "limit=pick&q=17")]
+    assert "1701" in [r["hsn_code"] for r in results(accountant, "q=17")]
 
 
-def test_viewer_may_search_but_not_change(viewer, accountant, company):
+def test_a_bad_row_stops_the_whole_load():
+    with pytest.raises(ValueError, match="Row 2"):
+        hsn_import.load([ROWS[0], ("17x", "Oops")])
+    assert HsnCode.objects.count() == 0
+    with pytest.raises(ValueError, match="description"):
+        hsn_import.load([("1701", "")])
+
+
+def test_the_command_reads_a_csv_and_skips_headings(tmp_path):
+    f = tmp_path / "hsn.csv"
+    f.write_text('HSN,Description\n1701,"Sugar, cane or beet"\n0910,Spices\n,\n', encoding="utf-8")
+    out = io.StringIO()
+    call_command("import_hsn", str(f), stdout=out)
+    assert "2 added" in out.getvalue()
+    assert HsnCode.objects.get(hsn_code="1701").description == "Sugar, cane or beet"
+    empty = tmp_path / "empty.csv"
+    empty.write_text("HSN,Description\n", encoding="utf-8")
+    with pytest.raises(CommandError):
+        call_command("import_hsn", str(empty))
+
+
+def test_tenants_cannot_change_the_list(accountant, viewer, company):
+    hsn_import.load(ROWS)
     assert call(viewer, "get", "hsn/").status_code == 200
     assert (
-        call(viewer, "post", "hsn/", {"hsn_code": "1701", "description": "Sugar"}).status_code
-        == 403
+        call(accountant, "post", "hsn/", {"hsn_code": "9999", "description": "Mine"}).status_code
+        == 405
     )
-    assert call(viewer, "post", "hsn/import/", {"rows": ROWS}).status_code == 403
+    assert HsnCode.objects.count() == 4

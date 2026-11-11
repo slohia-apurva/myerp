@@ -16,8 +16,6 @@ urlpatterns = [
     ),
     path("credit-terms/<int:pk>/", credit_terms.CreditTermDetailView.as_view(), name="credit_term"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
-    path("hsn/import/", hsn.HsnImportView.as_view(), name="hsn-import"),
-    path("hsn/<int:pk>/", hsn.HsnDetailView.as_view(), name="hsn-code"),
     path("units/", units.UnitListView.as_view(), name="units"),
     path("units/gst-codes/", units.GstUnitCodeView.as_view(), name="unit-gst-codes"),
     path("units/<int:pk>/", units.UnitDetailView.as_view(), name="unit"),

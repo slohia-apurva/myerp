@@ -523,26 +523,6 @@ class Unit(models.Model):
         return self.name
 
 
-class HsnCode(models.Model):
-    """An HSN (goods) or SAC (services) code with its description: one list
-    for the whole group, searched as people type an item's HSN. The GST rate
-    belongs to a separate dated master. Never deleted, only made inactive."""
-
-    hsn_code = models.CharField(max_length=8, unique=True)
-    description = models.CharField(max_length=500)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["hsn_code"]
-
-    def __str__(self) -> str:
-        return f"{self.hsn_code} {self.description}"
-
-    def clean(self):
-        if not self.hsn_code.isdigit() or len(self.hsn_code) not in (2, 4, 6, 8):
-            raise ValidationError({"hsn_code": "An HSN code is 2, 4, 6 or 8 digits."})
-
-
 class Item(models.Model):
     """A product, material or service, in one catalogue shared by every
     company in the group. Stock is held in the item's stock unit; each item

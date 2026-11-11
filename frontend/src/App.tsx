@@ -12,7 +12,7 @@ import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 import { Logo } from "./Brand";
 import { HelpPage, helpTopicFor } from "./help/Help";
-import { CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
+import { AdminMenu, CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "items" | "hsn" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -22,7 +22,7 @@ function routeFromHash(): Route {
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "items" || page === "hsn" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "hsn" || page === "items" ? page : "home" };
 }
 
 export function App() {
@@ -85,18 +85,16 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         </a>
         <nav aria-label="Modules">
           {link("home", "Dashboard")}
-          {(canSeeMasters || canManageUsers) && (
+          {canSeeMasters && (
             <MastersMenu
-              active={
-                page === "companies" ||
-                page === "users" ||
-                page === "roles" ||
-                page === "credit-terms" ||
-                page === "units" ||
-                page === "hsn" ||
-                page === "items"
-              }
+              active={page === "credit-terms" || page === "units" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups"))}
               company={current.company}
+              canSeeMasters={canSeeMasters}
+            />
+          )}
+          {session.user.is_owner && (
+            <AdminMenu
+              active={page === "users" || page === "roles" || (page === "companies" && sub !== "ledgers" && sub !== "groups")}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />

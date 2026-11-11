@@ -61,7 +61,6 @@ LABELS = {
     "full_name": "Full name",
     "credit_limit": "Credit limit (₹)",
     "short_name": "Short name",
-    "hsn_code": "HSN code",
     "description": "Description",
     "gst_code": "GST unit code",
     "item_number": "Item number",
@@ -118,7 +117,6 @@ def _register() -> None:
         Certificate,
         Company,
         CreditTerm,
-        HsnCode,
         Item,
         Ledger,
         LedgerGroup,
@@ -174,7 +172,6 @@ def _register() -> None:
                 extras={"parts": ("Parts", lambda t: "; ".join(map(str, t.parts.all())) or None)},
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),
-            HsnCode: Tracked("hsn", "HSN code", lambda r: None),
             Item: Tracked(
                 "item",
                 "Item",
