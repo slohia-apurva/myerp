@@ -1533,3 +1533,45 @@ ul.address-list.cards-2 .pill {
 ul.address-list.cards-2 > li.address-card > div:first-child .pill {
   margin-left: 6px;
 }
+
+/* Top menu: the Masters button is as tall as the links beside it */
+.topbar .menu > button {
+  height: auto;
+  align-self: stretch;
+  font-size: 14px;
+  font-weight: 400;
+}
+.topbar .menu.active > button {
+  font-weight: 600;
+}
+
+/* Type scale. Two sets, used everywhere:
+   FORMS (entering data): box heading 15px bold deep green; field labels 14px.
+   DISPLAY (reading data): box heading 12px capitals slate, like "Activity";
+   values 14px ink, facts' labels 12px slate. */
+form.card .panel-card > h4,
+form.card fieldset:not(.plain) > legend {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--deep-green);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.panel .panel-card > h4,
+.panel h3 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--slate);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+.panel .address-card,
+.panel .address-card .pre,
+.panel p.pre {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.panel .address-card strong {
+  font-size: 14px;
+}
