@@ -9,6 +9,7 @@ export type Unit = {
   id: number;
   name: string;
   short_name: string;
+  gst_code: string;
   whole_numbers: boolean;
   is_active: boolean;
 };
@@ -20,6 +21,17 @@ export function useUnits() {
   }, []);
   useEffect(reload, [reload]);
   return { units, reload };
+}
+
+export type GstCode = { code: string; name: string };
+
+/** The official GST unit quantity codes. */
+export function useGstCodes() {
+  const [codes, setCodes] = useState<GstCode[]>([]);
+  useEffect(() => {
+    api<GstCode[]>("v1/units/gst-codes/").then(setCodes);
+  }, []);
+  return codes;
 }
 
 /** Masters > Units. */
@@ -70,6 +82,7 @@ export function UnitsPage({ session }: { session: SignedIn }) {
             <tr>
               <th>Unit</th>
               <th>Short name</th>
+              <th>GST unit code</th>
               <th>Whole numbers only</th>
               <ActionHeads />
             </tr>
@@ -82,6 +95,7 @@ export function UnitsPage({ session }: { session: SignedIn }) {
                   {!u.is_active && <span className="pill">Inactive</span>}
                 </td>
                 <td>{u.short_name}</td>
+                <td>{u.gst_code}</td>
                 <td>{u.whole_numbers ? "Yes" : "No"}</td>
                 <ActionCells
                   canEdit={canEdit}
@@ -114,13 +128,15 @@ function UnitForm(props: {
   const from = u ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (u?.name ?? ""));
   const [shortName, setShortName] = useState(props.copyOf ? "" : (u?.short_name ?? ""));
+  const codes = useGstCodes();
+  const [gstCode, setGstCode] = useState(props.copyOf ? props.copyOf.gst_code : (u?.gst_code ?? ""));
   const [whole, setWhole] = useState(from?.whole_numbers ?? false);
   const [error, setError] = useState("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    const body = { name, short_name: shortName, whole_numbers: whole };
+    const body = { name, short_name: shortName, gst_code: gstCode, whole_numbers: whole };
     try {
       if (u) await api(`v1/units/${u.id}/`, body, "PATCH");
       else await api("v1/units/", body);
@@ -143,6 +159,17 @@ function UnitForm(props: {
             <label>
               Short name
               <input required value={shortName} maxLength={10} placeholder="e.g. ctn" onChange={(e) => setShortName(e.target.value)} />
+            </label>
+            <label>
+              GST unit code
+              <select required value={gstCode} onChange={(e) => setGstCode(e.target.value)}>
+                <option value="">Pick a code</option>
+                {codes.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} - {c.name}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
           <label className="check">

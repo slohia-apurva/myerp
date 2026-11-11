@@ -61,6 +61,7 @@ LABELS = {
     "full_name": "Full name",
     "credit_limit": "Credit limit (₹)",
     "short_name": "Short name",
+    "gst_code": "GST unit code",
     "item_number": "Item number",
     "hsn": "HSN",
     "shelf_life_days": "Shelf life (days)",

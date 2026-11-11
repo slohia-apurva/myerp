@@ -507,6 +507,8 @@ class Unit(models.Model):
 
     name = models.CharField(max_length=40)
     short_name = models.CharField(max_length=10)
+    # The unit quantity code (UQC) GST returns and e-invoices expect.
+    gst_code = models.CharField(max_length=3, blank=True)
     whole_numbers = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
