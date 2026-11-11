@@ -9,11 +9,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api import Signed
-from tenancy.models import HsnCode, Tenant
+from tenancy.models import Carrier, HsnCode, Tenant
 
 # key, label, what it is for, model, screen to open (a hash route) or "".
 CENTRAL_TABLES = [
     ("hsn", "HSN codes", "HSN and SAC codes searched on the item form.", HsnCode, "#/hsn"),
+    (
+        "carriers",
+        "Couriers",
+        "Couriers and aggregators that customers open accounts with for shipments.",
+        Carrier,
+        "",
+    ),
     (
         "tenants",
         "Customers (tenants)",

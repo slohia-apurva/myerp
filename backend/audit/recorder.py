@@ -70,6 +70,16 @@ LABELS = {
     "qc_required": "Quality check on receipt",
     "item_type": "Type",
     "whole_numbers": "Whole numbers only",
+    "carrier_id": "Courier",
+    "account_code": "Account or customer code",
+    "awb": "Tracking number (AWB)",
+    "booked_on": "Booked on",
+    "ship_to_city": "Ship to city",
+    "ship_to_pincode": "Ship to PIN code",
+    "weight_kg": "Weight (kg)",
+    "cod_amount": "Amount to collect (₹)",
+    "expected_on": "Expected delivery",
+    "cancel_reason": "Reason cancelled",
 }
 
 # Fields that are internal or change by themselves.
@@ -87,6 +97,13 @@ SKIP = {
     "is_superuser",
     "party",  # a ledger's party shows through its party extras
     "salesman",  # likewise, by name
+    # A shipment's tracking: its events are their own history.
+    "status",
+    "last_event_at",
+    "last_place",
+    "delivered_at",
+    "received_by",
+    "created_by",
 }
 
 Snapshot = dict[str, tuple[str, Any]]  # field -> (label, value as shown)
@@ -123,9 +140,15 @@ def _register() -> None:
         Unit,
     )
     from core.parties import party_extras
+    from shipping.models import CourierAccount, Shipment
 
     def state(code):
         return india.STATES.get(code, code) if code else None
+
+    def carrier_name(pk):
+        from tenancy.models import Carrier
+
+        return Carrier.objects.filter(pk=pk).values_list("name", flat=True).first() or pk
 
     module_labels = {code: label for code, label, *_ in company_modules.MODULES}
 
@@ -200,6 +223,19 @@ def _register() -> None:
                 },
             ),
             Role: Tracked("role", "Role", lambda r: None),
+            CourierAccount: Tracked(
+                "courier_account",
+                "Courier account",
+                by_company,
+                formats={"carrier_id": carrier_name},
+            ),
+            Shipment: Tracked(
+                "shipment",
+                "Shipment",
+                by_company,
+                extras={"customer": ("Customer", lambda s: s.party.name if s.party else None)},
+                formats={"carrier_id": carrier_name},
+            ),
         }
     )
 

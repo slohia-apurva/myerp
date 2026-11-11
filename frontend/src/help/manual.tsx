@@ -641,6 +641,102 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "courier-accounts",
+    title: "Courier accounts",
+    summary: "Your accounts with each courier, such as a B2C and a B2B account with Delhivery.",
+    body: (
+      <>
+        <p>
+          MyERP keeps one list of couriers for everyone: Delhivery, Blue Dart, DP World and Shiprocket to start with.
+          Each company then adds its own accounts with them. One courier can have more than one account, for example
+          "Delhivery B2C" for parcels and "Delhivery B2B" for heavier freight, because each has its own rates. This
+          screen shows only for a company that uses the Sales module.
+        </p>
+        <h3>Add a courier account</h3>
+        <ol>
+          <li>Pick the company at the top right, then click "Masters" in the top menu, then "Courier accounts".</li>
+          <li>Click "Add courier account".</li>
+          <li>Fill in the form (see below) and click "Save".</li>
+        </ol>
+        <Fields
+          rows={[
+            ["Courier", "The courier or aggregator, picked from MyERP's list."],
+            ["Service", '"B2C (parcel / express)", "B2B (freight)" or "Aggregator" (Shiprocket).'],
+            ["Name", 'What the account is called on screens, for example "Blue Dart B2B". Each name is used once per company.'],
+            ["Account or customer code", "The code the courier gave you, to find the account on their bills."],
+            ["Notes", "Anything worth knowing, such as the contact at the courier."],
+          ]}
+        />
+        <p>
+          Once a shipment has been entered against an account, its "Courier" and "Service" cannot be changed. The name
+          and notes can still be corrected. Accounts are never deleted: click "Edit" and then "Disable" to stop
+          offering one ("Enable" brings it back).
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "shipments",
+    title: "Shipments",
+    summary: "Every AWB sent out by courier, where it is now, and which ones need action.",
+    body: (
+      <>
+        <p>
+          Open it from "Sales" in the top menu, then "Shipments". It lists the shipments of the company picked at the
+          top right. Until each courier's tracking is connected to MyERP, the despatch team types the status from the
+          courier's website. Later MyERP will fetch it every morning by itself, and email the despatch team a summary.
+        </p>
+        <p>
+          Before the first shipment, add the company's courier accounts (the "Courier accounts" button at the top, or
+          "Masters", "Courier accounts").
+        </p>
+        <h3>The lists</h3>
+        <Fields
+          rows={[
+            [
+              "Needs action",
+              'Open shipments with a problem: "Delivery failed", "Held", "Returning to us (RTO)", "Lost or damaged", past the expected delivery date, not picked up by the evening after booking, or no movement for 3 days.',
+            ],
+            ["Open", "Everything not yet delivered, returned or cancelled."],
+            ["Delivered", "Shipments the courier has delivered."],
+            ["All", "Everything, including cancelled ones (shown greyed)."],
+          ]}
+        />
+        <p>"Search" finds a shipment by AWB, customer, invoice number, city or PIN code.</p>
+        <h3>Add a shipment</h3>
+        <ol>
+          <li>Click "Add shipment".</li>
+          <li>Pick the "Courier account" and type the "AWB (tracking number)". Spaces are dropped.</li>
+          <li>
+            Fill in who it went to: the "Customer" and the "Invoice or delivery note number" (for now, the ERPNext
+            number), with the city and "PIN code".
+          </li>
+          <li>Give the "Packages", "Weight (kg)" and "Payment". For "Cash on delivery", give the "Amount to collect (₹)".</li>
+          <li>Click "Save". The shipment starts as "Booked".</li>
+        </ol>
+        <Note>
+          The same AWB cannot be entered twice for one courier. If an AWB was typed wrongly, open the shipment and click
+          "Cancel shipment" with the reason; the number can then be entered again.
+        </Note>
+        <h3>Update the status</h3>
+        <ol>
+          <li>Click "Open" on the shipment.</li>
+          <li>
+            Under "Add status", pick the "Status", the time it happened ("When"), and the "Place". Copy what the
+            courier's website says into "Remarks".
+          </li>
+          <li>For "Delivered", give who received it in "Received by".</li>
+          <li>Click "Save". The shipment takes the status with the latest time.</li>
+        </ol>
+        <p>
+          "Status history" shows every status with who entered it. Statuses are never changed or removed: if one was
+          wrong, add the right one with a later time. "Edit details" corrects the customer, invoice number, weight and
+          the like. Once the courier itself has reported on a shipment, its courier account and AWB are fixed.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "users",
     title: "Users",
     summary: "Letting people sign in and choosing what they can do.",
