@@ -6,6 +6,10 @@ Status: spec only, for review. Nothing is built until Sidharth approves it. It h
 
 Update 11 Nov: Sidharth uses **Delhivery** and gave its PIN serviceability list (21,528 PINs with an ODA flag). It is loaded as a central table in the masters work (see "Courier serviceability by PIN" below), so Delhivery is the first carrier and the first connector. Other couriers' lists are added to the same table later.
 
+Update 11 Nov (later): the couriers are **Delhivery, Blue Dart and DP World** (no API access yet; Sidharth can apply), and Apurvam has a **Shiprocket** account. The choice between couriers is about cost, so MyERP should **suggest the cheapest courier** (see "Cheapest courier" below).
+
+Update 11 Nov (Sidharth): Delhivery and Blue Dart are **direct accounts, two each: one B2C (parcel/express) and one B2B (heavier freight)**. Shiprocket is a separate account. Rate charts for all will be shared. Despatch email at **8:00 am**; recipients to follow. So the first set-up is five carrier accounts: Delhivery B2C, Delhivery B2B, Blue Dart B2C, Blue Dart B2B, Shiprocket (plus DP World).
+
 ## What it does, in one paragraph
 
 Every sales consignment that leaves by courier, air cargo or transporter gets a **shipment** in MyERP with its AWB (or docket / LR) number. Once a day, and sooner where the carrier can push updates, MyERP fetches the latest status of every shipment that is not yet delivered and stores each tracking event. Each morning the despatch team gets **one consolidated email** per company (or per branch): what was delivered, what is out for delivery, what is stuck or coming back, and which deliveries left without an AWB. The same list is on a **Shipments** screen. Tracking never posts to the ledgers.
@@ -32,6 +36,41 @@ Asked by Sidharth (11 Nov): when a customer or supplier is added, show which cou
 - **Despatch email**: ODA shipments are marked, and their "past EDD" check allows the extra days.
 - The courier in this table is the same record as the **Carrier** master below, so tracking and serviceability share one list of couriers.
 - Lists go out of date; each courier's list keeps its "as of" date, is replaced when a new file or the courier's serviceability API gives a newer one, and the screen shows that date.
+
+## Cheapest courier
+
+Asked by Sidharth (11 Nov): "It's about cost whom to use. Once a customer is created the system can check the lowest rate per kg with all courier services and suggest whom to use."
+
+### Where the rates come from
+
+Two sources, used side by side; each quote says which one it came from.
+
+| Source | How | Covers |
+| --- | --- | --- |
+| Live quote from Shiprocket | Shiprocket's serviceability call takes pickup PIN, delivery PIN, weight (and COD or prepaid) and returns every courier on our Shiprocket account that serves the lane, with its freight, estimated delivery days and rating | Couriers booked through Shiprocket |
+| Our own rate cards | For couriers we contract with directly (Delhivery, Blue Dart, DP World), their rate card is typed in or imported as **dated master data** per company and carrier account | Direct contracts, and a fallback when the live call fails |
+
+A **rate card** holds what Indian courier contracts usually charge on, all as data, never constants in code:
+
+- **Zones**: how the courier groups lanes (within city, within state, metro to metro, rest of India, special zones such as the North East and J&K), mapped from origin and destination PIN or state.
+- **Weight slabs** per zone: first slab (e.g. first 0.5 kg) and each additional slab, or a per-kg rate above a weight; minimum chargeable weight.
+- **Volumetric weight**: L × B × H ÷ the courier's divisor (often 5000 for air, varies by courier and mode). Chargeable weight is the higher of actual and volumetric.
+- **Add-ons**: fuel surcharge %, ODA charge, COD charge or %, docket charge, minimum per shipment, risk or insurance %, and GST on the total.
+- **Mode**: surface or air, with expected transit days per zone.
+- Valid from and to dates, so a new rate card applies from its date and old shipments keep the rate they were quoted.
+- **One rate card per carrier account**, not per carrier: a courier's B2C and B2B accounts have different rate structures (B2B freight usually has a higher minimum chargeable weight, docket and handling charges, and per-kg pricing by zone; B2C parcel has small slabs). The quote compares every account, so a heavy consignment may come out cheaper on the B2B account and a small one on B2C.
+
+### When MyERP suggests
+
+- **Customer and address forms** (when a customer is created or a ship-to address added): a small table "Courier cost to this PIN" for a **1 kg and a 10 kg** parcel from the company's default ship-from branch: each courier that serves the PIN, its cost per kg, transit days and ODA flag, cheapest first. The cheapest can be saved as the address's **preferred courier**. This is indicative; the real choice is made per shipment.
+- **Delivery note** (the real choice): with the actual packages, weight and dimensions (from the item UOMs), MyERP quotes every courier that serves the ship-to PIN and **pre-selects the cheapest that meets the delivery date** (a surface courier that misses the promised date is not suggested over a faster one). The person can pick another and gives a short reason; the quote and the reason are kept on the shipment.
+- **Per kg** is shown for comparison, but the suggestion uses the **total landed freight** for that shipment (slabs, minimums, fuel, ODA and COD make per kg alone misleading for small parcels).
+
+Rules: MyERP only suggests; a person picks the courier (decision 0006). A quote is stored with the shipment (source, rate card version, chargeable weight, amount), so a later rate change never changes an old shipment.
+
+### Freight check (later)
+
+When the courier's invoice arrives, each AWB's billed amount is matched with the quote on its shipment; differences (wrong weight, extra ODA, wrong zone) are listed for a claim. Monthly freight by courier, cost per kg by zone, and money saved against the dearest quote go into MIS.
 
 ## Where it hooks into Sales
 
@@ -156,17 +195,19 @@ Sending the customer a "dispatched, track here" message by email or WhatsApp, an
 3. The daily despatch email and notification lists.
 4. Webhooks for that connector.
 5. With Phase 4: link shipments to delivery notes, the delivered date and "on delivery" due dates, AWB scan in the Dispatch workspace, the "no AWB entered" check, draft sales return on RTO.
-6. More connectors as needed; e-way bill Part B from the shipment (with 6a); export AWBs (with spec 03).
+6. Rate cards (dated, per carrier account) and the courier cost table on customer and address forms; Shiprocket live quotes.
+7. With Phase 4: quote all couriers on the delivery note and pre-select the cheapest that meets the date; quote kept on the shipment.
+8. More connectors as needed (Delhivery, Blue Dart, DP World direct once API access arrives); e-way bill Part B from the shipment (with 6a); export AWBs (with spec 03); freight check against courier invoices.
 
 Steps 1 to 4 do not need Phase 4. If Sidharth wants tracking before Sales is built, a shipment can be entered with the customer (a party, already built) and the ERPNext invoice or delivery note number as text, and linked to MyERP delivery notes later. That gives the despatch team the daily email while ERPNext is still in use.
 
 ## Open questions for Sidharth
 
-1. **Which couriers, airlines and transporters** do you use for sales today, and roughly what share each? (Answered in part, 11 Nov: Delhivery. Which others, and do you have a Delhivery business account with API access?)
+1. **Which couriers, airlines and transporters** do you use for sales today, and roughly what share each? (Answered 11 Nov: Delhivery, Blue Dart, DP World, and a Shiprocket account; no direct API access yet.)
 2. Roughly **how many shipments a day**, and how many companies or branches despatch?
-3. Do you have **business accounts with API access** at any of them, or use an aggregator already (Shiprocket, ClickPost, NimbusPost, AfterShip)? Would you rather pay an aggregator for one connection, or connect directly to one or two carriers?
+3. (Answered 11 Nov: Delhivery and Blue Dart are direct, each with a B2C and a B2B account; Shiprocket is separate; rate charts to be shared.)
 4. Is "AWB" here mostly **courier dockets**, or also **airline air cargo** (through a forwarder), or both?
-5. **Who should get the email**, one email for everyone or one per company or branch, and **at what time**? Should it also go to the salesman of each customer?
+5. **Who should get the email**, one email for everyone or one per company or branch? (Time answered: 8:00 am.) Should it also go to the salesman of each customer?
 6. Do you want this **before Phase 4** (shipments entered against ERPNext invoice numbers), or only with Sales in MyERP?
 7. Later: should **customers** get dispatch and delivery messages with a tracking link (email or WhatsApp)?
 8. Do you book shipments on the carrier's website and then type the AWB, or would you like MyERP to **book the shipment and print the label** (possible through some aggregators)?
