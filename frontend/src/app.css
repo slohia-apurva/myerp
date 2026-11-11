@@ -1476,3 +1476,40 @@ td button,
 .row-actions button.link {
   margin-left: 8px;
 }
+
+/* Forms: every group of fields sits in a titled box (Section, or a fieldset
+   with a legend), the same look on every screen. */
+form.card fieldset:not(.plain),
+form.card .panel-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--mist);
+  min-width: 0;
+  margin: 0;
+}
+form.card fieldset:not(.plain) > legend {
+  float: left;
+  width: 100%;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--deep-green);
+  padding: 0;
+}
+form.card fieldset:not(.plain) > legend + * {
+  clear: both;
+}
+form.card .panel-card > h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--deep-green);
+}
+form.card fieldset.plain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

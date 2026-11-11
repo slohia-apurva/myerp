@@ -2,7 +2,7 @@ import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
-import { Chevron, LevelPicker, PageHeader } from "./Brand";
+import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
@@ -448,6 +448,7 @@ function CompanyForm(props: {
   return (
     <form className="card" onSubmit={save}>
       <h3>{c ? `Edit ${c.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add company"}</h3>
+      <Section title="Registration">
       <label>
         Legal name
         <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
@@ -506,7 +507,11 @@ function CompanyForm(props: {
           <input value={tan} maxLength={10} onChange={(e) => setTan(e.target.value.toUpperCase())} />
         </label>
       </div>
+      </Section>
+      <Section title="Registered address and contact">
       <ContactFields value={contact} onChange={setContact} addressLabel="Registered address" />
+      </Section>
+      <Section title="Books">
       <label>
         Financial year starts in
         <select value={fyMonth} onChange={(e) => setFyMonth(Number(e.target.value))}>
@@ -525,6 +530,7 @@ function CompanyForm(props: {
         <input type="checkbox" checked={multiCurrency} onChange={(e) => setMultiCurrency(e.target.checked)} />
         Use foreign currencies (exports, imports, EEFC accounts). Books stay in INR.
       </label>
+      </Section>
       {!c && (
         <fieldset>
           <legend>Modules this company uses (the Owner can change them later)</legend>
@@ -881,6 +887,7 @@ function BranchForm(props: {
     <form className="card" onSubmit={save}>
       <h4>{b ? `${props.readOnly ? "View" : "Edit"} ${b.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add branch"}</h4>
       <FormBody readOnly={props.readOnly}>
+      <Section title="Branch">
       <label>
         Name
         <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Bhiwandi warehouse" />
@@ -895,7 +902,10 @@ function BranchForm(props: {
           <input value={gstin} maxLength={15} onChange={(e) => setGstin(e.target.value.toUpperCase())} />
         </label>
       </div>
+      </Section>
+      <Section title="Address and contact">
       <ContactFields value={contact} onChange={setContact} />
+      </Section>
       <fieldset>
         <legend>Default addresses (picked first on documents, can be changed on each)</legend>
         {DEFAULTS.map(([flag, label]) => (
@@ -1080,6 +1090,7 @@ function CertificateForm(props: {
     <form className="card" onSubmit={save}>
       <h4>{x ? `${props.readOnly ? "View" : "Edit"} ${x.kind_label}` : props.copyOf ? "Duplicate certificate" : "Add certificate"}</h4>
       <FormBody readOnly={props.readOnly}>
+      <Section title="Certificate">
       <div className="row">
         <label>
           Type
@@ -1115,6 +1126,8 @@ function CertificateForm(props: {
           onChange={(v) => setBranch(v ? Number(v) : null)}
         />
       </label>
+      </Section>
+      <Section title="Validity">
       <div className="row">
         <label>
           Valid from
@@ -1130,6 +1143,7 @@ function CertificateForm(props: {
         <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
       <p className="small">A renewed certificate is added as a new one, so the old one stays on record.</p>
+      </Section>
       </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
@@ -1365,6 +1379,7 @@ function GroupForm(props: {
 
   return (
     <form className="card inline" onSubmit={save}>
+      <Section title={g ? "Ledger group" : "New ledger group"}>
       <div className="row">
         <label>
           {g ? "Name" : "New group name"}
@@ -1382,6 +1397,7 @@ function GroupForm(props: {
           </label>
         )}
       </div>
+      </Section>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
         <button>Save</button>

@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
-import { PageHeader } from "./Brand";
+import { PageHeader, Section } from "./Brand";
 
 type Role = {
   id: number;
@@ -181,6 +181,7 @@ function UserForm(props: {
     <form className="card" onSubmit={submit}>
       <h3>{user ? `Edit ${user.email}` : props.copyOf ? `Duplicate ${props.copyOf.full_name || props.copyOf.email}` : "Add user"}</h3>
       <FormBody>
+      <Section title="User">
       {!user && (
         <label>
           Email (their Google account)
@@ -191,6 +192,7 @@ function UserForm(props: {
         Full name
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
       </label>
+      </Section>
       <fieldset>
         <legend>Roles</legend>
         <Checks
@@ -340,6 +342,7 @@ function RoleForm(props: {
     <form className="card" onSubmit={save}>
       <h3>{role ? `${props.readOnly ? "View" : "Edit"} ${role.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "New role"}</h3>
       <FormBody readOnly={props.readOnly}>
+      <Section title="Role">
       <label>
         Name
         <input required value={name} onChange={(e) => setName(e.target.value)} />
@@ -348,6 +351,7 @@ function RoleForm(props: {
         Description
         <input value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>
+      </Section>
       {props.catalogue.map((area) => (
         <fieldset key={area.code}>
           <legend>{area.label}</legend>
