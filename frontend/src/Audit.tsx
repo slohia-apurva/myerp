@@ -21,6 +21,7 @@ export const RECORD_TYPES: [string, string][] = [
   ["branch", "Branches"],
   ["certificate", "Licences and certificates"],
   ["credit_term", "Credit terms"],
+  ["unit", "Units"],
   ["ledger_group", "Ledger groups"],
   ["ledger", "Ledgers"],
 ];

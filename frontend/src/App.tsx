@@ -5,13 +5,14 @@ import { CreditTermsPage } from "./CreditTerms";
 import { Dashboard } from "./Dashboard";
 import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
+import { UnitsPage } from "./Units";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 import { Logo } from "./Brand";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "help";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -19,7 +20,7 @@ function routeFromHash(): Route {
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" ? page : "home" };
 }
 
 export function App() {
@@ -84,7 +85,9 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {link("home", "Dashboard")}
           {(canSeeMasters || canManageUsers) && (
             <MastersMenu
-              active={page === "companies" || page === "users" || page === "roles" || page === "credit-terms"}
+              active={
+                page === "companies" || page === "users" || page === "roles" || page === "credit-terms" || page === "units"
+              }
               company={current.company}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
@@ -124,6 +127,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )
         ) : page === "credit-terms" && canSeeMasters ? (
           <CreditTermsPage session={session} />
+        ) : page === "units" && canSeeMasters ? (
+          <UnitsPage session={session} />
         ) : page === "users" && canManageUsers ? (
           <UsersPage session={session} />
         ) : page === "roles" && canManageUsers ? (

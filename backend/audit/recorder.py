@@ -60,6 +60,8 @@ LABELS = {
     "opening_rate": "Opening rate",
     "full_name": "Full name",
     "credit_limit": "Credit limit (₹)",
+    "short_name": "Short name",
+    "whole_numbers": "Whole numbers only",
 }
 
 # Fields that are internal or change by themselves.
@@ -102,7 +104,7 @@ def _register() -> None:
     from accounts.models import Role, User
     from core import india
     from core import modules as company_modules
-    from core.models import Branch, Certificate, Company, CreditTerm, Ledger, LedgerGroup
+    from core.models import Branch, Certificate, Company, CreditTerm, Ledger, LedgerGroup, Unit
     from core.parties import party_extras
 
     def state(code):
@@ -152,6 +154,7 @@ def _register() -> None:
                 lambda r: None,
                 extras={"parts": ("Parts", lambda t: "; ".join(map(str, t.parts.all())) or None)},
             ),
+            Unit: Tracked("unit", "Unit", lambda r: None),
             User: Tracked(
                 "user",
                 "User",

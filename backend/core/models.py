@@ -500,6 +500,27 @@ class CreditTerm(models.Model):
         return self.name
 
 
+class Unit(models.Model):
+    """A unit of measure (Packet, Carton, Kg ...): one list for the whole
+    group of companies, picked by items. Never deleted, only made inactive,
+    so items and documents that use a unit keep it."""
+
+    name = models.CharField(max_length=40)
+    short_name = models.CharField(max_length=10)
+    whole_numbers = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="unit_name_unique"),
+            models.UniqueConstraint(Lower("short_name"), name="unit_short_name_unique"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class CreditTermPart(models.Model):
     ORDER, DISPATCH, DELIVERY, BILL = "order", "dispatch", "delivery", "bill"
     EVENTS = [
