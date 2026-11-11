@@ -351,6 +351,10 @@ export const MANUAL: Chapter[] = [
           <li>Click "Masters" in the top menu, then "Units".</li>
           <li>Click "Add unit", then give the "Name" (for example Drum) and a "Short name" (for example drm).</li>
           <li>
+            Pick the "GST unit code". This is the official code GST returns use for the unit (for example CTN for
+            carton, KGS for kilogram). If none fits, pick OTH (Others), as the starting "Pallet" does.
+          </li>
+          <li>
             Tick "Whole numbers only" for units that cannot be split, such as cartons: a quantity like 2.5 cartons will
             then be refused on documents.
           </li>

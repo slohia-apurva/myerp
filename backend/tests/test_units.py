@@ -58,7 +58,10 @@ def test_the_group_starts_with_the_usual_units(accountant, company):
 
 def test_add_change_and_disable_a_unit(accountant, company):
     made = call(
-        accountant, "post", "units/", {"name": "Drum", "short_name": "drm", "whole_numbers": True}
+        accountant,
+        "post",
+        "units/",
+        {"name": "Drum", "short_name": "drm", "gst_code": "DRM", "whole_numbers": True},
     )
     assert made.status_code == 201, made.json()
     unit = made.json()
@@ -77,7 +80,12 @@ def test_add_change_and_disable_a_unit(accountant, company):
 
 def test_unit_checks(accountant, company):
     def error(**data):
-        response = call(accountant, "post", "units/", {"name": "X", "short_name": "x", **data})
+        response = call(
+            accountant,
+            "post",
+            "units/",
+            {"name": "X", "short_name": "x", "gst_code": "OTH", **data},
+        )
         assert response.status_code == 400, response.json()
         return response.json()
 
@@ -85,6 +93,26 @@ def test_unit_checks(accountant, company):
     assert "short_name" in error(name="Something else", short_name="KG")
     assert "name" in error(name="  ")
     assert "short_name" in error(short_name="")
+    assert "gst_code" in error(gst_code="XYZ")  # not an official code
+    assert "gst_code" in error(gst_code="")  # required
+
+
+def test_starting_units_carry_gst_codes_and_the_list_is_served(accountant, company):
+    have = units(accountant)
+    assert have["Carton"]["gst_code"] == "CTN"
+    assert have["Litre"]["gst_code"] == "LTR"
+    assert have["Pallet"]["gst_code"] == "OTH"
+    codes = {c["code"] for c in call(accountant, "get", "units/gst-codes/").json()}
+    assert {"NOS", "KGS", "LTR", "OTH"} <= codes
+    assert all(u["gst_code"] in codes for u in have.values())
+
+
+def test_gst_code_can_be_changed_and_is_logged(accountant, company):
+    carton = units(accountant)["Carton"]
+    done = call(accountant, "patch", f"units/{carton['id']}/", {"gst_code": "BOX"})
+    assert done.status_code == 200 and done.json()["gst_code"] == "BOX"
+    entries = call(accountant, "get", f"audit/?type=unit&id={carton['id']}").json()["entries"]
+    assert any(c["label"] == "GST unit code" for c in entries[0]["changes"])
 
 
 def test_viewer_may_read_but_not_change(viewer, accountant, company):

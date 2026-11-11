@@ -16,6 +16,7 @@ urlpatterns = [
     ),
     path("credit-terms/<int:pk>/", credit_terms.CreditTermDetailView.as_view(), name="credit_term"),
     path("units/", units.UnitListView.as_view(), name="units"),
+    path("units/gst-codes/", units.GstUnitCodeView.as_view(), name="unit-gst-codes"),
     path("units/<int:pk>/", units.UnitDetailView.as_view(), name="unit"),
     path("items/", items.ItemListView.as_view(), name="items"),
     path("items/<int:pk>/", items.ItemDetailView.as_view(), name="item"),
