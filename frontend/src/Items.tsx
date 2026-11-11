@@ -1,4 +1,5 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
@@ -91,6 +92,15 @@ export function ItemsPage({ session }: { session: SignedIn }) {
       .catch((err: Error) => setError(err.message));
   }, []);
   useEffect(reload, [reload]);
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    if (openId && items.some((i) => i.id === openId)) {
+      setQuery("");
+      setSelectedId(openId);
+      setEditing(null);
+      opened();
+    }
+  }, [openId, items, opened]);
 
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -449,7 +459,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       return props.copyOf ? { ...r, barcode: "" } : r; // barcodes belong to one item
     }),
   );
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"general" | "sales" | "purchase" | "gst" | "stock" | "units">("general");
 
@@ -507,7 +517,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       const saved = it ? await api<Item>(`v1/items/${it.id}/`, body, "PATCH") : await api<Item>("v1/items/", body);
       props.onDone(saved.id);
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
       setBusy(false);
     }
   };
@@ -789,7 +799,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         </Section>
         )}
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         <button disabled={busy}>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>

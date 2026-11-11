@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
@@ -174,6 +175,15 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
   const { accounts, reload } = useCourierAccounts(companyId);
   const [editing, setEditing] = useState<CourierAccount | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<CourierAccount | null>(null);
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && accounts.find((a) => a.id === openId);
+    if (found) {
+      setCopyOf(null);
+      setEditing(found);
+      opened();
+    }
+  }, [openId, accounts, opened]);
   if (company && !company.modules.includes("sales")) return <NoSales company={company} />;
   const done = () => {
     setEditing(null);
@@ -275,7 +285,7 @@ function AccountForm(props: {
   const [service, setService] = useState(from?.service ?? "b2c");
   const [code, setCode] = useState(props.copyOf ? "" : (a?.account_code ?? ""));
   const [notes, setNotes] = useState(from?.notes ?? "");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -286,7 +296,7 @@ function AccountForm(props: {
       else await api(`v1/companies/${props.companyId}/courier-accounts/`, body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -334,7 +344,7 @@ function AccountForm(props: {
           </label>
         </Section>
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>
@@ -547,7 +557,7 @@ function ShipmentForm(props: {
   const [cod, setCod] = useState(s?.cod_amount ?? "");
   const [expected, setExpected] = useState(s?.expected_on ?? "");
   const [notes, setNotes] = useState(s?.notes ?? "");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -574,7 +584,7 @@ function ShipmentForm(props: {
         : await api<Shipment>(`v1/companies/${props.companyId}/shipments/`, body);
       props.onDone(saved);
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -671,7 +681,7 @@ function ShipmentForm(props: {
           <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
       </Section>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
@@ -693,7 +703,7 @@ function ShipmentCard(props: {
 }) {
   const [s, setS] = useState<Shipment | null>(null);
   const [editing, setEditing] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   useEffect(() => {
     api<Shipment>(`v1/shipments/${props.id}/`).then(setS);
   }, [props.id]);
@@ -722,7 +732,7 @@ function ShipmentCard(props: {
       await api(`v1/shipments/${s.id}/cancel/`, { reason });
       props.onChanged();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -801,7 +811,7 @@ function ShipmentCard(props: {
         </table>
       </Section>
       {canChange && <AddStatus shipment={s} onDone={props.onChanged} />}
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {canChange && (
           <button type="button" className="secondary" onClick={() => setEditing(true)}>
@@ -827,7 +837,7 @@ function AddStatus({ shipment, onDone }: { shipment: Shipment; onDone: () => voi
   const [place, setPlace] = useState("");
   const [remarks, setRemarks] = useState("");
   const [receivedBy, setReceivedBy] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
@@ -841,7 +851,7 @@ function AddStatus({ shipment, onDone }: { shipment: Shipment; onDone: () => voi
       });
       onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
   return (
@@ -877,7 +887,7 @@ function AddStatus({ shipment, onDone }: { shipment: Shipment; onDone: () => voi
           Remarks
           <input value={remarks} placeholder="What the courier's website says" onChange={(e) => setRemarks(e.target.value)} />
         </label>
-        {error && <p className="error">{error}</p>}
+        <ErrorNote error={error} />
         <div className="buttons">
           <button>Save</button>
         </div>

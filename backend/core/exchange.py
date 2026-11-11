@@ -354,6 +354,8 @@ def _messages(detail, labels: dict[str, str], prefix: str = "") -> list[str]:
     if isinstance(detail, dict):
         out = []
         for key, value in detail.items():
+            if key == "existing":
+                continue  # the link to a duplicate's record is for the screen
             if key in ("non_field_errors", "__all__"):
                 out += _messages(value, labels, prefix)
             elif isinstance(key, int):

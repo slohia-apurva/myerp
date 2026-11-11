@@ -1,4 +1,5 @@
 import { Combobox } from "./Combobox";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
@@ -44,6 +45,15 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
     setCopyOf(null);
     reload();
   };
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && terms.find((t) => t.id === openId);
+    if (found) {
+      setCopyOf(null);
+      setEditing(found);
+      opened();
+    }
+  }, [openId, terms, opened]);
   return (
     <section className="page">
       <PageHeader
@@ -127,7 +137,7 @@ function TermForm(props: {
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (t?.name ?? ""));
   const [notes, setNotes] = useState(from?.notes ?? "");
   const [parts, setParts] = useState<TermPart[]>(from?.parts ?? [{ percent: "100", event: "bill", days: 30 }]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const total = parts.reduce((sum, p) => sum + (Number(p.percent) || 0), 0);
   const setPart = (i: number, change: Partial<TermPart>) =>
     setParts(parts.map((p, j) => (j === i ? { ...p, ...change } : p)));
@@ -141,7 +151,7 @@ function TermForm(props: {
       else await api("v1/credit-terms/", body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -235,7 +245,7 @@ function TermForm(props: {
       </label>
       </Section>
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>

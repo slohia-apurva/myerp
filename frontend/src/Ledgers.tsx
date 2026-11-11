@@ -1,4 +1,5 @@
 import { Combobox } from "./Combobox";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
@@ -109,6 +110,19 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
     const timer = window.setTimeout(reload, 200);
     return () => window.clearTimeout(timer);
   }, [reload]);
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    if (!openId) return;
+    if (ledgers.some((l) => l.id === openId)) {
+      setSelectedId(openId);
+      setEditing(null);
+      opened();
+    } else if (query || groupFilter) {
+      // Show the whole list so the ledger asked for is in it.
+      setQuery("");
+      setGroupFilter("");
+    }
+  }, [openId, ledgers, query, groupFilter, opened]);
 
   // The list follows the group tree: each group with ledgers (directly or below it)
   // gets a heading row, its own ledgers come next, then its sub-groups.
@@ -510,7 +524,7 @@ function LedgerForm(props: {
   const foreign = currency !== "" && currency !== "INR";
   const inr = (fc: string | null | undefined, r: string | null | undefined) =>
     Math.round((Number(fc) || 0) * (Number(r) || 0) * 100) / 100;
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const chosen = groupOf(group);
   const isBank = chosen?.is_bank ?? false;
   // Ledgers under Sundry Debtors or Creditors are customers and suppliers.
@@ -572,7 +586,7 @@ function LedgerForm(props: {
         : await api<Ledger>(`v1/companies/${props.companyId}/ledgers/`, body);
       props.onDone(saved?.id);
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
   const openingFields = (
@@ -840,7 +854,7 @@ function LedgerForm(props: {
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>

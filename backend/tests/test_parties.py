@@ -311,7 +311,7 @@ def test_a_number_can_be_changed_but_stays_unique(accountant, company):
         {"party": {"customer_number": "C-77"}},
     )  # fmt: skip
     assert clash.status_code == 400
-    assert "already used" in str(clash.json())
+    assert "already the number of" in str(clash.json())
     # Blank keeps the number; the next automatic one skips taken numbers.
     blank = call(accountant, "patch", url, {"party": {"customer_number": ""}})
     assert blank.json()["party"]["customer_number"] == "C-77"

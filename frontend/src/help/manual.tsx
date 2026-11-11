@@ -54,6 +54,21 @@ export const MANUAL: Chapter[] = [
           and down arrow keys and Enter, or click the one you want. Press Esc to close the list without changing it.
         </p>
 
+        <h3>No duplicates</h3>
+        <p>
+          MyERP will not save a second record that means the same as one already there. Names are compared without
+          capital letters and extra spaces, so "Acme  Foods " and "ACME Foods" are the same name, and extra spaces are
+          taken out when you save. Customers and suppliers, items, units, credit terms and roles must differ across the
+          whole group; ledgers, ledger groups, branches and courier accounts must differ within their company. A
+          GSTIN or a PAN can belong to one company only, a GSTIN to one customer or supplier only (add another address
+          to that party instead), a bank account number to one bank ledger of a company, and a barcode to one item.
+        </p>
+        <p>
+          When you try, the form says which record is already there, for example 'There is already a unit with the
+          name "Kilogram".', with a link "Open “Kilogram”" that takes you to it. Imports check every row the same way,
+          including two rows of the same file.
+        </p>
+
         <h3>The screen</h3>
         <ul>
           <li>
@@ -506,7 +521,7 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             If any row has a problem, a table shows the row number (as in Excel) and what is wrong, for example
-            "Name: There is already a unit with this name." Fix those rows and click "Check file" again.
+            'Name: There is already a unit with the name "Carton".' Fix those rows and click "Check file" again.
           </li>
           <li>
             When every row is right, it shows how many rows are new, changed or with no change. Click "Import" to save

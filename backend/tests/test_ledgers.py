@@ -71,7 +71,12 @@ def test_bank_ledger_keeps_bank_details(as_user, company):
     assert response.json()["account_number"] == "50200012345678"
 
     assert "IFSC" in str(
-        call(accountant, "post", path, {**bank, "name": "X", "ifsc": "HDFC1234"}).json()
+        call(
+            accountant,
+            "post",
+            path,
+            {**bank, "name": "X", "account_number": "1", "ifsc": "HDFC1234"},
+        ).json()
     )
 
     # Not a bank ledger: bank details are dropped.
@@ -90,10 +95,10 @@ def test_names_are_unique_across_ledgers_and_groups(as_user, company):
     debtors = g["Sundry Debtors"]["id"]
     assert call(accountant, "post", path, {"name": "cash", "group": debtors}).status_code == 400
     response = call(accountant, "post", path, {"name": "Sundry Debtors", "group": debtors})
-    assert "group by that name" in str(response.json())
+    assert "already has a group named" in str(response.json())
     group_path = f"companies/{company}/ledger-groups/"
     response = call(accountant, "post", group_path, {"name": "CASH", "parent": debtors})
-    assert "ledger by that name" in str(response.json())
+    assert "already has a ledger named" in str(response.json())
 
 
 def test_filter_by_group_includes_sub_groups(as_user, company):

@@ -19,6 +19,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core import duplicates
 from core.api import EDIT, VIEW, Signed, _check
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -104,12 +105,14 @@ def _save_account(account: CourierAccount, data: dict) -> None:
     elif not account.carrier_id:
         raise ValidationError({"carrier_id": ["Pick a courier from the list."]})
     if "name" in data:
-        data["name"] = data["name"].strip()
-        clash = CourierAccount.objects.filter(company=account.company, name__iexact=data["name"])
-        if account.pk:
-            clash = clash.exclude(pk=account.pk)
-        if clash.exists():
-            raise ValidationError({"name": ["This company already has an account with this name."]})
+        data["name"] = duplicates.tidy(data["name"])
+        duplicates.check_name(
+            CourierAccount.objects.filter(company=account.company),
+            data["name"],
+            exclude=account.pk,
+            kind="courier_account",
+            message='This company already has an account named "{name}".',
+        )
     refuse_key_changes("courier_account", account, data)
     for field, value in data.items():
         setattr(account, field, value)

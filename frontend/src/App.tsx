@@ -21,7 +21,7 @@ type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" 
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
-  const [page, id, sub, subId] = window.location.hash.replace(/^#\/?/, "").split("/");
+  const [page, id, sub, subId] = window.location.hash.replace(/^#\/?/, "").split("?")[0].split("/");
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };

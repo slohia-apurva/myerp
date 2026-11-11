@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
+from core import duplicates
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import CreditTerm, CreditTermPart, describe_part
@@ -73,12 +74,14 @@ class CreditTermSerializer(serializers.ModelSerializer):
 def _save_term(term: CreditTerm, data: dict) -> None:
     parts = data.pop("parts", None)
     if "name" in data:
-        data["name"] = data["name"].strip()
-        clash = CreditTerm.objects.filter(name__iexact=data["name"])
-        if term.pk:
-            clash = clash.exclude(pk=term.pk)
-        if clash.exists():
-            raise ValidationError({"name": ["There are already credit terms with this name."]})
+        data["name"] = duplicates.tidy(data["name"])
+        duplicates.check_name(
+            CreditTerm.objects.all(),
+            data["name"],
+            exclude=term.pk,
+            kind="credit_term",
+            message='There are already credit terms named "{name}".',
+        )
     if parts is not None and term.pk:
         old = sorted((p.event, p.days, p.percent) for p in term.parts.all())
         new = sorted((p["event"], int(p["days"]), Decimal(p["percent"])) for p in parts)

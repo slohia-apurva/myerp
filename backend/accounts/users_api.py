@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from accounts import permissions
 from accounts.models import Role, User
 from accounts.roles import OWNER
+from core import duplicates
 from core.models import Company
 from tenancy.context import tenant_atomic
 
@@ -96,8 +97,11 @@ class UserListView(APIView):
         roles = serializer.validated_data["roles"]
         if any(r.code == OWNER for r in roles) and not request.user.is_owner:
             raise PermissionDenied(OWNER_ONLY)
-        if User.objects.filter(email=serializer.validated_data["email"]).exists():
-            raise ValidationError({"email": ["This person is already a user."]})
+        clash = User.objects.filter(email__iexact=serializer.validated_data["email"]).first()
+        if clash is not None:
+            duplicates.refuse(
+                "email", "This person is already a user.", clash, "user", name=clash.email
+            )
         user = User.objects.create_user(
             email=serializer.validated_data["email"],
             full_name=serializer.validated_data.get("full_name", ""),
@@ -160,8 +164,9 @@ class RoleListView(APIView):
             raise PermissionDenied(OWNER_ONLY)
         serializer = RoleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        name = serializer.validated_data["name"]
-        role = serializer.save(code=_unique_code(name), is_standard=False)
+        name = duplicates.tidy(serializer.validated_data["name"])
+        _unique_role_name(name)
+        role = serializer.save(name=name, code=_unique_code(name), is_standard=False)
         return Response(RoleSerializer(role).data, status=status.HTTP_201_CREATED)
 
 
@@ -183,7 +188,11 @@ class RoleDetailView(APIView):
         role = self._editable(request, pk)
         serializer = RoleSerializer(role, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        extra = {}
+        if "name" in serializer.validated_data:
+            extra["name"] = duplicates.tidy(serializer.validated_data["name"])
+            _unique_role_name(extra["name"], exclude=role.pk)
+        serializer.save(**extra)
         return Response(serializer.data)
 
     def delete(self, request, pk: int):
@@ -194,6 +203,16 @@ class RoleDetailView(APIView):
             raise ValidationError({"detail": "Take this role off its users first."})
         role.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _unique_role_name(name: str, exclude: int | None = None) -> None:
+    duplicates.check_name(
+        Role.objects.all(),
+        name,
+        exclude=exclude,
+        kind="role",
+        message='There is already a role named "{name}".',
+    )
 
 
 def _unique_code(name: str) -> str:

@@ -158,7 +158,7 @@ def test_any_bad_row_saves_nothing_and_says_why(owner, alpha):
     assert out["saved"] is False
     by_row = {e["row"]: e["messages"] for e in out["errors"]}
     assert set(by_row) == {3, 4, 5}
-    assert by_row[3] == ["Name: There is already a unit with this name."]
+    assert by_row[3] == ['Name: There is already a unit with the name "Carton".']
     assert any(m.startswith("GST unit code:") for m in by_row[4])
     assert any(m.startswith("Whole numbers only: write Yes or No") for m in by_row[4])
     assert "Drum" not in unit_names(alpha)
