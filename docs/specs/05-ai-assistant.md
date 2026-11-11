@@ -2,6 +2,8 @@
 
 Requested by Sidharth: connect MyERP to Claude so that a person can ask the system in plain words, for example "make a report of ..." or "show the top 10 customers", and so that other AI tools can work with MyERP too.
 
+Updated 11 Nov 2026 (Sidharth): each tenant brings its own AI key and chooses its AI provider; AI may draft a tenant's own customisations (reports, print formats, custom fields), never the main system. See the two sections added below.
+
 Status: spec only, for review. Nothing is built until Sidharth approves it. Open questions are at the end.
 
 This spec builds on the "AI in MyERP" section of [00-architecture-and-roadmap.md](00-architecture-and-roadmap.md) and decision [0006](../decisions/0006-ai-drafts-only.md) (AI makes drafts, never postings). It does not change either; it describes the "Ask your data" feature in detail and adds a way for outside AI tools to connect.
@@ -100,6 +102,59 @@ How Metabase would be added, when it is wanted:
 
 Suggested timing: built-in charts with the report framework (they are needed for MIS and the assistant anyway), Metabase as a separate small slice once Accounts data exists (after Phase 2), when there is enough data to analyse.
 
+## Each tenant uses its own AI key (added 11 Nov, Sidharth)
+
+> "Each tenant to have their own API key from whichever AI they choose to give them suggestions they ask for."
+
+- **The tenant chooses the AI and pays for it.** On a new **"AI settings"** screen (Owner only) the tenant picks a provider and pastes its own API key: Anthropic (Claude), OpenAI, Google (Gemini), and later any provider that offers a compatible API, including one the tenant runs itself. The tenant is billed by that provider directly. MyERP holds no shared AI key and pays for no tenant's AI use. Apurvam, as tenant 1, enters its own key the same way.
+- **No key, no AI.** Until a tenant enters a key, every AI feature stays off and MyERP works fully without it.
+- **Keeping the key safe.** The key is stored encrypted in the tenant's own database (encrypted with a master key held in Google Secret Manager, so a copy of the database alone does not reveal it). After saving, the screen shows only the last 4 characters. The key is never sent to the browser, never written to logs, and used only by the backend for that tenant. "Test key" sends one small request and shows whether it works. The Owner can replace or remove it at any time, and each change is in the audit log.
+- **Same tools and rules whatever the AI.** MyERP talks to each provider through one adapter per provider. The tools, permission checks, read-only rule, row limits, logging and the rule that figures come from MyERP's own tables are the same for every provider. Answers can differ in quality between providers, so MyERP lists a provider as "supported" only after it passes the same set of test questions; others can be used at the tenant's own risk, marked "not tested".
+- **Model choice** is part of the tenant's AI settings (for example a more capable model for customisation, a cheaper one for quick questions).
+- **Limits still apply.** MyERP still counts tokens per question and person, so the tenant's own monthly cap and the "AI activity" list work as described, even though the bill comes from the provider.
+- **Where data goes is the tenant's choice.** The settings screen states that questions and report results are sent to the chosen provider, under that provider's terms. Each tenant checks this for itself; MyERP's own data and backups stay in Mumbai.
+
+## What AI may change: the tenant's own customisations, never the main system (added 11 Nov, Sidharth)
+
+> "The main system cannot be touched. They can make print reports, or screen reports etc or add fields so on in their own database."
+
+The main plan already says every tenant customisation is **data in the tenant's own database**, never code (architecture, "Customisation without code forks"). The AI works only on that layer.
+
+**Never touched by AI** (nor by tenants): MyERP's code, its standard screens, standard reports and standard print formats, posting rules, both ledgers, tax and payroll rates, other tenants, and the platform.
+
+**Who may change what** (Sidharth, 11 Nov: "Only people with permission should be allowed to build new reports. Standard reports cannot be modified by anyone except the super admin, i.e. owner of MyERP"):
+
+| What | Who may change it |
+| --- | --- |
+| Standard reports, standard print formats, standard screens and fields | Only the **MyERP super admin** (the owner of MyERP, on the platform side). Changes ship in a MyERP release to every tenant. No tenant user, not even a tenant's Owner, can edit them, with or without AI |
+| A copy of a standard report or print format | Anyone with the matching permission below can "Save as copy" and change the copy. The standard one stays as it is and remains available |
+| New screen reports | Only people with **"Build reports"** (`reports.build`). The tenant's Owner ticks it for the roles that should have it; nobody has it by default except the Owner |
+| New print formats | Only people with **"Design print formats"** (`printformats.manage`), Owner by default |
+| Custom fields | Only people with **"Add custom fields"** (`customfields.manage`), Owner by default |
+
+Everyone else can run the reports and use the print formats their role allows, but cannot create or change them. The AI offers its draft-writing tools only to a person who holds the matching permission, so asking the AI does not get round these rules. Posted documents stay immutable (rule 1). AI still never posts, submits, approves or pays (decision 0006).
+
+**What AI may draft, in the tenant's database only:**
+
+| Customisation | What the AI produces | Checked by MyERP before it can be used |
+| --- | --- | --- |
+| **Screen report** | A report definition: data source (one of the report framework's sources, such as GL entries, sales lines or stock ledger), fields, filters, grouping, totals, sort, chart | Only fields the source exposes; the person's own permissions still apply when anyone runs it. No SQL |
+| **Print format** | An HTML/CSS layout for a document type (tax invoice, delivery challan, PO, batch label) with placeholders for the document's fields, letterhead and logo | Rendered in a locked-down template engine: allowed fields only, no scripts, no file or network access. Shown as a preview on a real document. GST-mandatory items (GSTIN, HSN, tax breakup, etc.) must stay on a tax invoice; MyERP refuses a format that drops them |
+| **Custom field** | A field definition: document or master, label, type (text, number, date, yes/no, pick list, link to a master), required or not, where it sits on the form, whether it prints | Stored in the existing JSON column, so a core upgrade never clashes with it. A custom field can never change a posting, a tax or a standard field |
+| Later: dashboards, approval rules, naming series, list views | The same way, each when its builder exists | |
+
+**How it works:**
+
+1. A person with the matching permission ("Build reports", "Design print formats" or "Add custom fields") asks, for example: "add a field 'Transporter GSTIN' to delivery notes and print it under the vehicle number", or "make a screen report of pending orders by salesman with a bar chart".
+2. The AI fills in a **Draft** customisation through a draft-writing tool. These tools are the only tools that write anything, and they can write only to the draft customisation tables.
+3. MyERP checks the draft (the right-hand column above) and shows a preview: the form with the new field, the print on a real document, the report with real data.
+4. The person clicks **"Activate"** or asks the AI for changes. Nothing reaches other users until someone activates it.
+5. Every customisation is **versioned**. "Turn off" and "Go back to the previous version" are one click. The audit log keeps who asked, the AI provider and model, the request, and who activated it.
+
+**Upgrades:** MyERP updates never edit a tenant's customisations. If an update renames or removes a field that a customisation uses, MyERP marks that customisation "needs attention" and keeps the last working version running where it can, instead of failing silently.
+
+People can make the same customisations by hand on the same screens without AI. The AI is a faster way to fill in the same forms, not a separate route.
+
 ## Security
 
 ### Tenant isolation (decision 0003)
@@ -121,6 +176,7 @@ Suggested timing: built-in charts with the report framework (they are needed for
 - Every tool is a read-only function that calls the same query code the report screens use. There is no tool that creates, edits, submits, cancels or deletes anything, and no free-form SQL or "run code" tool.
 - Tools run on a read-only database connection where the database supports it, as a second guard.
 - When drafting features arrive later (bill capture etc.), they are separate tools that create **Draft** documents only (decision 0006), each switched on separately.
+- The one exception in this spec is the customisation tools above: they write only to the tenant's draft customisation tables, are offered only to people with the matching build permission, and nothing they write takes effect until a person activates it.
 
 ### Prompt injection
 
@@ -130,22 +186,22 @@ Data in MyERP (a ledger name, a note, later a supplier bill) could contain text 
 
 Every question is logged in the tenant database: who asked, when, the company, the question, each tool call with its filters, how many rows came back, the answer text, tokens used and cost. The Owner sees this as "AI activity" (a list with filters by person and date). Logs are kept like the audit log (never edited); a tenant can choose to delete conversations older than N months.
 
-### What is sent to Anthropic
+### What is sent to the AI provider
 
 - Only the question, the conversation in that panel, and the tool results needed to answer it. Not the whole database.
 - Large results are cut down before sending: Claude gets at most a set number of rows (for example 200) plus totals; the full table still shows on screen and in downloads.
-- Anthropic's commercial API terms: data sent through the API is not used to train models. Data is held for a limited retention period for abuse monitoring; Anthropic offers zero data retention for eligible business customers on request. This needs checking against Apurvam's and future SaaS customers' needs (open question 5).
-- Processing happens outside India (Anthropic's API, or Claude on Google Cloud Vertex AI in a region where it is offered). MyERP's database and backups stay in Mumbai as now.
+- The data goes to the provider the tenant chose, under that provider's terms (for example, Anthropic's commercial API terms say API data is not used for training). Each tenant decides whether those terms suit it; the AI settings screen says so plainly.
+- Most providers process outside India. MyERP's database and backups stay in Mumbai as now.
 
 ## Switches, limits and cost
 
 - **On/off**: a plan feature flag for the tenant (SaaS), then a per-company switch, then the `ai.ask` permission per role. MyERP works fully with the assistant off.
 - **Spending cap**: a monthly cap per tenant in rupees (set by the Owner, and by plan for SaaS) and an optional daily limit per person. At 80% the Owner gets an alert; at 100% the assistant pauses until the next month or until the Owner raises the cap.
-- **API key**: one Anthropic API key held in Google Secret Manager (as other secrets are now), used by the backend only, never sent to the browser. Usage is metered per tenant from each response's token counts.
+- **API key**: the tenant's own key, on the AI settings screen (see "Each tenant uses its own AI key"). Usage is still counted per tenant and person from each response's token counts.
 
 ### Cost estimate
 
-Rough figures, at current Claude API list prices and about ₹88 to the US dollar. A typical question makes 2 to 4 model calls (choose tool, read result, maybe a second tool, answer). The fixed instructions and tool list are cached, which makes repeated parts about 90% cheaper.
+The tenant pays these to its own provider. Rough figures for Claude, at current API list prices and about ₹88 to the US dollar. A typical question makes 2 to 4 model calls (choose tool, read result, maybe a second tool, answer). The fixed instructions and tool list are cached, which makes repeated parts about 90% cheaper.
 
 | Model | Price per million tokens (input / output) | Cost per typical question | 500 questions a month (about 20 a working day) |
 | --- | --- | --- | --- |
@@ -172,12 +228,14 @@ Each line is one or more small pull requests, built only after Sidharth sees the
 
 | Step | What | Needs |
 | --- | --- | --- |
-| A1 | **Plumbing and first tools.** Tenant-side `ai` app (conversation, message, tool call, usage), `ai.ask` permission, tenant and company switches, monthly cap, Anthropic client with key from Secret Manager, chat panel ("Ask" in the top menu), tools over today's masters: companies, branches, ledger groups, ledgers with opening balances, opening bills, licences and certificates, change history. "AI activity" list for the Owner. User manual chapter "Ask MyERP". | Approval of this spec; an Anthropic API key |
+| A1 | **Plumbing and first tools.** Tenant-side `ai` app (conversation, message, tool call, usage), `ai.ask` permission, tenant and company switches, monthly cap, **AI settings screen with the tenant's own encrypted key** and the first provider adapter (Claude), chat panel ("Ask" in the top menu), tools over today's masters: companies, branches, ledger groups, ledgers with opening balances, opening bills, licences and certificates, change history. "AI activity" list for the Owner. User manual chapter "Ask MyERP". | Approval of this spec; Apurvam's own key for testing |
 | A2 | **Accounts tools**: trial balance, GL, day book, cash and bank book, ageing. | Phase 2 reports |
 | A3 | **Stock, purchase and sales tools** as each module's reports land. "Top 10 customers" works from here. | Phases 3 and 4 |
 | A4 | **Saved reports and charts**: "Save report", share with a role, bar/line/pie, Excel/CSV download, Home-page tiles from saved reports. | A1 |
 | A4b | **Scheduled tasks**: schedule a saved report (daily, weekly, monthly), optional AI note, bell notification and email to the person's own address, "My scheduled tasks" list, re-check of permissions at each run. | A4 |
 | A5 | **MCP server** for outside AI apps: OAuth sign-in, "Connected AI apps", tenant switch, `ai.connect` permission. | A1; answer to open question 6 |
+| A6 | **More providers**: OpenAI and Gemini adapters, each passing the test questions before it is listed as supported. | A1 |
+| A7 | **AI customisation**: draft-writing tools, preview, Activate, versions, the three build permissions; one kind at a time as each builder exists: screen reports (report framework), custom fields, print formats. | The matching builder in Phase 1 (report framework, custom fields, print formats) |
 | Later | Drafting features from the main plan (bill capture, bank matching, month-end note), each its own spec and switch. | Their module gates |
 
 The main plan places "Ask your data" after the Phase 6 gate. This spec proposes building A1 now, alongside the masters work, because it is small, it is off the cutover path, and each module then adds its tools as it is built instead of all at the end. If Sidharth prefers, A1 can wait for Phase 2, when the answers become much more useful (open question 1).
@@ -198,10 +256,11 @@ The main plan places "Ask your data" after the Phase 6 gate. This spec proposes 
 1. **Start now or wait?** Build A1 now on masters (answers are limited until Accounts exists, but the plumbing is ready and each module adds tools as it goes), or wait until Phase 2 reports exist? Recommendation: now, as a small slice.
 2. **Who may use it?** Proposed default: Owner and Accountant on; other roles off until you tick "AI assistant" for them on the Roles screen.
 3. **Monthly budget** for the assistant for Apurvam (for example ₹3,000 or ₹5,000), and a daily limit per person?
-4. **Model**: Claude Opus 5.5 (best answers, roughly double the cost) or Claude Sonnet 5.5 (faster and cheaper)? Recommendation: start on Opus 5.5 with the cap, look at real cost after a month, and switch if cost matters more.
-5. **Data leaving India**: are you comfortable sending questions and report results (ledger names, balances, later customer and sales figures) to Anthropic's API for processing outside India, with no training on the data? Please check with your CA or legal adviser; the same question decides what we tell SaaS customers. Alternative: Claude through Google Cloud (Vertex AI), keeping billing in your Google account; it still runs outside India.
+4. **Providers**: answered 11 Nov, each tenant chooses and brings its own key. Which provider will Apurvam use, and which should MyERP support first after Claude? Recommendation: Claude first, then OpenAI and Gemini.
+5. **Data leaving India**: now each tenant's own choice (they pick the provider). For Apurvam, please still check with your CA that sending report results to your chosen provider is fine.
 6. **Which "other AI"** do you have in mind: Claude Desktop or claude.ai, ChatGPT or Gemini, an agent of your own, or a BI tool? This decides how soon A5 (MCP server) is worth building and whether a plain API comes first.
 7. **Should outside AI apps ever create drafts** (for example a draft sales order from an email)? Recommendation: read-only for now; drafts later, per tool, with their own switch.
 8. **Scheduled tasks**: is delivery inside MyERP plus email to the person's own login enough, or do you want WhatsApp, or email to outside addresses (for example your CA)? Outside addresses would need an Owner approval per task.
 9. **Metabase**: is it for you (and maybe an analyst or CA) to do your own ad-hoc analysis, or did you plan it as the main MIS screen for everyone? The spec assumes the first: built-in charts for everyone, Metabase for power users after Phase 2.
-10. **An Anthropic API account**: do you already have one (console.anthropic.com), or should it be set up under Apurvam's billing?
+10. **Apurvam's AI key**: Apurvam enters its own key on the AI settings screen like any tenant. Do you already have an account with the provider you want?
+11. **Who may customise**: answered 11 Nov. Building reports, print formats and custom fields each needs its own permission; standard reports and print formats are changed only by the MyERP super admin, and tenants work on copies.
