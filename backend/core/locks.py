@@ -36,6 +36,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
         "books_start": "books beginning date",
     },
     "branch": {"gstin": "GSTIN", "state_code": "state"},
+    "courier_account": {"carrier_id": "courier", "service": "service"},
 }
 
 # A function per master that returns why the record is in use, or "".

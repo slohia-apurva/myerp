@@ -124,10 +124,27 @@ export function MastersMenu(props: { active: boolean; company?: Company; canSeeM
         ["Ledger groups", company ? `#/companies/${company.id}/groups` : "", props.canSeeMasters && !!company],
         ["Ledgers", company ? `#/companies/${company.id}/ledgers` : "", props.canSeeMasters && !!company],
         ["Credit terms", "#/credit-terms", props.canSeeMasters],
+        [
+          "Courier accounts",
+          company ? `#/companies/${company.id}/couriers` : "",
+          props.canSeeMasters && !!company?.modules.includes("sales"),
+        ],
         ["Items", "#/items", props.canSeeMasters],
         ["Units", "#/units", props.canSeeMasters],
         ["HSN codes", "#/hsn", props.canSeeMasters],
       ]}
+    />
+  );
+}
+
+/** "Sales" in the top menu: for now the shipments sent by courier (spec 06).
+ * Quotations, orders and invoices join it with Phase 4. */
+export function SalesMenu(props: { active: boolean; company: Company }) {
+  return (
+    <DropMenu
+      label="Sales"
+      active={props.active}
+      items={[["Shipments", `#/companies/${props.company.id}/shipments`, true]]}
     />
   );
 }

@@ -10,11 +10,12 @@ import { DataResetPage } from "./DataReset";
 import { HsnPage } from "./Hsn";
 import { UnitsPage } from "./Units";
 import { RolesPage, UsersPage } from "./Users";
+import { CourierAccountsPage, ShipmentsPage } from "./Shipments";
 import "./app.css";
 import { Logo } from "./Brand";
 import { CentralPage } from "./Central";
 import { HelpPage, helpTopicFor } from "./help/Help";
-import { AdminMenu, CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
+import { AdminMenu, CompanyPicker, MastersMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "items" | "hsn" | "reset" | "central" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -67,6 +68,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
   }, []);
   const canManageUsers = session.permissions.includes("users.manage");
   const canSeeMasters = session.permissions.includes("masters.view");
+  const canSeeShipments = session.permissions.some((p) => p === "sales.view" || p === "stock.view");
   const current = useCurrentCompany(page === "companies" ? id : undefined, canSeeMasters);
   const signOut = () => {
     // Stop Google from signing the person straight back in on this browser.
@@ -89,14 +91,17 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {link("home", "Dashboard")}
           {canSeeMasters && (
             <MastersMenu
-              active={page === "credit-terms" || page === "units" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups"))}
+              active={page === "credit-terms" || page === "units" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers"))}
               company={current.company}
               canSeeMasters={canSeeMasters}
             />
           )}
+          {canSeeShipments && current.company?.modules.includes("sales") && (
+            <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
+          )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && sub !== "ledgers" && sub !== "groups")}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "shipments"].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -125,7 +130,11 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         {page === "help" ? (
           <HelpPage topic={topic} />
         ) : page === "companies" && canSeeMasters ? (
-          id && sub === "ledgers" ? (
+          id && sub === "shipments" && canSeeShipments ? (
+            <ShipmentsPage key={id} companyId={id} session={session} />
+          ) : id && sub === "couriers" ? (
+            <CourierAccountsPage key={id} companyId={id} session={session} />
+          ) : id && sub === "ledgers" ? (
             <LedgersPage key={`${id}-${subId}`} companyId={id} groupId={subId} session={session} />
           ) : id && sub === "groups" ? (
             <LedgerGroupsPage key={id} id={id} session={session} />

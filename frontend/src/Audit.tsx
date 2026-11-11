@@ -26,6 +26,8 @@ export const RECORD_TYPES: [string, string][] = [
   ["item", "Items"],
   ["ledger_group", "Ledger groups"],
   ["ledger", "Ledgers"],
+  ["courier_account", "Courier accounts"],
+  ["shipment", "Shipments"],
 ];
 
 const when = (iso: string) =>

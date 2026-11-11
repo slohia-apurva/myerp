@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models.functions import Lower
 
 slug_validator = RegexValidator(
     r"^[a-z][a-z0-9-]{1,38}[a-z0-9]$",
@@ -128,3 +129,36 @@ class CourierPin(models.Model):
 
     def __str__(self) -> str:
         return f"{self.courier} {self.pin_id}"
+
+
+class Carrier(models.Model):
+    """A courier, aggregator or transporter (Delhivery, Blue Dart, Shiprocket...).
+    One central list for every tenant, read-only to them, like HSN codes; a
+    tenant's own accounts with a carrier (B2C, B2B) live in its database
+    (shipping.CourierAccount). Spec 06. The PIN serviceability rows of each
+    courier point here too."""
+
+    COURIER, AGGREGATOR, AIRLINE, TRANSPORTER = "courier", "aggregator", "airline", "transporter"
+    KINDS = [
+        (COURIER, "Courier"),
+        (AGGREGATOR, "Aggregator (books with many couriers)"),
+        (AIRLINE, "Airline or air cargo"),
+        (TRANSPORTER, "Road transporter"),
+    ]
+
+    name = models.CharField(max_length=60)
+    kind = models.CharField(max_length=12, choices=KINDS, default=COURIER)
+    # A regular expression a tracking number must match, when the carrier's
+    # format is known; blank accepts any letters, digits and hyphens.
+    awb_pattern = models.CharField(max_length=120, blank=True)
+    awb_hint = models.CharField(max_length=80, blank=True)  # e.g. "11 digits"
+    # The carrier's public tracking page, with {awb} where the number goes.
+    tracking_url = models.CharField(max_length=300, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(Lower("name"), name="carrier_name_unique")]
+
+    def __str__(self) -> str:
+        return self.name
