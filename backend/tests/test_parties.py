@@ -268,7 +268,7 @@ def test_pick_an_existing_party(accountant, company, second):
     assert linked.json()["party"]["gst_type"] == "consumer"
     # Only once per company.
     twice = add_ledger(accountant, second, "Sundry Debtors", name="Fresh Mart 2", party_id=party_id)
-    assert "already has a ledger" in str(twice.json())
+    assert "already has the customer ledger" in str(twice.json())
 
 
 def test_customers_and_vendors_are_numbered(accountant, company, second):
@@ -348,3 +348,45 @@ def test_contact_types(accountant, company):
     twice = [{"name": "A", "kinds": ["sales", "sales"]}]
     again = add_ledger(accountant, company, "Sundry Debtors", party={**party, "contacts": twice})
     assert again.status_code == 400
+
+
+def test_one_firm_both_customer_and_supplier_in_one_company(accountant, company, second):
+    """A firm both buys from and sells to the company: one ledger under Sundry
+    Debtors and one under Sundry Creditors, sharing the party (GSTIN,
+    addresses); never two on the same side (Sidharth, 2026-11-11)."""
+    party = {"gst_type": "regular", "gstin": gstin("29")}
+    sells = add_ledger(accountant, company, "Sundry Debtors", name="ABC Foods", party=party)
+    assert sells.status_code == 201, sells.json()
+    party_id = sells.json()["party"]["id"]
+
+    # Offered when adding a supplier ledger, not when adding another customer one.
+    suppliers = call(accountant, "get", f"parties/?not_in={company}&side=supplier").json()
+    customers = call(accountant, "get", f"parties/?not_in={company}&side=customer").json()
+    assert [p["id"] for p in suppliers] == [party_id] and customers == []
+
+    # Typing the GSTIN again for a new party is refused, pointing to the firm.
+    again = add_ledger(
+        accountant, company, "Sundry Creditors", name="ABC Foods (Supplier)", party=party
+    )
+    assert "Existing customer or supplier" in str(again.json())
+
+    buys = add_ledger(
+        accountant, company, "Sundry Creditors", name="ABC Foods (Supplier)", party_id=party_id
+    )
+    assert buys.status_code == 201, buys.json()
+    shared = buys.json()["party"]
+    assert shared["id"] == party_id and shared["gstin"] == gstin("29")
+    assert shared["customer_number"] and shared["vendor_number"]
+    assert sorted(c["side"] for c in shared["companies"]) == ["customer", "supplier"]
+
+    # Not a second supplier ledger, and the names must differ.
+    twice = add_ledger(accountant, company, "Sundry Creditors", name="ABC 2", party_id=party_id)
+    assert "already has the supplier ledger" in str(twice.json())
+
+    # "Also add to" gives the other company its supplier ledger by the party's name.
+    patch = call(accountant, "patch", f"ledgers/{buys.json()['id']}/", {"also_in": [second]})
+    assert patch.status_code == 200, patch.json()
+    other = call(accountant, "get", f"companies/{second}/ledgers/").json()
+    assert [(x["name"], x["group_name"]) for x in other if x["party"]] == [
+        ("ABC Foods", "Sundry Creditors")
+    ]

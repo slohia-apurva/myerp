@@ -42,7 +42,7 @@ export type Party = {
   id?: number;
   name?: string;
   /** Companies that have a ledger for this party (shared by the group). */
-  companies?: { id: number; name: string; ledger: number }[];
+  companies?: { id: number; name: string; ledger: number; side?: "customer" | "supplier" | "" }[];
   /** Given on Save the first time a company deals with the party as a customer or supplier. */
   customer_number: string;
   vendor_number: string;
