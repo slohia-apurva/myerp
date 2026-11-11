@@ -7,6 +7,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core import exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import Unit
@@ -64,7 +65,7 @@ class UnitSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "short_name", "gst_code", "whole_numbers", "is_active"]
 
 
-def _save_unit(unit: Unit, data: dict) -> None:
+def _save_unit(unit: Unit, data: dict) -> Unit:
     if "gst_code" in data:
         data["gst_code"] = data["gst_code"].strip().upper()
         if data["gst_code"] not in GST_UNIT_CODES:
@@ -90,6 +91,33 @@ def _save_unit(unit: Unit, data: dict) -> None:
     except DjangoValidationError as exc:
         raise ValidationError(exc.message_dict) from exc
     unit.save()
+    return unit
+
+
+def _gst_code_cell(text: str) -> str:
+    code = text.split("-")[0].strip().upper()
+    if code not in GST_UNIT_CODES:
+        raise ValueError(f"{text!r} is not a GST unit code (see the How to fill sheet)")
+    return code
+
+
+exchange.register(
+    exchange.Master(
+        key="units",
+        label="Units",
+        noun="unit",
+        serializer=UnitSerializer,
+        queryset=lambda ctx: Unit.objects.order_by("name"),
+        save=lambda ctx, unit, data: _save_unit(unit or Unit(), data),
+        codecs={
+            "gst_code": exchange.Codec(
+                to_cell=lambda v: v or "",
+                from_cell=_gst_code_cell,
+                choices=lambda: [f"{c} ({n})" for c, n in GST_UNIT_CODES.items()],
+            )
+        },
+    )
+)
 
 
 class UnitListView(APIView):

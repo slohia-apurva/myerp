@@ -52,3 +52,16 @@ export type SignedIn = {
 };
 
 export type Session = { signed_in: false; google_client_id: string } | SignedIn;
+
+/** POST a form with a file (multipart); errors as for `api`. */
+export async function upload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`/api/${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { Accept: "application/json", "X-CSRFToken": csrfToken() },
+    body: form,
+  });
+  const data: unknown = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status);
+  return data as T;
+}
