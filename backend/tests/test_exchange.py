@@ -101,6 +101,8 @@ def test_a_field_the_framework_cannot_hold_must_be_handled():
 def test_export_for_print_and_as_files(viewer, alpha):
     data = export(viewer).json()
     assert data["title"] == "Units"
+    assert [s["title"] for s in data["sheets"]] == ["Units"]
+    data = data["sheets"][0]
     assert data["columns"] == HEADER[1:]
     kg = next(r for r in data["rows"] if r[0] == "Kilogram")
     assert kg == ["Kilogram", "kg", "KGS", "No", "Yes"]
@@ -178,6 +180,7 @@ def test_change_by_id_and_report_unchanged(owner, alpha):
     out = upload(owner, rows).json()
     assert out["errors"] == [
         {
+            "sheet": "Units",
             "row": 4,
             "messages": [
                 "ID: there is no unit with ID 99999. Leave the ID empty to add a new one."
@@ -188,10 +191,161 @@ def test_change_by_id_and_report_unchanged(owner, alpha):
     assert (out["changed"], out["same"], out["saved"]) == (1, 1, True)
     with use_tenant(alpha):
         assert Unit.objects.get(pk=kg.pk).short_name == "kgs"
-    assert len(export(owner).json()["rows"]) == len(exported["rows"])
+    assert len(export(owner).json()["sheets"][0]["rows"]) == len(exported["sheets"][0]["rows"])
 
 
 def test_unknown_columns_are_refused(owner):
     res = upload(owner, [["Name", "Colour"], ["Drum", "red"]])
     assert res.status_code == 400
     assert "Colour" in res.json()["detail"]
+
+
+# --- Rows inside rows: credit terms' parts, items' units and GST rates ------
+
+
+def book(sheets: dict[str, list[list]]) -> bytes:
+    wb = Workbook()
+    for n, (title, rows) in enumerate(sheets.items()):
+        ws = wb.active if n == 0 else wb.create_sheet()
+        ws.title = title
+        for row in rows:
+            ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def send(client, key, sheets, commit=False):
+    return client.post(
+        f"/api/v1/exchange/{key}/import/",
+        {"file": SimpleUploadedFile("f.xlsx", book(sheets)), "commit": "1" if commit else "0"},
+        HTTP_HOST=HOST,
+    )
+
+
+def sheets_of(client, key):
+    res = client.get(f"/api/v1/exchange/{key}/?as=xlsx", HTTP_HOST=HOST)
+    wb = load_workbook(io.BytesIO(res.content))
+    return {ws.title: [list(r) for r in ws.values] for ws in wb.worksheets}
+
+
+TERMS = ["Name", "Active", "Notes"]
+PARTS = ["Credit terms", "Share (%)", "Due", "Plus days"]
+
+
+def test_credit_terms_carry_their_parts_on_a_sheet(owner, alpha):
+    got = sheets_of(owner, "credit-terms")
+    assert list(got) == ["Credit terms", "Parts", "How to fill"]
+    assert got["Credit terms"][0] == ["ID", "Name", "Active", "Notes", "When payment is due"]
+    assert got["Parts"][0] == PARTS
+    assert ["50% advance, 50% on delivery", 50, "On delivery", 0] in got["Parts"]
+
+    out = send(
+        owner,
+        "credit-terms",
+        {
+            "Credit terms": [TERMS, ["30/70", "Yes", ""], ["Bad split", "Yes", ""]],
+            "Parts": [
+                PARTS,
+                ["30/70", "30", "With the order (advance)", "0"],
+                ["30/70", "70", "bill", "30"],
+                ["Bad split", "60", "On delivery", "0"],
+                ["Bad split", "30", "Sometime", "0"],
+                ["Nobody", "100", "bill", "0"],
+            ],
+        },
+        commit=True,
+    ).json()
+    assert out["saved"] is False
+    where = {(e["sheet"], e["row"]): e["messages"] for e in out["errors"]}
+    assert where[("Credit terms", 3)] == ["Parts: The parts add up to 60%; make them 100%."]
+    assert where[("Parts", 5)][0].startswith("Due: 'Sometime' is not one of")
+    assert where[("Parts", 6)][0].startswith("Credit terms: 'nobody' is not in the Credit terms")
+
+    out = send(
+        owner,
+        "credit-terms",
+        {
+            "Credit terms": [TERMS, ["30/70", "Yes", ""]],
+            "Parts": [PARTS, ["30/70", "30", "order", "0"], ["30/70", "70", "bill", "30"]],
+        },
+        commit=True,
+    ).json()
+    assert out["saved"] is True
+    terms = owner.get("/api/v1/credit-terms/", HTTP_HOST=HOST).json()
+    term = next(t for t in terms if t["name"] == "30/70")
+    assert term["summary"] == "30% advance with the order, 70% 30 days after the bill"
+
+
+def test_leaving_out_a_child_sheet_keeps_those_rows(owner, alpha):
+    got = sheets_of(owner, "credit-terms")
+    row = next(r for r in got["Credit terms"] if r[1] == "30 days")
+    out = send(
+        owner,
+        "credit-terms",
+        {"Credit terms": [got["Credit terms"][0][:4], [row[0], "30 days", "Yes", "Usual"]]},
+        commit=True,
+    ).json()
+    assert (out["changed"], out["saved"]) == (1, True)
+    terms = owner.get("/api/v1/credit-terms/", HTTP_HOST=HOST).json()
+    term = next(t for t in terms if t["name"] == "30 days")
+    assert term["notes"] == "Usual" and len(term["parts"]) == 1
+
+
+ITEMS = ["Name", "Type", "Default unit (stock unit)", "HSN"]
+UNITS = ["Item", "Unit", "Contains how many", "Of", "Barcode", "Used for"]
+RATES = ["Item", "From", "GST rate (%)"]
+
+
+def test_items_with_units_and_gst_rates(owner, alpha):
+    sheets = {
+        "Items": [ITEMS, ["Ghee 500 ml", "Goods", "pkt", "0405"]],
+        "Units of measure": [
+            UNITS,
+            ["Ghee 500 ml", "Packet", "", "", "8901234500011", "Sales, Stock"],
+            ["Ghee 500 ml", "Carton", "24", "Packet", "", "Purchase"],
+            ["Ghee 500 ml", "Crate", "2", "Carton", "", ""],
+        ],
+        "GST rates": [
+            RATES,
+            ["Ghee 500 ml", "01-07-2017", "12"],
+            ["Ghee 500 ml", "22-09-2025", "5"],
+        ],
+    }
+    out = send(owner, "items", sheets).json()
+    assert out["errors"] == [
+        {
+            "sheet": "Units of measure",
+            "row": 4,
+            "messages": ["Unit: there is no unit called 'Crate'"],
+        }
+    ]
+    sheets["Units of measure"].pop()
+    out = send(owner, "items", sheets, commit=True).json()
+    assert (out["new"], out["saved"]) == (1, True)
+    item = next(
+        i for i in owner.get("/api/v1/items/", HTTP_HOST=HOST).json() if i["name"] == "Ghee 500 ml"
+    )
+    assert item["hsn"] == "0405"
+    carton = next(u for u in item["units"] if u["unit_name"] == "Carton")
+    assert carton["factor"] == "24.000000" and carton["used_for"] == ["purchase"]
+    assert [r["rate"] for r in item["gst_rates"]] == ["12.00", "5.00"]
+
+    # The exported file goes back in unchanged.
+    got = sheets_of(owner, "items")
+    assert got["Items"][0][:3] == ["ID", "Item number", "Name"]
+    again = {
+        t: [[("" if v is None else str(v)) for v in r] for r in rows] for t, rows in got.items()
+    }
+    del again["How to fill"]
+    out = send(owner, "items", again, commit=True).json()
+    assert out["errors"] == [] and out["changed"] == 0 and out["same"] >= 1
+
+    # A barcode used by another item is caught as on the form.
+    sheets["Items"][1][0] = "Ghee 1 litre"
+    for r in sheets["Units of measure"][1:] + sheets["GST rates"][1:]:
+        r[0] = "Ghee 1 litre"
+    out = send(owner, "items", sheets).json()
+    assert out["errors"][0]["messages"] == [
+        "Units of measure: The barcode 8901234500011 is already used by another item."
+    ]

@@ -77,14 +77,19 @@ export function useExchange(props: {
   return { buttons, panel };
 }
 
-type PrintSheet = { title: string; scope: string; columns: string[]; rows: string[][] };
+type PrintSheet = {
+  title: string;
+  scope: string;
+  /** The list, then any rows kept inside its records (parts, units of measure). */
+  sheets: { title: string; columns: string[]; rows: string[][] }[];
+};
 
 type Outcome = {
   rows: number;
   new: number;
   changed: number;
   same: number;
-  errors: { row: number; messages: string[] }[];
+  errors: { sheet: string; row: number; messages: string[] }[];
   saved: boolean;
 };
 
@@ -169,13 +174,15 @@ function ImportForm(props: {
             <table>
               <thead>
                 <tr>
+                  <th>Sheet</th>
                   <th>Row</th>
                   <th>Problem</th>
                 </tr>
               </thead>
               <tbody>
                 {outcome.errors.map((e) => (
-                  <tr key={e.row}>
+                  <tr key={`${e.sheet}-${e.row}`}>
+                    <td>{e.sheet}</td>
                     <td>{e.row}</td>
                     <td>
                       {e.messages.map((m) => (
@@ -235,26 +242,31 @@ function Printout({ sheet, onDone }: { sheet: PrintSheet; onDone: () => void }) 
     <div className="print-sheet">
       <h1>{sheet.title}</h1>
       <p className="small">
-        {sheet.scope} · printed {today} · {plural(sheet.rows.length, "row")}
+        {sheet.scope} · printed {today} · {plural(sheet.sheets[0].rows.length, "row")}
       </p>
-      <table>
-        <thead>
-          <tr>
-            {sheet.columns.map((c) => (
-              <th key={c}>{c}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sheet.rows.map((r, i) => (
-            <tr key={i}>
-              {r.map((v, j) => (
-                <td key={j}>{v}</td>
+      {sheet.sheets.map((t, n) => (
+        <section key={t.title}>
+          {n > 0 && <h2>{t.title}</h2>}
+          <table>
+            <thead>
+              <tr>
+                {t.columns.map((c) => (
+                  <th key={c}>{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {t.rows.map((r, i) => (
+                <tr key={i}>
+                  {r.map((v, j) => (
+                    <td key={j}>{v}</td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </tbody>
+          </table>
+        </section>
+      ))}
     </div>,
     document.body,
   );
