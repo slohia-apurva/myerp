@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import duplicates
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import CreditTerm, CreditTermPart, describe_part
@@ -71,7 +71,7 @@ class CreditTermSerializer(serializers.ModelSerializer):
         return summary(term)
 
 
-def _save_term(term: CreditTerm, data: dict) -> None:
+def _save_term(term: CreditTerm, data: dict) -> CreditTerm:
     parts = data.pop("parts", None)
     if "name" in data:
         data["name"] = duplicates.tidy(data["name"])
@@ -108,6 +108,28 @@ def _save_term(term: CreditTerm, data: dict) -> None:
         for p in parts:
             CreditTermPart.objects.create(term=term, **p)
         recorder.touch(term)
+    return term
+
+
+exchange.register(
+    exchange.Master(
+        key="credit-terms",
+        label="Credit terms",
+        noun="credit terms",
+        serializer=CreditTermSerializer,
+        queryset=lambda ctx: CreditTerm.objects.prefetch_related("parts").order_by("name"),
+        save=lambda ctx, term, data: _save_term(term or CreditTerm(), data),
+        show=("summary",),
+        labels={
+            "summary": "When payment is due",
+            "parts": "Parts",
+            "parts.percent": "Share (%)",
+            "parts.event": "Due",
+            "parts.days": "Plus days",
+        },
+        hints={"parts.percent": "The shares of one credit term add up to 100"},
+    )
+)
 
 
 class CreditTermListView(APIView):

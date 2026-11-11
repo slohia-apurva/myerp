@@ -25,6 +25,7 @@ TIDY = {
     "CreditTerm": (("name",), None),
     "Unit": (("name", "short_name"), None),
     "Item": (("name",), None),
+    "ItemGroup": (("name",), None),
     "Certificate": (("name",), "company_id"),
 }
 
@@ -87,7 +88,7 @@ def check_duplicates(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("core", "0024_merge_city_item_tabs"),
+        ("core", "0025_item_groups"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

@@ -306,6 +306,10 @@ export const MANUAL: Chapter[] = [
           The list shows each term in words and how many parties use it. Credit terms are never deleted: click "Edit"
           and then the "Disable" button to stop offering them to new parties ("Enable" brings them back). Parties that already have them keep them.
         </p>
+        <p>
+          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          export and print".
+        </p>
       </>
     ),
   },
@@ -326,7 +330,8 @@ export const MANUAL: Chapter[] = [
           <li>Click "Masters" in the top menu, then "Items", then "Add item". The form has tabs: "General", "Sales", "Purchase", "GST rates", "Stock and quality" and "Units of measure".</li>
           <li>
             Under "General", give the "Name", the "Type" (goods you stock, or a service), the "Default unit (stock unit)"
-            (the unit stock is counted in, such as Packet) and the "HSN" code if you know it.
+            (the unit stock is counted in, such as Packet), the "Item group" (see the chapter "Item groups") and the "HSN"
+            code if you know it.
           </li>
           <li>
             On the "Sales" tab, the "Sales item name" starts as the item's name; change it if customers know the item by
@@ -361,6 +366,10 @@ export const MANUAL: Chapter[] = [
         <p>
           Items are never deleted: click "Edit" and then the "Disable" button to stop using one ("Enable" brings it
           back). Use "Duplicate" to start a new item from an existing one; barcodes are not copied.
+        </p>
+        <p>
+          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          export and print".
         </p>
       </>
     ),
@@ -442,6 +451,41 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "item-groups",
+    title: "Item groups",
+    summary: "The tree of groups and sub-groups that items sit in, such as Raw material > Spices.",
+    body: (
+      <>
+        <p>
+          Item groups are one tree shared by every company in the group, built the same way as ledger groups. Each item
+          sits in one group, which you pick in the "Item group" box on the item form (click the box and type a few
+          letters).
+        </p>
+        <h3>Add a group</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Item groups".</li>
+          <li>
+            Click "Add group" for a main group, or click "+ Sub-group" beside a group to add one under it. Give the
+            "Name" (for example Whole spices) and, if you like, "Notes".
+          </li>
+          <li>To place a group elsewhere, change the "Under" box. A group cannot go under itself or a group below it.</li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          The arrow beside a group folds or opens the groups under it, and "Show levels" opens the tree to the depth you
+          pick. The "Items" column counts the items in a group and in the groups below it.
+        </p>
+        <p>
+          Once an item sits in a group, or in a group below it, that group cannot be moved under another group, so
+          reports keep their meaning. Names and notes can still be changed. Names must be different whatever the
+          capital letters. Groups are never deleted: click "Edit" and then the "Disable" button to stop offering a group
+          ("Enable" brings it back); items already in it keep it. To change many groups at once, use "Export", "Import"
+          and "Print" (see "Import, export and print"); in an import file, list a group before the groups under it.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "units",
     title: "Units",
     summary: "The list of units of measure (Packet, Carton, Kilogram) that items will use.",
@@ -490,7 +534,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Masters screens have three buttons at the top: "Import", "Export" and "Print". They work the same way on
-          every master. So far they are on "Units"; the other masters get them one by one. The columns are always the
+          every master. So far they are on "Units", "Credit terms" and "Items"; the other masters get them one by one. The columns are always the
           fields of that master's form, so when a field is added to the form it appears in the file too.
         </p>
         <h3>Export</h3>
@@ -498,6 +542,19 @@ export const MANUAL: Chapter[] = [
           Click "Export" to download the whole list as an Excel file (.xlsx). The first column, "ID", is MyERP's own
           number for each record. The second sheet, "How to fill", lists every column, whether it must be filled, and
           what may be written in it (for example the GST unit codes, or Yes and No).
+        </p>
+        <h3>Rows inside a record</h3>
+        <p>
+          Some masters keep a small table inside each record: the parts of a credit term, or an item's "Units of
+          measure" and "GST rates". These come out on sheets of their own, named as on the form ("Parts", "Units of
+          measure", "GST rates"). Each row's first column says which record it belongs to, by name (for example the
+          item's name), or by its ID. Other masters are written by name too: write "Carton" or "ctn" for a unit, and
+          "On delivery" for when a part is due.
+        </p>
+        <p>
+          On import, a record listed on the first sheet gets exactly the rows listed for it on these sheets, so add,
+          change or delete rows there as you would on the form. To leave them as they are, delete the whole sheet from
+          the file. CSV files hold only the first sheet, so they never change these rows.
         </p>
         <h3>Print</h3>
         <p>
@@ -520,7 +577,7 @@ export const MANUAL: Chapter[] = [
             way the form would, and saves nothing yet.
           </li>
           <li>
-            If any row has a problem, a table shows the row number (as in Excel) and what is wrong, for example
+            If any row has a problem, a table shows the sheet, the row number (as in Excel) and what is wrong, for example
             'Name: There is already a unit with the name "Carton".' Fix those rows and click "Check file" again.
           </li>
           <li>

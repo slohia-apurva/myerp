@@ -23,10 +23,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import duplicates
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
-from core.models import USED_FOR, Item, ItemGstRate, ItemUnit, Unit
+from core.models import USED_FOR, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
 
@@ -99,6 +99,10 @@ class ItemSerializer(serializers.ModelSerializer):
     purchase_unit_name = serializers.CharField(
         source="purchase_unit.name", read_only=True, default=None
     )
+    item_group = serializers.PrimaryKeyRelatedField(
+        queryset=ItemGroup.objects.all(), allow_null=True, required=False
+    )
+    item_group_name = serializers.CharField(source="item_group.name", read_only=True, default=None)
     units = ItemUnitSerializer(many=True, required=False)
     gst_rates = ItemGstRateSerializer(many=True, required=False)
     warnings = serializers.SerializerMethodField()
@@ -113,6 +117,8 @@ class ItemSerializer(serializers.ModelSerializer):
             "stock_unit",
             "stock_unit_name",
             "hsn",
+            "item_group",
+            "item_group_name",
             "sales_name",
             "sales_description",
             "sales_unit",
@@ -206,7 +212,7 @@ def _check_rates(rates: list[dict]) -> list[dict]:
     return sorted(rates, key=lambda r: r["valid_from"])
 
 
-def _save_item(item: Item, data: dict) -> None:
+def _save_item(item: Item, data: dict) -> Item:
     rows = data.pop("units", None)
     rates = data.pop("gst_rates", None)
     refuse_key_changes("item", item, data)
@@ -219,6 +225,9 @@ def _save_item(item: Item, data: dict) -> None:
             kind="item",
             message='There is already an item named "{name}".',
         )
+    group = data.get("item_group")
+    if group is not None and not group.is_active and group.pk != item.item_group_id:
+        raise ValidationError({"item_group": [f"{group.name} is disabled."]})
     for field in (
         "name",
         "item_type",
@@ -230,6 +239,7 @@ def _save_item(item: Item, data: dict) -> None:
         "purchase_name",
         "purchase_description",
         "purchase_unit",
+        "item_group",
         "shelf_life_days",
         "batch_tracked",
         "qc_required",
@@ -349,12 +359,55 @@ def _save_item(item: Item, data: dict) -> None:
                 ItemGstRate.objects.create(item=item, valid_from=r["valid_from"], rate=r["rate"])
     if rows is not None or rates is not None:
         recorder.touch(item)
+    return item
 
 
 def _queryset():
     return Item.objects.select_related(
         "stock_unit", "sales_unit", "purchase_unit"
     ).prefetch_related("units__unit", "units__contains_unit", "gst_rates")
+
+
+exchange.register(
+    exchange.Master(
+        key="items",
+        label="Items",
+        noun="item",
+        serializer=ItemSerializer,
+        queryset=lambda ctx: _queryset().order_by("name"),
+        save=lambda ctx, item, data: _save_item(item or Item(), data),
+        show=("item_number",),
+        labels={
+            "stock_unit": "Default unit (stock unit)",
+            "sales_name": "Sales item name",
+            "sales_description": "Sales description",
+            "sales_unit": "Default sales unit",
+            "purchase_name": "Purchase item name",
+            "purchase_description": "Purchase description",
+            "purchase_unit": "Default purchase unit",
+            "batch_tracked": "Track batches",
+            "units": "Units of measure",
+            "units.contains_qty": "Contains how many",
+            "units.contains_unit": "Of",
+            "units.length_cm": "Length (cm)",
+            "units.breadth_cm": "Breadth (cm)",
+            "units.height_cm": "Height (cm)",
+            "units.net_kg": "Net weight (kg)",
+            "units.gross_kg": "Gross weight (kg)",
+            "units.barcode": "Barcode",
+            "units.used_for": "Used for",
+            "gst_rates": "GST rates",
+            "gst_rates.valid_from": "From",
+            "gst_rates.rate": "GST rate (%)",
+        },
+        hints={
+            "sales_name": "Leave empty to use the item name",
+            "purchase_name": "Leave empty to use the item name",
+            "units.contains_qty": "Leave empty on the stock unit's row",
+            "units.contains_unit": "Leave empty on the stock unit's row",
+        },
+    )
+)
 
 
 class ItemListView(APIView):

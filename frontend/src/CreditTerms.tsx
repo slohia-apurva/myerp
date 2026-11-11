@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
+import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 /** Credit terms: how a party's bills are paid, split into parts. */
@@ -45,6 +46,7 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
     setCopyOf(null);
     reload();
   };
+  const io = useExchange({ master: "credit-terms", noun: "credit terms", session, onImported: reload });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     const found = openId && terms.find((t) => t.id === openId);
@@ -60,19 +62,23 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
         title="Credit terms"
         sub="How customers pay and suppliers are paid. One list for every company in the group."
         actions={
-          canEdit && (
-            <button
-              onClick={() => {
-                setCopyOf(null);
-                setEditing("new");
-              }}
-            >
-              Add credit terms
-            </button>
-          )
+          <>
+            {io.buttons}
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setCopyOf(null);
+                  setEditing("new");
+                }}
+              >
+                Add credit terms
+              </button>
+            )}
+          </>
         }
       />
       <WithActivity activity={<Activity type="credit_term" stamp={JSON.stringify(terms)} />}>
+      {io.panel}
       {editing && (
         <TermForm
           key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}

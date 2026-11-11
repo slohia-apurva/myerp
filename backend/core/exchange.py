@@ -8,6 +8,8 @@ ones its own screen uses. From those:
   the audit log labels them, so a field added to a form's serializer appears
   in the file by itself (a field the framework cannot put in one cell must be
   given a `Codec` or listed in `exclude`, or registration fails loudly);
+  links to other masters are written as their names; rows kept inside a
+  record (a term's parts, an item's units) get an Excel sheet of their own;
 - every imported row goes through the serializer and the save function, so
   it meets exactly the checks the form does (names that clash, GST codes,
   locks on masters in use, ...);
@@ -74,6 +76,19 @@ class Column:
     required: bool
     codec: Codec
     allow_null: bool = False
+    read_only: bool = False  # shown in exports and prints, ignored on import
+
+
+@dataclass(frozen=True)
+class Sheet:
+    """One table of the file. The master's own records are the first sheet;
+    rows kept inside a record (a term's parts, an item's units) get a sheet
+    each, whose first column names the record they belong to."""
+
+    field: str  # "" for the main sheet, else the serializer's list field
+    title: str
+    columns: list[Column]
+    link_label: str = ""  # child sheets: the first column's heading
 
 
 @dataclass
@@ -96,40 +111,68 @@ class Master:
     save: Callable[[Context, Any, dict], Any]
     noun: str = "record"  # one of them, e.g. "unit"
     per_company: bool = False
+    # Fields left out of the file. A child sheet's field is written
+    # "units.factor".
     exclude: tuple[str, ...] = ()
+    # Read-only fields worth seeing in exports and prints (item numbers, say).
+    show: tuple[str, ...] = ()
     codecs: dict[str, Codec] = field(default_factory=dict)
+    # Column or sheet headings where the audit label does not suit.
+    labels: dict[str, str] = field(default_factory=dict)
     # Extra lines for the "How to fill" sheet, field -> text.
     hints: dict[str, str] = field(default_factory=dict)
+    # The field that child sheets use to say which record a row belongs to.
+    link: str = "name"
 
-    def columns(self) -> list[Column]:
+    def _columns(self, fields, prefix: str = "") -> list[Column]:
         out = []
-        for name, f in self.serializer().fields.items():
-            if f.read_only or name in self.exclude:
+        for name, f in fields.items():
+            path = f"{prefix}{name}"
+            if path in self.exclude or isinstance(f, serializers.ListSerializer):
                 continue
-            codec = self.codecs.get(name) or _default_codec(f)
+            if f.read_only and path not in self.show:
+                continue
+            codec = self.codecs.get(path) or _default_codec(f)
             if codec is None:
                 raise ImproperlyConfigured(
-                    f"Import/export for {self.key}: the field {name!r} "
+                    f"Import/export for {self.key}: the field {path!r} "
                     f"({type(f).__name__}) needs a Codec in `codecs`, or list it in `exclude`."
                 )
             out.append(
                 Column(
                     field=name,
-                    label=_label(name, f),
+                    label=self.labels.get(path) or _label(name, f),
                     kind=codec.kind or _kind(f),
-                    required=bool(f.required),
+                    required=bool(f.required) and not f.read_only,
                     codec=codec,
                     allow_null=bool(getattr(f, "allow_null", False)),
+                    read_only=bool(f.read_only),
                 )
             )
         return out
+
+    def sheets(self) -> list[Sheet]:
+        fields = self.serializer().fields
+        out = [Sheet("", self.label, self._columns(fields))]
+        for name, f in fields.items():
+            if not isinstance(f, serializers.ListSerializer) or f.read_only:
+                continue
+            if name in self.exclude:
+                continue
+            title = self.labels.get(name) or _label(name, f)
+            columns = self._columns(f.child.fields, f"{name}.")
+            out.append(Sheet(name, title[:31], columns, self.noun[:1].upper() + self.noun[1:]))
+        return out
+
+    def columns(self) -> list[Column]:
+        return self.sheets()[0].columns
 
 
 MASTERS: dict[str, Master] = {}
 
 
 def register(master: Master) -> None:
-    master.columns()  # fail at start-up, not when someone exports
+    master.sheets()  # fail at start-up, not when someone exports
     MASTERS[master.key] = master
 
 
@@ -168,7 +211,7 @@ def _yesno(text: str) -> bool:
 
 
 def _number(text: str) -> str:
-    clean = re.sub(r"[,\s₹]", "", text)
+    clean = re.sub(r"[,\s₹%]", "", text)
     try:
         Decimal(clean)
     except InvalidOperation:
@@ -188,18 +231,76 @@ def _date(text: str) -> str:
     raise ValueError(f"{text!r} is not a date; write it as DD-MM-YYYY")
 
 
+def _pick(choices: dict, text: str):
+    low = text.strip().lower()
+    for value, label in choices.items():
+        if low in (str(value).lower(), str(label).lower()):
+            return value
+    raise ValueError(f"{text!r} is not one of: {', '.join(map(str, choices.values()))}")
+
+
 def _choice_codec(f: serializers.ChoiceField) -> Codec:
     def to_cell(value) -> str:
         return "" if value in (None, "") else str(f.choices.get(value, value))
 
-    def from_cell(text: str):
-        low = text.strip().lower()
-        for value, label in f.choices.items():
-            if low in (str(value).lower(), str(label).lower()):
-                return value
-        raise ValueError(f"{text!r} is not one of: {', '.join(map(str, f.choices.values()))}")
+    return Codec(
+        to_cell, lambda t: _pick(f.choices, t), choices=lambda: [str(v) for v in f.choices.values()]
+    )
 
-    return Codec(to_cell, from_cell, choices=lambda: [str(v) for v in f.choices.values()])
+
+def _choice_list_codec(f: serializers.ChoiceField) -> Codec:
+    """A list of choices in one cell, separated by commas."""
+
+    def to_cell(values) -> str:
+        return ", ".join(str(f.choices.get(v, v)) for v in values or [])
+
+    def from_cell(text: str) -> list:
+        return [_pick(f.choices, part) for part in text.split(",") if part.strip()]
+
+    return Codec(
+        to_cell,
+        from_cell,
+        hint="Several may be written, separated by commas",
+        choices=lambda: [str(v) for v in f.choices.values()],
+        kind="list",
+    )
+
+
+# Names of related records, looked up once per export or import.
+_names: dict[Any, dict] = {}
+
+
+def _relation_codec(f: serializers.PrimaryKeyRelatedField) -> Codec | None:
+    """A link to another master, written as that record's name (or its short
+    name, where it has one)."""
+    queryset = f.queryset
+    if queryset is None:
+        return None
+    model = queryset.model
+    have = {x.name for x in model._meta.get_fields()}
+    if "name" not in have:
+        return None
+    alt = "short_name" if "short_name" in have else None
+    what = str(model._meta.verbose_name)
+
+    def names() -> dict:
+        if model not in _names:
+            _names[model] = dict(model.objects.values_list("pk", "name"))
+        return _names[model]
+
+    def to_cell(pk) -> str:
+        return "" if pk is None else str(names().get(pk, pk))
+
+    def from_cell(text: str):
+        found = queryset.filter(name__iexact=text.strip()).first()
+        if found is None and alt:
+            found = queryset.filter(**{f"{alt}__iexact": text.strip()}).first()
+        if found is None:
+            raise ValueError(f"there is no {what} called {text!r}")
+        return found.pk
+
+    hint = f"The {what}'s name" + (" or short name" if alt else "")
+    return Codec(to_cell, from_cell, hint=hint, kind="other")
 
 
 def _plain(value) -> str:
@@ -213,6 +314,10 @@ def _default_codec(f) -> Codec | None:
         f, serializers.MultipleChoiceField
     ):
         return _choice_codec(f)
+    if isinstance(f, serializers.ListField) and isinstance(f.child, serializers.ChoiceField):
+        return _choice_list_codec(f.child)
+    if isinstance(f, serializers.PrimaryKeyRelatedField):
+        return _relation_codec(f)
     if isinstance(f, serializers.DateField):
         return Codec(
             lambda v: datetime.date.fromisoformat(v).strftime("%d-%m-%Y") if v else "",
@@ -223,77 +328,147 @@ def _default_codec(f) -> Codec | None:
         return Codec(_plain, _number)
     if type(f) in (serializers.CharField, serializers.EmailField, serializers.RegexField):
         return Codec(_plain, lambda t: t)
-    return None  # relations, lists, nested forms: the master must say how
+    if f.read_only:
+        return Codec(_plain, lambda t: t)  # shown only
+    return None  # anything else: the master must say how
 
 
-def _hint(col: Column, master: Master) -> str:
+def _hint(col: Column, master: Master, sheet: Sheet) -> str:
+    if col.read_only:
+        return "Filled in by MyERP; left as it is on import"
+    path = f"{sheet.field}.{col.field}" if sheet.field else col.field
     parts = []
-    if col.field in master.hints:
-        parts.append(master.hints[col.field])
-    if col.codec.choices is not None:
-        parts.append("One of: " + ", ".join(col.codec.choices()))
+    if path in master.hints:
+        parts.append(master.hints[path])
     if col.codec.hint:
         parts.append(col.codec.hint)
+    if col.codec.choices is not None:
+        parts.append("One of: " + ", ".join(col.codec.choices()))
     return ". ".join(parts)
 
 
 # --- Files -------------------------------------------------------------------
 
 
-def _rows_out(master: Master, ctx: Context, blank: bool) -> tuple[list[Column], list[list[str]]]:
-    columns = master.columns()
-    if blank:
-        return columns, []
-    records = master.queryset(ctx)
-    data = master.serializer(records, many=True, context={"request": ctx.request}).data
-    rows = [[str(r["id"])] + [c.codec.to_cell(r.get(c.field)) for c in columns] for r in data]
-    return columns, rows
+@dataclass
+class Table:
+    sheet: Sheet
+    headers: list[str]
+    kinds: list[str]
+    rows: list[list[str]]
 
 
-def _xlsx(master: Master, columns: list[Column], rows: list[list[str]]) -> bytes:
+def _tables_out(master: Master, ctx: Context, blank: bool) -> list[Table]:
+    """Every sheet of the master as rows of text: the main sheet starts with
+    the ID, child sheets with the record they belong to."""
+    _names.clear()
+    sheets = master.sheets()
+    data = []
+    if not blank:
+        records = master.queryset(ctx)
+        data = master.serializer(records, many=True, context={"request": ctx.request}).data
+    main = sheets[0]
+    link = next((c for c in main.columns if c.field == master.link), None)
+    tables = [
+        Table(
+            main,
+            [ID_LABEL] + [c.label for c in main.columns],
+            ["number"] + [c.kind for c in main.columns],
+            [
+                [str(r["id"])] + [c.codec.to_cell(r.get(c.field)) for c in main.columns]
+                for r in data
+            ],
+        )
+    ]
+    for sheet in sheets[1:]:
+        rows = []
+        for r in data:
+            owner = link.codec.to_cell(r.get(master.link)) if link else str(r["id"])
+            for child in r.get(sheet.field) or []:
+                rows.append([owner] + [c.codec.to_cell(child.get(c.field)) for c in sheet.columns])
+        tables.append(
+            Table(
+                sheet,
+                [sheet.link_label] + [c.label for c in sheet.columns],
+                ["text"] + [c.kind for c in sheet.columns],
+                rows,
+            )
+        )
+    return tables
+
+
+def _xlsx(master: Master, tables: list[Table]) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
-    ws = wb.active
-    ws.title = master.label[:31]
-    headers = [ID_LABEL] + [c.label for c in columns]
-    ws.append(headers)
     bold, fill = Font(bold=True), PatternFill("solid", fgColor="E3F2E8")
-    for cell in ws[1]:
-        cell.font, cell.fill = bold, fill
-    kinds = ["number"] + [c.kind for c in columns]
-    for row in rows:
-        pairs = zip(kinds, row, strict=True)
-        ws.append([_number_cell(v) if k == "number" else v for k, v in pairs])
-    for i, header in enumerate(headers, start=1):
-        width = max([len(header)] + [len(r[i - 1]) for r in rows[:500]]) + 2
-        letter = get_column_letter(i)
-        ws.column_dimensions[letter].width = min(max(width, 8), 50)
-        # Keep codes such as HSN 0401 or PIN 011001 as text, not numbers.
-        kind = "number" if i == 1 else columns[i - 2].kind
-        if kind != "number":
-            ws.column_dimensions[letter].number_format = "@"
-            for cell in ws[letter][1:]:
-                cell.number_format = "@"
-    ws.freeze_panes = "B2"
+    for n, table in enumerate(tables):
+        ws = wb.active if n == 0 else wb.create_sheet()
+        ws.title = table.sheet.title[:31]
+        ws.append(table.headers)
+        for cell in ws[1]:
+            cell.font, cell.fill = bold, fill
+        for row in table.rows:
+            pairs = zip(table.kinds, row, strict=True)
+            ws.append([_number_cell(v) if k == "number" else v for k, v in pairs])
+        for i, header in enumerate(table.headers, start=1):
+            width = max([len(header)] + [len(r[i - 1]) for r in table.rows[:500]]) + 2
+            letter = get_column_letter(i)
+            ws.column_dimensions[letter].width = min(max(width, 8), 50)
+            # Keep codes such as HSN 0401 or PIN 011001 as text, not numbers.
+            if table.kinds[i - 1] != "number":
+                ws.column_dimensions[letter].number_format = "@"
+                for cell in ws[letter][1:]:
+                    cell.number_format = "@"
+        ws.freeze_panes = "B2"
 
-    help_ws = wb.create_sheet("How to fill")
-    help_ws.append(["Column", "Must fill", "What to write"])
+    help_ws = wb.create_sheet(HELP_SHEET)
+    help_ws.append(["Sheet", "Column", "Must fill", "What to write"])
     for cell in help_ws[1]:
         cell.font, cell.fill = bold, fill
+    main = tables[0].sheet
     help_ws.append(
-        [ID_LABEL, "No", "Keep the ID to change that record. Leave it empty to add a new one."]
+        [
+            main.title,
+            ID_LABEL,
+            "No",
+            "Keep the ID to change that record. Leave it empty to add a new one.",
+        ]
     )
-    for c in columns:
-        help_ws.append([c.label, "Yes" if c.required else "No", _hint(c, master)])
-    help_ws.column_dimensions["A"].width = 28
-    help_ws.column_dimensions["B"].width = 10
-    help_ws.column_dimensions["C"].width = 90
+    for c in main.columns:
+        help_ws.append([main.title, c.label, "Yes" if c.required else "No", _hint(c, master, main)])
+    for table in tables[1:]:
+        sheet = table.sheet
+        help_ws.append(
+            [
+                sheet.title,
+                sheet.link_label,
+                "Yes",
+                f"Which {master.noun} the row belongs to: its "
+                f"{_main_label(master).lower()}, or its ID. "
+                f"A {master.noun} in the first sheet gets exactly the rows listed here; "
+                "delete this sheet to leave them as they are.",
+            ]
+        )
+        for c in sheet.columns:
+            help_ws.append(
+                [sheet.title, c.label, "Yes" if c.required else "No", _hint(c, master, sheet)]
+            )
+    for letter, width in zip("ABCD", (22, 28, 10, 90), strict=True):
+        help_ws.column_dimensions[letter].width = width
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
+
+
+HELP_SHEET = "How to fill"
+
+
+def _main_label(master: Master) -> str:
+    col = next((c for c in master.columns() if c.field == master.link), None)
+    return col.label if col else ID_LABEL
 
 
 def _number_cell(text: str):
@@ -306,11 +481,11 @@ def _number_cell(text: str):
     return int(value) if value == value.to_integral_value() else float(value)
 
 
-def _csv(columns: list[Column], rows: list[list[str]]) -> bytes:
+def _csv(table: Table) -> bytes:
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow([ID_LABEL] + [c.label for c in columns])
-    writer.writerows(rows)
+    writer.writerow(table.headers)
+    writer.writerows(table.rows)
     return out.getvalue().encode("utf-8-sig")  # the BOM makes Excel read ₹ and Hindi right
 
 
@@ -326,8 +501,9 @@ def _cell_text(value) -> str:
     return str(value).strip()
 
 
-def read_table(name: str, content: bytes) -> list[list[str]]:
-    """The file's first sheet as rows of text (header row first)."""
+def read_tables(name: str, content: bytes) -> list[tuple[str, list[list[str]]]]:
+    """The file's sheets as (title, rows of text), header row first. A CSV
+    file is one sheet."""
     if content[:2] == b"PK":  # .xlsx files are zip archives
         from openpyxl import load_workbook
 
@@ -335,15 +511,22 @@ def read_table(name: str, content: bytes) -> list[list[str]]:
             wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
         except Exception as exc:
             raise ParseError("This Excel file could not be read.") from exc
-        ws = wb.worksheets[0]
-        return [[_cell_text(v) for v in row] for row in ws.iter_rows(values_only=True)]
+        return [
+            (ws.title, [[_cell_text(v) for v in row] for row in ws.iter_rows(values_only=True)])
+            for ws in wb.worksheets
+        ]
     if name.lower().endswith((".xls", ".ods")):
         raise ParseError("Save the file as Excel (.xlsx) or CSV and try again.")
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = content.decode("cp1252", errors="replace")
-    return [[c.strip() for c in row] for row in csv.reader(io.StringIO(text))]
+    return [("", [[c.strip() for c in row] for row in csv.reader(io.StringIO(text))])]
+
+
+def read_table(name: str, content: bytes) -> list[list[str]]:
+    """The first sheet only."""
+    return read_tables(name, content)[0][1]
 
 
 # --- Import ------------------------------------------------------------------
@@ -374,97 +557,208 @@ def _messages(detail, labels: dict[str, str], prefix: str = "") -> list[str]:
     return [f"{prefix}{detail}"]
 
 
-def run_import(master: Master, ctx: Context, table: list[list[str]], commit: bool) -> dict:
-    """Check (and, when `commit`, save) every row. Nothing is saved unless all
-    rows pass. Returns a summary with the problems row by row."""
-    columns = master.columns()
+def _headers(sheet: Sheet, header: list[str], first: str | None) -> tuple[int | None, dict]:
+    """Where each column is: (position of the first column, field -> position).
+    `first` is the ID (main sheet) or the record link (child sheets)."""
     by_header = {}
-    for c in columns:
+    for c in sheet.columns:
         by_header[c.label.lower()] = c
         by_header[c.field.lower()] = c
-    while table and not any(table[0]):
-        table = table[1:]
-    if not table:
-        raise ParseError("The file is empty.")
-    header, body = table[0], table[1:]
-    id_at, at = None, {}
-    unknown = []
+    first_at, at, unknown = None, {}, []
     for i, name in enumerate(header):
         key = name.strip().lower()
         if not key:
             continue
-        if key == ID_LABEL.lower():
-            id_at = i
+        if first and key == first.lower():
+            first_at = i
         elif key in by_header:
-            at[by_header[key].field] = i
+            if not by_header[key].read_only:
+                at[by_header[key].field] = i
         else:
             unknown.append(name)
     if unknown:
         raise ParseError(
-            f"These columns are not {master.label} columns: {', '.join(unknown)}. "
+            f"These columns are not {sheet.title} columns: {', '.join(unknown)}. "
             "Start from an exported file or the blank template."
         )
+    return first_at, at
+
+
+def _cells(columns: list[Column], at: dict, row: list[str]) -> tuple[dict, list[str]]:
+    """A row's cells as the form would send them, and what is wrong with them."""
+    problems, data = [], {}
+    for c in columns:
+        if c.field not in at:
+            continue
+        i = at[c.field]
+        text = row[i].strip() if i < len(row) else ""
+        if not text:
+            if c.kind == "text":
+                data[c.field] = ""
+            elif c.kind == "list":
+                data[c.field] = []
+            elif c.allow_null:
+                data[c.field] = None
+            continue  # keep what is there, or the form's default
+        try:
+            data[c.field] = c.codec.from_cell(text)
+        except ValueError as exc:
+            problems.append(f"{c.label}: {exc}")
+    return data, problems
+
+
+def _body(rows: list[list[str]]) -> tuple[list[str], list[tuple[int, list[str]]]]:
+    """Header and the non-blank rows with their row numbers as Excel shows them."""
+    start = 0
+    while start < len(rows) and not any(rows[start]):
+        start += 1
+    if start == len(rows):
+        return [], []
+    body = [
+        (n, row)
+        for n, row in enumerate(rows[start + 1 :], start=start + 2)
+        if any(cell.strip() for cell in row)
+    ]
+    return rows[start], body
+
+
+def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
+    """Check (and, when `commit`, save) every row. Nothing is saved unless all
+    rows pass. `table` is the first sheet's rows, or every sheet as given by
+    `read_tables`. Returns a summary with the problems row by row."""
+    _names.clear()
+    tables = table if table and isinstance(table[0], tuple) else [("", table)]
+    sheets = master.sheets()
+    main = sheets[0]
+    header, body = _body(tables[0][1])
+    if not header:
+        raise ParseError("The file is empty.")
+    id_at, at = _headers(main, header, ID_LABEL)
     if not at:
         raise ParseError("The first row must hold the column names, as in the exported file.")
     if len(body) > MAX_ROWS:
         raise ParseError(f"Import at most {MAX_ROWS} rows at a time.")
-    labels = {c.field: c.label for c in columns}
-    picked = [c for c in columns if c.field in at]
 
-    results, errors = [], []
+    errors: list[dict] = []
+
+    def problem(sheet: Sheet, n: int, messages: list[str]) -> None:
+        errors.append({"sheet": sheet.title, "row": n, "messages": messages})
+
+    # Rows of the child sheets, by the record they belong to.
+    by_title = {title.strip().lower(): rows for title, rows in tables[1:]}
+    children: list[tuple[Sheet, dict[str, list[tuple[int, dict]]]]] = []
+    for sheet in sheets[1:]:
+        rows = by_title.get(sheet.title.lower())
+        if rows is None:
+            continue
+        child_header, child_body = _body(rows)
+        link_at, child_at = _headers(sheet, child_header, sheet.link_label)
+        if link_at is None:
+            raise ParseError(
+                f"The {sheet.title} sheet must start with a {sheet.link_label} column."
+            )
+        grouped: dict[str, list[tuple[int, dict]]] = {}
+        for n, row in child_body:
+            owner = row[link_at].strip().lower() if link_at < len(row) else ""
+            data, bad = _cells(sheet.columns, child_at, row)
+            if not owner:
+                bad.insert(0, f"{sheet.link_label}: say which {master.noun} this row belongs to")
+            if bad:
+                problem(sheet, n, bad)
+                continue
+            grouped.setdefault(owner, []).append((n, data))
+        children.append((sheet, grouped))
+    unclaimed = {(s.field, k) for s, g in children for k in g}
+
+    labels = {c.field: c.label for c in main.columns}
+    results = []
     counts = {"new": 0, "changed": 0, "same": 0}
     with tenant_atomic():
-        for n, row in enumerate(body, start=2):
-            if not any(cell.strip() for cell in row):
-                continue
-            cell = lambda i, row=row: row[i].strip() if i is not None and i < len(row) else ""  # noqa: E731
-            problems, data = [], {}
-            for c in picked:
-                text = cell(at[c.field])
-                if not text:
-                    if c.kind == "text":
-                        data[c.field] = ""
-                    elif c.allow_null:
-                        data[c.field] = None
-                    continue  # keep what is there, or the form's default
-                try:
-                    data[c.field] = c.codec.from_cell(text)
-                except ValueError as exc:
-                    problems.append(f"{c.label}: {exc}")
+        for n, row in body:
+            data, bad = _cells(main.columns, at, row)
             instance = None
-            ref = cell(id_at)
+            ref = row[id_at].strip() if id_at is not None and id_at < len(row) else ""
             if ref:
                 try:
-                    instance = master.queryset(ctx).select_for_update().get(pk=int(ref))
+                    instance = master.queryset(ctx).select_for_update(of=("self",)).get(pk=int(ref))
                 except (ValueError, ObjectDoesNotExist):
-                    problems.append(
+                    bad.append(
                         f"ID: there is no {master.noun} with ID {ref}. "
                         "Leave the ID empty to add a new one."
                     )
-            if problems:
-                errors.append({"row": n, "messages": problems})
+            keys = {ref.lower()} if ref else set()
+            own = data.get(master.link)
+            if own is None and instance is not None:
+                own = getattr(instance, master.link, None)
+            if own:
+                keys.add(str(own).strip().lower())
+            lines: dict[str, list[int]] = {}
+            for sheet, grouped in children:
+                found = [x for k in keys for x in grouped.get(k, [])]
+                found.sort(key=lambda x: x[0])
+                unclaimed -= {(sheet.field, k) for k in keys}
+                data[sheet.field] = [d for _, d in found]
+                lines[sheet.field] = [m for m, _ in found]
+            if bad:
+                problem(main, n, bad)
                 continue
             try:
                 with tenant_atomic():
                     action, name = _save_row(master, ctx, instance, data)
             except ValidationError as exc:
-                errors.append({"row": n, "messages": _messages(exc.detail, labels)})
+                _report(exc.detail, main, sheets, n, lines, labels, problem)
                 continue
             except (DjangoValidationError, IntegrityError) as exc:
-                errors.append({"row": n, "messages": [f"Could not save: {exc}"]})
+                problem(main, n, [f"Could not save: {exc}"])
                 continue
             counts[action] += 1
             results.append({"row": n, "action": action, "name": name})
+        for sheet, grouped in children:
+            for key in sorted(k for f, k in unclaimed if f == sheet.field):
+                for m, _ in grouped[key]:
+                    problem(
+                        sheet,
+                        m,
+                        [
+                            f"{sheet.link_label}: {key!r} is not in the {main.title} sheet. "
+                            f"Add the {master.noun} there too."
+                        ],
+                    )
         saved = commit and not errors
         if not saved:
             transaction.set_rollback(True, using=require_tenant().db_alias)
+    errors.sort(key=lambda e: (e["sheet"] != main.title, e["sheet"], e["row"]))
     return {
-        "rows": len(results) + len(errors),
+        "rows": len(results) + len({e["row"] for e in errors if e["sheet"] == main.title}),
         **counts,
         "errors": errors,
         "results": results,
         "saved": saved,
     }
+
+
+def _report(detail, main: Sheet, sheets: list[Sheet], n: int, lines, labels, problem) -> None:
+    """Put a save's errors on the rows they are about: a child row's own
+    problem goes on its line of the child sheet."""
+    if not isinstance(detail, dict):
+        problem(main, n, _messages(detail, labels))
+        return
+    own = {}
+    for key, value in detail.items():
+        sheet = next((s for s in sheets[1:] if s.field == key), None)
+        rows = lines.get(key, [])
+        if sheet and isinstance(value, list) and any(isinstance(v, dict) for v in value):
+            child_labels = {c.field: c.label for c in sheet.columns}
+            for i, item in enumerate(value):
+                if item and i < len(rows):
+                    problem(sheet, rows[i], _messages(item, child_labels))
+            continue
+        if sheet:
+            problem(main, n, [f"{sheet.title}: {m}" for m in _messages(value, labels)])
+            continue
+        own[key] = value
+    if own:
+        problem(main, n, _messages(own, labels))
 
 
 def _save_row(master: Master, ctx: Context, instance, data: dict) -> tuple[str, str]:
@@ -479,7 +773,7 @@ def _save_row(master: Master, ctx: Context, instance, data: dict) -> tuple[str, 
     record = master.save(ctx, instance, dict(serializer.validated_data))
     if instance is None:
         return "new", str(record)
-    record.refresh_from_db()
+    record = master.queryset(ctx).get(pk=record.pk)
     after = dict(master.serializer(record, context=context).data)
     return ("same" if after == before else "changed"), str(record)
 
@@ -518,22 +812,28 @@ class ExportView(APIView):
         master = _master(key)
         ctx = _context(request, master)
         blank = request.query_params.get("blank") == "1"
-        columns, rows = _rows_out(master, ctx, blank)
+        tables = _tables_out(master, ctx, blank)
         fmt = request.query_params.get("as", "xlsx")
         if fmt == "json":
             return Response(
                 {
                     "title": master.label,
                     "scope": _scope_name(ctx),
-                    "columns": [c.label for c in columns],
-                    "rows": [r[1:] for r in rows],
+                    "sheets": [
+                        {
+                            "title": t.sheet.title,
+                            "columns": t.headers[1:] if i == 0 else t.headers,
+                            "rows": [r[1:] for r in t.rows] if i == 0 else t.rows,
+                        }
+                        for i, t in enumerate(tables)
+                    ],
                 }
             )
         stem = f"{key}-{'template' if blank else datetime.date.today().isoformat()}"
         if fmt == "csv":
-            body, mime, ext = _csv(columns, rows), "text/csv; charset=utf-8", "csv"
+            body, mime, ext = _csv(tables[0]), "text/csv; charset=utf-8", "csv"
         else:
-            body = _xlsx(master, columns, rows)
+            body = _xlsx(master, tables)
             mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ext = "xlsx"
         response = HttpResponse(body, content_type=mime)
@@ -558,5 +858,5 @@ class ImportView(APIView):
             raise ParseError("Choose a file to import.")
         if upload.size > MAX_BYTES:
             raise ParseError("The file is too big; import at most 5 MB at a time.")
-        table = read_table(upload.name, upload.read())
-        return Response(run_import(master, ctx, table, request.data.get("commit") == "1"))
+        tables = read_tables(upload.name, upload.read())
+        return Response(run_import(master, ctx, tables, request.data.get("commit") == "1"))

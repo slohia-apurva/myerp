@@ -540,6 +540,27 @@ class Unit(models.Model):
         return self.name
 
 
+class ItemGroup(models.Model):
+    """A node in the group's tree of item groups (Raw material > Spices >
+    Whole spices...), shared by every company like the item catalogue. Groups
+    nest to any depth; an item sits in one group. Never deleted, only made
+    inactive."""
+
+    name = models.CharField(max_length=100)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="children"
+    )
+    notes = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(Lower("name"), name="item_group_name_unique")]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Item(models.Model):
     """A product, material or service, in one catalogue shared by every
     company in the group. Stock is held in the item's stock unit; each item
@@ -565,6 +586,9 @@ class Item(models.Model):
     purchase_description = models.CharField(max_length=500, blank=True)
     purchase_unit = models.ForeignKey(
         "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    item_group = models.ForeignKey(
+        "ItemGroup", null=True, blank=True, on_delete=models.PROTECT, related_name="items"
     )
     shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
