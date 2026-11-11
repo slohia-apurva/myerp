@@ -60,3 +60,71 @@ class HsnCode(models.Model):
     def clean(self):
         if not self.hsn_code.isdigit() or len(self.hsn_code) not in (2, 4, 6, 8):
             raise ValidationError({"hsn_code": "An HSN code is 2, 4, 6 or 8 digits."})
+
+
+class State(models.Model):
+    """A GST state or union territory. One central list for every tenant."""
+
+    code = models.CharField(max_length=2, unique=True)
+    name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return f"{self.code} {self.name}"
+
+
+class Country(models.Model):
+    """A country (ISO 3166-1 alpha-2 code). One central list for every tenant."""
+
+    code = models.CharField(max_length=2, unique=True)
+    name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "countries"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PinCode(models.Model):
+    """An Indian PIN code with its city and state. One central list for every
+    tenant; typing a PIN on a party form fills the state from it. Loaded with
+    `manage.py import_pins`."""
+
+    pin = models.CharField(max_length=6, unique=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.ForeignKey(State, null=True, blank=True, on_delete=models.PROTECT)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["pin"]
+
+    def __str__(self) -> str:
+        return f"{self.pin} {self.city}"
+
+
+class CourierPin(models.Model):
+    """Whether a courier delivers to a PIN code, and its out-of-delivery-area
+    (ODA) flag. One row per courier and PIN, so lists from other couriers sit
+    beside the first and are merged by PIN."""
+
+    courier = models.CharField(max_length=60)
+    pin = models.ForeignKey(PinCode, on_delete=models.CASCADE, related_name="couriers")
+    oda = models.BooleanField(null=True, blank=True)  # blank = not known
+    dispatch_center = models.CharField(max_length=120, blank=True)
+    origin_center = models.CharField(max_length=120, blank=True)
+    return_center = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        ordering = ["courier", "pin_id"]
+        constraints = [
+            models.UniqueConstraint(fields=["courier", "pin"], name="one_row_per_courier_pin")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.courier} {self.pin_id}"
