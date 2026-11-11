@@ -561,7 +561,6 @@ class Item(models.Model):
     shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
-    legacy_code = models.CharField(max_length=30, blank=True)
     notes = models.CharField(max_length=200, blank=True)
     is_active = models.BooleanField(default=True)
 

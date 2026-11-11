@@ -69,7 +69,6 @@ LABELS = {
     "shelf_life_days": "Shelf life (days)",
     "batch_tracked": "Batches tracked",
     "qc_required": "Quality check on receipt",
-    "legacy_code": "Old ERPNext code",
     "item_type": "Type",
     "whole_numbers": "Whole numbers only",
 }

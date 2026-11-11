@@ -308,18 +308,17 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add an item</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Items", then "Add item".</li>
+          <li>Click "Masters" in the top menu, then "Items", then "Add item". The form has tabs: "General", "Stock and quality" and "Units of measure".</li>
           <li>
-            Under "Item", give the "Name", the "Type" (goods you stock, or a service), the "Stock unit" (the unit stock is
+            Under "General", give the "Name", the "Type" (goods you stock, or a service), the "Stock unit" (the unit stock is
             counted in, such as Packet) and the "HSN" code if you know it.
           </li>
           <li>
-            Under "Stock and quality", fill in the "Shelf life (days)" if the item expires, tick "Track batches" if you
+            On the "Stock and quality" tab, fill in the "Shelf life (days)" if the item expires, tick "Track batches" if you
             must follow batch numbers, and tick "Quality check on receipt" if goods must be checked when they arrive.
-            "Old ERPNext code" is only for matching records when data is brought across.
           </li>
           <li>
-            Under "Units of measure", click "Add unit" for each other unit the item is bought, sold or moved in. The
+            On the "Units of measure" tab, click "Add unit" for each other unit the item is bought, sold or moved in. The
             stock unit is added for you. For a Carton, say it contains 4 of "Inner box", and for an Inner box that it
             contains 6 of "Packet"; the "= Packet" column then shows 24 by itself. Fill in the length, breadth and height
             in centimetres, the net and gross weight in kilograms, and the barcode. Volume is worked out from the size.
