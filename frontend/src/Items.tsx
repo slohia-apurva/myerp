@@ -6,6 +6,7 @@ import { useExchange } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { HsnPicker } from "./Hsn";
 import { ActiveButton, FormBody } from "./RowActions";
+import { useBrands } from "./Brands";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { useUnits, type Unit } from "./Units";
 
@@ -37,6 +38,8 @@ export type Item = {
   hsn: string;
   item_group: number | null;
   item_group_name: string | null;
+  brand: number | null;
+  brand_name: string | null;
   sales_name: string;
   sales_description: string;
   sales_unit: number | null;
@@ -260,6 +263,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
             ["Type", typeLabel(i.item_type)],
             ["Default unit (stock unit)", i.stock_unit_name],
             ["Item group", i.item_group_name ?? ""],
+            ["Brand", i.brand_name ?? ""],
             ["HSN", i.hsn],
           ]}
         />
@@ -440,6 +444,8 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const { groups: itemGroups } = useItemGroups();
   const groupNames = groupPaths(itemGroups);
   const [group, setGroup] = useState(from?.item_group == null ? "" : String(from.item_group));
+  const { brands } = useBrands();
+  const [brand, setBrand] = useState(from?.brand == null ? "" : String(from.brand));
   const [hsn, setHsn] = useState(from?.hsn ?? "");
   const [shelf, setShelf] = useState(from?.shelf_life_days == null ? "" : String(from.shelf_life_days));
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
@@ -492,6 +498,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       stock_unit: Number(stock),
       hsn,
       item_group: group === "" ? null : Number(group),
+      brand: brand === "" ? null : Number(brand),
       shelf_life_days: shelf.trim() === "" ? null : Number(shelf),
       batch_tracked: batches,
       qc_required: qc,
@@ -592,6 +599,18 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   .filter((g) => g.is_active || String(g.id) === group)
                   .map((g) => ({ value: String(g.id), label: groupNames.get(g.id) ?? g.name }))}
                 onChange={setGroup}
+              />
+            </label>
+            <label>
+              Brand
+              <Combobox
+                value={brand}
+                empty="No brand"
+                placeholder="Type to search brands…"
+                options={brands
+                  .filter((b) => b.is_active || String(b.id) === brand)
+                  .map((b) => ({ value: String(b.id), label: b.name }))}
+                onChange={setBrand}
               />
             </label>
             <label>

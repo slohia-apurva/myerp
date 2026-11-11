@@ -315,8 +315,8 @@ export const MANUAL: Chapter[] = [
           <li>Click "Masters" in the top menu, then "Items", then "Add item". The form has tabs: "General", "Sales", "Purchase", "GST rates", "Stock and quality" and "Units of measure".</li>
           <li>
             Under "General", give the "Name", the "Type" (goods you stock, or a service), the "Default unit (stock unit)"
-            (the unit stock is counted in, such as Packet), the "Item group" (see the chapter "Item groups") and the "HSN"
-            code if you know it.
+            (the unit stock is counted in, such as Packet), the "Item group" (see the chapter "Item groups"), the "Brand" (see the chapter "Brands") and the
+            "HSN" code if you know it.
           </li>
           <li>
             On the "Sales" tab, the "Sales item name" starts as the item's name; change it if customers know the item by
@@ -432,6 +432,31 @@ export const MANUAL: Chapter[] = [
           A backup file of everything removed is saved to your computer the moment the reset is done. Keep it: it is the
           only way to get the data back. The reset is also written to the company's "Activity".
         </Note>
+      </>
+    ),
+  },
+  {
+    id: "brands",
+    title: "Brands",
+    summary: "The brand names that items are sold under, picked on the item's General tab.",
+    body: (
+      <>
+        <p>
+          Brands are one list shared by every company in the group. An item picks its brand in the "Brand" box on the
+          General tab of the item form (click the box and type a few letters to narrow the list).
+        </p>
+        <h3>Add a brand</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Brands".</li>
+          <li>Click "Add brand", then give the "Name" (for example Apurvam) and, if you like, "Notes".</li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          Brand names must be different, whatever the capital letters. The "Items" column shows how many items carry
+          each brand. Brands are never deleted: click "Edit" and then the "Disable" button to stop offering a brand
+          ("Enable" brings it back); items already using it keep it. To change many brands at once, use "Export",
+          "Import" and "Print" at the top of the screen (see "Import, export and print").
+        </p>
       </>
     ),
   },
