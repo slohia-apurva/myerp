@@ -357,6 +357,7 @@ function LedgerPanel(props: {
           </div>
         )}
       </div>
+      <Section title="Balance">
       <div className="stat">
         <span className="stat-label">Opening balance</span>
         <span className="stat-value">
@@ -385,10 +386,10 @@ function LedgerPanel(props: {
           </div>
         ))}
       </dl>
+      </Section>
       {l.party && <PartySummary party={l.party} states={states} supplier={l.nature === "liability"} />}
       {l.bill_wise && l.opening_bills.length > 0 && (
-        <>
-          <h3>Opening bills</h3>
+        <Section title="Opening bills">
           <table>
             <thead>
               <tr>
@@ -419,13 +420,12 @@ function LedgerPanel(props: {
               ))}
             </tbody>
           </table>
-        </>
+        </Section>
       )}
       {l.notes && (
-        <>
-          <h3>Notes</h3>
+        <Section title="Notes">
           <p className="pre">{l.notes}</p>
-        </>
+        </Section>
       )}
       <div className="panel-activity">
         <h3>Activity</h3>

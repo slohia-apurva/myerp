@@ -1513,3 +1513,23 @@ form.card fieldset.plain {
   flex-direction: column;
   gap: 12px;
 }
+
+/* Detail panel: boxes, with addresses and contacts as small cards side by side */
+.panel .panel-card {
+  background: var(--mist);
+}
+ul.address-list.cards-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+ul.address-list.cards-2 > li.address-card {
+  background: #fff;
+  gap: 4px;
+}
+ul.address-list.cards-2 .pill {
+  margin: 2px 6px 0 0;
+}
+ul.address-list.cards-2 > li.address-card > div:first-child .pill {
+  margin-left: 6px;
+}

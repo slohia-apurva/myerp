@@ -1,3 +1,4 @@
+import { Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
@@ -485,37 +486,43 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
   const gstType = GST_TYPES.find(([code]) => code === p.gst_type)?.[1] ?? p.gst_type;
   const stateName = (code: string) => states?.find((s) => s.code === code)?.name ?? code;
   const place = p.gst_type === "overseas" ? p.country : stateName(p.state_code);
-  const rows: [string, string][] = [
+  const gstRows: [string, string][] = [
     supplier ? ["Vendor number", p.vendor_number] : ["Customer number", p.customer_number],
     ["GST", p.gstin ? `${gstType} · ${p.gstin}` : gstType],
     ["State / country", place],
     ["PAN", p.pan],
+  ];
+  const creditRows: [string, string][] = [
     ["Credit limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit terms", p.credit_term_name ?? ""],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
   ];
+  const facts = (rows: [string, string][]) => (
+    <dl className="kv">
+      {rows
+        .filter(([, v]) => v)
+        .map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+    </dl>
+  );
   return (
     <>
-      <h3>Party details</h3>
-      <dl className="kv">
-        {rows
-          .filter(([, v]) => v)
-          .map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-      </dl>
+      <Section title="GST">{facts(gstRows)}</Section>
+      <Section title="Credit">{facts(creditRows)}</Section>
       {p.addresses.length > 0 && (
-        <>
-          <h3>Addresses</h3>
-          <ul className="address-list">
+        <Section title="Addresses">
+          <ul className="address-list cards-2">
             {p.addresses.map((a) => (
-              <li key={a.label}>
-                <strong>{a.label}</strong>
-                {a.is_billing && <span className="pill on">Billing</span>}
-                {a.is_shipping && <span className="pill on">Shipping</span>}
+              <li key={a.label} className="address-card">
+                <div>
+                  <strong>{a.label}</strong>
+                  {a.is_billing && <span className="pill on">Billing</span>}
+                  {a.is_shipping && <span className="pill on">Shipping</span>}
+                </div>
                 <div className="pre">{a.address}</div>
                 <div className="small">
                   {[a.pincode, a.state_code ? stateName(a.state_code) : a.country, a.gstin && `GSTIN ${a.gstin}`]
@@ -525,27 +532,30 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
               </li>
             ))}
           </ul>
-        </>
+        </Section>
       )}
       {p.contacts.length > 0 && (
-        <>
-          <h3>Contacts</h3>
-          <ul className="address-list">
+        <Section title="Contacts">
+          <ul className="address-list cards-2">
             {p.contacts.map((c, i) => (
-              <li key={i}>
-                <strong>{c.name}</strong>
-                {c.designation && <span className="small"> · {c.designation}</span>}
-                {c.is_primary && <span className="pill on">Main</span>}
-                {c.kinds.map((k) => (
-                  <span className="pill" key={k}>
-                    {kindLabel(k)}
-                  </span>
-                ))}
+              <li key={i} className="address-card">
+                <div>
+                  <strong>{c.name}</strong>
+                  {c.designation && <span className="small"> · {c.designation}</span>}
+                </div>
+                <div>
+                  {c.is_primary && <span className="pill on">Main</span>}
+                  {c.kinds.map((k) => (
+                    <span className="pill" key={k}>
+                      {kindLabel(k)}
+                    </span>
+                  ))}
+                </div>
                 <div className="small">{[c.phone, c.email].filter(Boolean).join(" · ")}</div>
               </li>
             ))}
           </ul>
-        </>
+        </Section>
       )}
     </>
   );

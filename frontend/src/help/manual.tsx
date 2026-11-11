@@ -388,6 +388,10 @@ export const MANUAL: Chapter[] = [
           party, with its own balance, bills, credit limit and salesman (for a customer) or purchaser (for a supplier),
           so each company can have different people looking after the same party.
         </p>
+        <p>
+          Click a ledger in the list and its details show on the right in boxes: "Balance", "GST", "Credit",
+          "Addresses" and "Contacts" (for a customer or supplier), with the change log, "Activity", below.
+        </p>
         <ul>
           <li>
             To add a party another company already deals with, click "Add ledger", choose Sundry Debtors or Sundry
