@@ -125,6 +125,8 @@ def test_party_checks(accountant, company):
     assert "only one default billing" in error(state_code="27", addresses=two_billing)
     two_main = [{"name": "A", "is_primary": True}, {"name": "B", "is_primary": True}]
     assert "only one main contact" in error(state_code="27", contacts=two_main)
+    bad_kind = [{"name": "A", "kinds": ["boss"]}]
+    assert "boss" in error(state_code="27", contacts=bad_kind)
     bad_email = [{"name": "A", "email": "not-an-email"}]
     assert "email" in error(state_code="27", contacts=bad_email)
     other_pan = [{"label": "A", "address": "x", "gstin": gstin("29", pan="ABCPE1234F")}]
@@ -321,3 +323,26 @@ def test_ledgers_are_found_by_customer_number(accountant, company):
     add_ledger(accountant, company, "Sundry Debtors", name="Beta Stores")
     found = call(accountant, "get", f"companies/{company}/ledgers/?q=00002").json()
     assert [row["name"] for row in found] == ["Beta Stores"]
+
+
+def test_contact_types(accountant, company):
+    contacts = [
+        {"name": "Mr Rao", "is_primary": True},
+        {"name": "Meena", "kinds": ["accounts", "purchase"]},
+        {"name": "Dev", "kinds": ["shipping"]},
+        {"name": "Isha"},
+    ]
+    party = {"gst_type": "unregistered", "state_code": "27", "contacts": contacts}
+    response = add_ledger(accountant, company, "Sundry Debtors", party=party)
+    assert response.status_code == 201, response.json()
+    saved = response.json()["party"]["contacts"]
+    assert [(c["name"], c["is_primary"], c["kinds"]) for c in saved] == [
+        ("Mr Rao", True, []),
+        ("Meena", False, ["accounts", "purchase"]),
+        ("Dev", False, ["shipping"]),
+        ("Isha", False, []),
+    ]
+    # The same type twice is a slip, not a second type.
+    twice = [{"name": "A", "kinds": ["sales", "sales"]}]
+    again = add_ledger(accountant, company, "Sundry Debtors", party={**party, "contacts": twice})
+    assert again.status_code == 400

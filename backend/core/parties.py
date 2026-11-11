@@ -19,6 +19,7 @@ from accounts.models import User
 from audit import recorder
 from core.models import (
     BILL_WISE_GROUP_CODES,
+    CONTACT_KINDS,
     CreditTerm,
     Ledger,
     Party,
@@ -51,9 +52,14 @@ class PartyAddressSerializer(serializers.ModelSerializer):
 
 
 class PartyContactSerializer(serializers.ModelSerializer):
+    # Besides Main (is_primary): Accounting, Shipping, Purchase, Sales.
+    kinds = serializers.ListField(
+        child=serializers.ChoiceField(choices=CONTACT_KINDS), required=False
+    )
+
     class Meta:
         model = PartyContact
-        fields = ["name", "designation", "phone", "email", "is_primary"]
+        fields = ["name", "designation", "phone", "email", "is_primary", "kinds"]
 
 
 class PartySerializer(serializers.ModelSerializer):
@@ -349,7 +355,9 @@ def party_extras() -> dict:
         rows = []
         for c in party.contacts.all():
             text = ", ".join(v for v in (c.name, c.designation, c.phone, c.email) if v)
-            rows.append(text + (" (main)" if c.is_primary else ""))
+            labels = dict(CONTACT_KINDS)
+            types = (["main"] if c.is_primary else []) + [labels[k].lower() for k in c.kinds]
+            rows.append(text + (f" ({', '.join(types)})" if types else ""))
         return "; ".join(rows) or None
 
     def blank(value):
