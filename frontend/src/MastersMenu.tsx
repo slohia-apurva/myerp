@@ -70,9 +70,10 @@ export function CompanyPicker(props: { companies: Company[]; company?: Company; 
   );
 }
 
-/** "Masters" in the top menu: a dropdown of the master lists. Company-wise
- * masters open for the company picked at the top right. */
-export function MastersMenu(props: { active: boolean; company?: Company; canSeeMasters: boolean; canManageUsers: boolean }) {
+type MenuItem = [label: string, href: string, show: boolean];
+
+/** A dropdown in the top menu: a label and a list of links. */
+function DropMenu(props: { label: string; active: boolean; items: MenuItem[] }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -91,26 +92,14 @@ export function MastersMenu(props: { active: boolean; company?: Company; canSeeM
     };
   }, [open]);
 
-  const company = props.company;
-  const items: [string, string, boolean][] = [
-    ["Company", "#/companies", props.canSeeMasters],
-    ["Ledger groups", company ? `#/companies/${company.id}/groups` : "", props.canSeeMasters && !!company],
-    ["Ledgers", company ? `#/companies/${company.id}/ledgers` : "", props.canSeeMasters && !!company],
-    ["Credit terms", "#/credit-terms", props.canSeeMasters],
-    ["Items", "#/items", props.canSeeMasters],
-    ["Units", "#/units", props.canSeeMasters],
-    ["Users", "#/users", props.canManageUsers],
-    ["User roles", "#/roles", props.canManageUsers],
-  ];
-
   return (
     <div className={`menu${props.active ? " active" : ""}`} ref={box}>
       <button type="button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Masters <span aria-hidden="true">▾</span>
+        {props.label} <span aria-hidden="true">▾</span>
       </button>
       {open && (
         <div className="menu-panel" role="menu">
-          {items
+          {props.items
             .filter(([, , show]) => show)
             .map(([label, href]) => (
               <a key={label} role="menuitem" href={href} onClick={() => setOpen(false)}>
@@ -120,5 +109,39 @@ export function MastersMenu(props: { active: boolean; company?: Company; canSeeM
         </div>
       )}
     </div>
+  );
+}
+
+/** "Masters" in the top menu: the master lists. Company-wise masters open for
+ * the company picked at the top right. */
+export function MastersMenu(props: { active: boolean; company?: Company; canSeeMasters: boolean }) {
+  const company = props.company;
+  return (
+    <DropMenu
+      label="Masters"
+      active={props.active}
+      items={[
+        ["Ledger groups", company ? `#/companies/${company.id}/groups` : "", props.canSeeMasters && !!company],
+        ["Ledgers", company ? `#/companies/${company.id}/ledgers` : "", props.canSeeMasters && !!company],
+        ["Credit terms", "#/credit-terms", props.canSeeMasters],
+        ["Items", "#/items", props.canSeeMasters],
+        ["Units", "#/units", props.canSeeMasters],
+      ]}
+    />
+  );
+}
+
+/** "Admin" in the top menu, for Owners only: companies, users and roles. */
+export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canManageUsers: boolean }) {
+  return (
+    <DropMenu
+      label="Admin"
+      active={props.active}
+      items={[
+        ["Company", "#/companies", props.canSeeMasters],
+        ["Users", "#/users", props.canManageUsers],
+        ["User roles", "#/roles", props.canManageUsers],
+      ]}
+    />
   );
 }
