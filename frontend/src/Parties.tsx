@@ -594,7 +594,7 @@ function AddressGstin(props: {
     <>
       <span className="inline">
         <input value={props.value} maxLength={15} onChange={(e) => props.onChange(e.target.value.toUpperCase())} />
-        <button type="button" disabled={props.value.length !== 15 || busy} onClick={fetchDetails}>
+        <button type="button" className="secondary" disabled={props.value.length !== 15 || busy} onClick={fetchDetails}>
           Fetch details
         </button>
       </span>
@@ -682,7 +682,7 @@ export function GstinField(props: {
         GSTIN
         <span className="inline">
           <input required={registered} value={p.gstin} maxLength={15} onChange={(e) => onGstin(e.target.value)} />
-          <button type="button" disabled={!valid || busy} onClick={fetchDetails}>
+          <button type="button" className="secondary" disabled={!valid || busy} onClick={fetchDetails}>
             Fetch details
           </button>
         </span>
