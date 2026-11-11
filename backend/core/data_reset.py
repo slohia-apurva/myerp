@@ -39,6 +39,7 @@ from core.models import (
     Company,
     CreditTerm,
     Item,
+    ItemGroup,
     Ledger,
     LedgerGroup,
     LedgerOpeningBill,
@@ -115,6 +116,7 @@ def _plan(level: str, company):
     if level == "all":
         rows += [
             ("Items", Item.objects.all()),
+            ("Item groups", ItemGroup.objects.all()),
             ("Credit terms you added", _custom_terms()),
             ("Units you added", _custom_units()),
         ]
@@ -158,6 +160,9 @@ def run(level: str, company, user) -> dict:
             _delete_masters(scope)
         if level == "all":
             Item.objects.all().delete()
+            # Deepest groups first: a group cannot go while one sits under it.
+            while (tips := ItemGroup.objects.filter(children__isnull=True)).exists():
+                tips.delete()
             _custom_terms().delete()
             _custom_units().delete()
             NumberSeries.objects.update(last=0)

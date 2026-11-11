@@ -136,6 +136,7 @@ def _register() -> None:
         Company,
         CreditTerm,
         Item,
+        ItemGroup,
         Ledger,
         LedgerGroup,
         Unit,
@@ -196,6 +197,7 @@ def _register() -> None:
                 extras={"parts": ("Parts", lambda t: "; ".join(map(str, t.parts.all())) or None)},
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),
+            ItemGroup: Tracked("item_group", "Item group", lambda r: None),
             Item: Tracked(
                 "item",
                 "Item",

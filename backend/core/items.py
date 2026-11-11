@@ -26,7 +26,7 @@ from audit import recorder
 from core import exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
-from core.models import USED_FOR, Item, ItemGstRate, ItemUnit, Unit
+from core.models import USED_FOR, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
 
@@ -99,6 +99,10 @@ class ItemSerializer(serializers.ModelSerializer):
     purchase_unit_name = serializers.CharField(
         source="purchase_unit.name", read_only=True, default=None
     )
+    item_group = serializers.PrimaryKeyRelatedField(
+        queryset=ItemGroup.objects.all(), allow_null=True, required=False
+    )
+    item_group_name = serializers.CharField(source="item_group.name", read_only=True, default=None)
     units = ItemUnitSerializer(many=True, required=False)
     gst_rates = ItemGstRateSerializer(many=True, required=False)
     warnings = serializers.SerializerMethodField()
@@ -113,6 +117,8 @@ class ItemSerializer(serializers.ModelSerializer):
             "stock_unit",
             "stock_unit_name",
             "hsn",
+            "item_group",
+            "item_group_name",
             "sales_name",
             "sales_description",
             "sales_unit",
@@ -217,6 +223,9 @@ def _save_item(item: Item, data: dict) -> Item:
             clash = clash.exclude(pk=item.pk)
         if clash.exists():
             raise ValidationError({"name": ["There is already an item with this name."]})
+    group = data.get("item_group")
+    if group is not None and not group.is_active and group.pk != item.item_group_id:
+        raise ValidationError({"item_group": [f"{group.name} is disabled."]})
     for field in (
         "name",
         "item_type",
@@ -228,6 +237,7 @@ def _save_item(item: Item, data: dict) -> Item:
         "purchase_name",
         "purchase_description",
         "purchase_unit",
+        "item_group",
         "shelf_life_days",
         "batch_tracked",
         "qc_required",
