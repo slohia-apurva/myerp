@@ -1595,3 +1595,44 @@ ul.address-list.cards-2 > li.address-card > div:first-child .pill {
 form.card .address-card {
   background: #fff;
 }
+
+/* Print from a masters screen (Exchange.tsx): only the printed list shows. */
+.print-sheet {
+  display: none;
+}
+@media print {
+  body.printing-sheet > #root {
+    display: none !important;
+  }
+  html:has(body.printing-sheet) {
+    background: #fff;
+  }
+  body.printing-sheet > .print-sheet {
+    display: block;
+    font-size: 10pt;
+    color: #000;
+  }
+  .print-sheet h1 {
+    font-size: 16pt;
+    margin: 0 0 4px;
+    color: var(--deep-green);
+  }
+  .print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+  .print-sheet th,
+  .print-sheet td {
+    border: 1px solid #cbd2d9;
+    padding: 3px 6px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .print-sheet thead {
+    display: table-header-group;
+  }
+  .print-sheet tr {
+    page-break-inside: avoid;
+  }
+}

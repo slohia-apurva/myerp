@@ -1,6 +1,17 @@
 from django.urls import path
 
-from core import api, central, credit_terms, data_reset, gstin_lookup, hsn, items, places, units
+from core import (
+    api,
+    central,
+    credit_terms,
+    data_reset,
+    exchange,
+    gstin_lookup,
+    hsn,
+    items,
+    places,
+    units,
+)
 
 urlpatterns = [
     path("states/", api.StatesView.as_view(), name="states"),
@@ -20,6 +31,8 @@ urlpatterns = [
     path("countries/", places.CountryListView.as_view(), name="countries"),
     path("pin/<str:pin>/", places.PinView.as_view(), name="pin"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
+    path("exchange/<str:key>/", exchange.ExportView.as_view(), name="exchange-export"),
+    path("exchange/<str:key>/import/", exchange.ImportView.as_view(), name="exchange-import"),
     path("units/", units.UnitListView.as_view(), name="units"),
     path("units/gst-codes/", units.GstUnitCodeView.as_view(), name="unit-gst-codes"),
     path("units/<int:pk>/", units.UnitDetailView.as_view(), name="unit"),

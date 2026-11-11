@@ -460,6 +460,69 @@ export const MANUAL: Chapter[] = [
           deleted: click "Edit" and then the "Disable" button to stop offering a unit ("Enable" brings it back). Items
           that already use it keep it.
         </p>
+        <p>
+          To change many units at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter
+          "Import, export and print".
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "import-export",
+    title: "Import, export and print",
+    summary: "Download a master list to Excel, fill or correct it, bring it back in, or print it.",
+    body: (
+      <>
+        <p>
+          Masters screens have three buttons at the top: "Import", "Export" and "Print". They work the same way on
+          every master. So far they are on "Units"; the other masters get them one by one. The columns are always the
+          fields of that master's form, so when a field is added to the form it appears in the file too.
+        </p>
+        <h3>Export</h3>
+        <p>
+          Click "Export" to download the whole list as an Excel file (.xlsx). The first column, "ID", is MyERP's own
+          number for each record. The second sheet, "How to fill", lists every column, whether it must be filled, and
+          what may be written in it (for example the GST unit codes, or Yes and No).
+        </p>
+        <h3>Print</h3>
+        <p>
+          Click "Print" to print the list as a plain table with the same columns, the group or company name and
+          today's date. Your browser's print window opens; pick a printer or "Save as PDF".
+        </p>
+        <h3>Import</h3>
+        <ol>
+          <li>
+            Click "Export" (to change records you have) or "Import" and then "blank template" (to add new ones).
+          </li>
+          <li>
+            Fill or change the rows in Excel. Keep the "ID" to change that record. Leave "ID" empty on a row to add a
+            new record. Keep the column names in the first row as they are; you may delete columns you do not want to
+            touch, and those fields stay as they are.
+          </li>
+          <li>Save the file as Excel (.xlsx) or CSV.</li>
+          <li>
+            Click "Import", pick the file under "File to import" and click "Check file". MyERP checks every row the
+            way the form would, and saves nothing yet.
+          </li>
+          <li>
+            If any row has a problem, a table shows the row number (as in Excel) and what is wrong, for example
+            "Name: There is already a unit with this name." Fix those rows and click "Check file" again.
+          </li>
+          <li>
+            When every row is right, it shows how many rows are new, changed or with no change. Click "Import" to save
+            them.
+          </li>
+        </ol>
+        <Note>
+          An import saves every row or none. If even one row is wrong, nothing is saved, so the list is never left
+          half changed. Each saved record shows in "Activity" like a change made on the form, under your name. Rules
+          that protect masters in use (for example a unit's "GST unit code" once items use it) apply to imports too.
+        </Note>
+        <p>
+          Anyone who can see a master can export and print it. Importing needs two permissions: "Create and edit" and
+          "Import from a file" under Masters. Only the Owner has "Import from a file" to start with; tick it on the
+          "User roles" screen for any other role that should import. Up to 5,000 rows and 5 MB at a time.
+        </p>
       </>
     ),
   },
@@ -794,6 +857,11 @@ export const MANUAL: Chapter[] = [
           <li>Click "Admin" in the top menu, then "User roles", then "New role", or "Edit" on a role.</li>
           <li>Give it a name and description, tick the permissions in each area, and click "Save".</li>
         </ol>
+        <p>
+          Under Masters, "View, export and print" lets a person see masters and download or print their lists, and
+          "Import from a file" lets them bring in masters from Excel (they also need "Create and edit"). No standard
+          role except Owner has "Import from a file" until you tick it.
+        </p>
         <p>Standard roles can be edited but not deleted. Roles you made can be deleted with "Delete role".</p>
         <p>The Activity column on the right shows every change to roles and their permissions.</p>
       </>

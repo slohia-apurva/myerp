@@ -25,7 +25,15 @@ DOCUMENT_ACTIONS = (
 
 AREAS = (
     Area("users", "Users and roles", (("manage", "Add, edit and deactivate users"),)),
-    Area("masters", "Masters", (("view", "View"), ("edit", "Create and edit"))),
+    Area(
+        "masters",
+        "Masters",
+        (
+            ("view", "View, export and print"),
+            ("edit", "Create and edit"),
+            ("import", "Import from a file (also needs Create and edit)"),
+        ),
+    ),
     Area("accounts", "Accounts", DOCUMENT_ACTIONS),
     Area("stock", "Stock", DOCUMENT_ACTIONS),
     Area("purchase", "Purchase", DOCUMENT_ACTIONS),

@@ -3,6 +3,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
+import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 /** Units of measure: one list for every company in the group. */
@@ -46,25 +47,30 @@ export function UnitsPage({ session }: { session: SignedIn }) {
     setCopyOf(null);
     reload();
   };
+  const io = useExchange({ master: "units", noun: "units", session, onImported: reload });
   return (
     <section className="page">
       <PageHeader
         title="Units"
         sub="Units of measure such as Packet, Carton and Kilogram. One list for every company in the group."
         actions={
-          canEdit && (
-            <button
-              onClick={() => {
-                setCopyOf(null);
-                setEditing("new");
-              }}
-            >
-              Add unit
-            </button>
-          )
+          <>
+            {io.buttons}
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setCopyOf(null);
+                  setEditing("new");
+                }}
+              >
+                Add unit
+              </button>
+            )}
+          </>
         }
       />
       <WithActivity activity={<Activity type="unit" stamp={JSON.stringify(units)} />}>
+        {io.panel}
         {editing && (
           <UnitForm
             key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
