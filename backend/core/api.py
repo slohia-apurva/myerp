@@ -729,6 +729,42 @@ def _ledger_data(ledger: Ledger, data: dict) -> dict:
     return data
 
 
+def add_ledger(request, company, data: dict) -> Ledger:
+    """Save a new ledger from validated LedgerSerializer data: the Ledgers
+    screen's Save, and each new row of an imported file."""
+    ledger = Ledger(company=company)
+    data = _ledger_data(ledger, data)
+    bills = data.pop("opening_bills", None)
+    party = data.pop("party", None)
+    party_id = data.pop("party_id", None)
+    also_in = _also_in(request, data.pop("also_in", None))
+    if "bill_wise" not in data:
+        data["bill_wise"] = data["group"].is_under(BILL_WISE_GROUP_CODES)
+    _unique_ledger_name(company, data["name"])
+    _save(ledger, data, LEDGER_FIELDS)
+    _set_foreign_opening(ledger)
+    _save_opening_bills(ledger, bills)
+    save_party(ledger, party, party_id, also_in)
+    return ledger
+
+
+def change_ledger(request, ledger: Ledger, data: dict) -> Ledger:
+    """Save changes to a ledger (validated, partial LedgerSerializer data)."""
+    data = _ledger_data(ledger, data)
+    bills = data.pop("opening_bills", None)
+    party = data.pop("party", None)
+    data.pop("party_id", None)  # only when adding a ledger
+    also_in = _also_in(request, data.pop("also_in", None))
+    if "name" in data:
+        _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
+    refuse_key_changes("ledger", ledger, data)
+    _save(ledger, data, LEDGER_FIELDS)
+    _set_foreign_opening(ledger)
+    _save_opening_bills(ledger, bills)
+    save_party(ledger, party, None, also_in)
+    return ledger
+
+
 class LedgerListView(APIView):
     """GET ?q=text&group=id (group includes the groups under it)."""
 
@@ -760,19 +796,7 @@ class LedgerListView(APIView):
         company = _company(request, pk)
         serializer = LedgerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        ledger = Ledger(company=company)
-        data = _ledger_data(ledger, dict(serializer.validated_data))
-        bills = data.pop("opening_bills", None)
-        party = data.pop("party", None)
-        party_id = data.pop("party_id", None)
-        also_in = _also_in(request, data.pop("also_in", None))
-        if "bill_wise" not in data:
-            data["bill_wise"] = data["group"].is_under(BILL_WISE_GROUP_CODES)
-        _unique_ledger_name(company, data["name"])
-        _save(ledger, data, LEDGER_FIELDS)
-        _set_foreign_opening(ledger)
-        _save_opening_bills(ledger, bills)
-        save_party(ledger, party, party_id, also_in)
+        ledger = add_ledger(request, company, dict(serializer.validated_data))
         return Response(LedgerSerializer(ledger).data, status=status.HTTP_201_CREATED)
 
 
@@ -791,18 +815,7 @@ class LedgerDetailView(APIView):
         ledger = self._ledger(request, pk)
         serializer = LedgerSerializer(ledger, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        data = _ledger_data(ledger, dict(serializer.validated_data))
-        bills = data.pop("opening_bills", None)
-        party = data.pop("party", None)
-        data.pop("party_id", None)  # only when adding a ledger
-        also_in = _also_in(request, data.pop("also_in", None))
-        if "name" in data:
-            _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
-        refuse_key_changes("ledger", ledger, data)
-        _save(ledger, data, LEDGER_FIELDS)
-        _set_foreign_opening(ledger)
-        _save_opening_bills(ledger, bills)
-        save_party(ledger, party, None, also_in)
+        change_ledger(request, ledger, dict(serializer.validated_data))
         return Response(LedgerSerializer(ledger).data)
 
 

@@ -9,6 +9,7 @@ from core import (
     gstin_lookup,
     hsn,
     items,
+    ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
     places,
     units,
 )
