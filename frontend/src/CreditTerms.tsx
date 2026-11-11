@@ -1,3 +1,4 @@
+import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
@@ -181,13 +182,11 @@ function TermForm(props: {
                 />
               </td>
               <td>
-                <select value={p.event} onChange={(e) => setPart(i, { event: e.target.value })}>
-                  {EVENTS.map(([code, label]) => (
-                    <option key={code} value={code}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                <Combobox
+                  value={p.event}
+                  onChange={(v) => setPart(i, { event: v })}
+                  options={EVENTS.map(([value, label]) => ({ value, label }))}
+                />
               </td>
               <td>
                 <input

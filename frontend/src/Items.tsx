@@ -441,13 +441,11 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
           <div className="row">
             <label>
               Type
-              <select value={type} onChange={(e) => setType(e.target.value)}>
-                {TYPES.map(([code, label]) => (
-                  <option key={code} value={code}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <Combobox
+                value={type}
+                onChange={setType}
+                options={TYPES.map(([value, label]) => ({ value, label }))}
+              />
             </label>
             <label>
               Stock unit
@@ -520,16 +518,15 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                     {!isStock && (
                       <label>
                         Of
-                        <select required value={r.contains_unit} onChange={(e) => setRow(i, { contains_unit: e.target.value })}>
-                          <option value="">Choose…</option>
-                          {[stock, ...rows.map((x) => x.unit)]
+                        <Combobox
+                          required
+                          value={r.contains_unit}
+                          onChange={(v) => setRow(i, { contains_unit: v })}
+                          empty="Choose…"
+                          options={[stock, ...rows.map((x) => x.unit)]
                             .filter((id, k, all) => id && id !== r.unit && all.indexOf(id) === k)
-                            .map((id) => (
-                              <option key={id} value={id}>
-                                {unitName(id)}
-                              </option>
-                            ))}
-                        </select>
+                            .map((id) => ({ value: id, label: unitName(id) }))}
+                        />
                       </label>
                     )}
                   </div>

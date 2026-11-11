@@ -215,10 +215,10 @@ export function PartyFields({
       <div className="row">
         <label>
           GST type
-          <select
+          <Combobox
             value={p.gst_type}
-            onChange={(e) => {
-              const t = e.target.value;
+            options={GST_TYPES.map(([value, label]) => ({ value, label }))}
+            onChange={(t) => {
               set({
                 gst_type: t,
                 ...(REGISTERED.includes(t) ? {} : { gstin: "" }),
@@ -226,13 +226,7 @@ export function PartyFields({
                 ...(t !== "overseas" && p.gst_type === "overseas" ? { country: "India" } : {}),
               });
             }}
-          >
-            {GST_TYPES.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
+          />
         </label>
       </div>
       <div className="row">

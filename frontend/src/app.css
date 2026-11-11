@@ -94,12 +94,14 @@ main.narrow {
   font-weight: 600;
   color: var(--deep-green);
 }
-.company-pick select {
+.company-pick .combo {
+  width: 260px;
+}
+.company-pick .combo input {
   font-weight: 600;
   color: var(--deep-green);
   background-color: var(--mint);
   border-color: var(--mint-line);
-  max-width: 260px;
   padding-top: 6px;
   padding-bottom: 6px;
 }
