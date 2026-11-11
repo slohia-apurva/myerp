@@ -38,7 +38,8 @@ class PinView(APIView):
                 "state_code": row.state.code if row.state else "",
                 "state_name": row.state.name if row.state else "",
                 "couriers": [
-                    {"courier": c.courier, "oda": c.oda} for c in row.couriers.order_by("courier")
+                    {"courier": c.carrier.name, "oda": c.oda}
+                    for c in row.couriers.select_related("carrier").order_by("carrier__name")
                 ],
             }
         )

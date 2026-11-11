@@ -52,8 +52,8 @@ def test_import_maps_state_names_and_keeps_courier_rows():
     assert PinCode.objects.get(pin="751001").state.name == "Odisha"
     assert PinCode.objects.get(pin="190001").state.name == "Jammu and Kashmir"
     assert PinCode.objects.get(pin="400001").state is None
-    assert CourierPin.objects.get(courier="Delhivery", pin__pin="190001").oda is None
-    assert CourierPin.objects.get(courier="Delhivery", pin__pin="751001").oda is False
+    assert CourierPin.objects.get(carrier__name="Delhivery", pin__pin="190001").oda is None
+    assert CourierPin.objects.get(carrier__name="Delhivery", pin__pin="751001").oda is False
 
 
 def test_second_load_replaces_that_couriers_rows_and_keeps_cities():
@@ -67,8 +67,8 @@ def test_second_load_replaces_that_couriers_rows_and_keeps_cities():
     assert PinCode.objects.get(pin="751001").city == "Bhubaneswar"
     assert CourierPin.objects.filter(pin__pin="751001").count() == 2
     pin_import.load(pin_import.parse(CSV)[:1], "Delhivery")
-    assert CourierPin.objects.filter(courier="Delhivery").count() == 1
-    assert CourierPin.objects.filter(courier="Blue Dart").count() == 2
+    assert CourierPin.objects.filter(carrier__name="Delhivery").count() == 1
+    assert CourierPin.objects.filter(carrier__name="Blue Dart").count() == 2
 
 
 def test_unknown_state_stops_the_load():
@@ -77,6 +77,8 @@ def test_unknown_state_stops_the_load():
         pin_import.load(pin_import.parse(bad), "Delhivery")
     with pytest.raises(ValueError, match="courier"):
         pin_import.load(pin_import.parse(CSV), " ")
+    with pytest.raises(ValueError, match="No courier called Acme"):
+        pin_import.load(pin_import.parse(CSV), "Acme")
 
 
 def test_command_needs_rows(tmp_path):

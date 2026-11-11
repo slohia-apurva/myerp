@@ -110,11 +110,11 @@ class PinCode(models.Model):
 
 
 class CourierPin(models.Model):
-    """Whether a courier delivers to a PIN code, and its out-of-delivery-area
-    (ODA) flag. One row per courier and PIN, so lists from other couriers sit
+    """Whether a carrier delivers to a PIN code, and its out-of-delivery-area
+    (ODA) flag. One row per carrier and PIN, so lists from other couriers sit
     beside the first and are merged by PIN."""
 
-    courier = models.CharField(max_length=60)
+    carrier = models.ForeignKey("Carrier", on_delete=models.PROTECT, related_name="pins")
     pin = models.ForeignKey(PinCode, on_delete=models.CASCADE, related_name="couriers")
     oda = models.BooleanField(null=True, blank=True)  # blank = not known
     dispatch_center = models.CharField(max_length=120, blank=True)
@@ -122,13 +122,13 @@ class CourierPin(models.Model):
     return_center = models.CharField(max_length=120, blank=True)
 
     class Meta:
-        ordering = ["courier", "pin_id"]
+        ordering = ["carrier__name", "pin_id"]
         constraints = [
-            models.UniqueConstraint(fields=["courier", "pin"], name="one_row_per_courier_pin")
+            models.UniqueConstraint(fields=["carrier", "pin"], name="one_row_per_courier_pin")
         ]
 
     def __str__(self) -> str:
-        return f"{self.courier} {self.pin_id}"
+        return f"{self.carrier} {self.pin_id}"
 
 
 class Carrier(models.Model):
