@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 
 from accounts import google
 from accounts.models import User
+from core.central import is_platform_admin
 
 FAILED = "Google sign-in did not work. Please try again."
 NOT_SET_UP = "Google sign-in is not set up for this address yet."
@@ -27,7 +28,12 @@ def session_state(request) -> dict:
     if user.is_authenticated:
         return {
             "signed_in": True,
-            "user": {"email": user.email, "name": user.display_name, "is_owner": user.is_owner},
+            "user": {
+                "email": user.email,
+                "name": user.display_name,
+                "is_owner": user.is_owner,
+                "is_platform_admin": is_platform_admin(user),
+            },
             "permissions": sorted(user.permission_codes()),
         }
     return {"signed_in": False, "google_client_id": settings.MYERP_GOOGLE_CLIENT_ID}

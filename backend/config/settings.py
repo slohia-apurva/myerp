@@ -105,6 +105,9 @@ GSTIN_LOOKUP_PROVIDER = env("GSTIN_LOOKUP_PROVIDER", "core.gstinapi.lookup")
 # The Owner's "Reset data" tool (core/data_reset.py) is refused unless this is
 # on. Turn it on for staging and trial runs, never for live books.
 ALLOW_DATA_RESET = env_bool("MYERP_ALLOW_DATA_RESET", False)
+# Sign-in emails (comma separated) of MyERP platform admins, who alone may open
+# the central admin screen (core/central.py). Not the same as a customer's Owner.
+MYERP_PLATFORM_ADMINS = env("MYERP_PLATFORM_ADMINS", "")
 # A sign-in lasts a working day; closing the browser does not end it.
 SESSION_COOKIE_AGE = 60 * 60 * 12
 SESSION_COOKIE_HTTPONLY = True

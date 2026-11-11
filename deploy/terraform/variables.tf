@@ -64,3 +64,9 @@ variable "allow_data_reset" {
   type        = bool
   default     = false
 }
+
+variable "platform_admins" {
+  description = "Comma-separated sign-in emails of MyERP platform admins, who alone may open the Central screen."
+  type        = string
+  default     = ""
+}
