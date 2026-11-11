@@ -324,9 +324,6 @@ label.check {
   gap: 16px;
   align-items: center;
 }
-button.link.danger {
-  color: var(--red);
-}
 h3 {
   margin: 0;
 }
@@ -370,12 +367,6 @@ button {
 button:disabled {
   opacity: 0.5;
   cursor: default;
-}
-button.link {
-  background: none;
-  color: var(--green);
-  padding: 0;
-  align-self: flex-start;
 }
 .error {
   color: var(--red);
@@ -566,17 +557,6 @@ table.modules input[type="checkbox"] {
 }
 
 /* Brand finish: buttons, fields, tables and cards */
-button {
-  font-weight: 600;
-  border-radius: 8px;
-}
-button:hover:not(:disabled) {
-  background: var(--deep-green);
-}
-button.link:hover:not(:disabled) {
-  background: none;
-  color: var(--deep-green);
-}
 a.button {
   border-radius: 8px;
   font-weight: 500;
@@ -879,15 +859,6 @@ button.fold:hover:not(:disabled) {
   text-align: right;
   white-space: nowrap;
 }
-.row-actions button.link {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--slate);
-  margin-left: 12px;
-}
-.row-actions button.link:hover:not(:disabled) {
-  color: var(--green);
-}
 tr.form-row td {
   background: var(--mint);
 }
@@ -991,14 +962,6 @@ button.fold:hover:not(:disabled) {
 }
 
 /* Help: the user manual */
-button.secondary {
-  background: #fff;
-  color: var(--green);
-  border: 1px solid var(--mint-line);
-}
-button.secondary:hover:not(:disabled) {
-  background: var(--mint);
-}
 .help-link {
   color: var(--slate);
   text-decoration: none;
@@ -1375,13 +1338,6 @@ td.act {
 }
 
 /* Duplicate quieter than Edit. */
-td button.link.quiet {
-  color: var(--slate);
-  font-weight: 500;
-}
-td button.link.quiet:hover:not(:disabled) {
-  color: var(--green);
-}
 
 .inline {
   display: flex;
@@ -1461,4 +1417,62 @@ form.card [data-tab]:not(.tab-general):not([hidden]) {
 .panel-card > h4 {
   font-size: 0.95rem;
   color: var(--deep-green);
+}
+
+/* Buttons: one family. Same height, shape and weight everywhere; only the
+   colour says what it does. Green solid = go ahead, white with grey outline =
+   back out or secondary, white with red outline = take away. */
+button,
+a.button {
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  background: #2f8a5c;
+  color: #fff;
+}
+button:hover:not(:disabled) {
+  background: var(--green);
+}
+button.link,
+button.secondary,
+a.button,
+.band a.button {
+  background: #fff;
+  color: #1f2933;
+  border-color: #cbd2d9;
+}
+button.link:hover:not(:disabled),
+button.secondary:hover:not(:disabled),
+a.button:hover,
+.band a.button:hover {
+  background: #f4f6f8;
+  color: #1f2933;
+}
+button.link.danger {
+  color: #b42318;
+  border-color: #e8b4ae;
+}
+button.link.danger:hover:not(:disabled) {
+  background: #fbeae8;
+  color: #b42318;
+}
+td button,
+.row-actions button,
+.address-card button,
+.panel-card button.link {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+.row-actions button.link {
+  margin-left: 8px;
 }
