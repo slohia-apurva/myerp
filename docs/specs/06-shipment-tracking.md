@@ -4,6 +4,8 @@ Requested by Sidharth: "AWB tracking for sales to be updated daily into system a
 
 Status: spec only, for review. Nothing is built until Sidharth approves it. It hangs off the sales delivery note (Phase 4), but the first steps can run earlier (see "Build order"). Open questions are at the end; which couriers Apurvam uses decides most of the integration work.
 
+Update 11 Nov: Sidharth uses **Delhivery** and gave its PIN serviceability list (21,528 PINs with an ODA flag). It is loaded as a central table in the masters work (see "Courier serviceability by PIN" below), so Delhivery is the first carrier and the first connector. Other couriers' lists are added to the same table later.
+
 ## What it does, in one paragraph
 
 Every sales consignment that leaves by courier, air cargo or transporter gets a **shipment** in MyERP with its AWB (or docket / LR) number. Once a day, and sooner where the carrier can push updates, MyERP fetches the latest status of every shipment that is not yet delivered and stores each tracking event. Each morning the despatch team gets **one consolidated email** per company (or per branch): what was delivered, what is out for delivery, what is stuck or coming back, and which deliveries left without an AWB. The same list is on a **Shipments** screen. Tracking never posts to the ledgers.
@@ -19,6 +21,17 @@ Every sales consignment that leaves by courier, air cargo or transporter gets a 
 | EDD | Expected delivery date given by the carrier |
 | POD | Proof of delivery: delivered date and time, receiver's name, sometimes a signature or photo |
 | RTO | Return to origin: the carrier could not deliver and is bringing the goods back |
+
+## Courier serviceability by PIN
+
+Asked by Sidharth (11 Nov): when a customer or supplier is added, show which courier can deliver to its PIN code.
+
+- Two central (platform-side, read-only in each tenant) tables, built in the masters work: the **PIN list** (PIN, city, state) that fills address forms, and **courier serviceability** (courier, PIN, serviceable, ODA flag, the courier's centres), one row per courier per PIN. Delhivery's list is loaded first; each new courier's list is added beside it, never mixed into the PIN list.
+- **Party and address forms** show, under the PIN, which couriers deliver there and whether it is **ODA** (out of delivery area, usually extra charge and slower).
+- **Delivery note**: the carrier is suggested from the ship-to PIN (a courier that serves it, not ODA where possible), and a warning shows when the chosen courier does not serve that PIN or it is ODA.
+- **Despatch email**: ODA shipments are marked, and their "past EDD" check allows the extra days.
+- The courier in this table is the same record as the **Carrier** master below, so tracking and serviceability share one list of couriers.
+- Lists go out of date; each courier's list keeps its "as of" date, is replaced when a new file or the courier's serviceability API gives a newer one, and the screen shows that date.
 
 ## Where it hooks into Sales
 
@@ -149,7 +162,7 @@ Steps 1 to 4 do not need Phase 4. If Sidharth wants tracking before Sales is bui
 
 ## Open questions for Sidharth
 
-1. **Which couriers, airlines and transporters** do you use for sales today, and roughly what share each? (e.g. Blue Dart, Delhivery, DTDC, Professional, Trackon, India Post, an air cargo forwarder, road transporters with LR)
+1. **Which couriers, airlines and transporters** do you use for sales today, and roughly what share each? (Answered in part, 11 Nov: Delhivery. Which others, and do you have a Delhivery business account with API access?)
 2. Roughly **how many shipments a day**, and how many companies or branches despatch?
 3. Do you have **business accounts with API access** at any of them, or use an aggregator already (Shiprocket, ClickPost, NimbusPost, AfterShip)? Would you rather pay an aggregator for one connection, or connect directly to one or two carriers?
 4. Is "AWB" here mostly **courier dockets**, or also **airline air cargo** (through a forwarder), or both?
