@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 
 from audit import recorder
 from core.api import EDIT, VIEW, Signed, _check
+from core.locks import refuse_key_changes
 from core.models import USED_FOR, Item, ItemUnit, Unit
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
@@ -158,6 +159,7 @@ def _resolve_chain(item_stock: Unit, rows: list[dict]) -> list[dict]:
 
 def _save_item(item: Item, data: dict) -> None:
     rows = data.pop("units", None)
+    refuse_key_changes("item", item, data)
     if "name" in data:
         data["name"] = data["name"].strip()
         clash = Item.objects.filter(name__iexact=data["name"])
@@ -185,6 +187,14 @@ def _save_item(item: Item, data: dict) -> None:
         rows = []
     if rows is not None:
         rows = _resolve_chain(item.stock_unit, [dict(r) for r in rows])
+        if item.pk:
+            old = sorted((r.unit_id, r.contains_qty, r.contains_unit_id) for r in item.units.all())
+            new = sorted(
+                (r["unit"].pk, r.get("contains_qty"), getattr(r.get("contains_unit"), "pk", None))
+                for r in rows
+            )
+            if old != new:
+                refuse_key_changes("item", item, {"units": new})
         had = set(item.units.values_list("unit_id", flat=True)) if item.pk else set()
         for r in rows:
             if (

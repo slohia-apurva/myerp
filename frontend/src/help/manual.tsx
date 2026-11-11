@@ -284,6 +284,10 @@ export const MANUAL: Chapter[] = [
           <li>The shares must add up to 100%; the total under the rows turns red until they do. Click "Save".</li>
         </ol>
         <p>
+          Once a customer or supplier uses credit terms, their parts cannot be changed (you can still rename them or
+          add notes). Add new credit terms and move the customer to them instead.
+        </p>
+        <p>
           The list shows each term in words and how many parties use it. Credit terms are never deleted: click "Edit"
           and then the "Disable" button to stop offering them to new parties ("Enable" brings them back). Parties that already have them keep them.
         </p>
@@ -360,6 +364,10 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>Click "Save".</li>
         </ol>
+        <p>
+          Once an item uses a unit, its "GST unit code" and "Whole numbers only" cannot be changed, so old records keep
+          their meaning. The name can still be corrected.
+        </p>
         <p>
           Names and short names must be different from each other, whatever the capital letters. Units are never
           deleted: click "Edit" and then the "Disable" button to stop offering a unit ("Enable" brings it back). Items

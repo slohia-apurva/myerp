@@ -25,6 +25,7 @@ from audit import recorder
 from core import india
 from core import modules as company_modules
 from core.companies import create_company, visible_companies
+from core.locks import refuse_key_changes
 from core.models import (
     BILL_WISE_GROUP_CODES,
     CR,
@@ -495,6 +496,7 @@ class CompanyDetailView(APIView):
         if "modules" in data and data["modules"] != company.modules and not request.user.is_owner:
             raise PermissionDenied("Only an Owner can change a company's modules.")
         extra = ["fiscal_year_start_month", "books_start", "multi_currency", "modules"]
+        refuse_key_changes("company", company, data)
         _save(company, data, [*fields, *extra])
         if not company.multi_currency and company.ledgers.exclude(currency=None).exists():
             raise ValidationError(
@@ -601,6 +603,7 @@ class BranchDetailView(APIView):
             others = Branch.objects.filter(company_id=branch.company_id).exclude(pk=pk)
             if others.filter(name__iexact=data["name"]).exists():
                 raise ValidationError({"name": ["This company already has a branch by that name."]})
+        refuse_key_changes("branch", branch, data)
         _move_defaults(branch, data)
         fields = ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active", *DEFAULT_FLAGS]
         _save(branch, data, fields)
@@ -655,6 +658,7 @@ class LedgerGroupDetailView(APIView):
             group.name = data["name"].strip()
             _unique_group_name(group.company, group.name, exclude=group.pk)
         if "parent" in data:
+            refuse_key_changes("ledger_group", group, {"parent": data["parent"]})
             parent = data["parent"]
             if parent is None or parent.company_id != group.company_id:
                 raise ValidationError({"parent": ["Choose the group this one sits under."]})
@@ -662,8 +666,8 @@ class LedgerGroupDetailView(APIView):
                 raise ValidationError({"parent": ["A group cannot sit under itself."]})
             group.parent = parent
             # Moving under another primary group changes the nature of the
-            # whole branch of the tree. (Once ledgers exist, this must be
-            # refused for groups whose ledgers have postings.)
+            # whole branch of the tree. Refused above once the group's ledgers
+            # have postings (core/locks.py).
             group.nature = parent.nature
             group.affects_gross_profit = parent.affects_gross_profit
             LedgerGroup.objects.filter(pk__in=group.descendant_ids()).update(
@@ -793,6 +797,7 @@ class LedgerDetailView(APIView):
         also_in = _also_in(request, data.pop("also_in", None))
         if "name" in data:
             _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
+        refuse_key_changes("ledger", ledger, data)
         _save(ledger, data, LEDGER_FIELDS)
         _set_foreign_opening(ledger)
         _save_opening_bills(ledger, bills)

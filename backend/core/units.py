@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api import EDIT, VIEW, Signed, _check
+from core.locks import refuse_key_changes
 from core.models import Unit
 from tenancy.context import tenant_atomic
 
@@ -80,6 +81,7 @@ def _save_unit(unit: Unit, data: dict) -> None:
                 clash = clash.exclude(pk=unit.pk)
             if clash.exists():
                 raise ValidationError({field: [f"There is already a unit with this {label}."]})
+    refuse_key_changes("unit", unit, data)
     for field in ("name", "short_name", "gst_code", "whole_numbers", "is_active"):
         if field in data:
             setattr(unit, field, data[field])

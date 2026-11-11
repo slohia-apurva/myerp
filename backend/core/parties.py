@@ -17,6 +17,7 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.models import User
 from audit import recorder
+from core.locks import refuse_key_changes
 from core.models import (
     BILL_WISE_GROUP_CODES,
     CONTACT_KINDS,
@@ -211,6 +212,11 @@ def save_party(
     for field in ("customer_number", "vendor_number"):
         if not data.get(field):
             data.pop(field, None)  # blank keeps the number it has
+    if party.pk:
+        try:
+            refuse_key_changes("party", party, data)
+        except ValidationError as exc:
+            raise ValidationError({"party": exc.detail}) from exc
     for field in PARTY_FIELDS:
         if field in data:
             value = data[field]
