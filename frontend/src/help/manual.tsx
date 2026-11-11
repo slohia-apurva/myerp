@@ -330,8 +330,8 @@ export const MANUAL: Chapter[] = [
           <li>Click "Masters" in the top menu, then "Items", then "Add item". The form has tabs: "General", "Sales", "Purchase", "GST rates", "Stock and quality" and "Units of measure".</li>
           <li>
             Under "General", give the "Name", the "Type" (goods you stock, or a service), the "Default unit (stock unit)"
-            (the unit stock is counted in, such as Packet), the "Item group" (see the chapter "Item groups") and the "HSN"
-            code if you know it.
+            (the unit stock is counted in, such as Packet), the "Item group" (see the chapter "Item groups"), the "Brand" (see the chapter "Brands") and the
+            "HSN" code if you know it.
           </li>
           <li>
             On the "Sales" tab, the "Sales item name" starts as the item's name; change it if customers know the item by
@@ -451,6 +451,31 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "brands",
+    title: "Brands",
+    summary: "The brand names that items are sold under, picked on the item's General tab.",
+    body: (
+      <>
+        <p>
+          Brands are one list shared by every company in the group. An item picks its brand in the "Brand" box on the
+          General tab of the item form (click the box and type a few letters to narrow the list).
+        </p>
+        <h3>Add a brand</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Brands".</li>
+          <li>Click "Add brand", then give the "Name" (for example Apurvam) and, if you like, "Notes".</li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          Brand names must be different, whatever the capital letters. The "Items" column shows how many items carry
+          each brand. Brands are never deleted: click "Edit" and then the "Disable" button to stop offering a brand
+          ("Enable" brings it back); items already using it keep it. To change many brands at once, use "Export",
+          "Import" and "Print" at the top of the screen (see "Import, export and print").
+        </p>
+      </>
+    ),
+  },
+  {
     id: "item-groups",
     title: "Item groups",
     summary: "The tree of groups and sub-groups that items sit in, such as Raw material > Spices.",
@@ -534,7 +559,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Masters screens have three buttons at the top: "Import", "Export" and "Print". They work the same way on
-          every master. So far they are on "Units", "Credit terms" and "Items"; the other masters get them one by one. The columns are always the
+          every master. So far they are on "Units", "Credit terms", "Items" and "Ledgers"; the other masters get them one by one. The columns are always the
           fields of that master's form, so when a field is added to the form it appears in the file too.
         </p>
         <h3>Export</h3>
@@ -555,6 +580,19 @@ export const MANUAL: Chapter[] = [
           On import, a record listed on the first sheet gets exactly the rows listed for it on these sheets, so add,
           change or delete rows there as you would on the form. To leave them as they are, delete the whole sheet from
           the file. CSV files hold only the first sheet, so they never change these rows.
+        </p>
+        <h3>Ledgers</h3>
+        <p>
+          Ledgers belong to one company, so "Export", "Import" and "Print" on the Ledgers screen work on the company you
+          are working in (picked at the top right). "Under group" is the group's name in that company. Customers and
+          suppliers are ledgers too: their details ("GST type", "GSTIN", "State", "Credit terms", "Salesman or
+          purchaser" and so on) are columns on the same sheet, left empty for other ledgers such as cash or expenses.
+          Their "Opening bills", "Addresses" and "Contacts" have sheets of their own, each row starting with the ledger's
+          name. Opening balances must add up with their bills, as on the form.
+        </p>
+        <p>
+          A customer or supplier that another company of the group already has cannot be added by import: open "Add
+          ledger" and pick it under "Existing customer or supplier", so both companies share one record.
         </p>
         <h3>Print</h3>
         <p>
@@ -786,6 +824,10 @@ export const MANUAL: Chapter[] = [
           Ledgers are never deleted, so past entries always have their account. When a ledger is no longer needed, click
           "Edit" and then "Disable"; it then cannot be used in new entries. "Enable" brings it back.
         </Note>
+        <p>
+          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          export and print".
+        </p>
       </>
     ),
   },

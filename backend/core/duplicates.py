@@ -3,7 +3,7 @@
 Two records of the same master must never mean the same thing. Names are
 compared ignoring capitals and extra spaces ("Acme  Foods " is "ACME Foods"),
 within the right scope: the whole group for shared masters (customers and
-suppliers, items, item groups, units, credit terms, roles), the company for its own
+suppliers, items, item groups, brands, units, credit terms, roles), the company for its own
 (ledgers, ledger groups, branches, courier accounts). Registration numbers
 (GSTIN, PAN, bank account numbers, barcodes) are unique too.
 
@@ -39,6 +39,7 @@ TIDY_FIELDS: dict[str, tuple[str, ...]] = {
     "core.Unit": ("name", "short_name"),
     "core.Item": ("name",),
     "core.ItemGroup": ("name",),
+    "core.Brand": ("name",),
     "core.Certificate": ("name",),
     "shipping.CourierAccount": ("name",),
     "accounts.Role": ("name",),

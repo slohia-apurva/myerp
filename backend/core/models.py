@@ -561,6 +561,23 @@ class ItemGroup(models.Model):
         return self.name
 
 
+class Brand(models.Model):
+    """A brand name items are sold under, picked on the item's General tab.
+    One list shared by every company in the group. Never deleted, only made
+    inactive."""
+
+    name = models.CharField(max_length=100)
+    notes = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(Lower("name"), name="brand_name_unique")]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Item(models.Model):
     """A product, material or service, in one catalogue shared by every
     company in the group. Stock is held in the item's stock unit; each item
@@ -589,6 +606,9 @@ class Item(models.Model):
     )
     item_group = models.ForeignKey(
         "ItemGroup", null=True, blank=True, on_delete=models.PROTECT, related_name="items"
+    )
+    brand = models.ForeignKey(
+        "Brand", null=True, blank=True, on_delete=models.PROTECT, related_name="items"
     )
     shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)

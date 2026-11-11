@@ -26,7 +26,7 @@ from audit import recorder
 from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
-from core.models import USED_FOR, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
+from core.models import USED_FOR, Brand, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
 
@@ -103,6 +103,10 @@ class ItemSerializer(serializers.ModelSerializer):
         queryset=ItemGroup.objects.all(), allow_null=True, required=False
     )
     item_group_name = serializers.CharField(source="item_group.name", read_only=True, default=None)
+    brand = serializers.PrimaryKeyRelatedField(
+        queryset=Brand.objects.all(), allow_null=True, required=False
+    )
+    brand_name = serializers.CharField(source="brand.name", read_only=True, default=None)
     units = ItemUnitSerializer(many=True, required=False)
     gst_rates = ItemGstRateSerializer(many=True, required=False)
     warnings = serializers.SerializerMethodField()
@@ -119,6 +123,8 @@ class ItemSerializer(serializers.ModelSerializer):
             "hsn",
             "item_group",
             "item_group_name",
+            "brand",
+            "brand_name",
             "sales_name",
             "sales_description",
             "sales_unit",
@@ -225,6 +231,9 @@ def _save_item(item: Item, data: dict) -> Item:
             kind="item",
             message='There is already an item named "{name}".',
         )
+    brand = data.get("brand")
+    if brand is not None and not brand.is_active and brand.pk != item.brand_id:
+        raise ValidationError({"brand": [f"{brand.name} is disabled."]})
     group = data.get("item_group")
     if group is not None and not group.is_active and group.pk != item.item_group_id:
         raise ValidationError({"item_group": [f"{group.name} is disabled."]})
@@ -240,6 +249,7 @@ def _save_item(item: Item, data: dict) -> Item:
         "purchase_description",
         "purchase_unit",
         "item_group",
+        "brand",
         "shelf_life_days",
         "batch_tracked",
         "qc_required",

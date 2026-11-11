@@ -168,13 +168,13 @@ def test_branch_and_credit_term_names(accountant, company):
 
 
 def test_migration_checks_run_on_real_data(accountant, company, alpha):
-    """The data checks in migration 0026 run cleanly on data without
+    """The data checks in migration 0027 run cleanly on data without
     duplicates (they stop a deploy, with a list, when there are some)."""
     from importlib import import_module
 
     from django.apps import apps
 
-    migration = import_module("core.migrations.0026_no_duplicates")
+    migration = import_module("core.migrations.0027_no_duplicates")
     add_ledger(
         accountant, company, "Sundry Debtors", party={"gst_type": "regular", "gstin": gstin("29")}
     )

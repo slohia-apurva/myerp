@@ -26,6 +26,7 @@ TIDY = {
     "Unit": (("name", "short_name"), None),
     "Item": (("name",), None),
     "ItemGroup": (("name",), None),
+    "Brand": (("name",), None),
     "Certificate": (("name",), "company_id"),
 }
 
@@ -88,7 +89,7 @@ def check_duplicates(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("core", "0025_item_groups"),
+        ("core", "0026_brands"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

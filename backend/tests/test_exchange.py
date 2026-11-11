@@ -13,6 +13,7 @@ from rest_framework import serializers
 from accounts.models import Role, User
 from audit.models import AuditEntry
 from core import exchange
+from core.india import gstin_check_char
 from core.models import Unit
 from tenancy.context import use_tenant
 
@@ -348,4 +349,106 @@ def test_items_with_units_and_gst_rates(owner, alpha):
     out = send(owner, "items", sheets).json()
     assert out["errors"][0]["messages"] == [
         'Units of measure: The barcode 8901234500011 is already on the item "Ghee 500 ml".'
+    ]
+
+
+# --- Ledgers: company-wise, with party details and opening bills -----------
+
+
+@pytest.fixture
+def company(alpha):
+    from core.companies import create_company
+
+    with use_tenant(alpha):
+        return create_company(name="Apurvam Organics LLP", state_code="27").pk
+
+
+def send_ledgers(client, company, sheets, commit=False):
+    return client.post(
+        "/api/v1/exchange/ledgers/import/",
+        {
+            "file": SimpleUploadedFile("l.xlsx", book(sheets)),
+            "commit": "1" if commit else "0",
+            "company": str(company),
+        },
+        HTTP_HOST=HOST,
+    )
+
+
+LEDGERS = ["Name", "Under group", "Opening balance (₹)", "Opening Dr/Cr", "GST type", "GSTIN"]
+LEDGERS += ["State", "Credit terms", "Salesman or purchaser"]
+BILLS = ["Ledger", "Bill reference", "Bill date", "Amount (₹)", "Dr/Cr"]
+CONTACTS = ["Ledger", "Name", "Phone", "Main", "Types"]
+FRESH_GSTIN = "29AAPFU0939F1Z" + gstin_check_char("29AAPFU0939F1Z")
+
+
+def test_ledgers_with_customers_contacts_and_opening_bills(owner, company, alpha):
+    assert owner.get("/api/v1/exchange/ledgers/?as=json", HTTP_HOST=HOST).status_code == 400
+    sheets = {
+        "Ledgers": [
+            LEDGERS,
+            ["Petty cash", "Cash-in-hand", "5000", "Dr", "", "", "", "", ""],
+            [
+                "Fresh Mart",
+                "Sundry Debtors",
+                "15000",
+                "Dr",
+                "Regular",
+                FRESH_GSTIN,
+                "Karnataka",
+                "30 days",
+                "owner@x.in",
+            ],
+        ],
+        "Opening bills": [
+            BILLS,
+            ["Fresh Mart", "INV-1", "15-03-2026", "10000", "Dr"],
+            ["Fresh Mart", "INV-2", "20-03-2026", "4000", "Dr"],
+        ],
+        "Contacts": [CONTACTS, ["Fresh Mart", "Mr Rao", "9876543210", "Yes", "Accounting, Sales"]],
+    }
+    out = send_ledgers(owner, company, sheets).json()
+    assert out["errors"] == [
+        {
+            "sheet": "Ledgers",
+            "row": 3,
+            "messages": [
+                "Opening bills: The bills add up to 14,000.00 Dr but the opening balance "
+                "is 15,000.00 Dr."
+            ],
+        }
+    ]
+    sheets["Opening bills"][2][3] = "5000"
+    out = send_ledgers(owner, company, sheets, commit=True).json()
+    assert (out["new"], out["saved"]) == (2, True), out
+
+    ledgers = owner.get(f"/api/v1/companies/{company}/ledgers/", HTTP_HOST=HOST).json()
+    by_name = {x["name"]: x for x in ledgers}
+    assert by_name["Petty cash"]["party"] is None
+    fresh = by_name["Fresh Mart"]
+    assert fresh["party"]["state_code"] == "29"
+    assert fresh["party"]["credit_term_name"] == "30 days"
+    assert fresh["party"]["customer_number"].startswith("CUST-")
+    assert fresh["party"]["contacts"][0]["kinds"] == ["accounts", "sales"]
+    assert [b["ref"] for b in fresh["opening_bills"]] == ["INV-1", "INV-2"]
+
+    # The export goes back in with no change.
+    res = owner.get(f"/api/v1/exchange/ledgers/?as=xlsx&company={company}", HTTP_HOST=HOST)
+    wb = load_workbook(io.BytesIO(res.content))
+    assert wb.sheetnames == ["Ledgers", "Opening bills", "Addresses", "Contacts", "How to fill"]
+    again = {
+        ws.title: [[("" if v is None else str(v)) for v in r] for r in ws.values]
+        for ws in wb.worksheets
+        if ws.title != "How to fill"
+    }
+    row = next(r for r in again["Ledgers"] if r[1] == "Fresh Mart")
+    assert row[again["Ledgers"][0].index("State")] == "Karnataka"
+    out = send_ledgers(owner, company, again, commit=True).json()
+    assert out["errors"] == [] and out["changed"] == 0, out
+
+    # A group of another company is not found by name here.
+    sheets = {"Ledgers": [["Name", "Under group"], ["Odd", "No such group"]]}
+    out = send_ledgers(owner, company, sheets).json()
+    assert out["errors"][0]["messages"] == [
+        "Under group: there is no ledger group called 'No such group'"
     ]

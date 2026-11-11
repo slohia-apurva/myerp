@@ -27,6 +27,7 @@ import datetime
 import io
 import re
 from collections.abc import Callable, Iterable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -77,6 +78,10 @@ class Column:
     codec: Codec
     allow_null: bool = False
     read_only: bool = False  # shown in exports and prints, ignored on import
+    # The record kept inside this one that the field belongs to ("party" for
+    # "party.gstin"); "" for the record's own fields. A group whose cells are
+    # all empty is left out of the import, as a form leaves out its hidden tab.
+    group: str = ""
 
 
 @dataclass(frozen=True)
@@ -85,7 +90,7 @@ class Sheet:
     rows kept inside a record (a term's parts, an item's units) get a sheet
     each, whose first column names the record they belong to."""
 
-    field: str  # "" for the main sheet, else the serializer's list field
+    field: str  # "" for the main sheet, else the list's path ("party.addresses")
     title: str
     columns: list[Column]
     link_label: str = ""  # child sheets: the first column's heading
@@ -124,11 +129,18 @@ class Master:
     # The field that child sheets use to say which record a row belongs to.
     link: str = "name"
 
-    def _columns(self, fields, prefix: str = "") -> list[Column]:
+    def _columns(self, fields, prefix: str = "", rel: str = "", group: str = "") -> list[Column]:
+        """Columns for these serializer fields. `prefix` is the path from the
+        master (for exclude, labels, codecs); `rel` the path within the sheet's
+        own record. Records kept inside (one, not a list) are flattened in."""
         out = []
         for name, f in fields.items():
             path = f"{prefix}{name}"
             if path in self.exclude or isinstance(f, serializers.ListSerializer):
+                continue
+            if isinstance(f, serializers.Serializer):
+                if not f.read_only:
+                    out += self._columns(f.fields, f"{path}.", f"{rel}{name}.", f"{rel}{name}")
                 continue
             if f.read_only and path not in self.show:
                 continue
@@ -140,32 +152,71 @@ class Master:
                 )
             out.append(
                 Column(
-                    field=name,
+                    field=f"{rel}{name}",
                     label=self.labels.get(path) or _label(name, f),
                     kind=codec.kind or _kind(f),
-                    required=bool(f.required) and not f.read_only,
+                    required=bool(f.required) and not f.read_only and not group,
                     codec=codec,
                     allow_null=bool(getattr(f, "allow_null", False)),
                     read_only=bool(f.read_only),
+                    group=group,
                 )
             )
+        return out
+
+    def _lists(self, fields, prefix: str = "") -> list[tuple[str, serializers.ListSerializer]]:
+        """The lists kept inside the record, at any depth of records kept
+        inside it: (path, field)."""
+        out = []
+        for name, f in fields.items():
+            path = f"{prefix}{name}"
+            if path in self.exclude or f.read_only:
+                continue
+            if isinstance(f, serializers.ListSerializer):
+                out.append((path, f))
+            elif isinstance(f, serializers.Serializer):
+                out += self._lists(f.fields, f"{path}.")
         return out
 
     def sheets(self) -> list[Sheet]:
         fields = self.serializer().fields
         out = [Sheet("", self.label, self._columns(fields))]
-        for name, f in fields.items():
-            if not isinstance(f, serializers.ListSerializer) or f.read_only:
-                continue
-            if name in self.exclude:
-                continue
-            title = self.labels.get(name) or _label(name, f)
-            columns = self._columns(f.child.fields, f"{name}.")
-            out.append(Sheet(name, title[:31], columns, self.noun[:1].upper() + self.noun[1:]))
+        owner = self.noun[:1].upper() + self.noun[1:]
+        for path, f in self._lists(fields):
+            title = self.labels.get(path) or _label(path.rsplit(".", 1)[-1], f)
+            columns = self._columns(f.child.fields, f"{path}.")
+            out.append(Sheet(path, title[:31], columns, owner))
+        for sheet in out:
+            labels = [c.label.lower() for c in sheet.columns]
+            twice = {x for x in labels if labels.count(x) > 1}
+            if twice:
+                raise ImproperlyConfigured(
+                    f"Import/export for {self.key}: the {sheet.title} sheet has two columns "
+                    f"called {', '.join(sorted(twice))}; give one a label in `labels`."
+                )
         return out
 
     def columns(self) -> list[Column]:
         return self.sheets()[0].columns
+
+
+def _get(record: dict, path: str):
+    for part in path.split("."):
+        if not isinstance(record, dict):
+            return None
+        record = record.get(part)
+    return record
+
+
+def _put(record: dict, path: str, value) -> None:
+    *parts, last = path.split(".")
+    for part in parts:
+        record = record.setdefault(part, {})
+    record[last] = value
+
+
+# The import or export running now, for lookups that depend on the company.
+_running: ContextVar[Context | None] = ContextVar("myerp_exchange_context", default=None)
 
 
 MASTERS: dict[str, Master] = {}
@@ -283,6 +334,14 @@ def _relation_codec(f: serializers.PrimaryKeyRelatedField) -> Codec | None:
     alt = "short_name" if "short_name" in have else None
     what = str(model._meta.verbose_name)
 
+    per_company = "company" in have
+
+    def scoped():
+        ctx = _running.get()
+        if per_company and ctx is not None and ctx.company is not None:
+            return queryset.filter(company=ctx.company)
+        return queryset.all()
+
     def names() -> dict:
         if model not in _names:
             _names[model] = dict(model.objects.values_list("pk", "name"))
@@ -292,9 +351,9 @@ def _relation_codec(f: serializers.PrimaryKeyRelatedField) -> Codec | None:
         return "" if pk is None else str(names().get(pk, pk))
 
     def from_cell(text: str):
-        found = queryset.filter(name__iexact=text.strip()).first()
+        found = scoped().filter(name__iexact=text.strip()).first()
         if found is None and alt:
-            found = queryset.filter(**{f"{alt}__iexact": text.strip()}).first()
+            found = scoped().filter(**{f"{alt}__iexact": text.strip()}).first()
         if found is None:
             raise ValueError(f"there is no {what} called {text!r}")
         return found.pk
@@ -318,6 +377,8 @@ def _default_codec(f) -> Codec | None:
         return _choice_list_codec(f.child)
     if isinstance(f, serializers.PrimaryKeyRelatedField):
         return _relation_codec(f)
+    if isinstance(f, serializers.SlugRelatedField):
+        return Codec(_plain, lambda t: t.strip(), hint=f"Its {f.slug_field.replace('_', ' ')}")
     if isinstance(f, serializers.DateField):
         return Codec(
             lambda v: datetime.date.fromisoformat(v).strftime("%d-%m-%Y") if v else "",
@@ -362,6 +423,7 @@ def _tables_out(master: Master, ctx: Context, blank: bool) -> list[Table]:
     """Every sheet of the master as rows of text: the main sheet starts with
     the ID, child sheets with the record they belong to."""
     _names.clear()
+    _running.set(ctx)
     sheets = master.sheets()
     data = []
     if not blank:
@@ -375,7 +437,7 @@ def _tables_out(master: Master, ctx: Context, blank: bool) -> list[Table]:
             [ID_LABEL] + [c.label for c in main.columns],
             ["number"] + [c.kind for c in main.columns],
             [
-                [str(r["id"])] + [c.codec.to_cell(r.get(c.field)) for c in main.columns]
+                [str(r["id"])] + [c.codec.to_cell(_get(r, c.field)) for c in main.columns]
                 for r in data
             ],
         )
@@ -384,8 +446,10 @@ def _tables_out(master: Master, ctx: Context, blank: bool) -> list[Table]:
         rows = []
         for r in data:
             owner = link.codec.to_cell(r.get(master.link)) if link else str(r["id"])
-            for child in r.get(sheet.field) or []:
-                rows.append([owner] + [c.codec.to_cell(child.get(c.field)) for c in sheet.columns])
+            for child in _get(r, sheet.field) or []:
+                rows.append(
+                    [owner] + [c.codec.to_cell(_get(child, c.field)) for c in sheet.columns]
+                )
         tables.append(
             Table(
                 sheet,
@@ -584,9 +648,10 @@ def _headers(sheet: Sheet, header: list[str], first: str | None) -> tuple[int | 
     return first_at, at
 
 
-def _cells(columns: list[Column], at: dict, row: list[str]) -> tuple[dict, list[str]]:
-    """A row's cells as the form would send them, and what is wrong with them."""
-    problems, data = [], {}
+def _cells(columns: list[Column], at: dict, row: list[str]) -> tuple[dict, list[str], set]:
+    """A row's cells as the form would send them, what is wrong with them,
+    and which records kept inside (column groups) have anything filled in."""
+    problems, data, filled = [], {}, set()
     for c in columns:
         if c.field not in at:
             continue
@@ -594,17 +659,18 @@ def _cells(columns: list[Column], at: dict, row: list[str]) -> tuple[dict, list[
         text = row[i].strip() if i < len(row) else ""
         if not text:
             if c.kind == "text":
-                data[c.field] = ""
+                _put(data, c.field, "")
             elif c.kind == "list":
-                data[c.field] = []
+                _put(data, c.field, [])
             elif c.allow_null:
-                data[c.field] = None
+                _put(data, c.field, None)
             continue  # keep what is there, or the form's default
+        filled.add(c.group)
         try:
-            data[c.field] = c.codec.from_cell(text)
+            _put(data, c.field, c.codec.from_cell(text))
         except ValueError as exc:
             problems.append(f"{c.label}: {exc}")
-    return data, problems
+    return data, problems, filled
 
 
 def _body(rows: list[list[str]]) -> tuple[list[str], list[tuple[int, list[str]]]]:
@@ -627,6 +693,7 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
     rows pass. `table` is the first sheet's rows, or every sheet as given by
     `read_tables`. Returns a summary with the problems row by row."""
     _names.clear()
+    _running.set(ctx)
     tables = table if table and isinstance(table[0], tuple) else [("", table)]
     sheets = master.sheets()
     main = sheets[0]
@@ -660,7 +727,7 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
         grouped: dict[str, list[tuple[int, dict]]] = {}
         for n, row in child_body:
             owner = row[link_at].strip().lower() if link_at < len(row) else ""
-            data, bad = _cells(sheet.columns, child_at, row)
+            data, bad, _ = _cells(sheet.columns, child_at, row)
             if not owner:
                 bad.insert(0, f"{sheet.link_label}: say which {master.noun} this row belongs to")
             if bad:
@@ -671,11 +738,12 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
     unclaimed = {(s.field, k) for s, g in children for k in g}
 
     labels = {c.field: c.label for c in main.columns}
+    groups = {c.group for c in main.columns} - {""}
     results = []
     counts = {"new": 0, "changed": 0, "same": 0}
     with tenant_atomic():
         for n, row in body:
-            data, bad = _cells(main.columns, at, row)
+            data, bad, filled = _cells(main.columns, at, row)
             instance = None
             ref = row[id_at].strip() if id_at is not None and id_at < len(row) else ""
             if ref:
@@ -697,8 +765,20 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
                 found = [x for k in keys for x in grouped.get(k, [])]
                 found.sort(key=lambda x: x[0])
                 unclaimed -= {(sheet.field, k) for k in keys}
-                data[sheet.field] = [d for _, d in found]
+                group = sheet.field.rpartition(".")[0]
+                if found:
+                    filled.add(group)
+                if not group or group in filled:
+                    _put(data, sheet.field, [d for _, d in found])
                 lines[sheet.field] = [m for m, _ in found]
+            for group in groups - filled:
+                # Nothing filled in for a record kept inside (a cash ledger's
+                # customer details): leave it out, as the form does.
+                *parents, last = group.split(".")
+                holder = data
+                for part in parents:
+                    holder = holder.get(part, {})
+                holder.pop(last, None)
             if bad:
                 problem(main, n, bad)
                 continue
@@ -739,26 +819,45 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
 
 def _report(detail, main: Sheet, sheets: list[Sheet], n: int, lines, labels, problem) -> None:
     """Put a save's errors on the rows they are about: a child row's own
-    problem goes on its line of the child sheet."""
-    if not isinstance(detail, dict):
-        problem(main, n, _messages(detail, labels))
-        return
-    own = {}
-    for key, value in detail.items():
-        sheet = next((s for s in sheets[1:] if s.field == key), None)
-        rows = lines.get(key, [])
-        if sheet and isinstance(value, list) and any(isinstance(v, dict) for v in value):
-            child_labels = {c.field: c.label for c in sheet.columns}
-            for i, item in enumerate(value):
-                if item and i < len(rows):
-                    problem(sheet, rows[i], _messages(item, child_labels))
-            continue
-        if sheet:
-            problem(main, n, [f"{sheet.title}: {m}" for m in _messages(value, labels)])
-            continue
-        own[key] = value
+    problem goes on its line of the child sheet, the rest on the record's row,
+    each starting with its column."""
+    lists = {s.field: s for s in sheets[1:]}
+    groups = {c.group for c in main.columns} - {""}
+    own: list[str] = []
+
+    def walk(detail, prefix: str) -> None:
+        if not isinstance(detail, dict):
+            own.extend(_messages(detail, {}))
+            return
+        for key, value in detail.items():
+            if key == "existing":
+                continue  # the link to a duplicate's record is for the screen
+            if key in ("non_field_errors", "__all__", "detail"):
+                own.extend(_messages(value, {}))
+                continue
+            path = f"{prefix}{key}"
+            sheet = lists.get(path)
+            if sheet is not None:
+                rows = lines.get(path, [])
+                child_labels = {c.field: c.label for c in sheet.columns}
+                items = value.items() if isinstance(value, dict) else enumerate(value)
+                for i, item in items:
+                    if isinstance(i, int) and isinstance(item, dict | list) and item:
+                        if i < len(rows):
+                            problem(sheet, rows[i], _messages(item, child_labels))
+                        else:
+                            own.extend(f"{sheet.title}: {m}" for m in _messages(item, child_labels))
+                    elif item:
+                        own.extend(f"{sheet.title}: {m}" for m in _messages(item, {}))
+                continue
+            if path in groups and isinstance(value, dict):
+                walk(value, f"{path}.")
+                continue
+            own.extend(_messages(value, {}, f"{labels.get(path, key)}: "))
+
+    walk(detail, "")
     if own:
-        problem(main, n, _messages(own, labels))
+        problem(main, n, own)
 
 
 def _save_row(master: Master, ctx: Context, instance, data: dict) -> tuple[str, str]:
