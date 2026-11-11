@@ -75,7 +75,7 @@ def _upper(value: str) -> str:
     return value.strip().upper()
 
 
-CONTACT_FIELDS = ["address", "pincode", "phone", "email", "contact_person"]
+CONTACT_FIELDS = ["address", "pincode", "city", "phone", "email", "contact_person"]
 REGISTRATION_FIELDS = [
     "entity_type",
     "cin",
@@ -114,6 +114,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "state",
             "address",
             "pincode",
+            "city",
             "phone",
             "email",
             "contact_person",

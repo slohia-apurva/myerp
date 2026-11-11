@@ -74,6 +74,7 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
                 "label": "Bengaluru office",
                 "address": "12 MG Road",
                 "pincode": "560001",
+                "city": "Bengaluru",
                 "state_code": "29",
                 "is_billing": True,
             },
@@ -94,6 +95,7 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
     assert saved["state_code"] == "29"
     assert saved["salesman_name"] == "Ravi"
     assert [a["label"] for a in saved["addresses"]] == ["Bengaluru office", "Pune godown"]
+    assert [a["city"] for a in saved["addresses"]] == ["Bengaluru", ""]
     assert [(c["name"], c["is_primary"]) for c in saved["contacts"]] == [
         ("Mr Rao", True),
         ("Meena", False),

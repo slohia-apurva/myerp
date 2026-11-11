@@ -7,11 +7,11 @@ import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
-type Contact = { address: string; pincode: string; phone: string; email: string; contact_person: string };
-const NO_CONTACT: Contact = { address: "", pincode: "", phone: "", email: "", contact_person: "" };
+type Contact = { address: string; pincode: string; city: string; phone: string; email: string; contact_person: string };
+const NO_CONTACT: Contact = { address: "", pincode: "", city: "", phone: "", email: "", contact_person: "" };
 const contactOf = (x: Contact | null | undefined): Contact =>
   x
-    ? { address: x.address, pincode: x.pincode, phone: x.phone, email: x.email, contact_person: x.contact_person }
+    ? { address: x.address, pincode: x.pincode, city: x.city, phone: x.phone, email: x.email, contact_person: x.contact_person }
     : NO_CONTACT;
 
 function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; addressLabel?: string }) {
@@ -26,8 +26,21 @@ function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; 
       <div className="row">
         <label>
           PIN code
-          <PinInput value={v.pincode} maxLength={6} onChange={(pincode) => props.onChange({ ...v, pincode })} />
+          <PinInput
+            value={v.pincode}
+            maxLength={6}
+            onChange={(pincode) => props.onChange({ ...v, pincode })}
+            onFound={(f) => {
+              if (!v.city && f.city) props.onChange({ ...v, city: f.city });
+            }}
+          />
         </label>
+        <label>
+          City
+          <input value={v.city} onChange={set("city")} />
+        </label>
+      </div>
+      <div className="row">
         <label>
           Contact person
           <input value={v.contact_person} onChange={set("contact_person")} />
@@ -49,7 +62,7 @@ function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; 
 
 function contactLines(x: Contact) {
   const reach = [x.contact_person, x.phone, x.email].filter(Boolean).join(" · ");
-  return { where: [x.address, x.pincode].filter(Boolean).join(" ") || "—", reach: reach || "—" };
+  return { where: [x.address, x.city, x.pincode].filter(Boolean).join(" ") || "—", reach: reach || "—" };
 }
 
 export type Company = Contact & {

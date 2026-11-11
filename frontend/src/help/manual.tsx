@@ -619,9 +619,11 @@ export const MANUAL: Chapter[] = [
           the address's name, state, address and PIN code are filled in from the GST portal, and you can change any of them.
         </p>
         <p>
-          Type the six digits of the "PIN code" and MyERP looks it up in the central list: the city and state appear
-          under the box, the "State" is filled in if it was empty, and the couriers that deliver to that PIN are shown
-          (with "out of delivery area" where it applies). The same hint shows on the company and branch forms. For an
+          Type the six digits of the "PIN code" and MyERP looks it up in the central list: the "City" box is filled in
+          if it was empty, and so is the "State" on a party address. The couriers that deliver to that PIN are shown
+          under the box (with "out of delivery area" where it applies). You can change the city or state if the list is
+          wrong. Company and branch forms have a "City" box too, filled from the PIN the same way, but their state is
+          not changed. For an
           overseas party, the "Country" box is a type-to-search list of countries.
         </p>
         <p>

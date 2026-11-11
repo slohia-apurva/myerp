@@ -44,6 +44,7 @@ class PartyAddressSerializer(serializers.ModelSerializer):
             "label",
             "address",
             "pincode",
+            "city",
             "state_code",
             "country",
             "gstin",
@@ -349,7 +350,8 @@ def party_extras() -> dict:
         for a in party.addresses.all():
             flags = [n for n, on in (("billing", a.is_billing), ("shipping", a.is_shipping)) if on]
             place = india.STATES.get(a.state_code, a.country) if a.state_code else a.country
-            text = f"{a.label}: {' '.join(a.address.split())}, {a.pincode} {place}".strip()
+            where = ", ".join(x for x in (a.city, f"{a.pincode} {place}".strip()) if x)
+            text = f"{a.label}: {' '.join(a.address.split())}, {where}".strip()
             if a.gstin:
                 text += f", GSTIN {a.gstin}"
             if flags:
