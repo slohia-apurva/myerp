@@ -58,3 +58,9 @@ variable "google_client_id" {
   type        = string
   default     = ""
 }
+
+variable "allow_data_reset" {
+  description = "Let an Owner use Admin > Reset data. For staging and trial runs; keep false for live books."
+  type        = bool
+  default     = false
+}
