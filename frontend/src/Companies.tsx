@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
+import { usePrintMenu } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
@@ -324,24 +325,30 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
   }, []);
   useEffect(reload, [reload]);
 
+  const printing = usePrintMenu({ title: "Companies" });
+
   return (
     <section className="page">
       <PageHeader
         title="Companies"
         crumbs={[{ label: "Masters", href: "#/companies" }]}
         actions={
-          session.user.is_owner && (
-            <button
-              onClick={() => {
-                setCopyOf(null);
-                setAdding(true);
-              }}
-            >
-              Add company
-            </button>
-          )
+          <>
+            {printing.buttons}
+            {session.user.is_owner && (
+              <button
+                onClick={() => {
+                  setCopyOf(null);
+                  setAdding(true);
+                }}
+              >
+                Add company
+              </button>
+            )}
+          </>
         }
       />
+      {printing.panel}
       <p className="small">
         Each company keeps its own books, GST registration and document numbers. A new company starts with a Head
         office branch and the standard ledger groups.
@@ -578,10 +585,11 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  const tab = TABS.some(([code]) => code === props.tab) ? props.tab : "";
+  const printing = usePrintMenu({ title: TABS.find(([code]) => code === tab)?.[1] ?? "", scope: detail?.company.name });
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   const c = detail.company;
-  const tab = TABS.some(([code]) => code === props.tab) ? props.tab : "";
   const sub = [
     ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1],
     c.state,
@@ -598,6 +606,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         sub={sub}
         actions={
           <>
+            {(tab === "branches" || tab === "certificates") && printing.buttons}
             {canEdit && !editing && (
               <button
                 onClick={() => {
@@ -624,6 +633,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
           ))}
         </nav>
       </PageHeader>
+      {printing.panel}
       <WithActivity activity={<Activity company={c.id} filter stamp={JSON.stringify(detail)} />}>
         {tab === "" &&
           (editing ? (
@@ -1200,6 +1210,7 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
       .catch((err: Error) => setError(err.message));
   }, [id]);
   useEffect(reload, [reload]);
+  const printing = usePrintMenu({ title: "Ledger groups", scope: detail?.company.name });
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
     <section className="page">
@@ -1210,11 +1221,15 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
           { label: detail.company.name, href: `#/companies/${id}` },
         ]}
         actions={
-          <a className="button" href={`#/companies/${id}/ledgers`}>
-            Ledgers
-          </a>
+          <>
+            {printing.buttons}
+            <a className="button" href={`#/companies/${id}/ledgers`}>
+              Ledgers
+            </a>
+          </>
         }
       />
+      {printing.panel}
       <WithActivity activity={<Activity company={id} type="ledger_group" stamp={JSON.stringify(detail)} />}>
         <LedgerGroups
           company={detail.company}
@@ -1293,7 +1308,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
     const out = [
       <tr key={g.id} id={`group-${g.id}`} className={`${top ? "group-top" : ""}${marked === g.id ? " marked" : ""}`}>
         <td>
-          <span className="group-name" style={{ paddingLeft: depth * 22 }}>
+          <span className="group-name" style={{ paddingLeft: depth * 22 }} data-indent={depth}>
             {kids.length > 0 ? (
               <button
                 className="fold"

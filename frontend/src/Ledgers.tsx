@@ -229,9 +229,6 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
         sub={`${ledgers.length} ${ledgers.length === 1 ? "ledger" : "ledgers"}${query || groupFilter ? " match" : ""}`}
         actions={
           <>
-            <a className="button" href={`#/companies/${props.companyId}/groups`}>
-              Ledger groups
-            </a>
             {io.buttons}
             {canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
           </>

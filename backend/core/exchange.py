@@ -43,6 +43,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.recorder import LABELS
+from core import printout
 from core.api import EDIT, VIEW, Signed, _check, _company
 from tenancy.context import require_tenant, tenant_atomic
 
@@ -128,6 +129,9 @@ class Master:
     hints: dict[str, str] = field(default_factory=dict)
     # The field that child sheets use to say which record a row belongs to.
     link: str = "name"
+    # Columns of the printed report and PDF (field paths), when not all of
+    # them; child sheets always print in full.
+    report: tuple[str, ...] = ()
 
     def _columns(self, fields, prefix: str = "", rel: str = "", group: str = "") -> list[Column]:
         """Columns for these serializer fields. `prefix` is the path from the
@@ -901,8 +905,29 @@ def _scope_name(ctx: Context) -> str:
     return ctx.company.name if ctx.company else require_tenant().name
 
 
+def _printed(master: Master, tables: list[Table]) -> list[dict]:
+    """The tables as a printed report: the master's report columns (or all),
+    without the ID and without columns that are empty in every row."""
+    out = []
+    for n, t in enumerate(tables):
+        headers, rows = (t.headers[1:], [r[1:] for r in t.rows]) if n == 0 else (t.headers, t.rows)
+        if n == 0 and master.report:
+            wanted = {c.label for c in t.sheet.columns if c.field in master.report}
+            keep = [i for i, h in enumerate(headers) if h in wanted]
+            headers, rows = [headers[i] for i in keep], [[r[i] for i in keep] for r in rows]
+        if n > 0 and not rows:
+            continue  # no parts, bills or contacts at all: nothing to print
+        if rows:
+            keep = [i for i in range(len(headers)) if any(r[i] for r in rows)]
+            headers, rows = [headers[i] for i in keep], [[r[i] for i in keep] for r in rows]
+        right = [printout.numeric([r[i] for r in rows]) for i in range(len(headers))]
+        rows = [[printout.indian(v) if right[i] else v for i, v in enumerate(r)] for r in rows]
+        out.append({"title": t.sheet.title, "columns": headers, "rows": rows, "right": right})
+    return out
+
+
 class ExportView(APIView):
-    """GET ?as=xlsx|csv|json [&blank=1] [&company=ID]."""
+    """GET ?as=xlsx|csv|json|pdf [&blank=1] [&company=ID]."""
 
     permission_classes = [Signed]
 
@@ -918,17 +943,17 @@ class ExportView(APIView):
                 {
                     "title": master.label,
                     "scope": _scope_name(ctx),
-                    "sheets": [
-                        {
-                            "title": t.sheet.title,
-                            "columns": t.headers[1:] if i == 0 else t.headers,
-                            "rows": [r[1:] for r in t.rows] if i == 0 else t.rows,
-                        }
-                        for i, t in enumerate(tables)
-                    ],
+                    "sheets": _printed(master, tables),
                 }
             )
         stem = f"{key}-{'template' if blank else datetime.date.today().isoformat()}"
+        if fmt == "pdf":
+            return printout.pdf_response(
+                master.label,
+                _scope_name(ctx),
+                _printed(master, tables),
+                stem,
+            )
         if fmt == "csv":
             body, mime, ext = _csv(tables[0]), "text/csv; charset=utf-8", "csv"
         else:

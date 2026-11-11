@@ -82,3 +82,25 @@ export async function upload<T>(path: string, form: FormData): Promise<T> {
   if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data));
   return data as T;
 }
+
+/** POST JSON and save the file the server sends back (a PDF, say). */
+export async function download(path: string, body: unknown, filename: string): Promise<void> {
+  const res = await fetch(`/api/${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data: unknown = await res.json().catch(() => ({}));
+    throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data));
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
