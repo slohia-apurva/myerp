@@ -11,6 +11,7 @@ from core import (
     hsn,
     item_groups,
     items,
+    ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
     places,
     units,
 )

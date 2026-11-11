@@ -5,6 +5,7 @@ import { ChangeLog } from "./Audit";
 import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, PartyTabBar, type Party, type PartyTab } from "./Parties";
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
+import { useExchange } from "./Exchange";
 import { ActiveButton } from "./RowActions";
 
 type Ledger = {
@@ -109,6 +110,13 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
     const timer = window.setTimeout(reload, 200);
     return () => window.clearTimeout(timer);
   }, [reload]);
+  const io = useExchange({
+    master: "ledgers",
+    noun: "ledgers",
+    session: props.session,
+    company: props.companyId,
+    onImported: reload,
+  });
 
   // The list follows the group tree: each group with ledgers (directly or below it)
   // gets a heading row, its own ledgers come next, then its sub-groups.
@@ -197,11 +205,13 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
             <a className="button" href={`#/companies/${props.companyId}/groups`}>
               Ledger groups
             </a>
+            {io.buttons}
             {canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
           </>
         }
       />
       {error && <p className="error">{error}</p>}
+      {io.panel}
       <div className={`split${editing ? " editing" : ""}`}>
         <div className="split-list">
           <div className="row filters">

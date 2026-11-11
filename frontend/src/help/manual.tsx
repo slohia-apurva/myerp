@@ -544,7 +544,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Masters screens have three buttons at the top: "Import", "Export" and "Print". They work the same way on
-          every master. So far they are on "Units", "Credit terms" and "Items"; the other masters get them one by one. The columns are always the
+          every master. So far they are on "Units", "Credit terms", "Items" and "Ledgers"; the other masters get them one by one. The columns are always the
           fields of that master's form, so when a field is added to the form it appears in the file too.
         </p>
         <h3>Export</h3>
@@ -565,6 +565,19 @@ export const MANUAL: Chapter[] = [
           On import, a record listed on the first sheet gets exactly the rows listed for it on these sheets, so add,
           change or delete rows there as you would on the form. To leave them as they are, delete the whole sheet from
           the file. CSV files hold only the first sheet, so they never change these rows.
+        </p>
+        <h3>Ledgers</h3>
+        <p>
+          Ledgers belong to one company, so "Export", "Import" and "Print" on the Ledgers screen work on the company you
+          are working in (picked at the top right). "Under group" is the group's name in that company. Customers and
+          suppliers are ledgers too: their details ("GST type", "GSTIN", "State", "Credit terms", "Salesman or
+          purchaser" and so on) are columns on the same sheet, left empty for other ledgers such as cash or expenses.
+          Their "Opening bills", "Addresses" and "Contacts" have sheets of their own, each row starting with the ledger's
+          name. Opening balances must add up with their bills, as on the form.
+        </p>
+        <p>
+          A customer or supplier that another company of the group already has cannot be added by import: open "Add
+          ledger" and pick it under "Existing customer or supplier", so both companies share one record.
         </p>
         <h3>Print</h3>
         <p>
@@ -796,6 +809,10 @@ export const MANUAL: Chapter[] = [
           Ledgers are never deleted, so past entries always have their account. When a ledger is no longer needed, click
           "Edit" and then "Disable"; it then cannot be used in new entries. "Enable" brings it back.
         </Note>
+        <p>
+          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          export and print".
+        </p>
       </>
     ),
   },
