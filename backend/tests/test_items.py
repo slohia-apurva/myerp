@@ -217,6 +217,16 @@ def test_sales_and_purchase_details(accountant, unit):
     assert made.status_code == 201, made.json()
     item = made.json()
     assert item["sales_description"] == "Organic jaggery powder, 500 g pouch"
+    # names default to the item name: kept blank so they follow a rename
+    assert item["sales_name"] == "" and item["purchase_name"] == ""
+    named = call(
+        accountant,
+        "patch",
+        f"items/{item['id']}/",
+        {"sales_name": "  Organic  Jaggery Powder ", "purchase_name": "jaggery powder 500 g"},
+    )
+    assert named.json()["sales_name"] == "Organic Jaggery Powder"
+    assert named.json()["purchase_name"] == ""
     assert item["sales_unit_name"] == "Carton"
     assert item["purchase_unit_name"] == "Pallet"
 

@@ -538,10 +538,13 @@ class Item(models.Model):
     item_type = models.CharField(max_length=10, choices=TYPES, default=GOODS)
     stock_unit = models.ForeignKey("Unit", on_delete=models.PROTECT, related_name="stock_items")
     hsn = models.CharField(max_length=8, blank=True)
+    # Blank sales/purchase names mean "same as the item name".
+    sales_name = models.CharField(max_length=120, blank=True)
     sales_description = models.CharField(max_length=500, blank=True)
     sales_unit = models.ForeignKey(
         "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    purchase_name = models.CharField(max_length=120, blank=True)
     purchase_description = models.CharField(max_length=500, blank=True)
     purchase_unit = models.ForeignKey(
         "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"

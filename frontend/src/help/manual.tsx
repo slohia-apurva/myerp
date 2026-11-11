@@ -314,9 +314,10 @@ export const MANUAL: Chapter[] = [
             (the unit stock is counted in, such as Packet) and the "HSN" code if you know it.
           </li>
           <li>
-            On the "Sales" tab, write the "Sales description" customers should see on quotations, orders and bills, and
+            On the "Sales" tab, the "Sales item name" starts as the item's name; change it if customers know the item by
+            another name (left the same, it follows the item name if you rename the item). Write the "Sales description" customers should see on quotations, orders and bills, and
             pick the "Default sales unit" (for example Carton). On the "Purchase" tab do the same for suppliers with the
-            "Purchase description" and the "Default purchase unit". The default units are picked from the item's own
+            "Purchase item name", the "Purchase description" and the "Default purchase unit". The default units are picked from the item's own
             units, so add a unit on the "Units of measure" tab first. Left blank, the stock unit is used.
           </li>
           <li>

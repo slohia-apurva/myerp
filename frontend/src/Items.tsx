@@ -33,9 +33,11 @@ export type Item = {
   stock_unit: number;
   stock_unit_name: string;
   hsn: string;
+  sales_name: string;
   sales_description: string;
   sales_unit: number | null;
   sales_unit_name: string | null;
+  purchase_name: string;
   purchase_description: string;
   purchase_unit: number | null;
   purchase_unit_name: string | null;
@@ -250,15 +252,25 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
           ]}
         />
       </Section>
-      {(i.sales_description || i.sales_unit_name) && (
+      {(i.sales_name || i.sales_description || i.sales_unit_name) && (
         <Section title="Sales">
-          <Facts rows={[["Default sales unit", i.sales_unit_name ?? ""]]} />
+          <Facts
+            rows={[
+              ["Sales item name", i.sales_name || i.name],
+              ["Default sales unit", i.sales_unit_name ?? ""],
+            ]}
+          />
           {i.sales_description && <p className="pre">{i.sales_description}</p>}
         </Section>
       )}
-      {(i.purchase_description || i.purchase_unit_name) && (
+      {(i.purchase_name || i.purchase_description || i.purchase_unit_name) && (
         <Section title="Purchase">
-          <Facts rows={[["Default purchase unit", i.purchase_unit_name ?? ""]]} />
+          <Facts
+            rows={[
+              ["Purchase item name", i.purchase_name || i.name],
+              ["Default purchase unit", i.purchase_unit_name ?? ""],
+            ]}
+          />
           {i.purchase_description && <p className="pre">{i.purchase_description}</p>}
         </Section>
       )}
@@ -418,6 +430,14 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
   const [notes, setNotes] = useState(from?.notes ?? "");
+  // Sales and purchase names start as the item name and follow it until edited.
+  const [salesName, setSalesName] = useState(from?.sales_name || name);
+  const [buyName, setBuyName] = useState(from?.purchase_name || name);
+  const changeName = (v: string) => {
+    if (salesName === name) setSalesName(v);
+    if (buyName === name) setBuyName(v);
+    setName(v);
+  };
   const [salesText, setSalesText] = useState(from?.sales_description ?? "");
   const [salesUnit, setSalesUnit] = useState(from?.sales_unit == null ? "" : String(from.sales_unit));
   const [buyText, setBuyText] = useState(from?.purchase_description ?? "");
@@ -460,8 +480,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       batch_tracked: batches,
       qc_required: qc,
       notes,
+      sales_name: salesName,
       sales_description: salesText,
       sales_unit: salesUnit ? Number(salesUnit) : null,
+      purchase_name: buyName,
       purchase_description: buyText,
       purchase_unit: buyUnit ? Number(buyUnit) : null,
       gst_rates: rates.filter((r) => r.valid_from || r.rate).map((r) => ({ valid_from: r.valid_from, rate: r.rate.trim() })),
@@ -521,7 +543,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         <Section title="Item">
           <label>
             Name
-            <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            <input required autoFocus value={name} onChange={(e) => changeName(e.target.value)} />
           </label>
           <div className="row">
             <label>
@@ -562,6 +584,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         {tab === "sales" && (
           <Section title="Sales">
             <label>
+              Sales item name
+              <input maxLength={120} value={salesName} placeholder={name} onChange={(e) => setSalesName(e.target.value)} />
+            </label>
+            <label>
               Sales description
               <textarea rows={3} maxLength={500} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
             </label>
@@ -576,6 +602,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         )}
         {tab === "purchase" && (
           <Section title="Purchase">
+            <label>
+              Purchase item name
+              <input maxLength={120} value={buyName} placeholder={name} onChange={(e) => setBuyName(e.target.value)} />
+            </label>
             <label>
               Purchase description
               <textarea rows={3} maxLength={500} value={buyText} onChange={(e) => setBuyText(e.target.value)} />

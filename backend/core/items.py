@@ -7,6 +7,7 @@ Rules kept here:
 - every other row says how many of another row's unit it contains, and its
   factor (stock units in one) is worked out from the chain, never typed;
 - volume is worked out from the size; a missing size is a warning only;
+- the sales and purchase names are blank when they are the item name;
 - the default sales and purchase units must be among the item's units;
 - GST rates are dated rows: one per "from" date, a new law means a new row
   (`gst_rate_on` gives the rate for a day).
@@ -111,9 +112,11 @@ class ItemSerializer(serializers.ModelSerializer):
             "stock_unit",
             "stock_unit_name",
             "hsn",
+            "sales_name",
             "sales_description",
             "sales_unit",
             "sales_unit_name",
+            "purchase_name",
             "purchase_description",
             "purchase_unit",
             "purchase_unit_name",
@@ -218,8 +221,10 @@ def _save_item(item: Item, data: dict) -> None:
         "item_type",
         "stock_unit",
         "hsn",
+        "sales_name",
         "sales_description",
         "sales_unit",
+        "purchase_name",
         "purchase_description",
         "purchase_unit",
         "shelf_life_days",
@@ -265,6 +270,10 @@ def _save_item(item: Item, data: dict) -> None:
         _resolve_chain(item.stock_unit, existing)
     for field in ("sales_description", "purchase_description"):
         setattr(item, field, getattr(item, field).strip())
+    for field in ("sales_name", "purchase_name"):
+        value = " ".join(getattr(item, field).split())
+        # the same as the item name is kept blank, so it follows a rename
+        setattr(item, field, "" if value.lower() == item.name.lower() else value)
     if rows is not None:
         unit_ids = {r["unit"].pk for r in rows}
     elif item.pk:
