@@ -1,3 +1,4 @@
+import { CountryPicker, PinInput } from "./Pin";
 import { Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { useEffect, useState, type ReactNode } from "react";
@@ -233,7 +234,7 @@ export function PartyFields({
         {overseas ? (
           <label>
             Country
-            <input required value={p.country} onChange={(e) => set({ country: e.target.value })} />
+            <CountryPicker required value={p.country} onChange={(country) => set({ country })} />
           </label>
         ) : (
           <label>
@@ -305,7 +306,7 @@ export function PartyFields({
                 <label>
                   {overseas ? "Country" : "State"}
                   {overseas ? (
-                    <input value={a.country} onChange={(e) => setAddress(i, { country: e.target.value })} />
+                    <CountryPicker value={a.country} onChange={(country) => setAddress(i, { country })} />
                   ) : (
                     <StateSelect
                       states={states}
@@ -327,7 +328,13 @@ export function PartyFields({
               <div className="row">
                 <label>
                   PIN code
-                  <input value={a.pincode} onChange={(e) => setAddress(i, { pincode: e.target.value })} />
+                  <PinInput
+                    value={a.pincode}
+                    onChange={(pincode) => setAddress(i, { pincode })}
+                    onFound={(f) => {
+                      if (!overseas && !a.state_code && f.state_code) setAddress(i, { state_code: f.state_code });
+                    }}
+                  />
                 </label>
                 {registered && (
                   <label>

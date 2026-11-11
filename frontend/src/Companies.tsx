@@ -1,3 +1,4 @@
+import { PinInput } from "./Pin";
 import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
@@ -25,7 +26,7 @@ function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; 
       <div className="row">
         <label>
           PIN code
-          <input value={v.pincode} maxLength={6} inputMode="numeric" onChange={set("pincode")} />
+          <PinInput value={v.pincode} maxLength={6} onChange={(pincode) => props.onChange({ ...v, pincode })} />
         </label>
         <label>
           Contact person

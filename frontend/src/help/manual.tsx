@@ -365,7 +365,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Some lists are the same for everyone, so MyERP keeps them once in a central place instead of in each
-          customer's books: today the HSN codes, and later states, countries and PIN codes. Only platform admins, whose
+          customer's books: the HSN codes, states, countries, PIN codes and which courier delivers to which PIN code. Only platform admins, whose
           sign-in emails MyERP has been told about, see "Central" in the top menu. A customer's Owner does not.
         </p>
         <p>
@@ -605,6 +605,12 @@ export const MANUAL: Chapter[] = [
           name, and tick which one is the default billing address and which the default shipping address; documents pick
           these first. If the party is registered in another state too, enter that GSTIN on that address, then click "Fetch details" beside it:
           the address's name, state, address and PIN code are filled in from the GST portal, and you can change any of them.
+        </p>
+        <p>
+          Type the six digits of the "PIN code" and MyERP looks it up in the central list: the city and state appear
+          under the box, the "State" is filled in if it was empty, and the couriers that deliver to that PIN are shown
+          (with "out of delivery area" where it applies). The same hint shows on the company and branch forms. For an
+          overseas party, the "Country" box is a type-to-search list of countries.
         </p>
         <p>
           On the "Contacts" tab, click "+ Add contact" for each person you deal with: the owner, the purchase manager,
