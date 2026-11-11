@@ -1575,3 +1575,6 @@ form.card fieldset:not(.plain) > legend {
 .panel .address-card strong {
   font-size: 14px;
 }
+ul.address-list.cards-2 > li.address-card > div:first-child .pill {
+  margin-left: 0;
+}
