@@ -520,8 +520,6 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
               <li key={a.label} className="address-card">
                 <div>
                   <strong>{a.label}</strong>
-                  {a.is_billing && <span className="pill on">Billing</span>}
-                  {a.is_shipping && <span className="pill on">Shipping</span>}
                 </div>
                 <div className="pre">{a.address}</div>
                 <div className="small">
@@ -529,6 +527,12 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
                     .filter(Boolean)
                     .join(" · ")}
                 </div>
+                {(a.is_billing || a.is_shipping) && (
+                  <div>
+                    {a.is_billing && <span className="pill on">Billing</span>}
+                    {a.is_shipping && <span className="pill on">Shipping</span>}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
