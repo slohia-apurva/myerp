@@ -181,6 +181,8 @@ export function PartyFields({
         every company. The {supplier ? "purchaser" : "salesman"}, credit limit, balance and bills belong to this
         company.
       </p>
+      <div className="panel-card">
+      <h4>GST</h4>
       {companies.length > 1 && (
         <div className="company-ticks">
           <span className="small">Companies that deal with this party</span>
@@ -239,6 +241,9 @@ export function PartyFields({
           </label>
         )}
       </div>
+      </div>
+      <div className="panel-card">
+      <h4>Credit</h4>
       <div className="row">
         <label>
           Credit limit (₹, blank = no limit)
@@ -270,6 +275,7 @@ export function PartyFields({
             onChange={(v) => set({ salesman: v ? Number(v) : null })}
           />
         </label>
+      </div>
       </div>
       </div>
 
