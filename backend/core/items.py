@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import exchange
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import USED_FOR, Brand, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
@@ -223,12 +223,14 @@ def _save_item(item: Item, data: dict) -> Item:
     rates = data.pop("gst_rates", None)
     refuse_key_changes("item", item, data)
     if "name" in data:
-        data["name"] = data["name"].strip()
-        clash = Item.objects.filter(name__iexact=data["name"])
-        if item.pk:
-            clash = clash.exclude(pk=item.pk)
-        if clash.exists():
-            raise ValidationError({"name": ["There is already an item with this name."]})
+        data["name"] = duplicates.tidy(data["name"])
+        duplicates.check_name(
+            Item.objects.all(),
+            data["name"],
+            exclude=item.pk,
+            kind="item",
+            message='There is already an item named "{name}".',
+        )
     brand = data.get("brand")
     if brand is not None and not brand.is_active and brand.pk != item.brand_id:
         raise ValidationError({"brand": [f"{brand.name} is disabled."]})
@@ -327,10 +329,14 @@ def _save_item(item: Item, data: dict) -> Item:
         for r in rows:
             barcode = (r.get("barcode") or "").strip()
             if barcode:
-                clash = ItemUnit.objects.filter(barcode=barcode).exclude(item=item)
-                if clash.exists():
-                    raise ValidationError(
-                        {"units": [f"The barcode {barcode} is already used by another item."]}
+                clash = ItemUnit.objects.filter(barcode=barcode).exclude(item=item).first()
+                if clash is not None:
+                    duplicates.refuse(
+                        "units",
+                        f'The barcode {barcode} is already on the item "{clash.item.name}".',
+                        clash.item,
+                        "item",
+                        name=clash.item.name,
                     )
         item.units.all().delete()
         for r in rows:

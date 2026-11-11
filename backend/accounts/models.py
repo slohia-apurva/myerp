@@ -8,6 +8,7 @@ passwords (see docs/decisions/0007-login-with-google.md).
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from accounts import permissions
@@ -18,7 +19,7 @@ class Role(models.Model):
     """A named set of permissions, e.g. Accountant. Stored per tenant."""
 
     code = models.SlugField(max_length=50, unique=True)
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     description = models.CharField(max_length=300, blank=True)
     permissions = models.JSONField(default=list, blank=True)
     # Came with MyERP (can be edited, not deleted); Owner cannot be edited.
@@ -26,6 +27,7 @@ class Role(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [models.UniqueConstraint(Lower("name"), name="role_name_unique")]
 
     def __str__(self) -> str:
         return self.name

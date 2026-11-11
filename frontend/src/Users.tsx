@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
@@ -86,6 +87,14 @@ export function UsersPage({ session }: { session: SignedIn }) {
     setEditing(value);
   };
   const roleName = (id: number) => roles.find((r) => r.id === id)?.name ?? "?";
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && users.find((u) => u.id === openId);
+    if (found) {
+      edit(found);
+      opened();
+    }
+  }, [openId, users, opened]);
 
   return (
     <section className="page">
@@ -158,7 +167,7 @@ function UserForm(props: {
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [roleIds, setRoleIds] = useState<number[]>(from?.roles ?? []);
   const [companyIds, setCompanyIds] = useState<number[]>(from?.companies ?? []);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
 
   const submit = async (event: FormEvent) => {
@@ -171,7 +180,7 @@ function UserForm(props: {
       else await api("v1/users/", { ...body, email });
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     } finally {
       setBusy(false);
     }
@@ -209,7 +218,7 @@ function UserForm(props: {
         </fieldset>
       )}
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         <button disabled={busy || (!user && !email)}>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
@@ -238,6 +247,14 @@ export function RolesPage({ session }: { session: SignedIn }) {
     setEditing(value);
   };
   const owner = session.user.is_owner;
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && roles.find((r) => r.id === openId);
+    if (found) {
+      edit(found);
+      opened();
+    }
+  }, [openId, roles, opened]);
 
   return (
     <section className="page">
@@ -312,7 +329,7 @@ function RoleForm(props: {
   const [name, setName] = useState(role?.name ?? (props.copyOf ? `${props.copyOf.name} (copy)` : ""));
   const [description, setDescription] = useState(from?.description ?? "");
   const [perms, setPerms] = useState<string[]>(from?.permissions ?? []);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const toggle = (code: string, on: boolean) => setPerms(on ? [...perms, code] : perms.filter((p) => p !== code));
 
@@ -325,7 +342,7 @@ function RoleForm(props: {
       else await api("v1/roles/", body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
   const remove = async () => {
@@ -334,7 +351,7 @@ function RoleForm(props: {
       await api(`v1/roles/${role.id}/`, undefined, "DELETE");
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -366,7 +383,7 @@ function RoleForm(props: {
         </fieldset>
       ))}
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>

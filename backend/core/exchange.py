@@ -601,6 +601,8 @@ def _messages(detail, labels: dict[str, str], prefix: str = "") -> list[str]:
     if isinstance(detail, dict):
         out = []
         for key, value in detail.items():
+            if key == "existing":
+                continue  # the link to a duplicate's record is for the screen
             if key in ("non_field_errors", "__all__"):
                 out += _messages(value, labels, prefix)
             elif isinstance(key, int):
@@ -828,6 +830,8 @@ def _report(detail, main: Sheet, sheets: list[Sheet], n: int, lines, labels, pro
             own.extend(_messages(detail, {}))
             return
         for key, value in detail.items():
+            if key == "existing":
+                continue  # the link to a duplicate's record is for the screen
             if key in ("non_field_errors", "__all__", "detail"):
                 own.extend(_messages(value, {}))
                 continue

@@ -1,4 +1,5 @@
 import { PinInput } from "./Pin";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
@@ -173,7 +174,7 @@ function ModulesSection(props: { company: Company; isOwner: boolean; reload: () 
   const all = useModules();
   const [editing, setEditing] = useState(false);
   const [chosen, setChosen] = useState(props.company.modules);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const save = async () => {
     setError("");
     try {
@@ -181,7 +182,7 @@ function ModulesSection(props: { company: Company; isOwner: boolean; reload: () 
       setEditing(false);
       props.reload();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
   return (
@@ -202,7 +203,7 @@ function ModulesSection(props: { company: Company; isOwner: boolean; reload: () 
         {editing ? (
           <>
             <ModulePicker modules={all} value={chosen} onChange={setChosen} />
-            {error && <p className="error">{error}</p>}
+            <ErrorNote error={error} />
             <div className="buttons">
               <button onClick={save}>Save</button>
               <button
@@ -423,7 +424,7 @@ function CompanyForm(props: {
   const [multiCurrency, setMultiCurrency] = useState(from?.multi_currency ?? false);
   const allModules = useModules();
   const [modules, setModules] = useState<string[] | null>(props.copyOf?.modules ?? null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   // A GSTIN starts with the state code and contains the PAN.
   const onGstin = (value: string) => {
@@ -455,7 +456,7 @@ function CompanyForm(props: {
     try {
       props.onDone(c ? await api<Company>(`v1/companies/${c.id}/`, body, "PATCH") : await api<Company>("v1/companies/", body));
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -547,7 +548,7 @@ function CompanyForm(props: {
           <ModulePicker modules={allModules} value={modules ?? allModules.map((m) => m.code)} onChange={setModules} />
         </fieldset>
       )}
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
@@ -772,6 +773,15 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
   const [editing, setEditing] = useState<Branch | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<Branch | null>(null);
   const stateName = (code: string) => props.states.find((s) => s.code === code)?.name ?? code;
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && props.branches.find((b) => b.id === openId);
+    if (found) {
+      setCopyOf(null);
+      setEditing(found);
+      opened();
+    }
+  }, [openId, props.branches, opened]);
   return (
     <>
       <div className="page-head">
@@ -876,7 +886,7 @@ function BranchForm(props: {
     default_ship_to: b?.default_ship_to ?? false,
     default_ship_from: b?.default_ship_from ?? false,
   });
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -889,7 +899,7 @@ function BranchForm(props: {
       else await api(`v1/companies/${props.company.id}/branches/`, body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -932,7 +942,7 @@ function BranchForm(props: {
         ))}
       </fieldset>
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>
@@ -1072,7 +1082,7 @@ function CertificateForm(props: {
   const [validFrom, setValidFrom] = useState(x?.valid_from ?? "");
   const [validUntil, setValidUntil] = useState(x?.valid_until ?? "");
   const [notes, setNotes] = useState(from?.notes ?? "");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -1092,7 +1102,7 @@ function CertificateForm(props: {
       else await api(`v1/companies/${props.company.id}/certificates/`, body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -1153,7 +1163,7 @@ function CertificateForm(props: {
       <p className="small">A renewed certificate is added as a new one, so the old one stays on record.</p>
       </Section>
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>
@@ -1209,6 +1219,16 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
   }, [props.groups]);
 
   const [folded, setFolded] = useState<Set<number>>(new Set());
+  const [openId, opened] = useOpenParam();
+  const [marked, setMarked] = useState<number | null>(null);
+  useEffect(() => {
+    if (!openId || !props.groups.some((g) => g.id === openId)) return;
+    // Unfold the tree and bring the group asked for into view.
+    setFolded(new Set());
+    setMarked(openId);
+    opened();
+    window.setTimeout(() => document.getElementById(`group-${openId}`)?.scrollIntoView({ block: "center" }), 0);
+  }, [openId, props.groups, opened]);
   const [level, setLevel] = useState<number | null>(Infinity);
   const tops = children.get(null) ?? [];
   const depthOf = useMemo(() => {
@@ -1249,7 +1269,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
     const kids = children.get(g.id) ?? [];
     const top = depth === 0;
     const out = [
-      <tr key={g.id} className={top ? "group-top" : ""}>
+      <tr key={g.id} id={`group-${g.id}`} className={`${top ? "group-top" : ""}${marked === g.id ? " marked" : ""}`}>
         <td>
           <span className="group-name" style={{ paddingLeft: depth * 22 }}>
             {kids.length > 0 ? (
@@ -1362,7 +1382,7 @@ function GroupForm(props: {
   const g = props.group;
   const [name, setName] = useState(g?.name ?? props.initialName ?? "");
   const [parent, setParent] = useState<number | null>(props.parent);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -1372,7 +1392,7 @@ function GroupForm(props: {
       else await api(`v1/companies/${props.company.id}/ledger-groups/`, { name, parent });
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
   const remove = async () => {
@@ -1381,7 +1401,7 @@ function GroupForm(props: {
       await api(`v1/ledger-groups/${g.id}/`, undefined, "DELETE");
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -1406,7 +1426,7 @@ function GroupForm(props: {
         )}
       </div>
       </Section>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>

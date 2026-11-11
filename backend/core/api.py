@@ -14,7 +14,6 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
-from django.db.models.functions import Lower
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission
@@ -22,7 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import india
+from core import duplicates, india
 from core import modules as company_modules
 from core.companies import create_company, visible_companies
 from core.locks import refuse_key_changes
@@ -441,15 +440,37 @@ class CompanyListView(APIView):
         serializer = CompanySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        if Company.objects.filter(name__iexact=data["name"].strip()).exists():
-            raise ValidationError({"name": ["There is already a company with this name."]})
-        if data.get("abbr") and Company.objects.filter(abbr__iexact=data["abbr"]).exists():
-            raise ValidationError({"abbr": ["Another company uses this short code."]})
+        data["name"] = duplicates.tidy(data["name"])
+        _unique_company(data)
         try:
-            company = create_company(**{**data, "name": data["name"].strip()})
+            company = create_company(**data)
         except DjangoValidationError as exc:
             raise _django_errors(exc) from exc
         return Response(CompanySerializer(company).data, status=status.HTTP_201_CREATED)
+
+
+def _unique_company(data: dict, exclude: int | None = None) -> None:
+    """No two companies with the same name, short code, GSTIN or PAN."""
+    if "name" in data:
+        duplicates.check_name(
+            Company.objects.all(),
+            data["name"],
+            exclude=exclude,
+            kind="company",
+            message='There is already a company named "{name}".',
+        )
+    others = Company.objects.exclude(pk=exclude)
+    for field, label in (("abbr", "short code"), ("gstin", "GSTIN"), ("pan", "PAN")):
+        value = (data.get(field) or "").strip().upper()
+        clash = others.filter(**{f"{field}__iexact": value}).first() if value else None
+        if clash is not None:
+            duplicates.refuse(
+                field,
+                f'The company "{clash.name}" already has this {label}.',
+                clash,
+                "company",
+                company=clash.pk,
+            )
 
 
 class CompanyDetailView(APIView):
@@ -485,11 +506,9 @@ class CompanyDetailView(APIView):
         data = serializer.validated_data
         if "abbr" in data and data["abbr"].upper() != company.abbr:
             raise ValidationError({"abbr": ["The short code cannot be changed once set."]})
-        if (
-            "name" in data
-            and Company.objects.filter(name__iexact=data["name"].strip()).exclude(pk=pk).exists()
-        ):
-            raise ValidationError({"name": ["There is already a company with this name."]})
+        if "name" in data:
+            data["name"] = duplicates.tidy(data["name"])
+        _unique_company(data, exclude=pk)
         old_pan = company.pan
         # Fiscal year start can change only until vouchers exist (a later piece
         # will refuse it then).
@@ -524,13 +543,22 @@ class BranchListView(APIView):
         company = _company(request, pk)
         serializer = BranchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        name = serializer.validated_data["name"].strip()
-        if company.branches.filter(name__iexact=name).exists():
-            raise ValidationError({"name": ["This company already has a branch by that name."]})
+        name = duplicates.tidy(serializer.validated_data["name"])
+        _unique_branch_name(company, name)
         branch = Branch(company=company)
         _move_defaults(branch, serializer.validated_data)
         _save(branch, {**serializer.validated_data, "name": name}, BranchSerializer.Meta.fields)
         return Response(BranchSerializer(branch).data, status=status.HTTP_201_CREATED)
+
+
+def _unique_branch_name(company, name: str, exclude: int | None = None) -> None:
+    duplicates.check_name(
+        company.branches.all(),
+        name,
+        exclude=exclude,
+        kind="branch",
+        message='This company already has a branch named "{name}".',
+    )
 
 
 CERTIFICATE_FIELDS = [
@@ -600,10 +628,8 @@ class BranchDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         if "name" in data:
-            data["name"] = data["name"].strip()
-            others = Branch.objects.filter(company_id=branch.company_id).exclude(pk=pk)
-            if others.filter(name__iexact=data["name"]).exists():
-                raise ValidationError({"name": ["This company already has a branch by that name."]})
+            data["name"] = duplicates.tidy(data["name"])
+            _unique_branch_name(branch.company, data["name"], exclude=pk)
         refuse_key_changes("branch", branch, data)
         _move_defaults(branch, data)
         fields = ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active", *DEFAULT_FLAGS]
@@ -620,7 +646,7 @@ class LedgerGroupListView(APIView):
         company = _company(request, pk)
         serializer = LedgerGroupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        name = serializer.validated_data["name"].strip()
+        name = duplicates.tidy(serializer.validated_data["name"])
         parent = serializer.validated_data.get("parent")
         if parent is None or parent.company_id != company.pk:
             raise ValidationError({"parent": ["Choose the group this one sits under."]})
@@ -656,7 +682,7 @@ class LedgerGroupDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         if "name" in data:
-            group.name = data["name"].strip()
+            group.name = duplicates.tidy(data["name"])
             _unique_group_name(group.company, group.name, exclude=group.pk)
         if "parent" in data:
             refuse_key_changes("ledger_group", group, {"parent": data["parent"]})
@@ -689,25 +715,55 @@ class LedgerGroupDetailView(APIView):
 
 
 def _unique_group_name(company, name: str, exclude: int | None = None) -> None:
-    clash = LedgerGroup.objects.annotate(lname=Lower("name")).filter(
-        company=company, lname=name.lower()
+    duplicates.check_name(
+        company.ledger_groups.all(),
+        name,
+        exclude=exclude,
+        kind="ledger_group",
+        message='This company already has a group named "{name}".',
     )
-    if exclude is not None:
-        clash = clash.exclude(pk=exclude)
-    if clash.exists():
-        raise ValidationError({"name": ["This company already has a group by that name."]})
-    if Ledger.objects.filter(company=company, name__iexact=name).exists():
-        raise ValidationError({"name": ["This company already has a ledger by that name."]})
+    duplicates.check_name(
+        company.ledgers.all(),
+        name,
+        kind="ledger",
+        message='This company already has a ledger named "{name}".',
+    )
 
 
 def _unique_ledger_name(company, name: str, exclude: int | None = None) -> None:
-    clash = Ledger.objects.filter(company=company, name__iexact=name)
-    if exclude is not None:
-        clash = clash.exclude(pk=exclude)
-    if clash.exists():
-        raise ValidationError({"name": ["This company already has a ledger by that name."]})
-    if LedgerGroup.objects.filter(company=company, name__iexact=name).exists():
-        raise ValidationError({"name": ["This company already has a group by that name."]})
+    """Ledgers and groups share one list of names in a company."""
+    duplicates.check_name(
+        company.ledgers.all(),
+        name,
+        exclude=exclude,
+        kind="ledger",
+        message='This company already has a ledger named "{name}".',
+    )
+    duplicates.check_name(
+        company.ledger_groups.all(),
+        name,
+        kind="ledger_group",
+        message='This company already has a group named "{name}".',
+    )
+
+
+def _unique_account_number(ledger: Ledger, number: str) -> None:
+    """One bank ledger per bank account in a company."""
+    number = number.strip()
+    if not number:
+        return
+    clash = (
+        Ledger.objects.filter(company_id=ledger.company_id, account_number__iexact=number)
+        .exclude(pk=ledger.pk)
+        .first()
+    )
+    if clash is not None:
+        duplicates.refuse(
+            "account_number",
+            f'The ledger "{clash.name}" already has this bank account number.',
+            clash,
+            "ledger",
+        )
 
 
 def _ledger_data(ledger: Ledger, data: dict) -> dict:
@@ -718,7 +774,9 @@ def _ledger_data(ledger: Ledger, data: dict) -> dict:
     if group is not None and not group.is_bank_group():
         data = {**data, **dict.fromkeys(BANK_FIELDS, "")}
     if "name" in data:
-        data["name"] = data["name"].strip()
+        data["name"] = duplicates.tidy(data["name"])
+    if data.get("account_number"):
+        _unique_account_number(ledger, data["account_number"])
     if data.get("currency") is not None:
         if data["currency"].code == ledger.company.base_currency:
             data["currency"] = None

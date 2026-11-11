@@ -3,6 +3,7 @@ import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { ActiveButton, FormBody } from "./RowActions";
 
@@ -45,6 +46,15 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
   const io = useExchange({ master: "item-groups", noun: "item groups", session, onImported: reload });
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && groups.find((g) => g.id === openId);
+    if (found) {
+      setFolded(new Set());
+      setEditing({ group: found, parent: found.parent });
+      opened();
+    }
+  }, [openId, groups, opened]);
 
   const children = useMemo(() => {
     const map = new Map<number | null, ItemGroup[]>();
@@ -184,7 +194,7 @@ function GroupForm(props: {
   const [name, setName] = useState(copy ? `${copy.name} (copy)` : (g?.name ?? ""));
   const [parent, setParent] = useState(props.editing.parent === null ? "" : String(props.editing.parent));
   const [notes, setNotes] = useState(copy?.notes ?? g?.notes ?? "");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const paths = useMemo(() => groupPaths(props.groups), [props.groups]);
   const below = useMemo(() => {
     // A group cannot be moved under itself or a group below it.
@@ -206,7 +216,7 @@ function GroupForm(props: {
       else await api("v1/item-groups/", body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -239,7 +249,7 @@ function GroupForm(props: {
           </label>
         </Section>
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>

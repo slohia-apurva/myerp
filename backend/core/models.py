@@ -47,7 +47,7 @@ class Company(models.Model):
     ]
     REGISTERED_WITH_MCA = (LLP, PRIVATE, PUBLIC, OPC)
 
-    name = models.CharField(max_length=200, unique=True)
+    name = models.CharField(max_length=200)
     entity_type = models.CharField(max_length=20, choices=ENTITY_TYPES, blank=True)
     # CIN for companies, LLPIN for LLPs (both from the MCA).
     cin = models.CharField(max_length=21, blank=True)
@@ -80,6 +80,15 @@ class Company(models.Model):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "companies"
+        # No duplicates (core/duplicates.py): names ignore capitals; GSTIN
+        # and PAN, when given, belong to one company only.
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="company_name_unique"),
+            models.UniqueConstraint(
+                "gstin", condition=~models.Q(gstin=""), name="company_gstin_unique"
+            ),
+            models.UniqueConstraint("pan", condition=~models.Q(pan=""), name="company_pan_unique"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -427,6 +436,12 @@ class Ledger(models.Model):
                 condition=models.Q(party__isnull=False),
                 name="one_ledger_per_party_per_company",
             ),
+            models.UniqueConstraint(
+                "company",
+                Lower("account_number"),
+                condition=~models.Q(account_number=""),
+                name="bank_account_unique_per_company",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -765,6 +780,9 @@ class Party(models.Model):
         verbose_name_plural = "parties"
         constraints = [
             models.UniqueConstraint(Lower("name"), name="party_name_unique"),
+            models.UniqueConstraint(
+                "gstin", condition=~models.Q(gstin=""), name="party_gstin_unique"
+            ),
             models.UniqueConstraint(
                 "customer_number",
                 condition=~models.Q(customer_number=""),

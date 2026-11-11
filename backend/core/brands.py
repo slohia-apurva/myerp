@@ -8,7 +8,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import exchange
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import Brand
@@ -25,12 +25,14 @@ class BrandSerializer(serializers.ModelSerializer):
 
 def _save_brand(brand: Brand, data: dict) -> Brand:
     if "name" in data:
-        data["name"] = data["name"].strip()
-        clash = Brand.objects.filter(name__iexact=data["name"])
-        if brand.pk:
-            clash = clash.exclude(pk=brand.pk)
-        if clash.exists():
-            raise ValidationError({"name": ["There is already a brand with this name."]})
+        data["name"] = duplicates.tidy(data["name"])
+        duplicates.check_name(
+            Brand.objects.all(),
+            data["name"],
+            exclude=brand.pk,
+            kind="brand",
+            message='There is already a brand named "{name}".',
+        )
     refuse_key_changes("brand", brand, data)
     for field in ("name", "notes", "is_active"):
         if field in data:

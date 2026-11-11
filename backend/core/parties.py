@@ -17,6 +17,7 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.models import User
 from audit import recorder
+from core import duplicates
 from core.locks import refuse_key_changes
 from core.models import (
     BILL_WISE_GROUP_CODES,
@@ -188,14 +189,13 @@ def save_party(
                 {"party_id": ["This company already has a ledger for that party."]}
             )
     if party is None:
-        if Party.objects.filter(name__iexact=ledger.name).exists():
-            raise ValidationError(
-                {
-                    "name": [
-                        "Another company already has a customer or supplier by this name. "
-                        'Pick it under "Existing customer or supplier" instead.'
-                    ]
-                }
+        clash = duplicates.same_name(Party.objects.all(), ledger.name)
+        if clash is not None:
+            _refuse_party(
+                "name",
+                f'There is already a customer or supplier named "{clash.name}". '
+                'Pick it under "Existing customer or supplier" instead.',
+                clash,
             )
         party = Party(name=ledger.name)
         if not data.get("gstin") and not data.get("state_code"):
@@ -203,9 +203,10 @@ def save_party(
             party.state_code = ledger.company.state_code
     elif party.name != ledger.name and not party.ledgers.exclude(pk=ledger.pk).exists():
         # Renaming the only ledger of a party renames the party.
-        if Party.objects.filter(name__iexact=ledger.name).exclude(pk=party.pk).exists():
-            raise ValidationError(
-                {"name": ["Another company already has a customer or supplier by this name."]}
+        clash = duplicates.same_name(Party.objects.all(), ledger.name, exclude=party.pk)
+        if clash is not None:
+            _refuse_party(
+                "name", f'There is already a customer or supplier named "{clash.name}".', clash
             )
         party.name = ledger.name
     addresses = data.pop("addresses", None)
@@ -228,6 +229,15 @@ def save_party(
         party.full_clean(validate_constraints=False)
     except DjangoValidationError as exc:
         raise _errors(exc) from exc
+    if party.gstin:
+        clash = Party.objects.filter(gstin=party.gstin).exclude(pk=party.pk).first()
+        if clash is not None:
+            _refuse_party(
+                "gstin",
+                f'This GSTIN is already on the customer or supplier "{clash.name}". '
+                "Add another address to that party instead.",
+                clash,
+            )
     _number(ledger, party)
     party.save()
     if addresses is not None:
@@ -245,6 +255,16 @@ def save_party(
 NUMBER_FIELDS = {"sundry_debtors": "customer", "sundry_creditors": "vendor"}
 
 
+def _refuse_party(field: str, message: str, party: Party) -> None:
+    """Refuse, linking to the party's ledger (in the first company that has
+    one) so the screen can open it."""
+    detail: dict = {"name": [message]} if field == "name" else {"party": {field: [message]}}
+    ledger = party.ledgers.select_related("company").order_by("company__name").first()
+    if ledger is not None:
+        detail["existing"] = duplicates.existing(ledger, "ledger", name=party.name)
+    raise ValidationError(detail)
+
+
 def _number(ledger: Ledger, party: Party) -> None:
     """Give the party a customer or vendor number if this ledger makes it
     one and it has none yet; check a number typed in by hand."""
@@ -256,9 +276,8 @@ def _number(ledger: Ledger, party: Party) -> None:
         value = getattr(party, field)
         taken = lambda n, f=field: Party.objects.filter(**{f: n}).exclude(pk=party.pk).exists()  # noqa: E731
         if value and taken(value):
-            raise ValidationError(
-                {"party": {field: [f"{value} is already used by another party."]}}
-            )
+            clash = Party.objects.filter(**{field: value}).exclude(pk=party.pk).first()
+            _refuse_party(field, f'{value} is already the number of "{clash.name}".', clash)
         if not value and kind == NUMBER_FIELDS[group.code]:
             setattr(party, field, next_number(kind, taken))
 
@@ -275,10 +294,10 @@ def _add_to_companies(ledger: Ledger, party: Party, companies) -> None:
         target = company.ledger_groups.filter(code=group.code).first()
         if target is None:
             raise ValidationError({"also_in": [f"{company.name} has no {group.name} group."]})
-        if company.ledgers.filter(name__iexact=party.name).exists():
-            raise ValidationError(
-                {"also_in": [f"{company.name} already has a ledger named {party.name}."]}
-            )
+        clash = duplicates.same_name(company.ledgers.all(), party.name)
+        if clash is not None:
+            message = f'{company.name} already has a ledger named "{clash.name}".'
+            duplicates.refuse("also_in", message, clash, "ledger")
         other = Ledger(company=company, group=target, name=party.name, bill_wise=True, party=party)
         try:
             other.full_clean(validate_constraints=False)

@@ -1,13 +1,25 @@
 // Small JSON client for the MyERP API. Sends the CSRF token Django sets in
 // the "csrftoken" cookie (GET /api/auth/session/ makes sure it exists).
 
+/** The record a duplicate clashed with (core/duplicates.py on the server). */
+export type Existing = { kind: string; id: string; name: string; company?: string };
+
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly existing?: Existing,
   ) {
     super(message);
   }
+}
+
+function existingOf(data: unknown): Existing | undefined {
+  if (data && typeof data === "object" && "existing" in data) {
+    const e = (data as { existing: unknown }).existing;
+    if (e && typeof e === "object" && "kind" in e && "id" in e) return e as Existing;
+  }
+  return undefined;
 }
 
 function csrfToken(): string {
@@ -20,11 +32,16 @@ function errorMessage(data: unknown, status: number): string {
   if (data && typeof data === "object") {
     const record = data as Record<string, unknown>;
     if (typeof record.detail === "string") return record.detail;
-    const parts = Object.values(record).flatMap((v) => (Array.isArray(v) ? v : [v]));
-    const text = parts.filter((p) => typeof p === "string").join(" ");
+    const text = flatten(Object.entries(record).filter(([k]) => k !== "existing").map(([, v]) => v)).join(" ");
     if (text) return text;
   }
   return `Something went wrong (HTTP ${status}).`;
+}
+
+function flatten(values: unknown[]): string[] {
+  return values.flatMap((v) =>
+    typeof v === "string" ? [v] : Array.isArray(v) ? flatten(v) : v && typeof v === "object" ? flatten(Object.values(v)) : [],
+  );
 }
 
 type Method = "GET" | "POST" | "PATCH" | "DELETE";
@@ -41,7 +58,7 @@ export async function api<T>(path: string, body?: unknown, method?: Method): Pro
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data: unknown = res.status === 204 ? {} : await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status);
+  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data));
   return data as T;
 }
 
@@ -62,6 +79,6 @@ export async function upload<T>(path: string, form: FormData): Promise<T> {
     body: form,
   });
   const data: unknown = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status);
+  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data));
   return data as T;
 }

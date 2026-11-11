@@ -7,7 +7,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import exchange
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import Unit
@@ -72,16 +72,17 @@ def _save_unit(unit: Unit, data: dict) -> Unit:
             raise ValidationError({"gst_code": ["Pick a GST unit code from the list."]})
     elif not unit.gst_code:
         raise ValidationError({"gst_code": ["Pick a GST unit code from the list."]})
-    for field in ("name", "short_name"):
-        if field in data:
-            data[field] = data[field].strip()
     for field, label in (("name", "name"), ("short_name", "short name")):
         if field in data:
-            clash = Unit.objects.filter(**{f"{field}__iexact": data[field]})
-            if unit.pk:
-                clash = clash.exclude(pk=unit.pk)
-            if clash.exists():
-                raise ValidationError({field: [f"There is already a unit with this {label}."]})
+            data[field] = duplicates.tidy(data[field])
+            duplicates.check_name(
+                Unit.objects.all(),
+                data[field],
+                field=field,
+                exclude=unit.pk,
+                kind="unit",
+                message=f'There is already a unit with the {label} "{{name}}".',
+            )
     refuse_key_changes("unit", unit, data)
     for field in ("name", "short_name", "gst_code", "whole_numbers", "is_active"):
         if field in data:

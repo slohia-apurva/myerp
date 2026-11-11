@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
@@ -29,6 +30,15 @@ export function BrandsPage({ session }: { session: SignedIn }) {
     reload();
   };
   const io = useExchange({ master: "brands", noun: "brands", session, onImported: reload });
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && brands.find((b) => b.id === openId);
+    if (found) {
+      setCopyOf(null);
+      setEditing(found);
+      opened();
+    }
+  }, [openId, brands, opened]);
   return (
     <section className="page">
       <PageHeader
@@ -120,7 +130,7 @@ function BrandForm(props: {
   const b = props.brand;
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (b?.name ?? ""));
   const [notes, setNotes] = useState(props.copyOf?.notes ?? b?.notes ?? "");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -130,7 +140,7 @@ function BrandForm(props: {
       else await api("v1/brands/", { name, notes });
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -151,7 +161,7 @@ function BrandForm(props: {
           </div>
         </Section>
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>

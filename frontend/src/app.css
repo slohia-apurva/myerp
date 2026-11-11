@@ -812,6 +812,10 @@ table.groups tr.group-top .sch3 {
 table.groups tr.group-top:first-child td {
   border-top: 0;
 }
+/* The group opened from a link ("Open ..." on a duplicate refusal). */
+table.groups tr.marked td {
+  background: var(--mint);
+}
 table.groups td:nth-child(2) {
   white-space: nowrap;
 }

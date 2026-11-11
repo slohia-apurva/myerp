@@ -1,4 +1,5 @@
 import { Combobox } from "./Combobox";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
@@ -48,6 +49,15 @@ export function UnitsPage({ session }: { session: SignedIn }) {
     reload();
   };
   const io = useExchange({ master: "units", noun: "units", session, onImported: reload });
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && units.find((u) => u.id === openId);
+    if (found) {
+      setCopyOf(null);
+      setEditing(found);
+      opened();
+    }
+  }, [openId, units, opened]);
   return (
     <section className="page">
       <PageHeader
@@ -138,7 +148,7 @@ function UnitForm(props: {
   const codes = useGstCodes();
   const [gstCode, setGstCode] = useState(props.copyOf ? props.copyOf.gst_code : (u?.gst_code ?? ""));
   const [whole, setWhole] = useState(from?.whole_numbers ?? false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -149,7 +159,7 @@ function UnitForm(props: {
       else await api("v1/units/", body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
 
@@ -184,7 +194,7 @@ function UnitForm(props: {
           </label>
         </Section>
       </FormBody>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         {!props.readOnly && <button>Save</button>}
         <button type="button" className="link" onClick={props.onCancel}>

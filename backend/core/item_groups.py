@@ -8,7 +8,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import exchange
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import ItemGroup
@@ -42,12 +42,14 @@ class ItemGroupSerializer(serializers.ModelSerializer):
 
 def _save_group(group: ItemGroup, data: dict) -> ItemGroup:
     if "name" in data:
-        data["name"] = data["name"].strip()
-        clash = ItemGroup.objects.filter(name__iexact=data["name"])
-        if group.pk:
-            clash = clash.exclude(pk=group.pk)
-        if clash.exists():
-            raise ValidationError({"name": ["There is already an item group with this name."]})
+        data["name"] = duplicates.tidy(data["name"])
+        duplicates.check_name(
+            ItemGroup.objects.all(),
+            data["name"],
+            exclude=group.pk,
+            kind="item_group",
+            message='There is already an item group named "{name}".',
+        )
     parent = data.get("parent")
     if (
         parent is not None
