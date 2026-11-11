@@ -8,6 +8,8 @@ Update 11 Nov: Sidharth uses **Delhivery** and gave its PIN serviceability list 
 
 Update 11 Nov (later): the couriers are **Delhivery, Blue Dart and DP World** (no API access yet; Sidharth can apply), and Apurvam has a **Shiprocket** account. The choice between couriers is about cost, so MyERP should **suggest the cheapest courier** (see "Cheapest courier" below).
 
+Update 11 Nov (Sidharth): Delhivery and Blue Dart are **direct accounts, two each: one B2C (parcel/express) and one B2B (heavier freight)**. Shiprocket is a separate account. Rate charts for all will be shared. Despatch email at **8:00 am**; recipients to follow. So the first set-up is five carrier accounts: Delhivery B2C, Delhivery B2B, Blue Dart B2C, Blue Dart B2B, Shiprocket (plus DP World).
+
 ## What it does, in one paragraph
 
 Every sales consignment that leaves by courier, air cargo or transporter gets a **shipment** in MyERP with its AWB (or docket / LR) number. Once a day, and sooner where the carrier can push updates, MyERP fetches the latest status of every shipment that is not yet delivered and stores each tracking event. Each morning the despatch team gets **one consolidated email** per company (or per branch): what was delivered, what is out for delivery, what is stuck or coming back, and which deliveries left without an AWB. The same list is on a **Shipments** screen. Tracking never posts to the ledgers.
@@ -56,6 +58,7 @@ A **rate card** holds what Indian courier contracts usually charge on, all as da
 - **Add-ons**: fuel surcharge %, ODA charge, COD charge or %, docket charge, minimum per shipment, risk or insurance %, and GST on the total.
 - **Mode**: surface or air, with expected transit days per zone.
 - Valid from and to dates, so a new rate card applies from its date and old shipments keep the rate they were quoted.
+- **One rate card per carrier account**, not per carrier: a courier's B2C and B2B accounts have different rate structures (B2B freight usually has a higher minimum chargeable weight, docket and handling charges, and per-kg pricing by zone; B2C parcel has small slabs). The quote compares every account, so a heavy consignment may come out cheaper on the B2B account and a small one on B2C.
 
 ### When MyERP suggests
 
@@ -202,9 +205,9 @@ Steps 1 to 4 do not need Phase 4. If Sidharth wants tracking before Sales is bui
 
 1. **Which couriers, airlines and transporters** do you use for sales today, and roughly what share each? (Answered 11 Nov: Delhivery, Blue Dart, DP World, and a Shiprocket account; no direct API access yet.)
 2. Roughly **how many shipments a day**, and how many companies or branches despatch?
-3. Do you book Delhivery and Blue Dart **through Shiprocket or directly**? Can you share the **current rate cards** (zones, slabs, fuel %, ODA and COD charges) for the direct contracts?
+3. (Answered 11 Nov: Delhivery and Blue Dart are direct, each with a B2C and a B2B account; Shiprocket is separate; rate charts to be shared.)
 4. Is "AWB" here mostly **courier dockets**, or also **airline air cargo** (through a forwarder), or both?
-5. **Who should get the email**, one email for everyone or one per company or branch, and **at what time**? Should it also go to the salesman of each customer?
+5. **Who should get the email**, one email for everyone or one per company or branch? (Time answered: 8:00 am.) Should it also go to the salesman of each customer?
 6. Do you want this **before Phase 4** (shipments entered against ERPNext invoice numbers), or only with Sales in MyERP?
 7. Later: should **customers** get dispatch and delivery messages with a tracking link (email or WhatsApp)?
 8. Do you book shipments on the carrier's website and then type the AWB, or would you like MyERP to **book the shipment and print the label** (possible through some aggregators)?
