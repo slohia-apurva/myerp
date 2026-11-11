@@ -23,6 +23,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
         "units": "units of measure",
     },
     "credit_term": {"parts": "parts"},
+    "item_group": {"parent": "the group it sits under"},
     "ledger_group": {"parent": "the group it sits under"},
     "ledger": {"group": "group", "currency": "currency", "bill_wise": "bill-wise"},
     "party": {
@@ -110,7 +111,16 @@ def _term_uses(term) -> str:
     return _count(term.parties.all(), "customer or supplier")
 
 
+def _item_group_uses(group) -> str:
+    from core.item_groups import descendant_ids
+    from core.models import Item
+
+    n = Item.objects.filter(item_group_id__in={group.pk, *descendant_ids(group)}).count()
+    return f"{n} item{'' if n == 1 else 's'}" if n else ""
+
+
 register("unit", _unit_uses)
+register("item_group", _item_group_uses)
 register("credit_term", _term_uses)
 
 # Ledgers, groups, parties, companies, branches and items take no `register`

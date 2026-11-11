@@ -5,6 +5,7 @@ import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { HsnPicker } from "./Hsn";
 import { ActiveButton, FormBody } from "./RowActions";
+import { groupPaths, useItemGroups } from "./ItemGroups";
 import { useUnits, type Unit } from "./Units";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
@@ -33,6 +34,8 @@ export type Item = {
   stock_unit: number;
   stock_unit_name: string;
   hsn: string;
+  item_group: number | null;
+  item_group_name: string | null;
   sales_name: string;
   sales_description: string;
   sales_unit: number | null;
@@ -248,6 +251,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
             ["Item number", i.item_number],
             ["Type", typeLabel(i.item_type)],
             ["Default unit (stock unit)", i.stock_unit_name],
+            ["Item group", i.item_group_name ?? ""],
             ["HSN", i.hsn],
           ]}
         />
@@ -425,6 +429,9 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (it?.name ?? ""));
   const [type, setType] = useState(from?.item_type ?? "goods");
   const [stock, setStock] = useState(from ? String(from.stock_unit) : "");
+  const { groups: itemGroups } = useItemGroups();
+  const groupNames = groupPaths(itemGroups);
+  const [group, setGroup] = useState(from?.item_group == null ? "" : String(from.item_group));
   const [hsn, setHsn] = useState(from?.hsn ?? "");
   const [shelf, setShelf] = useState(from?.shelf_life_days == null ? "" : String(from.shelf_life_days));
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
@@ -476,6 +483,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       item_type: type,
       stock_unit: Number(stock),
       hsn,
+      item_group: group === "" ? null : Number(group),
       shelf_life_days: shelf.trim() === "" ? null : Number(shelf),
       batch_tracked: batches,
       qc_required: qc,
@@ -564,6 +572,18 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   .filter((u: Unit) => u.is_active || String(u.id) === stock)
                   .map((u) => ({ value: String(u.id), label: u.name }))}
                 onChange={setStock}
+              />
+            </label>
+            <label>
+              Item group
+              <Combobox
+                value={group}
+                empty="No group"
+                placeholder="Type to search groups…"
+                options={itemGroups
+                  .filter((g) => g.is_active || String(g.id) === group)
+                  .map((g) => ({ value: String(g.id), label: groupNames.get(g.id) ?? g.name }))}
+                onChange={setGroup}
               />
             </label>
             <label>

@@ -311,7 +311,8 @@ export const MANUAL: Chapter[] = [
           <li>Click "Masters" in the top menu, then "Items", then "Add item". The form has tabs: "General", "Sales", "Purchase", "GST rates", "Stock and quality" and "Units of measure".</li>
           <li>
             Under "General", give the "Name", the "Type" (goods you stock, or a service), the "Default unit (stock unit)"
-            (the unit stock is counted in, such as Packet) and the "HSN" code if you know it.
+            (the unit stock is counted in, such as Packet), the "Item group" (see the chapter "Item groups") and the "HSN"
+            code if you know it.
           </li>
           <li>
             On the "Sales" tab, the "Sales item name" starts as the item's name; change it if customers know the item by
@@ -423,6 +424,41 @@ export const MANUAL: Chapter[] = [
           A backup file of everything removed is saved to your computer the moment the reset is done. Keep it: it is the
           only way to get the data back. The reset is also written to the company's "Activity".
         </Note>
+      </>
+    ),
+  },
+  {
+    id: "item-groups",
+    title: "Item groups",
+    summary: "The tree of groups and sub-groups that items sit in, such as Raw material > Spices.",
+    body: (
+      <>
+        <p>
+          Item groups are one tree shared by every company in the group, built the same way as ledger groups. Each item
+          sits in one group, which you pick in the "Item group" box on the item form (click the box and type a few
+          letters).
+        </p>
+        <h3>Add a group</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Item groups".</li>
+          <li>
+            Click "Add group" for a main group, or click "+ Sub-group" beside a group to add one under it. Give the
+            "Name" (for example Whole spices) and, if you like, "Notes".
+          </li>
+          <li>To place a group elsewhere, change the "Under" box. A group cannot go under itself or a group below it.</li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          The arrow beside a group folds or opens the groups under it, and "Show levels" opens the tree to the depth you
+          pick. The "Items" column counts the items in a group and in the groups below it.
+        </p>
+        <p>
+          Once an item sits in a group, or in a group below it, that group cannot be moved under another group, so
+          reports keep their meaning. Names and notes can still be changed. Names must be different whatever the
+          capital letters. Groups are never deleted: click "Edit" and then the "Disable" button to stop offering a group
+          ("Enable" brings it back); items already in it keep it. To change many groups at once, use "Export", "Import"
+          and "Print" (see "Import, export and print"); in an import file, list a group before the groups under it.
+        </p>
       </>
     ),
   },
