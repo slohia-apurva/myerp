@@ -415,7 +415,7 @@ export const MANUAL: Chapter[] = [
           the credits are used up, or the GST system is down) it says so, and you enter the details by hand.
         </p>
         <p>
-          The "GST and credit" tab has:
+          The "GST and credit" tab has two boxes, "GST" and "Credit". Together they hold:
         </p>
         <Fields
           rows={[

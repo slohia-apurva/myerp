@@ -1298,7 +1298,8 @@ p.note {
   flex-direction: column;
   gap: 10px;
 }
-.address-card {
+.address-card,
+.panel-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
@@ -1449,4 +1450,15 @@ fieldset > legend + .form-tabs {
 }
 label[hidden] {
   display: none;
+}
+
+/* Party tabs: same vertical rhythm on every tab, as on the Addresses tab */
+form.card [data-tab]:not(.tab-general):not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel-card > h4 {
+  font-size: 0.95rem;
+  color: var(--deep-green);
 }
