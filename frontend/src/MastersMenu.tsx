@@ -98,6 +98,7 @@ export function MastersMenu(props: { active: boolean; company?: Company; canSeeM
     ["Ledger groups", company ? `#/companies/${company.id}/groups` : "", props.canSeeMasters && !!company],
     ["Ledgers", company ? `#/companies/${company.id}/ledgers` : "", props.canSeeMasters && !!company],
     ["Credit terms", "#/credit-terms", props.canSeeMasters],
+    ["Items", "#/items", props.canSeeMasters],
     ["Units", "#/units", props.canSeeMasters],
     ["Users", "#/users", props.canManageUsers],
     ["User roles", "#/roles", props.canManageUsers],

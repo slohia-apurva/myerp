@@ -1,6 +1,6 @@
 from django.urls import path
 
-from core import api, credit_terms, gstin_lookup, units
+from core import api, credit_terms, gstin_lookup, items, units
 
 urlpatterns = [
     path("states/", api.StatesView.as_view(), name="states"),
@@ -17,6 +17,8 @@ urlpatterns = [
     path("credit-terms/<int:pk>/", credit_terms.CreditTermDetailView.as_view(), name="credit_term"),
     path("units/", units.UnitListView.as_view(), name="units"),
     path("units/<int:pk>/", units.UnitDetailView.as_view(), name="unit"),
+    path("items/", items.ItemListView.as_view(), name="items"),
+    path("items/<int:pk>/", items.ItemDetailView.as_view(), name="item"),
     path("companies/", api.CompanyListView.as_view(), name="companies"),
     path("companies/<int:pk>/", api.CompanyDetailView.as_view(), name="company"),
     path("companies/<int:pk>/branches/", api.BranchListView.as_view(), name="branches"),

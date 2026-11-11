@@ -521,6 +521,90 @@ class Unit(models.Model):
         return self.name
 
 
+class Item(models.Model):
+    """A product, material or service, in one catalogue shared by every
+    company in the group. Stock is held in the item's stock unit; each item
+    also has a chain of other units (packet, inner box, carton, pallet) with
+    size, weight and barcode (see ItemUnit and spec 00, "Item units of
+    measure"). Never deleted, only made inactive."""
+
+    GOODS, SERVICE = "goods", "service"
+    TYPES = [(GOODS, "Goods (stocked)"), (SERVICE, "Service")]
+
+    item_number = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=120)
+    item_type = models.CharField(max_length=10, choices=TYPES, default=GOODS)
+    stock_unit = models.ForeignKey("Unit", on_delete=models.PROTECT, related_name="stock_items")
+    hsn = models.CharField(max_length=8, blank=True)
+    shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
+    batch_tracked = models.BooleanField(default=False)
+    qc_required = models.BooleanField(default=False)
+    legacy_code = models.CharField(max_length=30, blank=True)
+    notes = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(Lower("name"), name="item_name_unique")]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+USED_FOR = [
+    ("purchase", "Purchase"),
+    ("sales", "Sales"),
+    ("stock", "Stock"),
+    ("production", "Production"),
+]
+
+
+def validate_used_for(value):
+    allowed = {code for code, _ in USED_FOR}
+    if (
+        not isinstance(value, list)
+        or any(v not in allowed for v in value)
+        or len(set(value)) != len(value)
+    ):
+        raise ValidationError("Pick from purchase, sales, stock and production, each once.")
+
+
+class ItemUnit(models.Model):
+    """One unit of an item. The stock unit's row holds 1; every other row
+    says how many of another row's unit it contains, and `factor` (how many
+    stock units it is) is worked out from that chain, never typed."""
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="units")
+    unit = models.ForeignKey("Unit", on_delete=models.PROTECT, related_name="+")
+    contains_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+    contains_unit = models.ForeignKey(
+        "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    factor = models.DecimalField(max_digits=18, decimal_places=6)
+    length_cm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    breadth_cm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    height_cm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    net_kg = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    gross_kg = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    barcode = models.CharField(max_length=30, blank=True)
+    whole_numbers = models.BooleanField(default=True)
+    used_for = models.JSONField(default=list, blank=True, validators=[validate_used_for])
+
+    class Meta:
+        ordering = ["factor", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["item", "unit"], name="item_unit_once"),
+            models.UniqueConstraint(
+                "barcode",
+                condition=~models.Q(barcode=""),
+                name="item_unit_barcode_unique",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return str(self.unit)
+
+
 class CreditTermPart(models.Model):
     ORDER, DISPATCH, DELIVERY, BILL = "order", "dispatch", "delivery", "bill"
     EVENTS = [

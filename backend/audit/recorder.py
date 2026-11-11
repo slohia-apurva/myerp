@@ -61,6 +61,13 @@ LABELS = {
     "full_name": "Full name",
     "credit_limit": "Credit limit (₹)",
     "short_name": "Short name",
+    "item_number": "Item number",
+    "hsn": "HSN",
+    "shelf_life_days": "Shelf life (days)",
+    "batch_tracked": "Batches tracked",
+    "qc_required": "Quality check on receipt",
+    "legacy_code": "Old ERPNext code",
+    "item_type": "Type",
     "whole_numbers": "Whole numbers only",
 }
 
@@ -104,7 +111,16 @@ def _register() -> None:
     from accounts.models import Role, User
     from core import india
     from core import modules as company_modules
-    from core.models import Branch, Certificate, Company, CreditTerm, Ledger, LedgerGroup, Unit
+    from core.models import (
+        Branch,
+        Certificate,
+        Company,
+        CreditTerm,
+        Item,
+        Ledger,
+        LedgerGroup,
+        Unit,
+    )
     from core.parties import party_extras
 
     def state(code):
@@ -155,6 +171,24 @@ def _register() -> None:
                 extras={"parts": ("Parts", lambda t: "; ".join(map(str, t.parts.all())) or None)},
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),
+            Item: Tracked(
+                "item",
+                "Item",
+                lambda r: None,
+                extras={
+                    "units": (
+                        "Units",
+                        lambda i: "; ".join(
+                            f"{u.unit} (stock unit)"
+                            if u.contains_unit_id is None
+                            else f"{u.unit} = {_number(u.contains_qty)} {u.contains_unit}"
+                            f" ({_number(u.factor)} {i.stock_unit})"
+                            for u in i.units.all()
+                        )
+                        or None,
+                    )
+                },
+            ),
             User: Tracked(
                 "user",
                 "User",
