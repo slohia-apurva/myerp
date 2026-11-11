@@ -35,7 +35,6 @@ export type Item = {
   shelf_life_days: number | null;
   batch_tracked: boolean;
   qc_required: boolean;
-  legacy_code: string;
   notes: string;
   is_active: boolean;
   units: ItemUnit[];
@@ -78,7 +77,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     return items.filter((i) => {
-      const text = [i.name, i.item_number, i.hsn, i.legacy_code, ...i.units.map((u) => u.barcode)].join(" ").toLowerCase();
+      const text = [i.name, i.item_number, i.hsn, ...i.units.map((u) => u.barcode)].join(" ").toLowerCase();
       return words.every((w) => text.includes(w));
     });
   }, [items, query]);
@@ -241,7 +240,6 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
             ["Shelf life", i.shelf_life_days === null ? "" : `${i.shelf_life_days} days`],
             ["Batches tracked", i.batch_tracked ? "Yes" : "No"],
             ["Quality check on receipt", i.qc_required ? "Yes" : "No"],
-            ["Old ERPNext code", i.legacy_code],
           ]}
         />
       </Section>
@@ -368,7 +366,6 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const [shelf, setShelf] = useState(from?.shelf_life_days == null ? "" : String(from.shelf_life_days));
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
-  const [legacy, setLegacy] = useState(props.copyOf ? "" : (it?.legacy_code ?? ""));
   const [notes, setNotes] = useState(from?.notes ?? "");
   const [rows, setRows] = useState<Row[]>(
     (from?.units ?? []).map((u) => {
@@ -378,6 +375,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"general" | "stock" | "units">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -402,7 +400,6 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       shelf_life_days: shelf.trim() === "" ? null : Number(shelf),
       batch_tracked: batches,
       qc_required: qc,
-      legacy_code: legacy,
       notes,
       units: rows
         .filter((r) => r.unit)
@@ -432,7 +429,28 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   return (
     <form className="card" onSubmit={save}>
       <h3>{it ? `Edit ${it.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add item"}</h3>
+      <div className="form-tabs" role="tablist">
+        {(
+          [
+            ["general", "General"],
+            ["stock", "Stock and quality"],
+            ["units", `Units of measure (${rows.length})`],
+          ] as const
+        ).map(([code, label]) => (
+          <button
+            key={code}
+            type="button"
+            role="tab"
+            aria-selected={tab === code}
+            className={tab === code ? "active" : ""}
+            onClick={() => setTab(code)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <FormBody>
+        {tab === "general" && (
         <Section title="Item">
           <label>
             Name
@@ -465,15 +483,21 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             </label>
           </div>
         </Section>
+        )}
+        {tab === "general" && (
+        <Section title="Notes">
+          <label>
+            Notes
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
+        </Section>
+        )}
+        {tab === "stock" && (
         <Section title="Stock and quality">
           <div className="row">
             <label>
               Shelf life (days)
               <input value={shelf} inputMode="numeric" onChange={(e) => setShelf(e.target.value)} />
-            </label>
-            <label>
-              Old ERPNext code
-              <input value={legacy} maxLength={30} onChange={(e) => setLegacy(e.target.value)} />
             </label>
           </div>
           <label className="check">
@@ -485,6 +509,8 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             Quality check on receipt
           </label>
         </Section>
+        )}
+        {tab === "units" && (
         <Section title="Units of measure">
           <p className="small">
             The stock unit is added for you. For every other unit say how many of which unit it contains; "= {stockName || "stock unit"}" is
@@ -593,12 +619,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             </button>
           </div>
         </Section>
-        <Section title="Notes">
-          <label>
-            Notes
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </label>
-        </Section>
+        )}
       </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">

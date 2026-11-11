@@ -1315,6 +1315,10 @@ ul.address-list {
   color: var(--green);
   font-weight: 600;
 }
+.form-tabs button:hover:not(:disabled) {
+  background: var(--mist);
+  color: var(--green);
+}
 ul.address-list .pill {
   margin-left: 6px;
 }

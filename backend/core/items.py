@@ -93,7 +93,6 @@ class ItemSerializer(serializers.ModelSerializer):
             "shelf_life_days",
             "batch_tracked",
             "qc_required",
-            "legacy_code",
             "notes",
             "is_active",
             "units",
@@ -175,7 +174,6 @@ def _save_item(item: Item, data: dict) -> None:
         "shelf_life_days",
         "batch_tracked",
         "qc_required",
-        "legacy_code",
         "notes",
         "is_active",
     ):
