@@ -18,3 +18,4 @@ MyERP is Apurvam's own web ERP (books, stock, production, purchase, sales, GST, 
 - Every posting rule gets a test. Every bug found with real data becomes a test before it is fixed.
 - One small, testable slice per pull request.
 - The user manual lives in `frontend/src/help/manual.tsx` (Help in the top menu; printable). Every pull request that adds or changes a screen updates its chapter in the same PR, in plain words with the on-screen labels in quotes. A new screen also gets a line in `helpTopicFor` (Help.tsx).
+- Screen look (Sidharth, 2026-11-11): every form groups its fields in titled boxes using `Section` (Brand.tsx) or a fieldset with a legend, as on the GST and credit tab. Buttons follow the one family in app.css: solid green for Save and main actions, `link`/`secondary` (grey outline) for the rest, `link danger` (red outline) for Disable/Remove. Do not invent new button or box styles.

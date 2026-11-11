@@ -4,7 +4,7 @@ import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, PartyTabBar, type Party, type PartyTab } from "./Parties";
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
-import { Chevron, LevelPicker, PageHeader } from "./Brand";
+import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { ActiveButton } from "./RowActions";
 
 type Ledger = {
@@ -731,6 +731,7 @@ function LedgerForm(props: {
       <h3>{l ? `Edit ${l.name}` : c ? `Duplicate ${c.name}` : "Add ledger"}</h3>
       {isParty && <PartyTabBar tab={tab} onTab={setTab} party={party} extraLabel="Opening balance" />}
       <div className="tab-general" data-tab="general" hidden={isParty && tab !== "general"}>
+      <Section title="Ledger">
       <div className="row">
         <label>
           Under group
@@ -780,6 +781,7 @@ function LedgerForm(props: {
           />
         </label>
       )}
+      </Section>
       </div>
       {isParty && (
         <PartyFields

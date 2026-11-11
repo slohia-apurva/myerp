@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
-import { PageHeader } from "./Brand";
+import { PageHeader, Section } from "./Brand";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 /** Credit terms: how a party's bills are paid, split into parts. */
@@ -148,6 +148,7 @@ function TermForm(props: {
     <form className="card" onSubmit={save}>
       <h4>{t ? `${props.readOnly ? "View" : "Edit"} ${t.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add credit terms"}</h4>
       <FormBody readOnly={props.readOnly}>
+      <Section title="Credit terms">
       <label>
         Name
         <input
@@ -233,6 +234,7 @@ function TermForm(props: {
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
+      </Section>
       </FormBody>
       {error && <p className="error">{error}</p>}
       <div className="buttons">
