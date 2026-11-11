@@ -2,6 +2,7 @@ import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } f
 import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
+import { useExchange } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { HsnPicker } from "./Hsn";
 import { ActiveButton, FormBody } from "./RowActions";
@@ -91,6 +92,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
       .catch((err: Error) => setError(err.message));
   }, []);
   useEffect(reload, [reload]);
+  const io = useExchange({ master: "items", noun: "items", session, onImported: reload });
 
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -120,9 +122,15 @@ export function ItemsPage({ session }: { session: SignedIn }) {
       <PageHeader
         title="Items"
         sub={`${items.length} ${items.length === 1 ? "item" : "items"}${query ? `, ${shown.length} match` : ""} · one catalogue for every company in the group`}
-        actions={canEdit && <button onClick={() => setEditing("new")}>Add item</button>}
+        actions={
+          <>
+            {io.buttons}
+            {canEdit && <button onClick={() => setEditing("new")}>Add item</button>}
+          </>
+        }
       />
       {error && <p className="error">{error}</p>}
+      {io.panel}
       <div className={`split${editing ? " editing" : ""}`}>
         <div className="split-list">
           <div className="row filters">

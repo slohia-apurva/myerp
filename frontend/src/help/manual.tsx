@@ -291,6 +291,10 @@ export const MANUAL: Chapter[] = [
           The list shows each term in words and how many parties use it. Credit terms are never deleted: click "Edit"
           and then the "Disable" button to stop offering them to new parties ("Enable" brings them back). Parties that already have them keep them.
         </p>
+        <p>
+          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          export and print".
+        </p>
       </>
     ),
   },
@@ -346,6 +350,10 @@ export const MANUAL: Chapter[] = [
         <p>
           Items are never deleted: click "Edit" and then the "Disable" button to stop using one ("Enable" brings it
           back). Use "Duplicate" to start a new item from an existing one; barcodes are not copied.
+        </p>
+        <p>
+          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          export and print".
         </p>
       </>
     ),
@@ -475,7 +483,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Masters screens have three buttons at the top: "Import", "Export" and "Print". They work the same way on
-          every master. So far they are on "Units"; the other masters get them one by one. The columns are always the
+          every master. So far they are on "Units", "Credit terms" and "Items"; the other masters get them one by one. The columns are always the
           fields of that master's form, so when a field is added to the form it appears in the file too.
         </p>
         <h3>Export</h3>
@@ -483,6 +491,19 @@ export const MANUAL: Chapter[] = [
           Click "Export" to download the whole list as an Excel file (.xlsx). The first column, "ID", is MyERP's own
           number for each record. The second sheet, "How to fill", lists every column, whether it must be filled, and
           what may be written in it (for example the GST unit codes, or Yes and No).
+        </p>
+        <h3>Rows inside a record</h3>
+        <p>
+          Some masters keep a small table inside each record: the parts of a credit term, or an item's "Units of
+          measure" and "GST rates". These come out on sheets of their own, named as on the form ("Parts", "Units of
+          measure", "GST rates"). Each row's first column says which record it belongs to, by name (for example the
+          item's name), or by its ID. Other masters are written by name too: write "Carton" or "ctn" for a unit, and
+          "On delivery" for when a part is due.
+        </p>
+        <p>
+          On import, a record listed on the first sheet gets exactly the rows listed for it on these sheets, so add,
+          change or delete rows there as you would on the form. To leave them as they are, delete the whole sheet from
+          the file. CSV files hold only the first sheet, so they never change these rows.
         </p>
         <h3>Print</h3>
         <p>
@@ -505,7 +526,7 @@ export const MANUAL: Chapter[] = [
             way the form would, and saves nothing yet.
           </li>
           <li>
-            If any row has a problem, a table shows the row number (as in Excel) and what is wrong, for example
+            If any row has a problem, a table shows the sheet, the row number (as in Excel) and what is wrong, for example
             "Name: There is already a unit with this name." Fix those rows and click "Check file" again.
           </li>
           <li>
