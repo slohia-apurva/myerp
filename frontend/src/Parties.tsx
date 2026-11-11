@@ -20,8 +20,20 @@ export type PartyContact = {
   designation: string;
   phone: string;
   email: string;
+  /** "Main": one per party. */
   is_primary: boolean;
+  /** The other types: automated emails go to the contacts of the right type. */
+  kinds: string[];
 };
+
+/** What a contact is for, besides Main. Keep in step with CONTACT_KINDS in core/models.py. */
+export const CONTACT_KINDS: [string, string][] = [
+  ["accounts", "Accounting"],
+  ["shipping", "Shipping"],
+  ["purchase", "Purchase"],
+  ["sales", "Sales"],
+];
+const kindLabel = (code: string) => CONTACT_KINDS.find(([k]) => k === code)?.[1] ?? code;
 export type Party = {
   id?: number;
   name?: string;
@@ -80,7 +92,7 @@ const blankAddress = (stateCode: string): PartyAddress => ({
   is_shipping: false,
 });
 
-const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false });
+const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false, kinds: [] });
 
 type Person = { id: number; name: string };
 export type PartyTab = "general" | "details" | "addresses" | "contacts" | "extra";
@@ -408,14 +420,29 @@ export function PartyFields({
                 </label>
               </div>
               <div className="address-flags">
+                <span className="small">Contact type</span>
                 <label className="check">
                   <input
                     type="checkbox"
                     checked={c.is_primary}
                     onChange={(e) => setContact(i, { is_primary: e.target.checked })}
                   />
-                  Main contact
+                  Main
                 </label>
+                {CONTACT_KINDS.map(([code, label]) => (
+                  <label className="check" key={code}>
+                    <input
+                      type="checkbox"
+                      checked={c.kinds.includes(code)}
+                      onChange={(e) =>
+                        setContact(i, {
+                          kinds: e.target.checked ? [...c.kinds, code] : c.kinds.filter((k) => k !== code),
+                        })
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
                 <button
                   type="button"
                   className="link danger"
@@ -503,6 +530,11 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
                 <strong>{c.name}</strong>
                 {c.designation && <span className="small"> · {c.designation}</span>}
                 {c.is_primary && <span className="pill on">Main</span>}
+                {c.kinds.map((k) => (
+                  <span className="pill" key={k}>
+                    {kindLabel(k)}
+                  </span>
+                ))}
                 <div className="small">{[c.phone, c.email].filter(Boolean).join(" · ")}</div>
               </li>
             ))}

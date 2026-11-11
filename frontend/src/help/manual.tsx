@@ -443,8 +443,10 @@ export const MANUAL: Chapter[] = [
         </p>
         <p>
           On the "Contacts" tab, click "+ Add contact" for each person you deal with: the owner, the purchase manager,
-          accounts. Give each a name, and add their designation, phone and email. Tick "Main contact" on the one to call
-          first. The tab names show how many addresses and contacts the party has. If you click "Save" while a required
+          accounts. Give each a name, and add their designation, phone and email. Under "Contact type", tick what each person
+          is for: "Main" (the one to call first; only one per party), "Accounting", "Shipping", "Purchase" or "Sales". One
+          person can have several types. When MyERP sends automated emails during transactions, it will send each to the
+          contacts of the right type. The tab names show how many addresses and contacts the party has. If you click "Save" while a required
           field on another tab is empty, MyERP opens that tab and points to the field.
         </p>
         <p>Clicking a party shows its details, addresses and contacts in the side panel.</p>

@@ -652,9 +652,33 @@ class PartyAddress(models.Model):
         return self.label
 
 
+# What a contact is for; automated emails go to the contacts of the right type.
+# "Main" is the `is_primary` tick (one per party); these are the other types.
+# To add a type, add a line here and in `CONTACT_KINDS` in frontend Parties.tsx.
+CONTACT_KINDS = [
+    ("accounts", "Accounting"),
+    ("shipping", "Shipping"),
+    ("purchase", "Purchase"),
+    ("sales", "Sales"),
+]
+
+
+def validate_contact_kinds(value):
+    codes = [code for code, _ in CONTACT_KINDS]
+    if (
+        not isinstance(value, list)
+        or any(k not in codes for k in value)
+        or len(set(value)) != len(value)
+    ):
+        raise ValidationError(
+            "Choose from: " + ", ".join(label for _, label in CONTACT_KINDS) + "."
+        )
+
+
 class PartyContact(models.Model):
     """A person to deal with at a customer or supplier: the owner, the
-    purchase manager, accounts. One can be ticked as the main contact."""
+    purchase manager, accounts. One can be ticked as the main contact, and
+    each can be of several types (see CONTACT_KINDS)."""
 
     party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="contacts")
     name = models.CharField(max_length=100)
@@ -662,6 +686,7 @@ class PartyContact(models.Model):
     phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
     email = models.EmailField(blank=True)
     is_primary = models.BooleanField(default=False)
+    kinds = models.JSONField(default=list, blank=True, validators=[validate_contact_kinds])
 
     class Meta:
         ordering = ["id"]
