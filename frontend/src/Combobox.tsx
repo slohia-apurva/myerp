@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { type Creatable, type Created, openCreate, useCreated } from "./Create";
 
 export type Option = { value: string; label: string; indent?: number; hint?: string };
+
+const CREATE = "\u0000create";
 
 /** A type-to-search picker for masters (groups, states, terms, parties...).
  * Typing narrows the list (every word typed must appear in the name, in any
  * order); arrow keys and Enter pick, Escape closes. `empty` adds a first
- * choice with value "" (for example "None" or "All groups"). */
+ * choice with value "" (for example "None" or "All groups").
+ *
+ * `create` (pass it only when the person may add that master) adds
+ * 'Create "<typed>"' when no name matches exactly: it opens the master's
+ * screen in a new tab, and the record saved there is picked here (Create.tsx). */
 export function Combobox(props: {
   options: Option[];
   value: string;
@@ -14,6 +21,7 @@ export function Combobox(props: {
   required?: boolean;
   placeholder?: string;
   ariaLabel?: string;
+  create?: Creatable;
 }) {
   const { options, value } = props;
   const all = useMemo(
@@ -28,14 +36,27 @@ export function Combobox(props: {
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
 
+  const typedName = text.split(/\s+/).filter(Boolean).join(" ");
   const shown = useMemo(() => {
     if (!typed) return all;
-    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
-    return all.filter((o) => {
+    const words = typedName.toLowerCase().split(" ").filter(Boolean);
+    const found = all.filter((o) => {
       const hay = `${o.label} ${o.hint ?? ""}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
-  }, [all, text, typed]);
+    const exact = all.some((o) => o.label.toLowerCase() === typedName.toLowerCase());
+    if (props.create && typedName && !exact) found.push({ value: CREATE, label: `Create "${typedName}"` });
+    return found;
+  }, [all, typedName, typed, props.create]);
+
+  // A record saved in the tab that "Create …" opened: reload the list, pick it.
+  const waiting = useRef(false);
+  useCreated(props.create?.kind, async (c: Created) => {
+    if (!waiting.current) return;
+    waiting.current = false;
+    await props.create?.reload();
+    props.onChange(String(c.id));
+  });
 
   useEffect(() => {
     if (list.current && open) list.current.children[cursor]?.scrollIntoView?.({ block: "nearest" });
@@ -46,7 +67,10 @@ export function Combobox(props: {
     setTyped(false);
   };
   const pick = (o: Option) => {
-    props.onChange(o.value);
+    if (o.value === CREATE && props.create) {
+      waiting.current = true;
+      openCreate(props.create, typedName);
+    } else props.onChange(o.value);
     close();
   };
   const display = typed ? text : (chosen?.label ?? "");
@@ -103,7 +127,7 @@ export function Combobox(props: {
               key={o.value || "empty"}
               role="option"
               aria-selected={o.value === value}
-              className={`${i === cursor ? "on" : ""} ${o.value === value ? "chosen" : ""}`}
+              className={`${i === cursor ? "on" : ""} ${o.value === value ? "chosen" : ""} ${o.value === CREATE ? "create" : ""}`}
               style={{ paddingLeft: 12 + (typed ? 0 : (o.indent ?? 0) * 16) }}
               tabIndex={-1}
               onMouseDown={(e) => e.preventDefault()}

@@ -1398,6 +1398,11 @@ fieldset > legend + .form-tabs {
   font-weight: 600;
   color: var(--deep-green);
 }
+.combo-list li.create {
+  color: var(--green);
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+}
 .combo-list li.combo-none {
   color: var(--slate);
   cursor: default;

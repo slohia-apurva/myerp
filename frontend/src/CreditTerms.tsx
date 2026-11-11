@@ -1,4 +1,5 @@
 import { Combobox } from "./Combobox";
+import { announceCreated, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
@@ -28,11 +29,13 @@ export const EVENTS: [string, string][] = [
 
 export function useCreditTerms() {
   const [terms, setTerms] = useState<CreditTerm[]>([]);
+  // refresh returns the request, so "Create …" can wait for the new record.
+  const refresh = useCallback(() => api<CreditTerm[]>("v1/credit-terms/").then(setTerms), []);
   const reload = useCallback(() => {
-    api<CreditTerm[]>("v1/credit-terms/").then(setTerms);
-  }, []);
+    refresh();
+  }, [refresh]);
   useEffect(reload, [reload]);
-  return { terms, reload };
+  return { terms, reload, refresh };
 }
 
 /** Masters > Credit terms: one list for every company in the group. */
@@ -41,6 +44,10 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
   const { terms, reload } = useCreditTerms();
   const [editing, setEditing] = useState<CreditTerm | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<CreditTerm | null>(null);
+  const startName = useNewName();
+  useEffect(() => {
+    if (startName && canEdit) setEditing("new"); // opened by "Create …" in a dropdown
+  }, [startName, canEdit]);
   const done = () => {
     setEditing(null);
     setCopyOf(null);
@@ -84,6 +91,7 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
           key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
           term={editing === "new" ? null : editing}
           copyOf={copyOf}
+          startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
           readOnly={!canEdit}
           onDone={done}
           onCancel={() => {
@@ -134,13 +142,14 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
 function TermForm(props: {
   term: CreditTerm | null;
   copyOf?: CreditTerm | null;
+  startName?: string;
   readOnly?: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const t = props.term;
   const from = t ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
-  const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (t?.name ?? ""));
+  const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (t?.name ?? "")));
   const [notes, setNotes] = useState(from?.notes ?? "");
   const [parts, setParts] = useState<TermPart[]>(from?.parts ?? [{ percent: "100", event: "bill", days: 30 }]);
   const [error, setError] = useState<unknown>("");
@@ -154,7 +163,7 @@ function TermForm(props: {
     const body = { name, notes, parts };
     try {
       if (t) await api(`v1/credit-terms/${t.id}/`, body, "PATCH");
-      else await api("v1/credit-terms/", body);
+      else announceCreated("credit_term", await api<{ id: number; name: string }>("v1/credit-terms/", body));
       props.onDone();
     } catch (err) {
       setError(err);

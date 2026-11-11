@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { announceCreated, useNewName } from "./Create";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
@@ -11,11 +12,13 @@ export type Brand = { id: number; name: string; notes: string; is_active: boolea
 
 export function useBrands() {
   const [brands, setBrands] = useState<Brand[]>([]);
+  // refresh returns the request, so "Create …" can wait for the new record.
+  const refresh = useCallback(() => api<Brand[]>("v1/brands/").then(setBrands), []);
   const reload = useCallback(() => {
-    api<Brand[]>("v1/brands/").then(setBrands);
-  }, []);
+    refresh();
+  }, [refresh]);
   useEffect(reload, [reload]);
-  return { brands, reload };
+  return { brands, reload, refresh };
 }
 
 /** Masters > Brands. */
@@ -24,6 +27,10 @@ export function BrandsPage({ session }: { session: SignedIn }) {
   const { brands, reload } = useBrands();
   const [editing, setEditing] = useState<Brand | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<Brand | null>(null);
+  const startName = useNewName();
+  useEffect(() => {
+    if (startName && canEdit) setEditing("new"); // opened by "Create …" in a dropdown
+  }, [startName, canEdit]);
   const done = () => {
     setEditing(null);
     setCopyOf(null);
@@ -67,6 +74,7 @@ export function BrandsPage({ session }: { session: SignedIn }) {
             key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
             brand={editing === "new" ? null : editing}
             copyOf={copyOf}
+            startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
             readOnly={!canEdit}
             onDone={done}
             onCancel={() => {
@@ -123,12 +131,13 @@ export function BrandsPage({ session }: { session: SignedIn }) {
 function BrandForm(props: {
   brand: Brand | null;
   copyOf?: Brand | null;
+  startName?: string;
   readOnly?: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const b = props.brand;
-  const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (b?.name ?? ""));
+  const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (b?.name ?? "")));
   const [notes, setNotes] = useState(props.copyOf?.notes ?? b?.notes ?? "");
   const [error, setError] = useState<unknown>("");
 
@@ -137,7 +146,7 @@ function BrandForm(props: {
     setError("");
     try {
       if (b) await api(`v1/brands/${b.id}/`, { name, notes }, "PATCH");
-      else await api("v1/brands/", { name, notes });
+      else announceCreated("brand", await api<{ id: number; name: string }>("v1/brands/", { name, notes }));
       props.onDone();
     } catch (err) {
       setError(err);

@@ -3,6 +3,7 @@ import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
+import { announceCreated, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { ActiveButton, FormBody } from "./RowActions";
@@ -19,11 +20,13 @@ export type ItemGroup = {
 
 export function useItemGroups() {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
+  // refresh returns the request, so "Create …" can wait for the new record.
+  const refresh = useCallback(() => api<ItemGroup[]>("v1/item-groups/").then(setGroups), []);
   const reload = useCallback(() => {
-    api<ItemGroup[]>("v1/item-groups/").then(setGroups);
-  }, []);
+    refresh();
+  }, [refresh]);
   useEffect(reload, [reload]);
-  return { groups, reload };
+  return { groups, reload, refresh };
 }
 
 /** "Raw material > Spices > Whole spices": the name a picker shows. */
@@ -36,7 +39,7 @@ export function groupPaths(groups: ItemGroup[]): Map<number, string> {
   return new Map(groups.map((g) => [g.id, path(g)]));
 }
 
-type Editing = { group: ItemGroup | null; parent: number | null; copyOf?: ItemGroup };
+type Editing = { group: ItemGroup | null; parent: number | null; copyOf?: ItemGroup; name?: string };
 
 /** Masters > Item groups. */
 export function ItemGroupsPage({ session }: { session: SignedIn }) {
@@ -46,6 +49,11 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
   const io = useExchange({ master: "item-groups", noun: "item groups", session, onImported: reload });
+  const startName = useNewName();
+  useEffect(() => {
+    // Opened by "Create …" in a dropdown.
+    if (startName && canEdit) setEditing({ group: null, parent: null, name: startName });
+  }, [startName, canEdit]);
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     const found = openId && groups.find((g) => g.id === openId);
@@ -191,7 +199,7 @@ function GroupForm(props: {
 }) {
   const g = props.editing.group;
   const copy = props.editing.copyOf;
-  const [name, setName] = useState(copy ? `${copy.name} (copy)` : (g?.name ?? ""));
+  const [name, setName] = useState(props.editing.name ?? (copy ? `${copy.name} (copy)` : (g?.name ?? "")));
   const [parent, setParent] = useState(props.editing.parent === null ? "" : String(props.editing.parent));
   const [notes, setNotes] = useState(copy?.notes ?? g?.notes ?? "");
   const [error, setError] = useState<unknown>("");
@@ -213,7 +221,7 @@ function GroupForm(props: {
     const body = { name, parent: parent === "" ? null : Number(parent), notes };
     try {
       if (g) await api(`v1/item-groups/${g.id}/`, body, "PATCH");
-      else await api("v1/item-groups/", body);
+      else announceCreated("item_group", await api<{ id: number; name: string }>("v1/item-groups/", body));
       props.onDone();
     } catch (err) {
       setError(err);

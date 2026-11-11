@@ -8,6 +8,7 @@ import { Combobox } from "./Combobox";
 import { HsnPicker } from "./Hsn";
 import { ActiveButton, FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
+import { creatable } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { useUnits, type Unit } from "./Units";
 
@@ -447,14 +448,17 @@ function factors(stock: string, rows: Row[]): Map<string, number> {
 function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (savedId?: number) => void; onCancel: () => void }) {
   const it = props.item;
   const from = it ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
-  const { units } = useUnits();
+  const { units, refresh: refreshUnits } = useUnits();
+  const newUnit = creatable("unit", "units", refreshUnits);
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (it?.name ?? ""));
   const [type, setType] = useState(from?.item_type ?? "goods");
   const [stock, setStock] = useState(from ? String(from.stock_unit) : "");
-  const { groups: itemGroups } = useItemGroups();
+  const { groups: itemGroups, refresh: refreshGroups } = useItemGroups();
+  const newGroup = creatable("item_group", "item-groups", refreshGroups);
   const groupNames = groupPaths(itemGroups);
   const [group, setGroup] = useState(from?.item_group == null ? "" : String(from.item_group));
-  const { brands } = useBrands();
+  const { brands, refresh: refreshBrands } = useBrands();
+  const newBrand = creatable("brand", "brands", refreshBrands);
   const [brand, setBrand] = useState(from?.brand == null ? "" : String(from.brand));
   const [hsn, setHsn] = useState(from?.hsn ?? "");
   const [shelf, setShelf] = useState(from?.shelf_life_days == null ? "" : String(from.shelf_life_days));
@@ -597,6 +601,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   .filter((u: Unit) => u.is_active || String(u.id) === stock)
                   .map((u) => ({ value: String(u.id), label: u.name }))}
                 onChange={setStock}
+                create={newUnit}
               />
             </label>
             <label>
@@ -609,6 +614,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   .filter((g) => g.is_active || String(g.id) === group)
                   .map((g) => ({ value: String(g.id), label: groupNames.get(g.id) ?? g.name }))}
                 onChange={setGroup}
+                create={newGroup}
               />
             </label>
             <label>
@@ -621,6 +627,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   .filter((b) => b.is_active || String(b.id) === brand)
                   .map((b) => ({ value: String(b.id), label: b.name }))}
                 onChange={setBrand}
+                create={newBrand}
               />
             </label>
             <label>
@@ -754,6 +761,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                         value={r.unit}
                         placeholder="Type to search units…"
                         options={offered(r.unit).map((u) => ({ value: String(u.id), label: u.name }))}
+                        create={newUnit}
                         onChange={(v) => {
                           const picked = units.find((u) => String(u.id) === v);
                           setRow(i, { unit: v, whole_numbers: picked ? picked.whole_numbers : true });

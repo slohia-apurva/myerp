@@ -1,4 +1,5 @@
 import { PinInput } from "./Pin";
+import { announceCreated, creatable, type Creatable, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -566,11 +567,16 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
   const [editing, setEditing] = useState(false);
   const states = useStates();
   const canEdit = session.permissions.includes("masters.edit");
+  const refresh = useCallback(
+    () =>
+      api<Detail>(`v1/companies/${id}/`)
+        .then(setDetail)
+        .catch((err: Error) => setError(err.message)),
+    [id],
+  );
   const reload = useCallback(() => {
-    api<Detail>(`v1/companies/${id}/`)
-      .then(setDetail)
-      .catch((err: Error) => setError(err.message));
-  }, [id]);
+    refresh();
+  }, [refresh]);
   useEffect(reload, [reload]);
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
@@ -643,6 +649,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
             branches={detail.branches}
             canEdit={canEdit}
             reload={reload}
+            createBranch={canEdit ? creatable("branch", `companies/${c.id}/branches`, refresh) : undefined}
           />
         )}
         {tab === "modules" && (
@@ -772,6 +779,10 @@ function Overview({ detail }: { detail: Detail }) {
 function Branches(props: { company: Company; branches: Branch[]; states: State[]; canEdit: boolean; reload: () => void }) {
   const [editing, setEditing] = useState<Branch | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<Branch | null>(null);
+  const startName = useNewName();
+  useEffect(() => {
+    if (startName && props.canEdit) setEditing("new"); // opened by "Create …" in a dropdown
+  }, [startName, props.canEdit]);
   const stateName = (code: string) => props.states.find((s) => s.code === code)?.name ?? code;
   const [openId, opened] = useOpenParam();
   useEffect(() => {
@@ -804,6 +815,7 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
           key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
           branch={editing === "new" ? null : editing}
           copyOf={copyOf}
+          startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
           readOnly={!props.canEdit}
           states={props.states}
           onDone={() => {
@@ -870,6 +882,7 @@ function BranchForm(props: {
   company: Company;
   branch: Branch | null;
   copyOf?: Branch | null;
+  startName?: string;
   readOnly?: boolean;
   states: State[];
   onDone: () => void;
@@ -877,7 +890,7 @@ function BranchForm(props: {
 }) {
   const b = props.branch;
   const from = b ?? props.copyOf; // a duplicate copies the place and contacts, not the name, GSTIN or defaults
-  const [name, setName] = useState(b?.name ?? "");
+  const [name, setName] = useState(b?.name ?? props.startName ?? "");
   const [stateCode, setStateCode] = useState(from?.state_code ?? props.company.state_code);
   const [gstin, setGstin] = useState(b?.gstin ?? "");
   const [contact, setContact] = useState(contactOf(from));
@@ -896,7 +909,7 @@ function BranchForm(props: {
     const body = { name, state_code: stateCode, gstin, ...contact, ...ticked };
     try {
       if (b) await api(`v1/branches/${b.id}/`, body, "PATCH");
-      else await api(`v1/companies/${props.company.id}/branches/`, body);
+      else announceCreated("branch", await api<{ id: number; name: string }>(`v1/companies/${props.company.id}/branches/`, body));
       props.onDone();
     } catch (err) {
       setError(err);
@@ -976,6 +989,7 @@ function Certificates(props: {
   branches: Branch[];
   canEdit: boolean;
   reload: () => void;
+  createBranch?: Creatable;
 }) {
   const [editing, setEditing] = useState<Certificate | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<Certificate | null>(null);
@@ -1003,6 +1017,7 @@ function Certificates(props: {
           copyOf={copyOf}
           readOnly={!props.canEdit}
           branches={props.branches}
+          createBranch={props.createBranch}
           onDone={() => {
             setEditing(null);
             setCopyOf(null);
@@ -1069,6 +1084,7 @@ function CertificateForm(props: {
   copyOf?: Certificate | null;
   readOnly?: boolean;
   branches: Branch[];
+  createBranch?: Creatable;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -1142,6 +1158,7 @@ function CertificateForm(props: {
           empty="Whole company"
           options={props.branches.map((b) => ({ value: String(b.id), label: b.name }))}
           onChange={(v) => setBranch(v ? Number(v) : null)}
+          create={props.createBranch}
         />
       </label>
       </Section>
@@ -1219,6 +1236,11 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
   }, [props.groups]);
 
   const [folded, setFolded] = useState<Set<number>>(new Set());
+  const startName = useNewName();
+  useEffect(() => {
+    // Opened by "Create …" in a dropdown: a new group, its place picked on the form.
+    if (startName && props.canEdit) setEditing({ group: null, parent: null, copyName: startName });
+  }, [startName, props.canEdit]);
   const [openId, opened] = useOpenParam();
   const [marked, setMarked] = useState<number | null>(null);
   useEffect(() => {
@@ -1355,6 +1377,9 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
         </p>
         <LevelPicker levels={deepest} value={level} onPick={showLevels} />
       </div>
+      {editing && editing.group === null && editing.parent === null && (
+        <GroupForm company={props.company} groups={props.groups} group={null} parent={null} initialName={editing.copyName} onDone={done} onCancel={() => setEditing(null)} />
+      )}
       <table className="groups">
         <thead>
           <tr>
@@ -1389,7 +1414,7 @@ function GroupForm(props: {
     setError("");
     try {
       if (g) await api(`v1/ledger-groups/${g.id}/`, { name, parent }, "PATCH");
-      else await api(`v1/companies/${props.company.id}/ledger-groups/`, { name, parent });
+      else announceCreated("ledger_group", await api<{ id: number; name: string }>(`v1/companies/${props.company.id}/ledger-groups/`, { name, parent }));
       props.onDone();
     } catch (err) {
       setError(err);
@@ -1413,13 +1438,13 @@ function GroupForm(props: {
           {g ? "Name" : "New group name"}
           <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        {g && (
+        {(g || props.parent === null) && (
           <label>
             Under
             <Combobox
               required
               value={parent === null ? "" : String(parent)}
-              options={props.groups.filter((o) => o.id !== g.id).map((o) => ({ value: String(o.id), label: o.name }))}
+              options={props.groups.filter((o) => o.id !== g?.id).map((o) => ({ value: String(o.id), label: o.name }))}
               onChange={(v) => setParent(Number(v))}
             />
           </label>
