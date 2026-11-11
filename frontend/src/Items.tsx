@@ -33,14 +33,24 @@ export type Item = {
   stock_unit: number;
   stock_unit_name: string;
   hsn: string;
+  sales_name: string;
+  sales_description: string;
+  sales_unit: number | null;
+  sales_unit_name: string | null;
+  purchase_name: string;
+  purchase_description: string;
+  purchase_unit: number | null;
+  purchase_unit_name: string | null;
   shelf_life_days: number | null;
   batch_tracked: boolean;
   qc_required: boolean;
   notes: string;
   is_active: boolean;
   units: ItemUnit[];
+  gst_rates: GstRate[];
   warnings: string[];
 };
+export type GstRate = { valid_from: string; rate: string };
 
 const TYPES: [string, string][] = [
   ["goods", "Goods (stocked)"],
@@ -55,6 +65,13 @@ const USED_FOR: [string, string][] = [
 const typeLabel = (code: string) => TYPES.find(([c]) => c === code)?.[1] ?? code;
 const usedLabel = (code: string) => USED_FOR.find(([c]) => c === code)?.[1] ?? code;
 const plain = (v: string | null) => (v === null || v === "" ? "" : String(Number(v)));
+const showDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+/** The rate in force today: the latest row whose "from" date has come. */
+const rateToday = (rates: GstRate[]) => {
+  const today = new Date().toISOString().slice(0, 10);
+  return [...rates].filter((r) => r.valid_from <= today).pop();
+};
 
 export function ItemsPage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
@@ -230,11 +247,56 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
           rows={[
             ["Item number", i.item_number],
             ["Type", typeLabel(i.item_type)],
-            ["Stock unit", i.stock_unit_name],
+            ["Default unit (stock unit)", i.stock_unit_name],
             ["HSN", i.hsn],
           ]}
         />
       </Section>
+      {(i.sales_name || i.sales_description || i.sales_unit_name) && (
+        <Section title="Sales">
+          <Facts
+            rows={[
+              ["Sales item name", i.sales_name || i.name],
+              ["Default sales unit", i.sales_unit_name ?? ""],
+            ]}
+          />
+          {i.sales_description && <p className="pre">{i.sales_description}</p>}
+        </Section>
+      )}
+      {(i.purchase_name || i.purchase_description || i.purchase_unit_name) && (
+        <Section title="Purchase">
+          <Facts
+            rows={[
+              ["Purchase item name", i.purchase_name || i.name],
+              ["Default purchase unit", i.purchase_unit_name ?? ""],
+            ]}
+          />
+          {i.purchase_description && <p className="pre">{i.purchase_description}</p>}
+        </Section>
+      )}
+      {i.gst_rates.length > 0 && (
+        <Section title="GST rates">
+          <table className="grid">
+            <thead>
+              <tr>
+                <th>From</th>
+                <th className="num">GST rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...i.gst_rates].reverse().map((r) => (
+                <tr key={r.valid_from}>
+                  <td>
+                    {showDate(r.valid_from)}
+                    {r === rateToday(i.gst_rates) && <span className="pill on">In force</span>}
+                  </td>
+                  <td className="num">{plain(r.rate)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
       <Section title="Stock and quality">
         <Facts
           rows={[
@@ -368,6 +430,19 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
   const [notes, setNotes] = useState(from?.notes ?? "");
+  // Sales and purchase names start as the item name and follow it until edited.
+  const [salesName, setSalesName] = useState(from?.sales_name || name);
+  const [buyName, setBuyName] = useState(from?.purchase_name || name);
+  const changeName = (v: string) => {
+    if (salesName === name) setSalesName(v);
+    if (buyName === name) setBuyName(v);
+    setName(v);
+  };
+  const [salesText, setSalesText] = useState(from?.sales_description ?? "");
+  const [salesUnit, setSalesUnit] = useState(from?.sales_unit == null ? "" : String(from.sales_unit));
+  const [buyText, setBuyText] = useState(from?.purchase_description ?? "");
+  const [buyUnit, setBuyUnit] = useState(from?.purchase_unit == null ? "" : String(from.purchase_unit));
+  const [rates, setRates] = useState<GstRate[]>((from?.gst_rates ?? []).map((r) => ({ ...r, rate: plain(r.rate) })));
   const [rows, setRows] = useState<Row[]>(
     (from?.units ?? []).map((u) => {
       const r = rowOf(u);
@@ -376,7 +451,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"general" | "stock" | "units">("general");
+  const [tab, setTab] = useState<"general" | "sales" | "purchase" | "gst" | "stock" | "units">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -384,6 +459,9 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const unitName = (id: string) => units.find((u) => String(u.id) === id)?.name ?? "";
   const fac = factors(stock, rows);
   const stockName = unitName(stock);
+  const listed = [stock, ...rows.map((r) => r.unit)].filter((id, k, all) => id && all.indexOf(id) === k);
+  const unitChoices = listed.map((id) => ({ value: id, label: unitName(id) }));
+  const setRate = (i: number, change: Partial<GstRate>) => setRates(rates.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const setRow = (i: number, change: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const toggleUsed = (i: number, code: string, on: boolean) =>
     setRow(i, { used_for: on ? [...rows[i].used_for, code] : rows[i].used_for.filter((c) => c !== code) });
@@ -402,6 +480,13 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       batch_tracked: batches,
       qc_required: qc,
       notes,
+      sales_name: salesName,
+      sales_description: salesText,
+      sales_unit: salesUnit ? Number(salesUnit) : null,
+      purchase_name: buyName,
+      purchase_description: buyText,
+      purchase_unit: buyUnit ? Number(buyUnit) : null,
+      gst_rates: rates.filter((r) => r.valid_from || r.rate).map((r) => ({ valid_from: r.valid_from, rate: r.rate.trim() })),
       units: rows
         .filter((r) => r.unit)
         .map((r) => ({
@@ -434,6 +519,9 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         {(
           [
             ["general", "General"],
+            ["sales", "Sales"],
+            ["purchase", "Purchase"],
+            ["gst", `GST rates (${rates.length})`],
             ["stock", "Stock and quality"],
             ["units", `Units of measure (${rows.length})`],
           ] as const
@@ -455,7 +543,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         <Section title="Item">
           <label>
             Name
-            <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            <input required autoFocus value={name} onChange={(e) => changeName(e.target.value)} />
           </label>
           <div className="row">
             <label>
@@ -467,7 +555,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
               />
             </label>
             <label>
-              Stock unit
+              Default unit (stock unit)
               <Combobox
                 required
                 value={stock}
@@ -492,6 +580,85 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             <input value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
         </Section>
+        )}
+        {tab === "sales" && (
+          <Section title="Sales">
+            <label>
+              Sales item name
+              <input maxLength={120} value={salesName} placeholder={name} onChange={(e) => setSalesName(e.target.value)} />
+            </label>
+            <label>
+              Sales description
+              <textarea rows={3} maxLength={500} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
+            </label>
+            <p className="small">The wording customers see for this item on quotations, orders and sales bills.</p>
+            <div className="row">
+              <label>
+                Default sales unit
+                <Combobox value={salesUnit} onChange={setSalesUnit} empty="Same as the stock unit" options={unitChoices} />
+              </label>
+            </div>
+          </Section>
+        )}
+        {tab === "purchase" && (
+          <Section title="Purchase">
+            <label>
+              Purchase item name
+              <input maxLength={120} value={buyName} placeholder={name} onChange={(e) => setBuyName(e.target.value)} />
+            </label>
+            <label>
+              Purchase description
+              <textarea rows={3} maxLength={500} value={buyText} onChange={(e) => setBuyText(e.target.value)} />
+            </label>
+            <p className="small">The wording suppliers see for this item on purchase orders.</p>
+            <div className="row">
+              <label>
+                Default purchase unit
+                <Combobox value={buyUnit} onChange={setBuyUnit} empty="Same as the stock unit" options={unitChoices} />
+              </label>
+            </div>
+          </Section>
+        )}
+        {tab === "gst" && (
+          <Section title="GST rates">
+            <p className="small">
+              When the law changes, click "Add rate" and give the new rate and the date it starts. Keep the old rows: bills
+              take the rate in force on the bill date.
+            </p>
+            {rates.length > 0 && (
+              <table className="grid">
+                <thead>
+                  <tr>
+                    <th>From</th>
+                    <th className="num">GST rate (%)</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rates.map((r, i) => (
+                    <tr key={i}>
+                      <td>
+                        <input required type="date" aria-label="From" value={r.valid_from} onChange={(e) => setRate(i, { valid_from: e.target.value })} />
+                      </td>
+                      <td>
+                        <input required className="num" inputMode="decimal" aria-label="GST rate (%)" value={r.rate} onChange={(e) => setRate(i, { rate: e.target.value })} />
+                      </td>
+                      <td>
+                        <button type="button" className="link danger" onClick={() => setRates(rates.filter((_, j) => j !== i))}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div>
+              <button type="button" className="link" onClick={() => setRates([...rates, { valid_from: "", rate: "" }])}>
+                Add rate
+              </button>
+            </div>
+          </Section>
         )}
         {tab === "stock" && (
         <Section title="Stock and quality">

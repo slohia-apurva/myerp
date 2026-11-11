@@ -302,16 +302,28 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Items are one catalogue shared by every company in the group. Each item gets a number such as ITEM-00001. Click
-          an item in the list and its details show on the right in boxes: "Item", "Stock and quality" and "Units of
-          measure", with the change log, "Activity", below. Type in the search box to find an item by name, number, HSN or
+          an item in the list and its details show on the right in boxes: "Item", "Sales", "Purchase", "GST rates",
+          "Stock and quality" and "Units of measure", with the change log, "Activity", below. Type in the search box to find an item by name, number, HSN or
           barcode.
         </p>
         <h3>Add an item</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Items", then "Add item". The form has tabs: "General", "Stock and quality" and "Units of measure".</li>
+          <li>Click "Masters" in the top menu, then "Items", then "Add item". The form has tabs: "General", "Sales", "Purchase", "GST rates", "Stock and quality" and "Units of measure".</li>
           <li>
-            Under "General", give the "Name", the "Type" (goods you stock, or a service), the "Stock unit" (the unit stock is
-            counted in, such as Packet) and the "HSN" code if you know it.
+            Under "General", give the "Name", the "Type" (goods you stock, or a service), the "Default unit (stock unit)"
+            (the unit stock is counted in, such as Packet) and the "HSN" code if you know it.
+          </li>
+          <li>
+            On the "Sales" tab, the "Sales item name" starts as the item's name; change it if customers know the item by
+            another name (left the same, it follows the item name if you rename the item). Write the "Sales description" customers should see on quotations, orders and bills, and
+            pick the "Default sales unit" (for example Carton). On the "Purchase" tab do the same for suppliers with the
+            "Purchase item name", the "Purchase description" and the "Default purchase unit". The default units are picked from the item's own
+            units, so add a unit on the "Units of measure" tab first. Left blank, the stock unit is used.
+          </li>
+          <li>
+            On the "GST rates" tab, click "Add rate" and fill in "From" (the date the rate starts) and "GST rate (%)". When
+            the law changes, do not change the old row: click "Add rate" again and give the new rate with its start date.
+            A bill takes the rate in force on the bill date, and the item's details mark today's rate "In force".
           </li>
           <li>
             On the "Stock and quality" tab, fill in the "Shelf life (days)" if the item expires, tick "Track batches" if you
