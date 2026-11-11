@@ -132,6 +132,7 @@ def _register() -> None:
     from core import modules as company_modules
     from core.models import (
         Branch,
+        Brand,
         Certificate,
         Company,
         CreditTerm,
@@ -198,6 +199,7 @@ def _register() -> None:
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),
             ItemGroup: Tracked("item_group", "Item group", lambda r: None),
+            Brand: Tracked("brand", "Brand", lambda r: None),
             Item: Tracked(
                 "item",
                 "Item",

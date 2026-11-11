@@ -35,6 +35,7 @@ from core.credit_terms import STANDARD_TERMS
 from core.ledger_groups import ensure_cash_ledger
 from core.models import (
     Branch,
+    Brand,
     Certificate,
     Company,
     CreditTerm,
@@ -117,6 +118,7 @@ def _plan(level: str, company):
         rows += [
             ("Items", Item.objects.all()),
             ("Item groups", ItemGroup.objects.all()),
+            ("Brands", Brand.objects.all()),
             ("Credit terms you added", _custom_terms()),
             ("Units you added", _custom_units()),
         ]
@@ -160,6 +162,7 @@ def run(level: str, company, user) -> dict:
             _delete_masters(scope)
         if level == "all":
             Item.objects.all().delete()
+            Brand.objects.all().delete()
             # Deepest groups first: a group cannot go while one sits under it.
             while (tips := ItemGroup.objects.filter(children__isnull=True)).exists():
                 tips.delete()

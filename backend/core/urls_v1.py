@@ -2,6 +2,7 @@ from django.urls import path
 
 from core import (
     api,
+    brands,
     central,
     credit_terms,
     data_reset,
@@ -34,6 +35,8 @@ urlpatterns = [
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
     path("exchange/<str:key>/", exchange.ExportView.as_view(), name="exchange-export"),
     path("exchange/<str:key>/import/", exchange.ImportView.as_view(), name="exchange-import"),
+    path("brands/", brands.BrandListView.as_view(), name="brands"),
+    path("brands/<int:pk>/", brands.BrandDetailView.as_view(), name="brand"),
     path("item-groups/", item_groups.ItemGroupListView.as_view(), name="item-groups"),
     path("item-groups/<int:pk>/", item_groups.ItemGroupDetailView.as_view(), name="item-group"),
     path("units/", units.UnitListView.as_view(), name="units"),

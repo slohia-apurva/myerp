@@ -13,12 +13,13 @@ import { RolesPage, UsersPage } from "./Users";
 import { CourierAccountsPage, ShipmentsPage } from "./Shipments";
 import "./app.css";
 import { Logo } from "./Brand";
+import { BrandsPage } from "./Brands";
 import { ItemGroupsPage } from "./ItemGroups";
 import { CentralPage } from "./Central";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { AdminMenu, CompanyPicker, MastersMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "item-groups" | "items" | "hsn" | "reset" | "central" | "help";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "item-groups" | "brands" | "items" | "hsn" | "reset" | "central" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -26,7 +27,7 @@ function routeFromHash(): Route {
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "item-groups" || page === "hsn" || page === "items" || page === "reset" || page === "central" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "item-groups" || page === "brands" || page === "hsn" || page === "items" || page === "reset" || page === "central" ? page : "home" };
 }
 
 export function App() {
@@ -92,7 +93,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {link("home", "Dashboard")}
           {canSeeMasters && (
             <MastersMenu
-              active={page === "credit-terms" || page === "units" || page === "item-groups" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers"))}
+              active={page === "credit-terms" || page === "units" || page === "item-groups" || page === "brands" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers"))}
               company={current.company}
               canSeeMasters={canSeeMasters}
             />
@@ -154,6 +155,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <CentralPage />
         ) : page === "hsn" && canSeeMasters ? (
           <HsnPage session={session} />
+        ) : page === "brands" && canSeeMasters ? (
+          <BrandsPage session={session} />
         ) : page === "item-groups" && canSeeMasters ? (
           <ItemGroupsPage session={session} />
         ) : page === "units" && canSeeMasters ? (
