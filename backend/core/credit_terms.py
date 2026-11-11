@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 
 from audit import recorder
 from core.api import EDIT, VIEW, Signed, _check
+from core.locks import refuse_key_changes
 from core.models import CreditTerm, CreditTermPart, describe_part
 from tenancy.context import tenant_atomic
 
@@ -78,6 +79,11 @@ def _save_term(term: CreditTerm, data: dict) -> None:
             clash = clash.exclude(pk=term.pk)
         if clash.exists():
             raise ValidationError({"name": ["There are already credit terms with this name."]})
+    if parts is not None and term.pk:
+        old = sorted((p.event, p.days, p.percent) for p in term.parts.all())
+        new = sorted((p["event"], int(p["days"]), Decimal(p["percent"])) for p in parts)
+        if old != new:
+            refuse_key_changes("credit_term", term, {"parts": new})
     for field in ("name", "is_active", "notes"):
         if field in data:
             setattr(term, field, data[field])
