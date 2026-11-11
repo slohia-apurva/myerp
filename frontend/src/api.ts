@@ -47,7 +47,7 @@ export async function api<T>(path: string, body?: unknown, method?: Method): Pro
 
 export type SignedIn = {
   signed_in: true;
-  user: { email: string; name: string; is_owner: boolean };
+  user: { email: string; name: string; is_owner: boolean; is_platform_admin?: boolean };
   permissions: string[];
 };
 

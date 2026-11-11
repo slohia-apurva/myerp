@@ -12,10 +12,11 @@ import { UnitsPage } from "./Units";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
 import { Logo } from "./Brand";
+import { CentralPage } from "./Central";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { AdminMenu, CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "items" | "hsn" | "reset" | "help";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "items" | "hsn" | "reset" | "central" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -23,7 +24,7 @@ function routeFromHash(): Route {
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "hsn" || page === "items" || page === "reset" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "hsn" || page === "items" || page === "reset" || page === "central" ? page : "home" };
 }
 
 export function App() {
@@ -100,6 +101,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
               canManageUsers={canManageUsers}
             />
           )}
+          {session.user.is_platform_admin && link("central", "Central")}
         </nav>
         <span className="who">
           <CompanyPicker companies={current.companies} company={current.company} onChoose={current.choose} />
@@ -138,6 +140,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <ItemsPage session={session} />
         ) : page === "reset" && session.user.is_owner ? (
           <DataResetPage session={session} />
+        ) : page === "central" && session.user.is_platform_admin ? (
+          <CentralPage />
         ) : page === "hsn" && canSeeMasters ? (
           <HsnPage session={session} />
         ) : page === "units" && canSeeMasters ? (

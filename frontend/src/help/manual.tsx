@@ -358,6 +358,25 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "central",
+    title: "Central tables",
+    summary: "For MyERP platform admins: the lists kept once for every customer.",
+    body: (
+      <>
+        <p>
+          Some lists are the same for everyone, so MyERP keeps them once in a central place instead of in each
+          customer's books: today the HSN codes, and later states, countries and PIN codes. Only platform admins, whose
+          sign-in emails MyERP has been told about, see "Central" in the top menu. A customer's Owner does not.
+        </p>
+        <p>
+          The "Central tables" box shows each list with the number of rows in it; click "Open" to look inside. The
+          "Customers" box lists every customer group (tenant) with its status. Adding customers from here will come
+          later.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "reset",
     title: "Reset data",
     summary: "For Owners: clear a company, or the whole group, back to a clean start.",
