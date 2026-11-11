@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
+import { announceCreated, creatable, type Creatable, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
@@ -133,11 +134,15 @@ export function useCarriers() {
 
 function useCourierAccounts(companyId: number) {
   const [accounts, setAccounts] = useState<CourierAccount[]>([]);
+  const refresh = useCallback(
+    () => api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setAccounts),
+    [companyId],
+  );
   const reload = useCallback(() => {
-    api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setAccounts);
-  }, [companyId]);
+    refresh();
+  }, [refresh]);
   useEffect(reload, [reload]);
-  return { accounts, reload };
+  return { accounts, reload, refresh };
 }
 
 type Branch = { id: number; name: string };
@@ -175,6 +180,10 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
   const { accounts, reload } = useCourierAccounts(companyId);
   const [editing, setEditing] = useState<CourierAccount | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<CourierAccount | null>(null);
+  const startName = useNewName();
+  useEffect(() => {
+    if (startName && canEdit) setEditing("new"); // opened by "Create …" in a dropdown
+  }, [startName, canEdit]);
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     const found = openId && accounts.find((a) => a.id === openId);
@@ -217,6 +226,7 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
             carriers={carriers}
             account={editing === "new" ? null : editing}
             copyOf={copyOf}
+            startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
             readOnly={!canEdit}
             onDone={done}
             onCancel={() => {
@@ -274,6 +284,7 @@ function AccountForm(props: {
   carriers: Carrier[];
   account: CourierAccount | null;
   copyOf?: CourierAccount | null;
+  startName?: string;
   readOnly?: boolean;
   onDone: () => void;
   onCancel: () => void;
@@ -281,7 +292,7 @@ function AccountForm(props: {
   const a = props.account;
   const from = a ?? props.copyOf;
   const [carrierId, setCarrierId] = useState(from ? String(from.carrier_id) : "");
-  const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (a?.name ?? ""));
+  const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (a?.name ?? "")));
   const [service, setService] = useState(from?.service ?? "b2c");
   const [code, setCode] = useState(props.copyOf ? "" : (a?.account_code ?? ""));
   const [notes, setNotes] = useState(from?.notes ?? "");
@@ -293,7 +304,7 @@ function AccountForm(props: {
     const body = { carrier_id: Number(carrierId), name, service, account_code: code, notes };
     try {
       if (a) await api(`v1/courier-accounts/${a.id}/`, body, "PATCH");
-      else await api(`v1/companies/${props.companyId}/courier-accounts/`, body);
+      else announceCreated("courier_account", await api<{ id: number; name: string }>(`v1/companies/${props.companyId}/courier-accounts/`, body));
       props.onDone();
     } catch (err) {
       setError(err);
@@ -373,7 +384,11 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
   const canEnter = session.permissions.some((p) => p === "sales.create" || p === "stock.create");
   const canMasters = session.permissions.includes("masters.view");
   const company = useCompany(companyId);
-  const { accounts } = useCourierAccounts(companyId);
+  const { accounts, refresh: refreshAccounts } = useCourierAccounts(companyId);
+  // "Create …" a courier account from the shipment form, for those who may add masters.
+  const newAccount = session.permissions.includes("masters.edit")
+    ? creatable("courier_account", `companies/${companyId}/couriers`, refreshAccounts)
+    : undefined;
   const [view, setView] = useState("action");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Shipment[]>([]);
@@ -429,6 +444,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
           <ShipmentForm
             companyId={companyId}
             accounts={accounts}
+            createAccount={newAccount}
             shipment={null}
             onDone={(s) => {
               setOpen(s.id);
@@ -443,6 +459,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
             id={open}
             companyId={companyId}
             accounts={accounts}
+            createAccount={newAccount}
             canEnter={canEnter}
             onChanged={changed}
             onClose={() => setOpen(null)}
@@ -533,6 +550,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
 function ShipmentForm(props: {
   companyId: number;
   accounts: CourierAccount[];
+  createAccount?: Creatable;
   shipment: Shipment | null;
   onDone: (s: Shipment) => void;
   onCancel: () => void;
@@ -599,6 +617,7 @@ function ShipmentForm(props: {
               required
               value={account}
               onChange={setAccount}
+              create={props.createAccount}
               empty="Pick an account"
               options={props.accounts
                 .filter((a) => a.is_active || String(a.id) === account)
@@ -697,6 +716,7 @@ function ShipmentCard(props: {
   id: number;
   companyId: number;
   accounts: CourierAccount[];
+  createAccount?: Creatable;
   canEnter: boolean;
   onChanged: () => void;
   onClose: () => void;
@@ -715,6 +735,7 @@ function ShipmentCard(props: {
       <ShipmentForm
         companyId={props.companyId}
         accounts={props.accounts}
+        createAccount={props.createAccount}
         shipment={s}
         onDone={() => {
           setEditing(false);

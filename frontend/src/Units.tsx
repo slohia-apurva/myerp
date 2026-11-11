@@ -1,4 +1,5 @@
 import { Combobox } from "./Combobox";
+import { announceCreated, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
@@ -19,11 +20,13 @@ export type Unit = {
 
 export function useUnits() {
   const [units, setUnits] = useState<Unit[]>([]);
+  // refresh returns the request, so "Create …" can wait for the new record.
+  const refresh = useCallback(() => api<Unit[]>("v1/units/").then(setUnits), []);
   const reload = useCallback(() => {
-    api<Unit[]>("v1/units/").then(setUnits);
-  }, []);
+    refresh();
+  }, [refresh]);
   useEffect(reload, [reload]);
-  return { units, reload };
+  return { units, reload, refresh };
 }
 
 export type GstCode = { code: string; name: string };
@@ -43,6 +46,10 @@ export function UnitsPage({ session }: { session: SignedIn }) {
   const { units, reload } = useUnits();
   const [editing, setEditing] = useState<Unit | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<Unit | null>(null);
+  const startName = useNewName();
+  useEffect(() => {
+    if (startName && canEdit) setEditing("new"); // opened by "Create …" in a dropdown
+  }, [startName, canEdit]);
   const done = () => {
     setEditing(null);
     setCopyOf(null);
@@ -86,6 +93,7 @@ export function UnitsPage({ session }: { session: SignedIn }) {
             key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
             unit={editing === "new" ? null : editing}
             copyOf={copyOf}
+            startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
             readOnly={!canEdit}
             onDone={done}
             onCancel={() => {
@@ -137,13 +145,14 @@ export function UnitsPage({ session }: { session: SignedIn }) {
 function UnitForm(props: {
   unit: Unit | null;
   copyOf?: Unit | null;
+  startName?: string;
   readOnly?: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const u = props.unit;
   const from = u ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
-  const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (u?.name ?? ""));
+  const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (u?.name ?? "")));
   const [shortName, setShortName] = useState(props.copyOf ? "" : (u?.short_name ?? ""));
   const codes = useGstCodes();
   const [gstCode, setGstCode] = useState(props.copyOf ? props.copyOf.gst_code : (u?.gst_code ?? ""));
@@ -156,7 +165,7 @@ function UnitForm(props: {
     const body = { name, short_name: shortName, gst_code: gstCode, whole_numbers: whole };
     try {
       if (u) await api(`v1/units/${u.id}/`, body, "PATCH");
-      else await api("v1/units/", body);
+      else announceCreated("unit", await api<{ id: number; name: string }>("v1/units/", body));
       props.onDone();
     } catch (err) {
       setError(err);

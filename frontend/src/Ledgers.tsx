@@ -1,4 +1,5 @@
 import { Combobox } from "./Combobox";
+import { creatable, type Creatable } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, SignedIn } from "./api";
@@ -64,7 +65,13 @@ function treeOrder(groups: Group[]): { group: Group; depth: number }[] {
   return out;
 }
 
-function GroupSelect(props: { groups: { group: Group; depth: number }[]; value: string; onChange: (v: string) => void; all?: string }) {
+function GroupSelect(props: {
+  groups: { group: Group; depth: number }[];
+  value: string;
+  onChange: (v: string) => void;
+  all?: string;
+  create?: Creatable;
+}) {
   return (
     <Combobox
       value={props.value}
@@ -73,6 +80,7 @@ function GroupSelect(props: { groups: { group: Group; depth: number }[]; value: 
       placeholder="Type to search groups…"
       options={props.groups.map(({ group, depth }) => ({ value: String(group.id), label: group.name, indent: depth }))}
       onChange={props.onChange}
+      create={props.create}
     />
   );
 }
@@ -93,11 +101,16 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   const canEdit = props.session.permissions.includes("masters.edit");
   const ordered = useMemo(() => treeOrder(detail?.ledger_groups ?? []), [detail]);
 
+  const loadDetail = useCallback(
+    () =>
+      api<Detail>(`v1/companies/${props.companyId}/`)
+        .then(setDetail)
+        .catch((err: Error) => setError(err.message)),
+    [props.companyId],
+  );
   useEffect(() => {
-    api<Detail>(`v1/companies/${props.companyId}/`)
-      .then(setDetail)
-      .catch((err: Error) => setError(err.message));
-  }, [props.companyId]);
+    loadDetail();
+  }, [loadDetail]);
 
   const reload = useCallback(() => {
     const params = new URLSearchParams();
@@ -317,6 +330,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
               ledger={editing === "new" ? null : editing}
               copyOf={copyOf}
               groups={ordered}
+              createGroup={creatable("ledger_group", `companies/${props.companyId}/groups`, loadDetail)}
               defaultGroup={groupFilter}
               booksStart={detail.company.books_start}
               multiCurrency={detail.company.multi_currency}
@@ -469,6 +483,7 @@ function LedgerForm(props: {
   /** Duplicate: start as a copy of this ledger, saved as a new one. */
   copyOf?: Ledger | null;
   groups: { group: Group; depth: number }[];
+  createGroup?: Creatable;
   defaultGroup: string;
   booksStart: string;
   multiCurrency: boolean;
@@ -761,7 +776,7 @@ function LedgerForm(props: {
       <div className="row">
         <label>
           Under group
-          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} />
+          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} create={props.createGroup} />
         </label>
         {isParty && <PartyNumber party={party} supplier={chosen?.nature === "liability"} onChange={setParty} />}
       </div>

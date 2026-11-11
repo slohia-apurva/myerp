@@ -3,6 +3,7 @@ import { Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
+import { creatable } from "./Create";
 import { useCreditTerms } from "./CreditTerms";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
 
@@ -158,7 +159,8 @@ export function PartyFields({
   extraTab?: { label: string; content: ReactNode };
 }) {
   const states = useStates();
-  const { terms } = useCreditTerms();
+  const { terms, refresh: refreshTerms } = useCreditTerms();
+  const newTerm = creatable("credit_term", "credit-terms", refreshTerms);
   const [companies, setCompanies] = useState<Company[]>([]);
   useEffect(() => {
     api<Company[]>("v1/companies/").then(setCompanies);
@@ -273,6 +275,7 @@ export function PartyFields({
               .filter((t) => t.is_active || t.id === p.credit_term)
               .map((t) => ({ value: String(t.id), label: t.name }))}
             onChange={(v) => set({ credit_term: v ? Number(v) : null })}
+            create={newTerm}
           />
           {term && <span className="small">{term.summary}</span>}
         </label>

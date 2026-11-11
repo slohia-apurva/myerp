@@ -54,6 +54,20 @@ export const MANUAL: Chapter[] = [
           and down arrow keys and Enter, or click the one you want. Press Esc to close the list without changing it.
         </p>
 
+        <h3>Adding a missing record from a list</h3>
+        <p>
+          If what you type in a list of customers' credit terms, units, item groups, brands, ledger groups, branches or
+          courier accounts is not there, the list offers 'Create "<em>what you typed</em>"' at the bottom. Click it
+          (or press Enter on it): that master's screen opens in a new browser tab with the "Add" form open and the name
+          filled in, so nothing on the screen you were filling is lost. Fill in the rest and click "Save". The new tab
+          closes by itself and the list on your first screen picks the new record. If the tab stays open (some
+          browsers keep it), close it yourself; the record is still picked.
+        </p>
+        <Note>
+          You see "Create" only if your role may add masters. The new record goes through all the usual checks,
+          including "No duplicates" below.
+        </Note>
+
         <h3>No duplicates</h3>
         <p>
           MyERP will not save a second record that means the same as one already there. Names are compared without
