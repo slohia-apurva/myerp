@@ -340,6 +340,38 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "hsn",
+    title: "HSN codes",
+    summary: "The list of HSN and SAC codes that the item form searches as you type.",
+    body: (
+      <>
+        <p>
+          HSN codes are one list shared by every company in the group. On the item form, the "HSN" box searches this
+          list: type a few digits of the code, or words from the description (for example "turmeric"), and click the
+          code you want. A code that is not in the list can still be typed in.
+        </p>
+        <h3>Load the official list</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "HSN codes", then "Import".</li>
+          <li>
+            Choose a CSV or tab-separated file with the code in the first column and the description in the second.
+            Heading lines are skipped.
+          </li>
+          <li>Check the number of codes found, then click "Save".</li>
+        </ol>
+        <p>
+          New codes are added and codes already in the list get the new description, so you can import an updated list
+          again later. If any row is wrong, nothing is imported and the message names the row.
+        </p>
+        <h3>Add or correct one code</h3>
+        <p>
+          Click "Add HSN code" for a single code, or "Edit" on a row to change its description. A code itself cannot be
+          changed. Codes are never deleted: click "Edit" and then "Disable" to stop offering one in the item form.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "units",
     title: "Units",
     summary: "The list of units of measure (Packet, Carton, Kilogram) that items will use.",

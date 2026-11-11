@@ -24,6 +24,7 @@ export const RECORD_TYPES: [string, string][] = [
   ["credit_term", "Credit terms"],
   ["unit", "Units"],
   ["item", "Items"],
+  ["hsn", "HSN codes"],
   ["ledger_group", "Ledger groups"],
   ["ledger", "Ledgers"],
 ];
