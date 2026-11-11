@@ -203,3 +203,91 @@ def test_viewer_may_read_but_not_change(viewer, accountant, unit):
     assert (
         call(viewer, "post", "items/", {"name": "X", "stock_unit": unit("Nos")}).status_code == 403
     )
+
+
+def test_sales_and_purchase_details(accountant, unit):
+    made = make(
+        accountant,
+        unit,
+        sales_description="  Organic jaggery powder, 500 g pouch  ",
+        sales_unit=unit("Carton"),
+        purchase_description="Jaggery powder in 25 kg bags",
+        purchase_unit=unit("Pallet"),
+    )
+    assert made.status_code == 201, made.json()
+    item = made.json()
+    assert item["sales_description"] == "Organic jaggery powder, 500 g pouch"
+    assert item["sales_unit_name"] == "Carton"
+    assert item["purchase_unit_name"] == "Pallet"
+
+    # a default unit must be one of the item's units
+    bad = make(accountant, unit, name="Other", sales_unit=unit("Kilogram"))
+    assert bad.status_code == 400
+    assert "not one of the item's units" in bad.json()["sales_unit"][0]
+
+    # dropping the unit from the list while it is the default is refused
+    fewer = call(accountant, "patch", f"items/{item['id']}/", {"units": chain(unit)[:3]})
+    assert fewer.status_code == 400
+    assert "Pallet" in fewer.json()["purchase_unit"][0]
+
+    cleared = call(
+        accountant,
+        "patch",
+        f"items/{item['id']}/",
+        {"purchase_unit": None, "units": chain(unit)[:3]},
+    )
+    assert cleared.status_code == 200, cleared.json()
+    assert cleared.json()["purchase_unit"] is None
+
+
+def test_gst_rates_are_dated(accountant, unit, alpha):
+    from datetime import date
+
+    from core.items import gst_rate_on
+    from core.models import Item
+
+    made = make(
+        accountant,
+        unit,
+        gst_rates=[
+            {"valid_from": "2025-09-22", "rate": "5"},
+            {"valid_from": "2017-07-01", "rate": "18"},
+        ],
+    )
+    assert made.status_code == 201, made.json()
+    item = made.json()
+    assert item["gst_rates"] == [
+        {"valid_from": "2017-07-01", "rate": "18.00"},
+        {"valid_from": "2025-09-22", "rate": "5.00"},
+    ]
+    with use_tenant(alpha):
+        row = Item.objects.get(pk=item["id"])
+        assert gst_rate_on(row, date(2017, 6, 30)) is None
+        assert gst_rate_on(row, date(2025, 9, 21)) == Decimal(18)
+        assert gst_rate_on(row, date(2025, 9, 22)) == Decimal(5)
+
+    # a new law: add a row, the old ones stay
+    later = item["gst_rates"] + [{"valid_from": "2027-04-01", "rate": "3"}]
+    changed = call(accountant, "patch", f"items/{item['id']}/", {"gst_rates": later})
+    assert changed.status_code == 200, changed.json()
+    assert len(changed.json()["gst_rates"]) == 3
+    entries = call(accountant, "get", f"audit/?type=item&id={item['id']}").json()["entries"]
+    now = {c["label"]: c["new"] for c in entries[0]["changes"]}
+    assert "3% from 01-04-2027" in now["GST rates"]
+
+    # other edits leave the rates alone
+    kept = call(accountant, "patch", f"items/{item['id']}/", {"notes": "x"})
+    assert len(kept.json()["gst_rates"]) == 3
+
+    twice = [{"valid_from": "2027-04-01", "rate": "3"}, {"valid_from": "2027-04-01", "rate": "5"}]
+    bad = call(accountant, "patch", f"items/{item['id']}/", {"gst_rates": twice})
+    assert bad.status_code == 400
+    assert "Two rates start on 01-04-2027" in bad.json()["gst_rates"][0]
+
+    over = call(
+        accountant,
+        "patch",
+        f"items/{item['id']}/",
+        {"gst_rates": [{"valid_from": "2027-04-01", "rate": "140"}]},
+    )
+    assert over.status_code == 400

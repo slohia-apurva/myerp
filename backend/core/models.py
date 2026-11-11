@@ -538,6 +538,14 @@ class Item(models.Model):
     item_type = models.CharField(max_length=10, choices=TYPES, default=GOODS)
     stock_unit = models.ForeignKey("Unit", on_delete=models.PROTECT, related_name="stock_items")
     hsn = models.CharField(max_length=8, blank=True)
+    sales_description = models.CharField(max_length=500, blank=True)
+    sales_unit = models.ForeignKey(
+        "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    purchase_description = models.CharField(max_length=500, blank=True)
+    purchase_unit = models.ForeignKey(
+        "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
@@ -604,6 +612,29 @@ class ItemUnit(models.Model):
 
     def __str__(self) -> str:
         return str(self.unit)
+
+
+class ItemGstRate(models.Model):
+    """An item's GST rate from a date. Rates change with the law, so a new
+    rate is a new row with its own "from" date; old rows stay, and a bill
+    takes the rate whose date is the latest on or before the bill date."""
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="gst_rates")
+    valid_from = models.DateField()
+    rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal(0)), MaxValueValidator(Decimal(100))],
+    )
+
+    class Meta:
+        ordering = ["valid_from"]
+        constraints = [
+            models.UniqueConstraint(fields=["item", "valid_from"], name="item_gst_rate_date_once")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.rate.normalize():f}% from {self.valid_from:%d-%m-%Y}"
 
 
 class CreditTermPart(models.Model):

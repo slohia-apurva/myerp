@@ -6,9 +6,13 @@ Rules kept here:
 - the stock unit always has a row, with factor 1;
 - every other row says how many of another row's unit it contains, and its
   factor (stock units in one) is worked out from the chain, never typed;
-- volume is worked out from the size; a missing size is a warning only.
+- volume is worked out from the size; a missing size is a warning only;
+- the default sales and purchase units must be among the item's units;
+- GST rates are dated rows: one per "from" date, a new law means a new row
+  (`gst_rate_on` gives the rate for a day).
 """
 
+from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -20,7 +24,7 @@ from rest_framework.views import APIView
 from audit import recorder
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
-from core.models import USED_FOR, Item, ItemUnit, Unit
+from core.models import USED_FOR, Item, ItemGstRate, ItemUnit, Unit
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
 
@@ -74,10 +78,27 @@ class ItemUnitSerializer(serializers.ModelSerializer):
         return None if v is None else format(v, "f")
 
 
+class ItemGstRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ItemGstRate
+        fields = ["valid_from", "rate"]
+
+
 class ItemSerializer(serializers.ModelSerializer):
     stock_unit = serializers.PrimaryKeyRelatedField(queryset=Unit.objects.all())
     stock_unit_name = serializers.CharField(source="stock_unit.name", read_only=True)
+    sales_unit = serializers.PrimaryKeyRelatedField(
+        queryset=Unit.objects.all(), allow_null=True, required=False
+    )
+    sales_unit_name = serializers.CharField(source="sales_unit.name", read_only=True, default=None)
+    purchase_unit = serializers.PrimaryKeyRelatedField(
+        queryset=Unit.objects.all(), allow_null=True, required=False
+    )
+    purchase_unit_name = serializers.CharField(
+        source="purchase_unit.name", read_only=True, default=None
+    )
     units = ItemUnitSerializer(many=True, required=False)
+    gst_rates = ItemGstRateSerializer(many=True, required=False)
     warnings = serializers.SerializerMethodField()
 
     class Meta:
@@ -90,12 +111,19 @@ class ItemSerializer(serializers.ModelSerializer):
             "stock_unit",
             "stock_unit_name",
             "hsn",
+            "sales_description",
+            "sales_unit",
+            "sales_unit_name",
+            "purchase_description",
+            "purchase_unit",
+            "purchase_unit_name",
             "shelf_life_days",
             "batch_tracked",
             "qc_required",
             "notes",
             "is_active",
             "units",
+            "gst_rates",
             "warnings",
         ]
         read_only_fields = ["item_number"]
@@ -156,8 +184,27 @@ def _resolve_chain(item_stock: Unit, rows: list[dict]) -> list[dict]:
     return rows
 
 
+def gst_rate_on(item: Item, day: date) -> Decimal | None:
+    """The item's GST rate on a day: the row with the latest "from" date on
+    or before it. None when no rate had started by then."""
+    row = item.gst_rates.filter(valid_from__lte=day).order_by("-valid_from").first()
+    return None if row is None else row.rate
+
+
+def _check_rates(rates: list[dict]) -> list[dict]:
+    seen = set()
+    for r in rates:
+        if r["valid_from"] in seen:
+            raise ValidationError(
+                {"gst_rates": [f"Two rates start on {r['valid_from']:%d-%m-%Y}; keep one."]}
+            )
+        seen.add(r["valid_from"])
+    return sorted(rates, key=lambda r: r["valid_from"])
+
+
 def _save_item(item: Item, data: dict) -> None:
     rows = data.pop("units", None)
+    rates = data.pop("gst_rates", None)
     refuse_key_changes("item", item, data)
     if "name" in data:
         data["name"] = data["name"].strip()
@@ -171,6 +218,10 @@ def _save_item(item: Item, data: dict) -> None:
         "item_type",
         "stock_unit",
         "hsn",
+        "sales_description",
+        "sales_unit",
+        "purchase_description",
+        "purchase_unit",
         "shelf_life_days",
         "batch_tracked",
         "qc_required",
@@ -212,6 +263,27 @@ def _save_item(item: Item, data: dict) -> None:
             for r in item.units.all()
         ]
         _resolve_chain(item.stock_unit, existing)
+    for field in ("sales_description", "purchase_description"):
+        setattr(item, field, getattr(item, field).strip())
+    if rows is not None:
+        unit_ids = {r["unit"].pk for r in rows}
+    elif item.pk:
+        unit_ids = set(item.units.values_list("unit_id", flat=True)) | {item.stock_unit_id}
+    else:
+        unit_ids = {item.stock_unit_id}
+    for field, label in (("sales_unit", "sales"), ("purchase_unit", "purchase")):
+        chosen = getattr(item, field)
+        if chosen is not None and chosen.pk not in unit_ids:
+            raise ValidationError(
+                {
+                    field: [
+                        f"The default {label} unit {chosen.name} is not one of the item's "
+                        "units of measure. Add it there first."
+                    ]
+                }
+            )
+    if rates is not None:
+        rates = _check_rates([dict(r) for r in rates])
     try:
         item.full_clean(validate_constraints=False, exclude=["item_number"])
     except DjangoValidationError as exc:
@@ -252,13 +324,21 @@ def _save_item(item: Item, data: dict) -> None:
             except DjangoValidationError as exc:
                 raise ValidationError({"units": exc.messages}) from exc
             row.save()
+    if rates is not None:
+        old = [(r.valid_from, r.rate) for r in item.gst_rates.all()]
+        new = [(r["valid_from"], r["rate"]) for r in rates]
+        if old != new:
+            item.gst_rates.all().delete()
+            for r in rates:
+                ItemGstRate.objects.create(item=item, valid_from=r["valid_from"], rate=r["rate"])
+    if rows is not None or rates is not None:
         recorder.touch(item)
 
 
 def _queryset():
-    return Item.objects.select_related("stock_unit").prefetch_related(
-        "units__unit", "units__contains_unit"
-    )
+    return Item.objects.select_related(
+        "stock_unit", "sales_unit", "purchase_unit"
+    ).prefetch_related("units__unit", "units__contains_unit", "gst_rates")
 
 
 class ItemListView(APIView):

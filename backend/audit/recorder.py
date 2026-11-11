@@ -210,7 +210,11 @@ def _register() -> None:
                             for u in i.units.all()
                         )
                         or None,
-                    )
+                    ),
+                    "gst_rates": (
+                        "GST rates",
+                        lambda i: "; ".join(map(str, i.gst_rates.all())) or None,
+                    ),
                 },
             ),
             User: Tracked(
