@@ -48,6 +48,9 @@ def test_disable_and_enable_each_master(owner, company):
     term = call(owner, "get", "credit-terms/").json()[0]["id"]
     flip(owner, f"credit-terms/{term}/")
 
+    unit = call(owner, "get", "units/").json()[0]["id"]
+    flip(owner, f"units/{unit}/")
+
     made = call(
         owner, "post", f"companies/{company}/branches/", {"name": "Godown", "state_code": "27"}
     )

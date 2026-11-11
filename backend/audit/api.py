@@ -3,7 +3,7 @@
 - ?company=ID lists changes to that company's masters (needs masters.view
   and access to the company). Add &type=ledger&id=5 for one record.
 - With no company it lists changes to group-wide records: users and roles
-  (needs users.manage), or with &type=credit_term the credit terms (needs
+  (needs users.manage), or with &type=credit_term or &type=unit those masters (needs
   masters.view).
 - &before=ENTRY_ID gives the next page.
 """
@@ -18,7 +18,7 @@ from core.companies import visible_companies
 
 PAGE = 50
 GROUP_TYPES = ("user", "role")
-SHARED_MASTER_TYPES = ("credit_term",)  # group-wide masters
+SHARED_MASTER_TYPES = ("credit_term", "unit")  # group-wide masters
 
 
 def _int(value, name):

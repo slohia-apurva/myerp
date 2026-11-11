@@ -291,6 +291,35 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "units",
+    title: "Units",
+    summary: "The list of units of measure (Packet, Carton, Kilogram) that items will use.",
+    body: (
+      <>
+        <p>
+          Units are one list shared by every company in the group. Items will pick their units from it. The list starts
+          with the usual ones: Nos, Packet, Inner box, Carton, Pallet, Bag, Bottle, Kilogram, Gram, Tonne, Litre,
+          Millilitre and Metre.
+        </p>
+        <h3>Add a unit</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Units".</li>
+          <li>Click "Add unit", then give the "Name" (for example Drum) and a "Short name" (for example drm).</li>
+          <li>
+            Tick "Whole numbers only" for units that cannot be split, such as cartons: a quantity like 2.5 cartons will
+            then be refused on documents.
+          </li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          Names and short names must be different from each other, whatever the capital letters. Units are never
+          deleted: click "Edit" and then the "Disable" button to stop offering a unit ("Enable" brings it back). Items
+          that already use it keep it.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "modules",
     title: "Modules",
     summary: "Choosing which parts of MyERP a company uses.",
