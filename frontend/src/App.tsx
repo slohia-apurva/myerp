@@ -6,6 +6,7 @@ import { Dashboard } from "./Dashboard";
 import { ItemsPage } from "./Items";
 import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
+import { HsnPage } from "./Hsn";
 import { UnitsPage } from "./Units";
 import { RolesPage, UsersPage } from "./Users";
 import "./app.css";
@@ -13,7 +14,7 @@ import { Logo } from "./Brand";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { AdminMenu, CompanyPicker, MastersMenu, useCurrentCompany } from "./MastersMenu";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "items" | "help";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "units" | "items" | "hsn" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -21,7 +22,7 @@ function routeFromHash(): Route {
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "items" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "units" || page === "hsn" || page === "items" ? page : "home" };
 }
 
 export function App() {
@@ -134,6 +135,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <CreditTermsPage session={session} />
         ) : page === "items" && canSeeMasters ? (
           <ItemsPage session={session} />
+        ) : page === "hsn" && canSeeMasters ? (
+          <HsnPage session={session} />
         ) : page === "units" && canSeeMasters ? (
           <UnitsPage session={session} />
         ) : page === "users" && canManageUsers ? (

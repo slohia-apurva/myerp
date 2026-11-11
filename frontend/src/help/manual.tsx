@@ -339,6 +339,25 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "hsn",
+    title: "HSN codes",
+    summary: "The central list of HSN and SAC codes that the item form searches as you type.",
+    body: (
+      <>
+        <p>
+          MyERP keeps one list of HSN and SAC codes for everyone, so it is the same in every company and is looked after
+          centrally. You cannot change it, but you can search it: click "Masters" in the top menu, then "HSN codes", and
+          type a few digits of the code or words from the description.
+        </p>
+        <p>
+          On the item form, the "HSN" box searches this list as you type. Type a few digits, or words such as
+          "turmeric", and click the code you want. A code that is not in the list can still be typed in. If a code you
+          need is missing, tell us and it will be added for everyone.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "units",
     title: "Units",
     summary: "The list of units of measure (Packet, Carton, Kilogram) that items will use.",

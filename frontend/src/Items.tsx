@@ -3,6 +3,7 @@ import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
+import { HsnPicker } from "./Hsn";
 import { ActiveButton, FormBody } from "./RowActions";
 import { useUnits, type Unit } from "./Units";
 
@@ -479,7 +480,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             </label>
             <label>
               HSN
-              <input value={hsn} maxLength={8} inputMode="numeric" onChange={(e) => setHsn(e.target.value)} />
+              <HsnPicker value={hsn} onChange={setHsn} />
             </label>
           </div>
         </Section>
