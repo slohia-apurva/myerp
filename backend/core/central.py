@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 
 from core import duplicates
 from core.api import Signed
-from tenancy.models import Carrier, HsnCode, Tenant
+from tenancy.models import Carrier, CarrierRequest, HsnCode, Tenant
 
 # key, label, what it is for, model, screen to open (a hash route) or "".
 CENTRAL_TABLES = [
@@ -144,3 +144,57 @@ class CarrierAdminDetailView(APIView):
         with transaction.atomic():
             serializer.save()
         return Response(CarrierAdminSerializer(carrier).data)
+
+
+class CarrierRequestSerializer(serializers.ModelSerializer):
+    customer = serializers.CharField(source="tenant.name", read_only=True)
+
+    class Meta:
+        model = CarrierRequest
+        fields = [
+            "id",
+            "customer",
+            "name",
+            "gstin",
+            "note",
+            "requested_by",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = [f for f in fields if f != "status"]
+
+
+class CarrierRequestListView(APIView):
+    """Transporters that customers saved without a courier from the list, for
+    the MyERP team to add to the central list (or set aside)."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _platform_admin(request)
+        rows = CarrierRequest.objects.select_related("tenant")
+        return Response(CarrierRequestSerializer(rows, many=True).data)
+
+
+class CarrierRequestDetailView(APIView):
+    permission_classes = [Signed]
+
+    def patch(self, request, pk: int):
+        _platform_admin(request)
+        row = CarrierRequest.objects.select_related("tenant").filter(pk=pk).first()
+        if row is None:
+            raise NotFound("No such request.")
+        serializer = CarrierRequestSerializer(row, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        new = serializer.validated_data.get("status", row.status)
+        if new == CarrierRequest.OPEN and (
+            CarrierRequest.objects.filter(
+                tenant=row.tenant, status=CarrierRequest.OPEN, name__iexact=row.name
+            )
+            .exclude(pk=row.pk)
+            .exists()
+        ):
+            raise ValidationError({"status": ["There is already an open request for this name."]})
+        with transaction.atomic():
+            serializer.save()
+        return Response(CarrierRequestSerializer(row).data)

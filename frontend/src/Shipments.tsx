@@ -1,18 +1,35 @@
 import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
-import { announceCreated, creatable, type Creatable, useNewName } from "./Create";
+import {
+  announceCreated,
+  creatable,
+  type Creatable,
+  useNewName,
+} from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange, usePrintMenu } from "./Exchange";
 import { Combobox } from "./Combobox";
-import { ContactFields, contactOf, type Company, type Contact } from "./Companies";
+import {
+  ContactFields,
+  contactOf,
+  type Company,
+  type Contact,
+} from "./Companies";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 /** Couriers, transporters and shipments (spec 06, step 1). Statuses are
  * typed by hand until each courier's tracking API is connected. */
 
-export type Carrier = { id: number; name: string; kind: string; kind_label: string; awb_hint: string; is_active: boolean };
+export type Carrier = {
+  id: number;
+  name: string;
+  kind: string;
+  kind_label: string;
+  awb_hint: string;
+  is_active: boolean;
+};
 
 export type CourierAccount = Contact & {
   id: number;
@@ -111,10 +128,21 @@ const VIEWS: [string, string][] = [
 
 const when = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+    ? new Date(iso).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
     : "";
 const day = (iso: string | null) =>
-  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "";
+  iso
+    ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
 
 /** A local date-time for <input type="datetime-local">, to the minute. */
 function nowLocal(): string {
@@ -138,7 +166,10 @@ export function useCarriers() {
 function useCourierAccounts(companyId: number) {
   const [accounts, setAccounts] = useState<CourierAccount[]>([]);
   const refresh = useCallback(
-    () => api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setAccounts),
+    () =>
+      api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(
+        setAccounts,
+      ),
     [companyId],
   );
   const reload = useCallback(() => {
@@ -151,9 +182,14 @@ function useCourierAccounts(companyId: number) {
 type Branch = { id: number; name: string };
 
 function useCompanyDetail(companyId: number) {
-  const [detail, setDetail] = useState<{ company: Company; branches: Branch[] } | null>(null);
+  const [detail, setDetail] = useState<{
+    company: Company;
+    branches: Branch[];
+  } | null>(null);
   useEffect(() => {
-    api<{ company: Company; branches: Branch[] }>(`v1/companies/${companyId}/`).then(setDetail);
+    api<{ company: Company; branches: Branch[] }>(
+      `v1/companies/${companyId}/`,
+    ).then(setDetail);
   }, [companyId]);
   return detail;
 }
@@ -167,7 +203,8 @@ function NoSales({ company }: { company: Company }) {
     <section className="page">
       <PageHeader title="Shipments" sub={company.name} />
       <p className="card">
-        {company.name} does not use the Sales module. An Owner can switch it on under "Admin", "Company", "Modules".
+        {company.name} does not use the Sales module. An Owner can switch it on
+        under "Admin", "Company", "Modules".
       </p>
     </section>
   );
@@ -176,7 +213,13 @@ function NoSales({ company }: { company: Company }) {
 // Transporters ------------------------------------------------------------
 
 /** Masters > Transporters: the company's couriers, aggregators and road transporters. */
-export function CourierAccountsPage({ companyId, session }: { companyId: number; session: SignedIn }) {
+export function CourierAccountsPage({
+  companyId,
+  session,
+}: {
+  companyId: number;
+  session: SignedIn;
+}) {
   const canEdit = session.permissions.includes("masters.edit");
   const company = useCompany(companyId);
   const carriers = useCarriers();
@@ -203,7 +246,8 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
     company: companyId,
     onImported: reload,
   });
-  if (company && !company.modules.includes("sales")) return <NoSales company={company} />;
+  if (company && !company.modules.includes("sales"))
+    return <NoSales company={company} />;
   const done = () => {
     setEditing(null);
     setCopyOf(null);
@@ -213,7 +257,9 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
     <section className="page">
       <PageHeader
         title="Transporters"
-        crumbs={[{ label: "Shipments", href: `#/companies/${companyId}/shipments` }]}
+        crumbs={[
+          { label: "Shipments", href: `#/companies/${companyId}/shipments` },
+        ]}
         sub={`${company?.name ?? ""}: the couriers and transporters you send goods with, such as a B2C and a B2B account with the same courier.`}
         actions={
           <>
@@ -232,7 +278,15 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
         }
       />
       {printing.panel}
-      <WithActivity activity={<Activity company={companyId} type="courier_account" stamp={JSON.stringify(accounts)} />}>
+      <WithActivity
+        activity={
+          <Activity
+            company={companyId}
+            type="courier_account"
+            stamp={JSON.stringify(accounts)}
+          />
+        }
+      >
         {editing && (
           <AccountForm
             key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
@@ -240,7 +294,11 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
             carriers={carriers}
             account={editing === "new" ? null : editing}
             copyOf={copyOf}
-            startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
+            startName={
+              editing === "new" && !copyOf
+                ? (startName ?? undefined)
+                : undefined
+            }
             readOnly={!canEdit}
             onDone={done}
             onCancel={() => {
@@ -250,7 +308,10 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
           />
         )}
         {accounts.length === 0 ? (
-          <p className="small">No transporters yet. Add one for each you ship with, for example "Delhivery B2C".</p>
+          <p className="small">
+            No transporters yet. Add one for each you ship with, for example
+            "Delhivery B2C".
+          </p>
         ) : (
           <table>
             <thead>
@@ -270,7 +331,13 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
                     {a.name}
                     {!a.is_active && <span className="pill">Disabled</span>}
                   </td>
-                  <td>{a.gstin || <span className="small">Missing: needed for e-way bills</span>}</td>
+                  <td>
+                    {a.gstin || (
+                      <span className="small">
+                        Missing: needed for e-way bills
+                      </span>
+                    )}
+                  </td>
                   <td>{a.carrier_name}</td>
                   <td>{a.service_label}</td>
                   <td>{a.account_code}</td>
@@ -307,13 +374,19 @@ function AccountForm(props: {
 }) {
   const a = props.account;
   const from = a ?? props.copyOf;
-  const [carrierId, setCarrierId] = useState(from?.carrier_id ? String(from.carrier_id) : "");
+  const [carrierId, setCarrierId] = useState(
+    from?.carrier_id ? String(from.carrier_id) : "",
+  );
   const [gstin, setGstin] = useState(props.copyOf ? "" : (a?.gstin ?? ""));
   const [contact, setContact] = useState(contactOf(from));
-  const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (a?.name ?? "")));
+  const [name, setName] = useState(
+    props.startName ??
+      (props.copyOf ? `${props.copyOf.name} (copy)` : (a?.name ?? "")),
+  );
   const [service, setService] = useState(from?.service ?? "b2c");
   const [code, setCode] = useState(props.copyOf ? "" : (a?.account_code ?? ""));
   const [notes, setNotes] = useState(from?.notes ?? "");
+  const [forCentral, setForCentral] = useState("");
   const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
@@ -326,11 +399,19 @@ function AccountForm(props: {
       service,
       account_code: code,
       notes,
+      ...(carrierId ? {} : { note_for_central: forCentral }),
       ...contact,
     };
     try {
       if (a) await api(`v1/courier-accounts/${a.id}/`, body, "PATCH");
-      else announceCreated("courier_account", await api<{ id: number; name: string }>(`v1/companies/${props.companyId}/courier-accounts/`, body));
+      else
+        announceCreated(
+          "courier_account",
+          await api<{ id: number; name: string }>(
+            `v1/companies/${props.companyId}/courier-accounts/`,
+            body,
+          ),
+        );
       props.onDone();
     } catch (err) {
       setError(err);
@@ -339,13 +420,24 @@ function AccountForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{a ? `${props.readOnly ? "View" : "Edit"} ${a.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add transporter"}</h4>
+      <h4>
+        {a
+          ? `${props.readOnly ? "View" : "Edit"} ${a.name}`
+          : props.copyOf
+            ? `Duplicate ${props.copyOf.name}`
+            : "Add transporter"}
+      </h4>
       <FormBody readOnly={props.readOnly}>
         <Section title="Transporter">
           <div className="row">
             <label>
               Name
-              <input required value={name} placeholder="e.g. Delhivery B2B or Shree Roadlines" onChange={(e) => setName(e.target.value)} />
+              <input
+                required
+                value={name}
+                placeholder="e.g. Delhivery B2B or Shree Roadlines"
+                onChange={(e) => setName(e.target.value)}
+              />
             </label>
             <label>
               GSTIN (the Transporter ID on an e-way bill)
@@ -372,14 +464,37 @@ function AccountForm(props: {
                 empty="Not in the list"
                 options={props.carriers
                   .filter((c) => c.is_active || String(c.id) === carrierId)
-                  .map((c) => ({ value: String(c.id), label: c.name, hint: c.kind_label }))}
+                  .map((c) => ({
+                    value: String(c.id),
+                    label: c.name,
+                    hint: c.kind_label,
+                  }))}
               />
             </label>
             <label>
               Service
-              <Combobox value={service} onChange={setService} options={SERVICES.map(([value, label]) => ({ value, label }))} />
+              <Combobox
+                value={service}
+                onChange={setService}
+                options={SERVICES.map(([value, label]) => ({ value, label }))}
+              />
             </label>
           </div>
+          {!carrierId && (
+            <label>
+              Note for the MyERP team (optional)
+              <textarea
+                rows={2}
+                value={forCentral}
+                placeholder="Anything that helps us add this transporter to the list, such as its website or the routes you use"
+                onChange={(e) => setForCentral(e.target.value)}
+              />
+              <span className="small">
+                The MyERP team sees this transporter and can add it to the list
+                for everyone.
+              </span>
+            </label>
+          )}
         </Section>
         <Section title="Address and contact">
           <ContactFields value={contact} onChange={setContact} />
@@ -388,14 +503,25 @@ function AccountForm(props: {
           <div className="row">
             <label>
               Account or customer code
-              <input value={code} placeholder="The code the transporter gave you" onChange={(e) => setCode(e.target.value)} />
+              <input
+                value={code}
+                placeholder="The code the transporter gave you"
+                onChange={(e) => setCode(e.target.value)}
+              />
             </label>
           </div>
           <label>
             Notes
-            <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
           </label>
-          <p className="small">API keys and passwords are never kept here; they are set up separately when a courier is connected.</p>
+          <p className="small">
+            API keys and passwords are never kept here; they are set up
+            separately when a courier is connected.
+          </p>
         </Section>
       </FormBody>
       <ErrorNote error={error} />
@@ -423,14 +549,26 @@ function AccountForm(props: {
 type Party = { id: number; name: string };
 
 /** Sales > Shipments: every AWB sent out, where it is now, and what needs action. */
-export function ShipmentsPage({ companyId, session }: { companyId: number; session: SignedIn }) {
-  const canEnter = session.permissions.some((p) => p === "sales.create" || p === "stock.create");
+export function ShipmentsPage({
+  companyId,
+  session,
+}: {
+  companyId: number;
+  session: SignedIn;
+}) {
+  const canEnter = session.permissions.some(
+    (p) => p === "sales.create" || p === "stock.create",
+  );
   const canMasters = session.permissions.includes("masters.view");
   const company = useCompany(companyId);
   const { accounts, refresh: refreshAccounts } = useCourierAccounts(companyId);
   // "Create …" a transporter from the shipment form, for those who may add masters.
   const newAccount = session.permissions.includes("masters.edit")
-    ? creatable("courier_account", `companies/${companyId}/couriers`, refreshAccounts)
+    ? creatable(
+        "courier_account",
+        `companies/${companyId}/couriers`,
+        refreshAccounts,
+      )
     : undefined;
   const [view, setView] = useState("action");
   const [q, setQ] = useState("");
@@ -439,7 +577,9 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
   const [stamp, setStamp] = useState(0);
   const reload = useCallback(() => {
     const params = new URLSearchParams({ view, q });
-    api<Shipment[]>(`v1/companies/${companyId}/shipments/?${params}`).then(setRows);
+    api<Shipment[]>(`v1/companies/${companyId}/shipments/?${params}`).then(
+      setRows,
+    );
   }, [companyId, view, q]);
   useEffect(() => {
     const t = window.setTimeout(reload, q ? 250 : 0);
@@ -450,7 +590,8 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
     title: `Shipments: ${viewLabel}`,
     scope: [company?.name, q && `Search: ${q}`].filter(Boolean).join(" · "),
   });
-  if (company && !company.modules.includes("sales")) return <NoSales company={company} />;
+  if (company && !company.modules.includes("sales"))
+    return <NoSales company={company} />;
   const changed = () => setStamp((n) => n + 1);
 
   return (
@@ -462,11 +603,16 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
           <>
             {printing.buttons}
             {canMasters && (
-              <a className="button secondary" href={`#/companies/${companyId}/couriers`}>
+              <a
+                className="button secondary"
+                href={`#/companies/${companyId}/couriers`}
+              >
                 Transporters
               </a>
             )}
-            {canEnter && <button onClick={() => setOpen("new")}>Add shipment</button>}
+            {canEnter && (
+              <button onClick={() => setOpen("new")}>Add shipment</button>
+            )}
           </>
         }
       >
@@ -517,17 +663,24 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
         )}
         {accounts.length === 0 && canEnter && (
           <p className="small">
-            Add your transporters first (the "Transporters" button above), then add shipments against them.
+            Add your transporters first (the "Transporters" button above), then
+            add shipments against them.
           </p>
         )}
         <div className="row">
           <label>
             Search
-            <input value={q} placeholder="AWB, customer, invoice, city or PIN" onChange={(e) => setQ(e.target.value)} />
+            <input
+              value={q}
+              placeholder="AWB, customer, invoice, city or PIN"
+              onChange={(e) => setQ(e.target.value)}
+            />
           </label>
         </div>
         {rows.length === 0 ? (
-          <p className="small">{view === "action" ? "Nothing needs action." : "No shipments here."}</p>
+          <p className="small">
+            {view === "action" ? "Nothing needs action." : "No shipments here."}
+          </p>
         ) : (
           <table>
             <thead>
@@ -548,7 +701,11 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
                   <td style={{ whiteSpace: "nowrap" }}>{day(s.booked_on)}</td>
                   <td>
                     {s.tracking_link ? (
-                      <a href={s.tracking_link} target="_blank" rel="noreferrer">
+                      <a
+                        href={s.tracking_link}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         {s.awb}
                       </a>
                     ) : (
@@ -560,12 +717,18 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
                     {s.party_name}
                     {s.reference && <div className="small">{s.reference}</div>}
                   </td>
-                  <td>{[s.ship_to_city, s.ship_to_pincode].filter(Boolean).join(" ")}</td>
+                  <td>
+                    {[s.ship_to_city, s.ship_to_pincode]
+                      .filter(Boolean)
+                      .join(" ")}
+                  </td>
                   <td>
                     {s.cancelled ? (
                       <span className="pill">Cancelled</span>
                     ) : s.alerts.includes(s.status_label) ? (
-                      <span className="pill action-delete">{s.status_label}</span>
+                      <span className="pill action-delete">
+                        {s.status_label}
+                      </span>
                     ) : (
                       s.status_label
                     )}
@@ -578,8 +741,12 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
                       ))}
                   </td>
                   <td>
-                    <span style={{ whiteSpace: "nowrap" }}>{when(s.last_event_at)}</span>
-                    {s.last_place && <div className="small">{s.last_place}</div>}
+                    <span style={{ whiteSpace: "nowrap" }}>
+                      {when(s.last_event_at)}
+                    </span>
+                    {s.last_place && (
+                      <div className="small">{s.last_place}</div>
+                    )}
                   </td>
                   <td>{s.is_open ? s.days_out : ""}</td>
                   <td className="act">
@@ -649,7 +816,10 @@ function ShipmentForm(props: {
     try {
       const saved = s
         ? await api<Shipment>(`v1/shipments/${s.id}/`, body, "PATCH")
-        : await api<Shipment>(`v1/companies/${props.companyId}/shipments/`, body);
+        : await api<Shipment>(
+            `v1/companies/${props.companyId}/shipments/`,
+            body,
+          );
       props.onDone(saved);
     } catch (err) {
       setError(err);
@@ -671,20 +841,38 @@ function ShipmentForm(props: {
               empty="Pick an account"
               options={props.accounts
                 .filter((a) => a.is_active || String(a.id) === account)
-                .map((a) => ({ value: String(a.id), label: a.name, hint: a.carrier_name }))}
+                .map((a) => ({
+                  value: String(a.id),
+                  label: a.name,
+                  hint: a.carrier_name,
+                }))}
             />
           </label>
           <label>
             AWB (tracking number)
-            <input required autoFocus={!s} value={awb} onChange={(e) => setAwb(e.target.value)} />
+            <input
+              required
+              autoFocus={!s}
+              value={awb}
+              onChange={(e) => setAwb(e.target.value)}
+            />
           </label>
           <label>
             Booked on
-            <input required type="date" value={bookedOn} onChange={(e) => setBookedOn(e.target.value)} />
+            <input
+              required
+              type="date"
+              value={bookedOn}
+              onChange={(e) => setBookedOn(e.target.value)}
+            />
           </label>
           <label>
             Expected delivery
-            <input type="date" value={expected} onChange={(e) => setExpected(e.target.value)} />
+            <input
+              type="date"
+              value={expected}
+              onChange={(e) => setExpected(e.target.value)}
+            />
           </label>
         </div>
       </Section>
@@ -696,12 +884,19 @@ function ShipmentForm(props: {
               value={party}
               onChange={setParty}
               empty="None"
-              options={parties.map((p) => ({ value: String(p.id), label: p.name }))}
+              options={parties.map((p) => ({
+                value: String(p.id),
+                label: p.name,
+              }))}
             />
           </label>
           <label>
             Invoice or delivery note number
-            <input value={reference} placeholder="e.g. the ERPNext invoice number" onChange={(e) => setReference(e.target.value)} />
+            <input
+              value={reference}
+              placeholder="e.g. the ERPNext invoice number"
+              onChange={(e) => setReference(e.target.value)}
+            />
           </label>
         </div>
         <div className="row">
@@ -711,7 +906,12 @@ function ShipmentForm(props: {
           </label>
           <label>
             PIN code
-            <input value={pin} inputMode="numeric" maxLength={6} onChange={(e) => setPin(e.target.value)} />
+            <input
+              value={pin}
+              inputMode="numeric"
+              maxLength={6}
+              onChange={(e) => setPin(e.target.value)}
+            />
           </label>
           <label>
             Sent from branch
@@ -719,7 +919,10 @@ function ShipmentForm(props: {
               value={branch}
               onChange={setBranch}
               empty="Not given"
-              options={branches.map((b) => ({ value: String(b.id), label: b.name }))}
+              options={branches.map((b) => ({
+                value: String(b.id),
+                label: b.name,
+              }))}
             />
           </label>
         </div>
@@ -728,26 +931,52 @@ function ShipmentForm(props: {
         <div className="row">
           <label>
             Packages
-            <input type="number" min={1} value={packages} onChange={(e) => setPackages(e.target.value)} />
+            <input
+              type="number"
+              min={1}
+              value={packages}
+              onChange={(e) => setPackages(e.target.value)}
+            />
           </label>
           <label>
             Weight (kg)
-            <input type="number" min={0} step="0.001" value={weight} onChange={(e) => setWeight(e.target.value)} />
+            <input
+              type="number"
+              min={0}
+              step="0.001"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+            />
           </label>
           <label>
             Payment
-            <Combobox value={payment} onChange={setPayment} options={PAYMENTS.map(([value, label]) => ({ value, label }))} />
+            <Combobox
+              value={payment}
+              onChange={setPayment}
+              options={PAYMENTS.map(([value, label]) => ({ value, label }))}
+            />
           </label>
           {payment === "cod" && (
             <label>
               Amount to collect (₹)
-              <input required type="number" min={0} step="0.01" value={cod} onChange={(e) => setCod(e.target.value)} />
+              <input
+                required
+                type="number"
+                min={0}
+                step="0.01"
+                value={cod}
+                onChange={(e) => setCod(e.target.value)}
+              />
             </label>
           )}
         </div>
         <label>
           Notes
-          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
         </label>
       </Section>
       <ErrorNote error={error} />
@@ -796,7 +1025,9 @@ function ShipmentCard(props: {
     );
 
   const cancel = async () => {
-    const reason = window.prompt(`Cancel shipment ${s.awb}? Say why (for example "wrong AWB typed").`);
+    const reason = window.prompt(
+      `Cancel shipment ${s.awb}? Say why (for example "wrong AWB typed").`,
+    );
     if (!reason) return;
     setError("");
     try {
@@ -808,7 +1039,10 @@ function ShipmentCard(props: {
   };
 
   const facts: [string, string][] = [
-    ["Courier", s.carrier_name ? `${s.account_name} (${s.carrier_name})` : s.account_name],
+    [
+      "Courier",
+      s.carrier_name ? `${s.account_name} (${s.carrier_name})` : s.account_name,
+    ],
     ["Booked on", day(s.booked_on)],
     ["Expected delivery", day(s.expected_on)],
     ["Customer", s.party_name],
@@ -816,8 +1050,17 @@ function ShipmentCard(props: {
     ["To", [s.ship_to_city, s.ship_to_pincode].filter(Boolean).join(" ")],
     ["Packages", String(s.packages)],
     ["Weight (kg)", s.weight_kg ? String(Number(s.weight_kg)) : ""],
-    ["Payment", (PAYMENTS.find(([v]) => v === s.payment)?.[1] ?? s.payment) + (s.cod_amount ? ` ₹${s.cod_amount}` : "")],
-    ["Delivered", s.delivered_at ? `${when(s.delivered_at)}${s.received_by ? `, received by ${s.received_by}` : ""}` : ""],
+    [
+      "Payment",
+      (PAYMENTS.find(([v]) => v === s.payment)?.[1] ?? s.payment) +
+        (s.cod_amount ? ` ₹${s.cod_amount}` : ""),
+    ],
+    [
+      "Delivered",
+      s.delivered_at
+        ? `${when(s.delivered_at)}${s.received_by ? `, received by ${s.received_by}` : ""}`
+        : "",
+    ],
     ["Notes", s.notes],
   ];
 
@@ -825,7 +1068,9 @@ function ShipmentCard(props: {
     <div className="card">
       <h4>
         Shipment {s.awb}{" "}
-        <span className={`pill${!s.cancelled && s.alerts.includes(s.status_label) ? " action-delete" : ""}`}>
+        <span
+          className={`pill${!s.cancelled && s.alerts.includes(s.status_label) ? " action-delete" : ""}`}
+        >
           {s.cancelled ? "Cancelled" : s.status_label}
         </span>
         {s.alerts
@@ -885,7 +1130,11 @@ function ShipmentCard(props: {
       <ErrorNote error={error} />
       <div className="buttons">
         {canChange && (
-          <button type="button" className="secondary" onClick={() => setEditing(true)}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setEditing(true)}
+          >
             Edit details
           </button>
         )}
@@ -902,7 +1151,13 @@ function ShipmentCard(props: {
   );
 }
 
-function AddStatus({ shipment, onDone }: { shipment: Shipment; onDone: () => void }) {
+function AddStatus({
+  shipment,
+  onDone,
+}: {
+  shipment: Shipment;
+  onDone: () => void;
+}) {
   const [status, setStatus] = useState("");
   const [at, setAt] = useState(nowLocal);
   const [place, setPlace] = useState("");
@@ -941,22 +1196,38 @@ function AddStatus({ shipment, onDone }: { shipment: Shipment; onDone: () => voi
           </label>
           <label>
             When
-            <input required type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
+            <input
+              required
+              type="datetime-local"
+              value={at}
+              onChange={(e) => setAt(e.target.value)}
+            />
           </label>
           <label>
             Place
-            <input value={place} placeholder="e.g. Delhi hub" onChange={(e) => setPlace(e.target.value)} />
+            <input
+              value={place}
+              placeholder="e.g. Delhi hub"
+              onChange={(e) => setPlace(e.target.value)}
+            />
           </label>
           {status === "delivered" && (
             <label>
               Received by
-              <input value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
+              <input
+                value={receivedBy}
+                onChange={(e) => setReceivedBy(e.target.value)}
+              />
             </label>
           )}
         </div>
         <label>
           Remarks
-          <input value={remarks} placeholder="What the courier's website says" onChange={(e) => setRemarks(e.target.value)} />
+          <input
+            value={remarks}
+            placeholder="What the courier's website says"
+            onChange={(e) => setRemarks(e.target.value)}
+          />
         </label>
         <ErrorNote error={error} />
         <div className="buttons">
