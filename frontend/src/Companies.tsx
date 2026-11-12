@@ -612,7 +612,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         sub={sub}
         actions={
           <>
-            {(tab === "branches" || tab === "certificates") && printing.buttons}
+            {(tab === "branches" || tab === "certificates" || tab === "years") && printing.buttons}
             {canEdit && !editing && (
               <button
                 onClick={() => {

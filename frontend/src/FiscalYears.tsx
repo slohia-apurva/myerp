@@ -1,6 +1,7 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { api } from "./api";
 import { Section } from "./Brand";
+import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { ActiveButton } from "./RowActions";
 
 /** A company's financial years and their months, on the company's "Fiscal years" tab. */
@@ -38,7 +39,15 @@ export function FiscalYears(props: {
 }) {
   const [editing, setEditing] = useState<FiscalYear | "new" | null>(null);
   const [open, setOpen] = useState<number | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
+  const [openId, opened] = useOpenParam();
+  useEffect(() => {
+    const found = openId && props.years.find((y) => y.id === openId);
+    if (found) {
+      setEditing(found);
+      opened();
+    }
+  }, [openId, props.years, opened]);
   const done = () => {
     setEditing(null);
     props.reload();
@@ -49,7 +58,7 @@ export function FiscalYears(props: {
       await api(`v1/fiscal-periods/${p.id}/`, { is_locked: !p.is_locked }, "PATCH");
       props.reload();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
   return (
@@ -71,7 +80,7 @@ export function FiscalYears(props: {
           onCancel={() => setEditing(null)}
         />
       )}
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <table>
         <thead>
           <tr>
@@ -158,7 +167,7 @@ function YearForm(props: {
   const [name, setName] = useState(y?.name ?? "");
   const [start, setStart] = useState(y?.start_date ?? props.suggest.start);
   const [end, setEnd] = useState(y?.end_date ?? props.suggest.end);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>("");
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
@@ -168,7 +177,7 @@ function YearForm(props: {
       else await api(`v1/companies/${props.companyId}/fiscal-years/`, body);
       props.onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(err);
     }
   };
   return (
@@ -190,7 +199,7 @@ function YearForm(props: {
           </label>
         </div>
       </Section>
-      {error && <p className="error">{error}</p>}
+      <ErrorNote error={error} />
       <div className="buttons">
         <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>

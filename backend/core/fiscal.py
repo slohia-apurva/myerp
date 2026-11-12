@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import exchange
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check, _company
 from core.companies import visible_companies
 from core.locks import refuse_key_changes
@@ -74,11 +74,20 @@ def _make_periods(year: FiscalYear) -> None:
         day = add_months(day, 1)
 
 
+def _check_name(company: Company, name: str, exclude=None) -> None:
+    duplicates.check_name(
+        FiscalYear.objects.filter(company=company),
+        name,
+        kind="fiscal_year",
+        message="This company already has the year {name}.",
+        exclude=exclude,
+    )
+
+
 def create_year(company: Company, start: date, end: date, name: str = "") -> FiscalYear:
     check_range(company, start, end)
-    name = name.strip() or year_name(start, end)
-    if FiscalYear.objects.filter(company=company, name__iexact=name).exists():
-        raise ValidationError({"name": ["This company already has a year with this name."]})
+    name = duplicates.tidy(name) or year_name(start, end)
+    _check_name(company, name)
     year = FiscalYear(company=company, name=name, start_date=start, end_date=end)
     try:
         year.full_clean(validate_constraints=False)
@@ -168,10 +177,8 @@ def save_year(company: Company, year: FiscalYear | None, data: dict) -> FiscalYe
                 {"start_date": ["Unlock the months of this year before changing its dates."]}
             )
     if "name" in data:
-        name = data["name"].strip() or year_name(start, end)
-        clash = FiscalYear.objects.filter(company=year.company, name__iexact=name)
-        if clash.exclude(pk=year.pk).exists():
-            raise ValidationError({"name": ["This company already has a year with this name."]})
+        name = duplicates.tidy(data["name"]) or year_name(start, end)
+        _check_name(year.company, name, exclude=year.pk)
         year.name = name
     if "is_active" in data:
         year.is_active = data["is_active"]

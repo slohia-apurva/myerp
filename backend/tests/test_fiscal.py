@@ -150,6 +150,24 @@ def test_lock_and_unlock_a_month(accountant, owner, company, alpha):
         assert any("Locked months" in t for t in texts)
 
 
+def test_two_years_cannot_share_a_name(owner, company):
+    first = years(owner, company)[0]
+    start = fiscal.add_months(date.fromisoformat(first["start_date"]), 12)
+    made = call(
+        owner,
+        "post",
+        f"companies/{company}/fiscal-years/",
+        {
+            "start_date": start.isoformat(),
+            "end_date": fiscal.month_end(fiscal.add_months(start, 11)).isoformat(),
+        },
+    ).json()
+    r = call(owner, "patch", f"fiscal-years/{made['id']}/", {"name": f"  {first['name'].lower()} "})
+    assert r.status_code == 400
+    assert r.json()["existing"]["kind"] == "fiscal_year"
+    assert str(r.json()["existing"]["id"]) == str(first["id"])
+
+
 def test_dates_cannot_change_while_a_month_is_locked(owner, company):
     year = years(owner, company)[0]
     call(owner, "patch", f"fiscal-periods/{year['periods'][0]['id']}/", {"is_locked": True})
