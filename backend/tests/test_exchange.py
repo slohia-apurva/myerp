@@ -17,7 +17,7 @@ from core.india import gstin_check_char
 from core.models import Unit
 from tenancy.context import use_tenant
 
-pytestmark = pytest.mark.django_db(databases="__all__")
+pytestmark = [pytest.mark.django_db(databases="__all__"), pytest.mark.usefixtures("hsn_list")]
 
 HOST = "alpha.localhost"
 

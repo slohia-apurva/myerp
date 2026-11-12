@@ -67,7 +67,7 @@ export function HsnPage(_props: { session: SignedIn }) {
 }
 
 /** The HSN box on the item form: type a code or words from the description
- * and pick from the list. A code that is not in the list can still be typed. */
+ * and pick from the list. A code that is not in the list is refused. */
 export function HsnPicker(props: { value: string; onChange: (code: string) => void }) {
   const [text, setText] = useState("");
   const [typed, setTyped] = useState(false);
@@ -80,14 +80,30 @@ export function HsnPicker(props: { value: string; onChange: (code: string) => vo
     const t = setTimeout(() => search(text, true).then((f) => setRows(f.results)), 150);
     return () => clearTimeout(t);
   }, [text, typed, open]);
+  const [refused, setRefused] = useState("");
+  // Typed text counts only when it is exactly a code in the list; anything
+  // else is dropped and the last picked code stays.
   const close = () => {
-    if (typed && /^\d{2,8}$/.test(text.trim())) props.onChange(text.trim());
-    else if (typed && text.trim() === "") props.onChange("");
+    const wanted = text.trim().replace(/\s+/g, "");
     setOpen(false);
     setTyped(false);
+    if (!typed) return;
+    if (wanted === "") {
+      props.onChange("");
+      setRefused("");
+      return;
+    }
+    search(wanted, true).then((f) => {
+      const hit = f.results.find((h) => h.hsn_code === wanted);
+      if (hit) {
+        props.onChange(hit.hsn_code);
+        setRefused("");
+      } else setRefused(`${text.trim()} is not in the HSN list. Pick a code from the list.`);
+    });
   };
   const pick = (h: Hsn) => {
     props.onChange(h.hsn_code);
+    setRefused("");
     setOpen(false);
     setTyped(false);
   };
@@ -152,6 +168,7 @@ export function HsnPicker(props: { value: string; onChange: (code: string) => vo
           ))}
         </ul>
       )}
+      {refused && <span className="error small">{refused}</span>}
     </div>
   );
 }

@@ -9,7 +9,7 @@ from accounts.models import Role, User
 from core.companies import create_company
 from tenancy.context import use_tenant
 
-pytestmark = pytest.mark.django_db(databases="__all__")
+pytestmark = [pytest.mark.django_db(databases="__all__"), pytest.mark.usefixtures("hsn_list")]
 
 HOST = "alpha.localhost"
 
@@ -379,3 +379,14 @@ def test_hsn_code_is_required(accountant, unit):
     assert refused.status_code == 400
     assert "hsn" in refused.json()
     assert call(accountant, "post", "items/", {**body, "hsn": "0902"}).status_code == 201
+
+
+def test_hsn_code_must_be_in_the_central_list(accountant, unit):
+    body = {"name": "Odd HSN", "stock_unit": unit("Packet"), "units": [], "hsn": "9999"}
+    refused = call(accountant, "post", "items/", body)
+    assert refused.status_code == 400
+    assert "not in the list" in str(refused.json()["hsn"])
+    made = call(accountant, "post", "items/", {**body, "hsn": "0902"})
+    assert made.status_code == 201
+    other = call(accountant, "patch", f"items/{made.json()['id']}/", {"hsn": "8888"})
+    assert other.status_code == 400

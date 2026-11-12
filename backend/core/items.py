@@ -29,6 +29,7 @@ from core.locks import refuse_key_changes
 from core.models import USED_FOR, Brand, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
+from tenancy.models import HsnCode
 
 CM3_PER_M3 = Decimal(1_000_000)
 
@@ -298,6 +299,12 @@ def _save_item(item: Item, data: dict) -> Item:
         raise ValidationError({"hsn": ["The HSN code is digits only."]})
     if not item.hsn:
         raise ValidationError({"hsn": ["Give the HSN code."]})
+    if (not item.pk or item.hsn != _saved_hsn(item)) and not HsnCode.objects.filter(
+        hsn_code=item.hsn, is_active=True
+    ).exists():
+        raise ValidationError(
+            {"hsn": ["That HSN code is not in the list. Pick one from the list."]}
+        )
     if rows is None and not item.pk:
         rows = []
     if rows is not None:
@@ -511,3 +518,8 @@ class ItemDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         _save_item(item, dict(serializer.validated_data))
         return Response(ItemSerializer(_queryset().get(pk=item.pk)).data)
+
+
+def _saved_hsn(item) -> str:
+    """The HSN code stored for an existing item (blank for a new one)."""
+    return Item.objects.filter(pk=item.pk).values_list("hsn", flat=True).first() or ""
