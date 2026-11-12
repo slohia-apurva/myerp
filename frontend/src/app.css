@@ -774,9 +774,11 @@ table.pick tbody tr.selected td:first-child {
   font-size: 14px;
   margin-top: 4px;
 }
-.split-panel table.grid {
-  display: block;
-  overflow-x: auto;
+@media (max-width: 900px) {
+  .split-panel table.grid {
+    display: block;
+    overflow-x: auto;
+  }
 }
 @media (max-width: 900px) {
   .split,
