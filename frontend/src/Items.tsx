@@ -42,15 +42,21 @@ export type Item = {
   item_group_name: string | null;
   brand: number | null;
   brand_name: string | null;
-  sales_name: string;
   sales_description: string;
   sales_unit: number | null;
   sales_unit_name: string | null;
-  purchase_name: string;
   purchase_description: string;
   purchase_unit: number | null;
   purchase_unit_name: string | null;
-  shelf_life_days: number | null;
+  mrp: string | null;
+  usp: string;
+  best_before_value: number | null;
+  best_before_unit: string;
+  batch_no: string;
+  lead_time_days: number | null;
+  safety_stock_qty: string | null;
+  min_order_qty: string | null;
+  max_stock_qty: string | null;
   batch_tracked: boolean;
   qc_required: boolean;
   maintain_stock: boolean;
@@ -285,23 +291,34 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
           ]}
         />
       </Section>
-      {(i.sales_name || i.sales_description || i.sales_unit_name) && (
+      {(i.sales_description || i.sales_unit_name || i.mrp || i.usp || i.best_before_value || i.batch_no) && (
         <Section title="Sales">
           <Facts
             rows={[
-              ["Sales item name", i.sales_name || i.name],
               ["Default sales unit", i.sales_unit_name ?? ""],
+              ["MRP", i.mrp === null ? "" : `₹ ${plain(i.mrp)}`],
+              ["USP", i.usp],
+              ["Best before", i.best_before_value === null ? "" : `${i.best_before_value} ${i.best_before_unit}`],
+              ["Batch No", i.batch_no],
             ]}
           />
           {i.sales_description && <p className="pre">{i.sales_description}</p>}
         </Section>
       )}
-      {(i.purchase_name || i.purchase_description || i.purchase_unit_name) && (
+      {(i.purchase_description ||
+        i.purchase_unit_name ||
+        i.lead_time_days !== null ||
+        i.safety_stock_qty ||
+        i.min_order_qty ||
+        i.max_stock_qty) && (
         <Section title="Purchase">
           <Facts
             rows={[
-              ["Purchase item name", i.purchase_name || i.name],
               ["Default purchase unit", i.purchase_unit_name ?? ""],
+              ["Lead time", i.lead_time_days === null ? "" : `${i.lead_time_days} days`],
+              ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
+              ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
+              ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
             ]}
           />
           {i.purchase_description && <p className="pre">{i.purchase_description}</p>}
@@ -333,7 +350,6 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
       <Section title="Stock and quality">
         <Facts
           rows={[
-            ["Shelf life", i.shelf_life_days === null ? "" : `${i.shelf_life_days} days`],
             ["Batches tracked", i.batch_tracked ? "Yes" : "No"],
             ["Quality check on receipt", i.qc_required ? "Yes" : "No"],
           ]}
@@ -472,18 +488,19 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const newBrand = creatable("brand", "brands", refreshBrands);
   const [brand, setBrand] = useState(from?.brand == null ? "" : String(from.brand));
   const [hsn, setHsn] = useState(from?.hsn ?? "");
-  const [shelf, setShelf] = useState(from?.shelf_life_days == null ? "" : String(from.shelf_life_days));
+  const [mrp, setMrp] = useState(from?.mrp == null ? "" : plain(from.mrp));
+  const [usp, setUsp] = useState(from?.usp ?? "");
+  const [bestBefore, setBestBefore] = useState(from?.best_before_value == null ? "" : String(from.best_before_value));
+  const [bestBeforeUnit, setBestBeforeUnit] = useState(from?.best_before_unit ?? "days");
+  const [batchNo, setBatchNo] = useState(from?.batch_no ?? "");
+  const [leadTime, setLeadTime] = useState(from?.lead_time_days == null ? "" : String(from.lead_time_days));
+  const [safety, setSafety] = useState(from?.safety_stock_qty == null ? "" : plain(from.safety_stock_qty));
+  const [minOrder, setMinOrder] = useState(from?.min_order_qty == null ? "" : plain(from.min_order_qty));
+  const [maxStock, setMaxStock] = useState(from?.max_stock_qty == null ? "" : plain(from.max_stock_qty));
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
   const [notes, setNotes] = useState(from?.notes ?? "");
-  // Sales and purchase names start as the item name and follow it until edited.
-  const [salesName, setSalesName] = useState(from?.sales_name || name);
-  const [buyName, setBuyName] = useState(from?.purchase_name || name);
-  const changeName = (v: string) => {
-    if (salesName === name) setSalesName(v);
-    if (buyName === name) setBuyName(v);
-    setName(v);
-  };
+  const changeName = (v: string) => setName(v);
   const [salesText, setSalesText] = useState(from?.sales_description ?? "");
   const [salesUnit, setSalesUnit] = useState(from?.sales_unit == null ? "" : String(from.sales_unit));
   const [buyText, setBuyText] = useState(from?.purchase_description ?? "");
@@ -528,14 +545,20 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       hsn,
       item_group: group === "" ? null : Number(group),
       brand: brand === "" ? null : Number(brand),
-      shelf_life_days: shelf.trim() === "" ? null : Number(shelf),
+      mrp: num(mrp),
+      usp,
+      best_before_value: num(bestBefore),
+      best_before_unit: bestBeforeUnit,
+      batch_no: batchNo,
+      lead_time_days: num(leadTime),
+      safety_stock_qty: num(safety),
+      min_order_qty: num(minOrder),
+      max_stock_qty: num(maxStock),
       batch_tracked: batches,
       qc_required: qc,
       notes,
-      sales_name: salesName,
       sales_description: salesText,
       sales_unit: salesUnit ? Number(salesUnit) : null,
-      purchase_name: buyName,
       purchase_description: buyText,
       purchase_unit: buyUnit ? Number(buyUnit) : null,
       gst_rates: rates.filter((r) => r.valid_from || r.rate).map((r) => ({ valid_from: r.valid_from, rate: r.rate.trim() })),
@@ -686,10 +709,6 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         {tab === "sales" && (
           <Section title="Sales">
             <label>
-              Sales item name
-              <input maxLength={120} value={salesName} placeholder={name} onChange={(e) => setSalesName(e.target.value)} />
-            </label>
-            <label>
               Sales description
               <textarea rows={3} maxLength={500} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
             </label>
@@ -699,15 +718,40 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 Default sales unit
                 <Combobox value={salesUnit} onChange={setSalesUnit} empty="Same as the stock unit" options={unitChoices} />
               </label>
+              <label>
+                MRP (₹)
+                <input className="num" inputMode="decimal" value={mrp} onChange={(e) => setMrp(e.target.value)} />
+              </label>
+            </div>
+            <label>
+              USP
+              <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
+            </label>
+            <div className="row">
+              <label>
+                Best before (counted from the manufacturing date)
+                <input className="num" inputMode="numeric" value={bestBefore} onChange={(e) => setBestBefore(e.target.value)} />
+              </label>
+              <label>
+                Best before in
+                <Combobox
+                  value={bestBeforeUnit}
+                  onChange={setBestBeforeUnit}
+                  options={[
+                    { value: "days", label: "Days" },
+                    { value: "months", label: "Months" },
+                  ]}
+                />
+              </label>
+              <label>
+                Batch No
+                <input maxLength={60} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
+              </label>
             </div>
           </Section>
         )}
         {tab === "purchase" && (
           <Section title="Purchase">
-            <label>
-              Purchase item name
-              <input maxLength={120} value={buyName} placeholder={name} onChange={(e) => setBuyName(e.target.value)} />
-            </label>
             <label>
               Purchase description
               <textarea rows={3} maxLength={500} value={buyText} onChange={(e) => setBuyText(e.target.value)} />
@@ -718,7 +762,26 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 Default purchase unit
                 <Combobox value={buyUnit} onChange={setBuyUnit} empty="Same as the stock unit" options={unitChoices} />
               </label>
+              <label>
+                Lead time in days
+                <input className="num" inputMode="numeric" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
+              </label>
             </div>
+            <div className="row">
+              <label>
+                Safety stock qty
+                <input className="num" inputMode="decimal" value={safety} onChange={(e) => setSafety(e.target.value)} />
+              </label>
+              <label>
+                Minimum order qty
+                <input className="num" inputMode="decimal" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} />
+              </label>
+              <label>
+                Max stock qty
+                <input className="num" inputMode="decimal" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
+              </label>
+            </div>
+            <p className="small">The quantities are in the item's default unit.</p>
           </Section>
         )}
         {tab === "gst" && (
@@ -764,12 +827,6 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         )}
         {tab === "stock" && (
         <Section title="Stock and quality">
-          <div className="row">
-            <label>
-              Shelf life (days)
-              <input value={shelf} inputMode="numeric" onChange={(e) => setShelf(e.target.value)} />
-            </label>
-          </div>
           <label className="check">
             <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
             Track batches (batch number and expiry on every receipt and issue)

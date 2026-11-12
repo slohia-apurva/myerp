@@ -688,19 +688,18 @@ class Item(models.Model):
 
     GOODS, SERVICE = "goods", "service"
     TYPES = [(GOODS, "Goods"), (SERVICE, "Service")]
+    DAYS, MONTHS = "days", "months"
+    PERIODS = [(DAYS, "Days"), (MONTHS, "Months")]
 
     item_number = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=120)
     item_type = models.CharField(max_length=10, choices=TYPES, default=GOODS)
     stock_unit = models.ForeignKey("Unit", on_delete=models.PROTECT, related_name="stock_items")
     hsn = models.CharField(max_length=8, blank=True)
-    # Blank sales/purchase names mean "same as the item name".
-    sales_name = models.CharField(max_length=120, blank=True)
     sales_description = models.CharField(max_length=500, blank=True)
     sales_unit = models.ForeignKey(
         "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
-    purchase_name = models.CharField(max_length=120, blank=True)
     purchase_description = models.CharField(max_length=500, blank=True)
     purchase_unit = models.ForeignKey(
         "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
@@ -711,7 +710,18 @@ class Item(models.Model):
     brand = models.ForeignKey(
         "Brand", null=True, blank=True, on_delete=models.PROTECT, related_name="items"
     )
-    shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
+    # Sales tab: printed on the pack. Best before is a period counted from the
+    # manufacturing date, so a manufacturing order can work out the date.
+    mrp = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    usp = models.CharField(max_length=200, blank=True)
+    best_before_value = models.PositiveIntegerField(null=True, blank=True)
+    best_before_unit = models.CharField(max_length=6, choices=PERIODS, default=DAYS)
+    batch_no = models.CharField(max_length=60, blank=True)
+    # Purchase tab: planning figures, in the item's stock unit.
+    lead_time_days = models.PositiveIntegerField(null=True, blank=True)
+    safety_stock_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+    min_order_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+    max_stock_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
     maintain_stock = models.BooleanField(default=True)

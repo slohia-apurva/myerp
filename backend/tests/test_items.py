@@ -90,7 +90,7 @@ def make(client, unit, **data):
 
 
 def test_item_with_a_chain_of_units(accountant, unit):
-    made = make(accountant, unit, hsn="1701", shelf_life_days=365, batch_tracked=True)
+    made = make(accountant, unit, hsn="1701", batch_tracked=True)
     assert made.status_code == 201, made.json()
     item = made.json()
     assert item["item_number"] == "ITEM-00001"
@@ -217,16 +217,6 @@ def test_sales_and_purchase_details(accountant, unit):
     assert made.status_code == 201, made.json()
     item = made.json()
     assert item["sales_description"] == "Organic jaggery powder, 500 g pouch"
-    # names default to the item name: kept blank so they follow a rename
-    assert item["sales_name"] == "" and item["purchase_name"] == ""
-    named = call(
-        accountant,
-        "patch",
-        f"items/{item['id']}/",
-        {"sales_name": "  Organic  Jaggery Powder ", "purchase_name": "jaggery powder 500 g"},
-    )
-    assert named.json()["sales_name"] == "Organic Jaggery Powder"
-    assert named.json()["purchase_name"] == ""
     assert item["sales_unit_name"] == "Carton"
     assert item["purchase_unit_name"] == "Pallet"
 
@@ -327,3 +317,34 @@ def test_maintain_stock_is_separate_from_goods_or_service(accountant, unit):
     assert service["item_type"] == "service" and service["maintain_stock"] is True
     goods = call(accountant, "patch", f"items/{plain['id']}/", {"maintain_stock": False}).json()
     assert goods["item_type"] == "goods" and goods["maintain_stock"] is False
+
+
+def test_sales_and_purchase_tab_fields(accountant, unit):
+    made = make(
+        accountant,
+        unit,
+        mrp="125.50",
+        usp="Single-origin, stone ground",
+        best_before_value=12,
+        best_before_unit="months",
+        batch_no="  B-2627  ",
+        lead_time_days=14,
+        safety_stock_qty="50",
+        min_order_qty="100",
+        max_stock_qty="500",
+    )
+    assert made.status_code == 201, made.json()
+    item = made.json()
+    assert item["mrp"] == "125.50" and item["batch_no"] == "B-2627"
+    assert (item["best_before_value"], item["best_before_unit"]) == (12, "months")
+    assert item["lead_time_days"] == 14 and item["max_stock_qty"] == "500.000000"
+    assert "sales_name" not in item and "purchase_name" not in item
+    assert "shelf_life_days" not in item
+    # the maximum cannot be below the safety stock; no negative quantities
+    path = f"items/{item['id']}/"
+    assert call(accountant, "patch", path, {"max_stock_qty": "10"}).status_code == 400
+    assert call(accountant, "patch", path, {"mrp": "-1"}).status_code == 400
+    assert call(accountant, "patch", path, {"best_before_unit": "years"}).status_code == 400
+    # the defaults for an item with none of them
+    plain = make(accountant, unit, name="Plain", units=[]).json()
+    assert plain["mrp"] is None and plain["best_before_unit"] == "days"

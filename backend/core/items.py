@@ -107,6 +107,18 @@ class ItemSerializer(serializers.ModelSerializer):
         queryset=Brand.objects.all(), allow_null=True, required=False
     )
     brand_name = serializers.CharField(source="brand.name", read_only=True, default=None)
+    mrp = serializers.DecimalField(
+        max_digits=18, decimal_places=2, min_value=0, allow_null=True, required=False
+    )
+    safety_stock_qty = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
+    )
+    min_order_qty = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
+    )
+    max_stock_qty = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
+    )
     units = ItemUnitSerializer(many=True, required=False)
     gst_rates = ItemGstRateSerializer(many=True, required=False)
     warnings = serializers.SerializerMethodField()
@@ -125,15 +137,21 @@ class ItemSerializer(serializers.ModelSerializer):
             "item_group_name",
             "brand",
             "brand_name",
-            "sales_name",
             "sales_description",
             "sales_unit",
             "sales_unit_name",
-            "purchase_name",
             "purchase_description",
             "purchase_unit",
             "purchase_unit_name",
-            "shelf_life_days",
+            "mrp",
+            "usp",
+            "best_before_value",
+            "best_before_unit",
+            "batch_no",
+            "lead_time_days",
+            "safety_stock_qty",
+            "min_order_qty",
+            "max_stock_qty",
             "batch_tracked",
             "qc_required",
             "maintain_stock",
@@ -249,15 +267,21 @@ def _save_item(item: Item, data: dict) -> Item:
         "item_type",
         "stock_unit",
         "hsn",
-        "sales_name",
         "sales_description",
         "sales_unit",
-        "purchase_name",
         "purchase_description",
         "purchase_unit",
         "item_group",
         "brand",
-        "shelf_life_days",
+        "mrp",
+        "usp",
+        "best_before_value",
+        "best_before_unit",
+        "batch_no",
+        "lead_time_days",
+        "safety_stock_qty",
+        "min_order_qty",
+        "max_stock_qty",
         "batch_tracked",
         "qc_required",
         "maintain_stock",
@@ -303,10 +327,16 @@ def _save_item(item: Item, data: dict) -> Item:
         _resolve_chain(item.stock_unit, existing)
     for field in ("sales_description", "purchase_description"):
         setattr(item, field, getattr(item, field).strip())
-    for field in ("sales_name", "purchase_name"):
-        value = " ".join(getattr(item, field).split())
-        # the same as the item name is kept blank, so it follows a rename
-        setattr(item, field, "" if value.lower() == item.name.lower() else value)
+    item.usp = " ".join(item.usp.split())
+    item.batch_no = item.batch_no.strip()
+    if (
+        item.max_stock_qty is not None
+        and item.safety_stock_qty is not None
+        and item.max_stock_qty < item.safety_stock_qty
+    ):
+        raise ValidationError(
+            {"max_stock_qty": ["The maximum stock cannot be below the safety stock."]}
+        )
     if rows is not None:
         unit_ids = {r["unit"].pk for r in rows}
     elif item.pk:
@@ -399,10 +429,17 @@ exchange.register(
         show=("item_number",),
         labels={
             "stock_unit": "Default unit (stock unit)",
-            "sales_name": "Sales item name",
+            "mrp": "MRP (₹)",
+            "usp": "USP",
+            "best_before_value": "Best before",
+            "best_before_unit": "Best before in",
+            "batch_no": "Batch No",
+            "lead_time_days": "Lead time (days)",
+            "safety_stock_qty": "Safety stock qty",
+            "min_order_qty": "Minimum order qty",
+            "max_stock_qty": "Max stock qty",
             "sales_description": "Sales description",
             "sales_unit": "Default sales unit",
-            "purchase_name": "Purchase item name",
             "purchase_description": "Purchase description",
             "purchase_unit": "Default purchase unit",
             "batch_tracked": "Track batches",
@@ -424,8 +461,10 @@ exchange.register(
             "gst_rates.rate": "GST rate (%)",
         },
         hints={
-            "sales_name": "Leave empty to use the item name",
-            "purchase_name": "Leave empty to use the item name",
+            "best_before_value": "A number: manufacturing date plus this is the best-before date",
+            "safety_stock_qty": "In the default unit",
+            "min_order_qty": "In the default unit",
+            "max_stock_qty": "In the default unit",
             "units.contains_qty": "Leave empty on the stock unit's row",
             "units.contains_unit": "Leave empty on the stock unit's row",
         },
