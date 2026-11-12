@@ -496,8 +496,8 @@ function AccountForm(props: {
             </label>
           )}
         </Section>
-        <Section title="Address and contact">
-          <ContactFields value={contact} onChange={setContact} />
+        <Section title="Contact">
+          <ContactFields value={contact} onChange={setContact} noAddress />
         </Section>
         <Section title="Booking and tracking">
           <div className="row">
