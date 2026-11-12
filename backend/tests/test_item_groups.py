@@ -173,3 +173,17 @@ def test_groups_import_with_parents_listed_first(alpha, company):
     assert rows["Cartons"]["parent"] == rows["Packing"]["id"]
     bad = send([header, ["Tapes", "No such group", "", ""]], False).json()
     assert bad["errors"] and "no item group called" in str(bad["errors"])
+
+
+def test_items_sit_only_in_groups_without_sub_groups(accountant, company):
+    raw, spices, whole = tree(accountant, company)
+    body = {"name": "Turmeric finger", "stock_unit": kg(accountant)}
+    bad = call(accountant, "post", "items/", {**body, "item_group": raw["id"]})
+    assert bad.status_code == 400
+    assert "sub-groups" in str(bad.json())
+    ok = call(accountant, "post", "items/", {**body, "item_group": whole["id"]})
+    assert ok.status_code == 201
+    # A group that holds items cannot get a sub-group.
+    sub = call(accountant, "post", "item-groups/", {"name": "Fine powder", "parent": whole["id"]})
+    assert sub.status_code == 400
+    assert "already has items" in str(sub.json())

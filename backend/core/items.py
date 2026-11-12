@@ -239,6 +239,10 @@ def _save_item(item: Item, data: dict) -> Item:
     group = data.get("item_group")
     if group is not None and not group.is_active and group.pk != item.item_group_id:
         raise ValidationError({"item_group": [f"{group.name} is disabled."]})
+    if group is not None and group.pk != item.item_group_id and group.children.exists():
+        raise ValidationError(
+            {"item_group": [f"{group.name} has sub-groups. Pick one of its sub-groups."]}
+        )
     for field in (
         "name",
         "item_type",

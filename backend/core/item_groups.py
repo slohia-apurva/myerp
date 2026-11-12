@@ -59,6 +59,15 @@ def _save_group(group: ItemGroup, data: dict) -> ItemGroup:
         raise ValidationError({"parent": ["A group cannot sit under itself or a group below it."]})
     if parent is not None and not parent.is_active and parent.pk != group.parent_id:
         raise ValidationError({"parent": [f"{parent.name} is disabled."]})
+    if parent is not None and parent.pk != group.parent_id and parent.items.exists():
+        raise ValidationError(
+            {
+                "parent": [
+                    f"{parent.name} already has items, and items sit only in groups without "
+                    "sub-groups. Move its items to another group first."
+                ]
+            }
+        )
     refuse_key_changes("item_group", group, data)
     for field in ("name", "parent", "notes", "is_active"):
         if field in data:
