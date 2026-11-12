@@ -542,6 +542,13 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    // The General tab's boxes are not on screen while another tab is open, so
+    // the browser cannot check them: check here and take the person there.
+    if (!name.trim() || !stock) {
+      setTab("general");
+      setError(!name.trim() ? "Give the item name on the General tab." : "Pick the default unit of measure on the General tab.");
+      return;
+    }
     setBusy(true);
     const body = {
       name,
