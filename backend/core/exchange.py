@@ -43,7 +43,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.recorder import LABELS
-from core import printout
+from core import india, printout
 from core.api import EDIT, VIEW, Signed, _check, _company
 from tenancy.context import require_tenant, tenant_atomic
 
@@ -224,6 +224,22 @@ _running: ContextVar[Context | None] = ContextVar("myerp_exchange_context", defa
 
 
 MASTERS: dict[str, Master] = {}
+
+
+def _state_from(text: str) -> str:
+    low = text.strip().lower()
+    for code, name in india.STATES.items():
+        if low in (code, name.lower()):
+            return code
+    raise ValueError(f"{text!r} is not an Indian state; leave it empty for a party abroad")
+
+
+# An Indian state, written by name (or its two-digit GST code).
+STATE = Codec(
+    lambda code: india.STATES.get(code, code or ""),
+    _state_from,
+    hint="The state's name or its two-digit GST code",
+)
 
 
 def register(master: Master) -> None:

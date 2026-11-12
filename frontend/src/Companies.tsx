@@ -6,7 +6,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
 import { api, SignedIn } from "./api";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
-import { usePrintMenu } from "./Exchange";
+import { useExchange, usePrintMenu } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
@@ -586,7 +586,21 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
   }, [refresh]);
   useEffect(reload, [reload]);
   const tab = TABS.some(([code]) => code === props.tab) ? props.tab : "";
-  const printing = usePrintMenu({ title: TABS.find(([code]) => code === tab)?.[1] ?? "", scope: detail?.company.name });
+  const branchIo = useExchange({
+    master: "branches",
+    noun: "branches",
+    session,
+    company: id,
+    onImported: reload,
+  });
+  const certificateIo = useExchange({
+    master: "certificates",
+    noun: "licences and certificates",
+    session,
+    company: id,
+    onImported: reload,
+  });
+  const printing = tab === "certificates" ? certificateIo : branchIo;
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   const c = detail.company;
@@ -1210,7 +1224,14 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
       .catch((err: Error) => setError(err.message));
   }, [id]);
   useEffect(reload, [reload]);
-  const printing = usePrintMenu({ title: "Ledger groups", scope: detail?.company.name });
+  const printing = useExchange({
+    master: "ledger-groups",
+    noun: "ledger groups",
+    session,
+    company: id,
+    onImported: reload,
+    printScreen: { title: "Ledger groups", scope: detail?.company.name },
+  });
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
     <section className="page">

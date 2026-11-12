@@ -5,7 +5,7 @@ opening bills, on the Ledgers screen of the company being worked in."""
 from django.db.models import Q
 
 from accounts.models import User
-from core import exchange, india
+from core import exchange
 from core.api import LedgerSerializer, add_ledger, change_ledger
 
 
@@ -28,19 +28,7 @@ def _user_from(text: str) -> int:
     return user.pk
 
 
-def _state_from(text: str) -> str:
-    low = text.strip().lower()
-    for code, name in india.STATES.items():
-        if low in (code, name.lower()):
-            return code
-    raise ValueError(f"{text!r} is not an Indian state; leave it empty for a party abroad")
-
-
-STATE = exchange.Codec(
-    lambda code: india.STATES.get(code, code or ""),
-    _state_from,
-    hint="The state's name or its two-digit GST code",
-)
+STATE = exchange.STATE
 
 
 def _ledgers(ctx):

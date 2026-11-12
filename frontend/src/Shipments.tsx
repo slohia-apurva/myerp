@@ -4,7 +4,7 @@ import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
-import { usePrintMenu } from "./Exchange";
+import { useExchange, usePrintMenu } from "./Exchange";
 import { Combobox } from "./Combobox";
 import type { Company } from "./Companies";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
@@ -194,7 +194,13 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
       opened();
     }
   }, [openId, accounts, opened]);
-  const printing = usePrintMenu({ title: "Courier accounts", scope: company?.name });
+  const printing = useExchange({
+    master: "courier-accounts",
+    noun: "courier accounts",
+    session,
+    company: companyId,
+    onImported: reload,
+  });
   if (company && !company.modules.includes("sales")) return <NoSales company={company} />;
   const done = () => {
     setEditing(null);
