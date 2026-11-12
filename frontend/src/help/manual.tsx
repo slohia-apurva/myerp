@@ -258,6 +258,11 @@ export const MANUAL: Chapter[] = [
             ],
           ]}
         />
+        <p>
+          To add or change many branches at once, use "Actions" at the top of the Branches tab (see "Import, export and
+          print"). In the file, "State" is the state's name, and "Yes" in a default column moves that default to the
+          branch.
+        </p>
       </>
     ),
   },
@@ -286,6 +291,11 @@ export const MANUAL: Chapter[] = [
           When a certificate is renewed, add the new one as a new certificate. The old one stays on record. Remember
           that the IEC must be updated every year.
         </Note>
+        <p>
+          To add or change many at once, use "Actions" at the top of the tab (see "Import, export and print"). In the
+          file, "Certificate" is the type as in the list, and "Branch" is the branch's name, or empty for the whole
+          company.
+        </p>
       </>
     ),
   },
@@ -573,8 +583,9 @@ export const MANUAL: Chapter[] = [
         <p>
           Every list screen has an "Actions" button at the top right. Click it for a short list: "Print" and
           "Download PDF" on every list, and on masters also "Import from Excel…" and "Export to Excel". They work the
-          same way everywhere. Import and export are on "Units", "Credit terms", "Items", "Item groups", "Brands" and
-          "Ledgers" so far; the other masters get them one by one. The columns are always the fields of that master's
+          same way everywhere. Import and export are on "Units", "Credit terms", "Items", "Item groups", "Brands",
+          "Ledgers", "Ledger groups", "Branches", "Licences and certificates" and "Courier accounts". "Companies"
+          has "Print" and "Download PDF" only: add a company with "Add company". The columns are always the fields of that master's
           form, so when a field is added to the form it appears in the file too.
         </p>
         <h3>Export to Excel</h3>
@@ -619,8 +630,8 @@ export const MANUAL: Chapter[] = [
         <p>
           On a master the report leaves out the ID and any column that is empty in every row; on Ledgers it shows the
           main columns only (name, group, opening balance, currency, customer and supplier numbers, GST details, credit
-          terms, active). On other lists (Users, Roles, Companies, Branches, Licences and certificates, Ledger groups,
-          Courier accounts, Shipments, HSN codes) the report is the table on the screen: what you have searched for,
+          terms, active). On "Ledger groups" and on other lists (Users, Roles, Companies, Shipments, HSN
+          codes) the report is the table on the screen: what you have searched for,
           picked or unfolded is what prints. Buttons such as "Edit" and "Duplicate" are left out.
         </p>
         <h3>Import</h3>
@@ -713,6 +724,12 @@ export const MANUAL: Chapter[] = [
           when nothing is under it: move or delete its sub-groups and ledgers first.
         </p>
         <Note>Standard groups cannot be changed or deleted, because posting rules rely on them.</Note>
+        <p>
+          To add many groups at once, use "Actions" and "Import from Excel…" (see "Import, export and print"). Write the
+          parent's name under "Under group", and list a new group after the group it sits under. Standard groups may
+          stay in the file as they are. "Print" and "Download PDF" print the tree as it is shown, so fold or unfold it
+          first.
+        </p>
       </>
     ),
   },
@@ -894,6 +911,10 @@ export const MANUAL: Chapter[] = [
           Once a shipment has been entered against an account, its "Courier" and "Service" cannot be changed. The name
           and notes can still be corrected. Accounts are never deleted: click "Edit" and then "Disable" to stop
           offering one ("Enable" brings it back).
+        </p>
+        <p>
+          To add or change many accounts at once, use "Actions" at the top of the screen (see "Import, export and
+          print"). In the file, "Courier" is the courier's name as in MyERP's list, for example "Delhivery".
         </p>
       </>
     ),

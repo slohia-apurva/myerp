@@ -19,7 +19,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import duplicates
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -121,6 +121,51 @@ def _save_account(account: CourierAccount, data: dict) -> None:
     except DjangoValidationError as exc:
         raise ValidationError(exc.message_dict) from exc
     account.save()
+
+
+def _carrier_name(pk) -> str:
+    if not pk:
+        return ""
+    carrier = Carrier.objects.filter(pk=pk).first()
+    return carrier.name if carrier else str(pk)
+
+
+def _carrier_from(text: str) -> int:
+    carrier = Carrier.objects.filter(name__iexact=text.strip()).first()
+    if carrier is None:
+        names = ", ".join(Carrier.objects.filter(is_active=True).values_list("name", flat=True))
+        raise ValueError(f"there is no courier {text.strip()!r}; pick one of: {names}")
+    return carrier.pk
+
+
+def _import_account(ctx, account, data):
+    account = account or CourierAccount(company=ctx.company)
+    _save_account(account, data)
+    return account
+
+
+exchange.register(
+    exchange.Master(
+        key="courier-accounts",
+        label="Courier accounts",
+        noun="courier account",
+        serializer=CourierAccountSerializer,
+        queryset=lambda ctx: ctx.company.courier_accounts.order_by("name"),
+        save=_import_account,
+        per_company=True,
+        labels={"carrier_id": "Courier", "account_code": "Account code"},
+        codecs={
+            "carrier_id": exchange.Codec(
+                _carrier_name,
+                _carrier_from,
+                hint="The courier's name as in MyERP's list of couriers",
+                choices=lambda: list(
+                    Carrier.objects.filter(is_active=True).values_list("name", flat=True)
+                ),
+            )
+        },
+    )
+)
 
 
 class CourierAccountListView(APIView):

@@ -4,6 +4,7 @@ from core import (
     api,
     brands,
     central,
+    company_exchange,  # noqa: F401  (registers ledger groups, branches, certificates)
     credit_terms,
     data_reset,
     exchange,

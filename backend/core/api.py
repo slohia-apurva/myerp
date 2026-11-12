@@ -543,12 +543,24 @@ class BranchListView(APIView):
         company = _company(request, pk)
         serializer = BranchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        name = duplicates.tidy(serializer.validated_data["name"])
-        _unique_branch_name(company, name)
-        branch = Branch(company=company)
-        _move_defaults(branch, serializer.validated_data)
-        _save(branch, {**serializer.validated_data, "name": name}, BranchSerializer.Meta.fields)
+        branch = save_branch(Branch(company=company), dict(serializer.validated_data))
         return Response(BranchSerializer(branch).data, status=status.HTTP_201_CREATED)
+
+
+BRANCH_FIELDS = ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active", *DEFAULT_FLAGS]
+
+
+def save_branch(branch: Branch, data: dict) -> Branch:
+    """Add (branch not yet saved, its company set) or change a branch: the
+    screen and imports both save here."""
+    if "name" in data:
+        data["name"] = duplicates.tidy(data["name"])
+        _unique_branch_name(branch.company, data["name"], exclude=branch.pk)
+    if branch.pk:
+        refuse_key_changes("branch", branch, data)
+    _move_defaults(branch, data)
+    _save(branch, data, BRANCH_FIELDS)
+    return branch
 
 
 def _unique_branch_name(company, name: str, exclude: int | None = None) -> None:
@@ -575,9 +587,19 @@ class CertificateListView(APIView):
         company = _company(request, pk)
         serializer = CertificateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        certificate = Certificate(company=company)
-        _save(certificate, serializer.validated_data, CERTIFICATE_FIELDS)
+        certificate = save_certificate(
+            Certificate(company=company), dict(serializer.validated_data)
+        )
         return Response(CertificateSerializer(certificate).data, status=status.HTTP_201_CREATED)
+
+
+def save_certificate(certificate: Certificate, data: dict) -> Certificate:
+    """Add or change a licence or certificate (screen and imports)."""
+    branch = data.get("branch")
+    if branch is not None and branch.company_id != certificate.company_id:
+        raise ValidationError({"branch": ["Pick a branch of this company."]})
+    _save(certificate, data, CERTIFICATE_FIELDS)
+    return certificate
 
 
 class CertificateDetailView(APIView):
@@ -595,7 +617,7 @@ class CertificateDetailView(APIView):
             raise NotFound("No such certificate.")
         serializer = CertificateSerializer(certificate, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        _save(certificate, serializer.validated_data, CERTIFICATE_FIELDS)
+        save_certificate(certificate, dict(serializer.validated_data))
         return Response(CertificateSerializer(certificate).data)
 
 
@@ -626,14 +648,7 @@ class BranchDetailView(APIView):
             raise NotFound("No such branch.")
         serializer = BranchSerializer(branch, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        if "name" in data:
-            data["name"] = duplicates.tidy(data["name"])
-            _unique_branch_name(branch.company, data["name"], exclude=pk)
-        refuse_key_changes("branch", branch, data)
-        _move_defaults(branch, data)
-        fields = ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active", *DEFAULT_FLAGS]
-        _save(branch, data, fields)
+        save_branch(branch, dict(serializer.validated_data))
         return Response(BranchSerializer(branch).data)
 
 
@@ -646,19 +661,56 @@ class LedgerGroupListView(APIView):
         company = _company(request, pk)
         serializer = LedgerGroupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        name = duplicates.tidy(serializer.validated_data["name"])
-        parent = serializer.validated_data.get("parent")
+        group = save_ledger_group(company, None, dict(serializer.validated_data))
+        return Response(LedgerGroupSerializer(group).data, status=status.HTTP_201_CREATED)
+
+
+def save_ledger_group(company, group: LedgerGroup | None, data: dict) -> LedgerGroup:
+    """Add a group under another (group None) or change one the company added
+    (screen and imports). Standard groups cannot change; saving one as it is
+    does nothing."""
+    if group is None:
+        name = duplicates.tidy(data.get("name") or "")
+        parent = data.get("parent")
         if parent is None or parent.company_id != company.pk:
             raise ValidationError({"parent": ["Choose the group this one sits under."]})
         _unique_group_name(company, name)
-        group = LedgerGroup.objects.create(
+        return LedgerGroup.objects.create(
             company=company,
             name=name,
             parent=parent,
             nature=parent.nature,
             affects_gross_profit=parent.affects_gross_profit,
         )
-        return Response(LedgerGroupSerializer(group).data, status=status.HTTP_201_CREATED)
+    if group.is_standard:
+        renamed = "name" in data and duplicates.tidy(data["name"]) != group.name
+        moved = "parent" in data and data["parent"] != group.parent
+        if renamed or moved:
+            raise ValidationError(
+                {"detail": "Standard groups come with MyERP and cannot be changed."}
+            )
+        return group
+    if "name" in data:
+        group.name = duplicates.tidy(data["name"])
+        _unique_group_name(group.company, group.name, exclude=group.pk)
+    if "parent" in data and data["parent"] != group.parent:
+        refuse_key_changes("ledger_group", group, {"parent": data["parent"]})
+        parent = data["parent"]
+        if parent is None or parent.company_id != group.company_id:
+            raise ValidationError({"parent": ["Choose the group this one sits under."]})
+        if parent.pk == group.pk or parent.pk in group.descendant_ids():
+            raise ValidationError({"parent": ["A group cannot sit under itself."]})
+        group.parent = parent
+        # Moving under another primary group changes the nature of the
+        # whole branch of the tree. Refused above once the group's ledgers
+        # have postings (core/locks.py).
+        group.nature = parent.nature
+        group.affects_gross_profit = parent.affects_gross_profit
+        LedgerGroup.objects.filter(pk__in=group.descendant_ids()).update(
+            nature=parent.nature, affects_gross_profit=parent.affects_gross_profit
+        )
+    group.save()
+    return group
 
 
 class LedgerGroupDetailView(APIView):
@@ -680,27 +732,7 @@ class LedgerGroupDetailView(APIView):
         group = self._editable(request, pk)
         serializer = LedgerGroupSerializer(group, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        if "name" in data:
-            group.name = duplicates.tidy(data["name"])
-            _unique_group_name(group.company, group.name, exclude=group.pk)
-        if "parent" in data:
-            refuse_key_changes("ledger_group", group, {"parent": data["parent"]})
-            parent = data["parent"]
-            if parent is None or parent.company_id != group.company_id:
-                raise ValidationError({"parent": ["Choose the group this one sits under."]})
-            if parent.pk == group.pk or parent.pk in group.descendant_ids():
-                raise ValidationError({"parent": ["A group cannot sit under itself."]})
-            group.parent = parent
-            # Moving under another primary group changes the nature of the
-            # whole branch of the tree. Refused above once the group's ledgers
-            # have postings (core/locks.py).
-            group.nature = parent.nature
-            group.affects_gross_profit = parent.affects_gross_profit
-            LedgerGroup.objects.filter(pk__in=group.descendant_ids()).update(
-                nature=parent.nature, affects_gross_profit=parent.affects_gross_profit
-            )
-        group.save()
+        save_ledger_group(group.company, group, dict(serializer.validated_data))
         return Response(LedgerGroupSerializer(group).data)
 
     @tenant_atomic()

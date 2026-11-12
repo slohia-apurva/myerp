@@ -22,7 +22,11 @@ export function useExchange(props: {
   company?: number;
   /** Called after an import has saved, to reload the list. */
   onImported: () => void;
+  /** Print and PDF the screen's own table (a tree, say) instead of the
+   * export's columns. */
+  printScreen?: { title: string; scope?: string };
 }): { buttons: ReactNode; panel: ReactNode } {
+  const screen = usePrintMenu(props.printScreen ?? { title: "" });
   const perms = props.session.permissions;
   const canImport = perms.includes("masters.edit") && perms.includes("masters.import");
   const [open, setOpen] = useState(false);
@@ -45,16 +49,16 @@ export function useExchange(props: {
     }
   };
 
-  const buttons = (
-    <ActionsMenu
-      items={[
-        ...(canImport ? [{ label: "Import from Excel…", onClick: () => setOpen(true) }] : []),
-        { label: "Export to Excel", href: `${base}${query({ as: "xlsx" })}` },
-        { label: "Print", onClick: print },
-        { label: "Download PDF", href: `${base}${query({ as: "pdf" })}` },
-      ]}
-    />
-  );
+  const buttons = screen.menu([
+    ...(canImport ? [{ label: "Import from Excel…", onClick: () => setOpen(true) }] : []),
+    { label: "Export to Excel", href: `${base}${query({ as: "xlsx" })}` },
+    ...(props.printScreen
+      ? screen.items
+      : [
+          { label: "Print", onClick: print },
+          { label: "Download PDF", href: `${base}${query({ as: "pdf" })}` },
+        ]),
+  ]);
 
   const panel = (
     <>
@@ -67,6 +71,7 @@ export function useExchange(props: {
         />
       )}
       {sheet && <Printout sheet={sheet} onDone={closeSheet} />}
+      {screen.panel}
     </>
   );
   return { buttons, panel };
@@ -86,7 +91,14 @@ export function useExchange(props: {
  * Usage: const printing = usePrintMenu({ title: "Users" }); put
  * {printing.buttons} in the PageHeader actions and {printing.panel} below it.
  */
-export function usePrintMenu(props: { title: string; scope?: string }): { buttons: ReactNode; panel: ReactNode } {
+export function usePrintMenu(props: { title: string; scope?: string }): {
+  buttons: ReactNode;
+  panel: ReactNode;
+  /** "Print" and "Download PDF", to put in a menu with other actions. */
+  items: MenuItem[];
+  /** The Actions button with these items, able to find its page. */
+  menu: (items: MenuItem[]) => ReactNode;
+} {
   const [sheet, setSheet] = useState<PrintSheet | null>(null);
   const [error, setError] = useState("");
   const closeSheet = useCallback(() => setSheet(null), []);
@@ -112,14 +124,13 @@ export function usePrintMenu(props: { title: string; scope?: string }): { button
       setError((err as Error).message);
     }
   };
-  const buttons = (
+  const items: MenuItem[] = [
+    { label: "Print", onClick: print },
+    { label: "Download PDF", onClick: pdf },
+  ];
+  const menu = (list: MenuItem[]) => (
     <span ref={here} className="actions-holder">
-      <ActionsMenu
-        items={[
-          { label: "Print", onClick: print },
-          { label: "Download PDF", onClick: pdf },
-        ]}
-      />
+      <ActionsMenu items={list} />
     </span>
   );
   const panel = (
@@ -128,7 +139,7 @@ export function usePrintMenu(props: { title: string; scope?: string }): { button
       {sheet && <Printout sheet={sheet} onDone={closeSheet} />}
     </>
   );
-  return { buttons, panel };
+  return { buttons: menu(items), panel, items, menu };
 }
 
 const NUMBER = /^-?₹?\s?[\d,]+(\.\d+)?( (Dr|Cr))?$/;
