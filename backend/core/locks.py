@@ -24,6 +24,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
     },
     "credit_term": {"parts": "parts"},
     "item_group": {"parent": "the group it sits under"},
+    "fiscal_year": {"start_date": "start date", "end_date": "end date"},
     "brand": {},  # the name stays open; nothing else on a brand is a key
     "ledger_group": {"parent": "the group it sits under"},
     "ledger": {"group": "group", "currency": "currency", "bill_wise": "bill-wise"},

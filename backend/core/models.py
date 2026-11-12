@@ -132,6 +132,44 @@ class Company(models.Model):
             raise ValidationError({"pincode": "A PIN code is 6 digits."})
 
 
+class FiscalYear(models.Model):
+    """A company's financial year, in whole months, split into monthly periods
+    that can be locked (spec 01, "Fiscal year / period"). Years of one company
+    never overlap. Never deleted, only made inactive."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="fiscal_years")
+    name = models.CharField(max_length=20)  # e.g. 2026-27
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["company", "start_date"]
+        constraints = [
+            models.UniqueConstraint(Lower("name"), "company", name="fiscal_year_name_unique"),
+            models.UniqueConstraint(fields=["company", "start_date"], name="fiscal_year_start"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class FiscalPeriod(models.Model):
+    """One month of a fiscal year. While locked, nothing posts into it."""
+
+    year = models.ForeignKey(FiscalYear, on_delete=models.CASCADE, related_name="periods")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_locked = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["start_date"]
+        constraints = [models.UniqueConstraint(fields=["year", "start_date"], name="period_start")]
+
+    def __str__(self) -> str:
+        return f"{self.start_date:%b %Y}"
+
+
 def fiscal_year_start(day: date, start_month: int) -> date:
     """First day of the financial year that `day` falls in."""
     year = day.year if day.month >= start_month else day.year - 1

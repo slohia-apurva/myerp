@@ -13,6 +13,7 @@ export function helpTopicFor(hash: string): string {
   if (sub === "groups") return "ledger-groups";
   if (sub === "shipments") return "shipments";
   if (sub === "couriers") return "courier-accounts";
+  if (sub === "years") return "fiscal-years";
   if (sub === "branches" || sub === "certificates" || sub === "modules") return sub;
   return "companies";
 }
