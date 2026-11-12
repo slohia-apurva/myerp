@@ -13,6 +13,7 @@ from core import (
     items,
     ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
     places,
+    printout,
     units,
 )
 
@@ -34,6 +35,7 @@ urlpatterns = [
     path("countries/", places.CountryListView.as_view(), name="countries"),
     path("pin/<str:pin>/", places.PinView.as_view(), name="pin"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
+    path("print/pdf/", printout.PdfView.as_view(), name="print-pdf"),
     path("exchange/<str:key>/", exchange.ExportView.as_view(), name="exchange-export"),
     path("exchange/<str:key>/import/", exchange.ImportView.as_view(), name="exchange-import"),
     path("brands/", brands.BrandListView.as_view(), name="brands"),

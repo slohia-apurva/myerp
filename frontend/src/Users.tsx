@@ -4,6 +4,7 @@ import { api, SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 import { PageHeader, Section } from "./Brand";
+import { usePrintMenu } from "./Exchange";
 
 type Role = {
   id: number;
@@ -96,13 +97,21 @@ export function UsersPage({ session }: { session: SignedIn }) {
     }
   }, [openId, users, opened]);
 
+  const printing = usePrintMenu({ title: "Users" });
+
   return (
     <section className="page">
       <PageHeader
         title="Users"
         crumbs={[{ label: "Settings", href: "#/users" }]}
-        actions={<button onClick={() => edit("new")}>Add user</button>}
+        actions={
+          <>
+            {printing.buttons}
+            <button onClick={() => edit("new")}>Add user</button>
+          </>
+        }
       />
+      {printing.panel}
       <WithActivity activity={<Activity type="user" stamp={JSON.stringify(users)} />}>
         <p className="small">
           People sign in with the Google account for their email address. Add them here first; nobody else can sign in.
@@ -256,13 +265,21 @@ export function RolesPage({ session }: { session: SignedIn }) {
     }
   }, [openId, roles, opened]);
 
+  const printing = usePrintMenu({ title: "Roles" });
+
   return (
     <section className="page">
       <PageHeader
         title="Roles"
         crumbs={[{ label: "Settings", href: "#/users" }]}
-        actions={owner && <button onClick={() => edit("new")}>New role</button>}
+        actions={
+          <>
+            {printing.buttons}
+            {owner && <button onClick={() => edit("new")}>New role</button>}
+          </>
+        }
       />
+      {printing.panel}
       <WithActivity activity={<Activity type="role" stamp={JSON.stringify(roles)} />}>
         <p className="small">
           {owner

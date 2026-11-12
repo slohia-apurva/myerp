@@ -1,6 +1,6 @@
-import { FormEvent, useCallback, useEffect, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { api, upload, type SignedIn } from "./api";
+import { api, download, upload, type SignedIn } from "./api";
 import { Section } from "./Brand";
 
 /**
@@ -46,19 +46,14 @@ export function useExchange(props: {
   };
 
   const buttons = (
-    <>
-      {canImport && (
-        <button type="button" className="link" onClick={() => setOpen(!open)}>
-          Import
-        </button>
-      )}
-      <a className="button" href={`${base}${query({ as: "xlsx" })}`} download>
-        Export
-      </a>
-      <button type="button" className="link" onClick={print}>
-        Print
-      </button>
-    </>
+    <ActionsMenu
+      items={[
+        ...(canImport ? [{ label: "Import from Excel…", onClick: () => setOpen(true) }] : []),
+        { label: "Export to Excel", href: `${base}${query({ as: "xlsx" })}` },
+        { label: "Print", onClick: print },
+        { label: "Download PDF", href: `${base}${query({ as: "pdf" })}` },
+      ]}
+    />
   );
 
   const panel = (
@@ -77,11 +72,185 @@ export function useExchange(props: {
   return { buttons, panel };
 }
 
-type PrintSheet = {
+/**
+ * Print and PDF for any list screen that is not a master: the "Actions" button
+ * with "Print" and "Download PDF". The report is the screen's own table(s),
+ * read as they are shown, so it follows the screen when columns change.
+ *
+ * Tables inside the page (`section.page`) are read, except those inside a
+ * form, an open card or anything marked `no-print`. Columns with no heading
+ * (Edit, Duplicate) are left out, as are buttons and rows holding a form. A
+ * table's `data-title` (or the box it sits in) names its sheet; `data-indent`
+ * on a cell's part indents it (tree lists).
+ *
+ * Usage: const printing = usePrintMenu({ title: "Users" }); put
+ * {printing.buttons} in the PageHeader actions and {printing.panel} below it.
+ */
+export function usePrintMenu(props: { title: string; scope?: string }): { buttons: ReactNode; panel: ReactNode } {
+  const [sheet, setSheet] = useState<PrintSheet | null>(null);
+  const [error, setError] = useState("");
+  const closeSheet = useCallback(() => setSheet(null), []);
+  const here = useRef<HTMLSpanElement>(null);
+  const read = (): PrintSheet => {
+    const page = here.current?.closest("section.page") ?? document.querySelector("section.page");
+    return { title: props.title, scope: props.scope ?? "", sheets: page ? readTables(page, props.title) : [] };
+  };
+  const print = () => {
+    setError("");
+    const s = read();
+    if (!s.sheets.length) return setError("There is nothing on this screen to print.");
+    setSheet(s);
+  };
+  const pdf = async () => {
+    setError("");
+    const s = read();
+    if (!s.sheets.length) return setError("There is nothing on this screen to put in a PDF.");
+    const stem = `${props.title}-${new Date().toISOString().slice(0, 10)}`;
+    try {
+      await download("v1/print/pdf/", s, `${stem.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  const buttons = (
+    <span ref={here} className="actions-holder">
+      <ActionsMenu
+        items={[
+          { label: "Print", onClick: print },
+          { label: "Download PDF", onClick: pdf },
+        ]}
+      />
+    </span>
+  );
+  const panel = (
+    <>
+      {error && <p className="error">{error}</p>}
+      {sheet && <Printout sheet={sheet} onDone={closeSheet} />}
+    </>
+  );
+  return { buttons, panel };
+}
+
+const NUMBER = /^-?₹?\s?[\d,]+(\.\d+)?( (Dr|Cr))?$/;
+
+/** The tables shown in a page, as report sheets. */
+export function readTables(page: Element, title: string): PrintSheet["sheets"] {
+  const out: PrintSheet["sheets"] = [];
+  for (const table of Array.from(page.querySelectorAll("table"))) {
+    if (table.closest("form, .card, .no-print, .print-sheet, .actions-panel")) continue;
+    const heads = Array.from(table.querySelectorAll(":scope > thead > tr:first-child > th"));
+    const keep = heads.map((th) => cellText(th) !== "");
+    if (!keep.some(Boolean)) continue;
+    const columns = heads.map(cellText).filter((_, i) => keep[i]);
+    const rows: string[][] = [];
+    for (const tr of Array.from(table.querySelectorAll(":scope > tbody > tr"))) {
+      const cells = Array.from(tr.children);
+      if (cells.length !== heads.length || tr.querySelector("form")) continue;
+      rows.push(cells.map(cellText).filter((_, i) => keep[i]));
+    }
+    const heading = table.closest(".panel-card")?.querySelector(":scope > h4")?.textContent;
+    const right = columns.map((_, j) => {
+      const values = rows.map((r) => r[j]).filter((v) => v && v !== "—");
+      return values.length > 0 && values.every((v) => NUMBER.test(v));
+    });
+    out.push({ title: table.dataset.title || heading || title, columns, rows, right });
+  }
+  return out;
+}
+
+/** A cell's words: each part (a name, its note below, a tag) joined with " · ";
+ * buttons, inputs and decorations left out. */
+function cellText(cell: Element): string {
+  const parts: string[] = [];
+  let buf = "";
+  const flush = () => {
+    const t = buf
+      .replace(/\s*\n\s*/g, ", ")
+      .replace(/\s+/g, " ")
+      .replace(/^[\s·,]+|[\s·,]+$/g, "");
+    if (t) parts.push(t);
+    buf = "";
+  };
+  const walk = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        buf += child.textContent ?? "";
+        continue;
+      }
+      if (!(child instanceof Element)) continue;
+      if (["BUTTON", "INPUT", "SELECT", "TEXTAREA", "svg"].includes(child.tagName)) continue;
+      if (child.getAttribute("aria-hidden") === "true" || child.classList.contains("no-print")) continue;
+      flush();
+      if (child.tagName === "BR") continue;
+      const indent = Number((child as HTMLElement).dataset?.indent ?? 0);
+      const before = parts.length;
+      walk(child);
+      flush();
+      if (indent > 0 && parts.length > before) parts[before] = "   ".repeat(indent) + parts[before];
+    }
+  };
+  walk(cell);
+  flush();
+  return parts.join(" · ");
+}
+
+type MenuItem = { label: string; onClick?: () => void; href?: string };
+
+/** One "Actions" button whose list holds a screen's Import, Export, Print
+ * and PDF. The same button on every screen. */
+export function ActionsMenu({ items }: { items: MenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  return (
+    <div className="actions-menu" ref={box}>
+      <button type="button" className="link" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Actions <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="actions-panel" role="menu">
+          {items.map((item) =>
+            item.href ? (
+              <a key={item.label} role="menuitem" href={item.href} download onClick={() => setOpen(false)}>
+                {item.label}
+              </a>
+            ) : (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick?.();
+                }}
+              >
+                {item.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export type PrintSheet = {
   title: string;
   scope: string;
   /** The list, then any rows kept inside its records (parts, units of measure). */
-  sheets: { title: string; columns: string[]; rows: string[][] }[];
+  sheets: { title: string; columns: string[]; rows: string[][]; right?: boolean[] }[];
 };
 
 type Outcome = {
@@ -242,7 +411,7 @@ function Printout({ sheet, onDone }: { sheet: PrintSheet; onDone: () => void }) 
     <div className="print-sheet">
       <h1>{sheet.title}</h1>
       <p className="small">
-        {sheet.scope} · printed {today} · {plural(sheet.sheets[0].rows.length, "row")}
+        {[sheet.scope, `printed ${today}`, plural(sheet.sheets[0].rows.length, "row")].filter(Boolean).join(" · ")}
       </p>
       {sheet.sheets.map((t, n) => (
         <section key={t.title}>
@@ -250,8 +419,10 @@ function Printout({ sheet, onDone }: { sheet: PrintSheet; onDone: () => void }) 
           <table>
             <thead>
               <tr>
-                {t.columns.map((c) => (
-                  <th key={c}>{c}</th>
+                {t.columns.map((c, j) => (
+                  <th key={c} className={t.right?.[j] ? "num" : undefined}>
+                    {c}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -259,7 +430,9 @@ function Printout({ sheet, onDone }: { sheet: PrintSheet; onDone: () => void }) 
               {t.rows.map((r, i) => (
                 <tr key={i}>
                   {r.map((v, j) => (
-                    <td key={j}>{v}</td>
+                    <td key={j} className={t.right?.[j] ? "num" : undefined}>
+                      {v}
+                    </td>
                   ))}
                 </tr>
               ))}

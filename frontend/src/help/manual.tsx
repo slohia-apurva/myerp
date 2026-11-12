@@ -321,7 +321,7 @@ export const MANUAL: Chapter[] = [
           and then the "Disable" button to stop offering them to new parties ("Enable" brings them back). Parties that already have them keep them.
         </p>
         <p>
-          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          To change many at once, use "Actions" at the top of the screen. See the chapter "Import,
           export and print".
         </p>
       </>
@@ -382,7 +382,7 @@ export const MANUAL: Chapter[] = [
           back). Use "Duplicate" to start a new item from an existing one; barcodes are not copied.
         </p>
         <p>
-          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          To change many at once, use "Actions" at the top of the screen. See the chapter "Import,
           export and print".
         </p>
       </>
@@ -483,8 +483,7 @@ export const MANUAL: Chapter[] = [
         <p>
           Brand names must be different, whatever the capital letters. The "Items" column shows how many items carry
           each brand. Brands are never deleted: click "Edit" and then the "Disable" button to stop offering a brand
-          ("Enable" brings it back); items already using it keep it. To change many brands at once, use "Export",
-          "Import" and "Print" at the top of the screen (see "Import, export and print").
+          ("Enable" brings it back); items already using it keep it. To change many brands at once, use "Actions" at the top of the screen (see "Import, export and print").
         </p>
       </>
     ),
@@ -518,8 +517,8 @@ export const MANUAL: Chapter[] = [
           Once an item sits in a group, or in a group below it, that group cannot be moved under another group, so
           reports keep their meaning. Names and notes can still be changed. Names must be different whatever the
           capital letters. Groups are never deleted: click "Edit" and then the "Disable" button to stop offering a group
-          ("Enable" brings it back); items already in it keep it. To change many groups at once, use "Export", "Import"
-          and "Print" (see "Import, export and print"); in an import file, list a group before the groups under it.
+          ("Enable" brings it back); items already in it keep it. To change many groups at once, use "Actions"
+          (see "Import, export and print"); in an import file, list a group before the groups under it.
         </p>
       </>
     ),
@@ -559,7 +558,7 @@ export const MANUAL: Chapter[] = [
           that already use it keep it.
         </p>
         <p>
-          To change many units at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter
+          To change many units at once, use "Actions" at the top of the screen. See the chapter
           "Import, export and print".
         </p>
       </>
@@ -572,13 +571,15 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          Masters screens have three buttons at the top: "Import", "Export" and "Print". They work the same way on
-          every master. So far they are on "Units", "Credit terms", "Items" and "Ledgers"; the other masters get them one by one. The columns are always the
-          fields of that master's form, so when a field is added to the form it appears in the file too.
+          Every list screen has an "Actions" button at the top right. Click it for a short list: "Print" and
+          "Download PDF" on every list, and on masters also "Import from Excel…" and "Export to Excel". They work the
+          same way everywhere. Import and export are on "Units", "Credit terms", "Items", "Item groups", "Brands" and
+          "Ledgers" so far; the other masters get them one by one. The columns are always the fields of that master's
+          form, so when a field is added to the form it appears in the file too.
         </p>
-        <h3>Export</h3>
+        <h3>Export to Excel</h3>
         <p>
-          Click "Export" to download the whole list as an Excel file (.xlsx). The first column, "ID", is MyERP's own
+          Click "Actions" and then "Export to Excel" to download the whole list as an Excel file (.xlsx). The first column, "ID", is MyERP's own
           number for each record. The second sheet, "How to fill", lists every column, whether it must be filled, and
           what may be written in it (for example the GST unit codes, or Yes and No).
         </p>
@@ -597,7 +598,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Ledgers</h3>
         <p>
-          Ledgers belong to one company, so "Export", "Import" and "Print" on the Ledgers screen work on the company you
+          Ledgers belong to one company, so "Actions" on the Ledgers screen work on the company you
           are working in (picked at the top right). "Under group" is the group's name in that company. Customers and
           suppliers are ledgers too: their details ("GST type", "GSTIN", "State", "Credit terms", "Salesman or
           purchaser" and so on) are columns on the same sheet, left empty for other ledgers such as cash or expenses.
@@ -608,15 +609,25 @@ export const MANUAL: Chapter[] = [
           A customer or supplier that another company of the group already has cannot be added by import: open "Add
           ledger" and pick it under "Existing customer or supplier", so both companies share one record.
         </p>
-        <h3>Print</h3>
+        <h3>Print and Download PDF</h3>
         <p>
-          Click "Print" to print the list as a plain table with the same columns, the group or company name and
-          today's date. Your browser's print window opens; pick a printer or "Save as PDF".
+          "Print" prints the list as a plain columnar report: the screen's title, the company (or group) and today's
+          date at the top, then the list with its column headings. Your browser's print window opens; pick a printer.
+          "Download PDF" saves the same report as a PDF file, ready to email: landscape A4, column headings repeated
+          on every page, amounts on the right in Indian style (1,23,456.00), and "Page 1 of 3" at the foot of each page.
+        </p>
+        <p>
+          On a master the report leaves out the ID and any column that is empty in every row; on Ledgers it shows the
+          main columns only (name, group, opening balance, currency, customer and supplier numbers, GST details, credit
+          terms, active). On other lists (Users, Roles, Companies, Branches, Licences and certificates, Ledger groups,
+          Courier accounts, Shipments, HSN codes) the report is the table on the screen: what you have searched for,
+          picked or unfolded is what prints. Buttons such as "Edit" and "Duplicate" are left out.
         </p>
         <h3>Import</h3>
         <ol>
           <li>
-            Click "Export" (to change records you have) or "Import" and then "blank template" (to add new ones).
+            Click "Actions", then "Export to Excel" (to change records you have), or "Import from Excel…" and then
+            "blank template" (to add new ones).
           </li>
           <li>
             Fill or change the rows in Excel. Keep the "ID" to change that record. Leave "ID" empty on a row to add a
@@ -625,7 +636,7 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>Save the file as Excel (.xlsx) or CSV.</li>
           <li>
-            Click "Import", pick the file under "File to import" and click "Check file". MyERP checks every row the
+            Click "Actions" and "Import from Excel…", pick the file under "File to import" and click "Check file". MyERP checks every row the
             way the form would, and saves nothing yet.
           </li>
           <li>
@@ -643,7 +654,7 @@ export const MANUAL: Chapter[] = [
           that protect masters in use (for example a unit's "GST unit code" once items use it) apply to imports too.
         </Note>
         <p>
-          Anyone who can see a master can export and print it. Importing needs two permissions: "Create and edit" and
+          Anyone who can see a list can print it or download its PDF, and anyone who can see a master can export it. Importing needs two permissions: "Create and edit" and
           "Import from a file" under Masters. Only the Owner has "Import from a file" to start with; tick it on the
           "User roles" screen for any other role that should import. Up to 5,000 rows and 5 MB at a time.
         </p>
@@ -686,7 +697,7 @@ export const MANUAL: Chapter[] = [
           the right form. Their familiar names are kept, with the Schedule III head shown in small print under each name.
         </p>
         <p>
-          Open them from "Masters" › "Ledger groups", or with the "Ledger groups" button on the Ledgers screen. The table shows each
+          Open them from "Masters" › "Ledger groups". The table shows each
           group's nature (asset, liability, income or expense), its Schedule III head and how many ledgers it holds.
           Click a group's ledger count to see those ledgers.
         </p>
@@ -712,7 +723,7 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          A ledger is one account: a customer, a supplier, a bank, an expense or an income head. Open Ledgers from "Masters" › "Ledgers" or the Dashboard. Use the "Ledger groups" button to go back to the groups.
+          A ledger is one account: a customer, a supplier, a bank, an expense or an income head. Open Ledgers from "Masters" › "Ledgers" or the Dashboard.
         </p>
         <h3>The screen</h3>
         <ul>
@@ -846,7 +857,7 @@ export const MANUAL: Chapter[] = [
           "Edit" and then "Disable"; it then cannot be used in new entries. "Enable" brings it back.
         </Note>
         <p>
-          To change many at once, use "Export", "Import" and "Print" at the top of the screen. See the chapter "Import,
+          To change many at once, use "Actions" at the top of the screen. See the chapter "Import,
           export and print".
         </p>
       </>

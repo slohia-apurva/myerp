@@ -4,6 +4,7 @@ import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
+import { usePrintMenu } from "./Exchange";
 import { Combobox } from "./Combobox";
 import type { Company } from "./Companies";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
@@ -193,6 +194,7 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
       opened();
     }
   }, [openId, accounts, opened]);
+  const printing = usePrintMenu({ title: "Courier accounts", scope: company?.name });
   if (company && !company.modules.includes("sales")) return <NoSales company={company} />;
   const done = () => {
     setEditing(null);
@@ -206,18 +208,22 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
         crumbs={[{ label: "Shipments", href: `#/companies/${companyId}/shipments` }]}
         sub={`${company?.name ?? ""}: your accounts with each courier, such as a B2C and a B2B account with the same courier.`}
         actions={
-          canEdit && (
-            <button
-              onClick={() => {
-                setCopyOf(null);
-                setEditing("new");
-              }}
-            >
-              Add courier account
-            </button>
-          )
+          <>
+            {printing.buttons}
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setCopyOf(null);
+                  setEditing("new");
+                }}
+              >
+                Add courier account
+              </button>
+            )}
+          </>
         }
       />
+      {printing.panel}
       <WithActivity activity={<Activity company={companyId} type="courier_account" stamp={JSON.stringify(accounts)} />}>
         {editing && (
           <AccountForm
@@ -402,6 +408,11 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
     const t = window.setTimeout(reload, q ? 250 : 0);
     return () => window.clearTimeout(t);
   }, [reload, q, stamp]);
+  const viewLabel = VIEWS.find(([code]) => code === view)?.[1] ?? "";
+  const printing = usePrintMenu({
+    title: `Shipments: ${viewLabel}`,
+    scope: [company?.name, q && `Search: ${q}`].filter(Boolean).join(" · "),
+  });
   if (company && !company.modules.includes("sales")) return <NoSales company={company} />;
   const changed = () => setStamp((n) => n + 1);
 
@@ -412,6 +423,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
         sub={`${company?.name ?? ""}: every AWB sent out and where it is now.`}
         actions={
           <>
+            {printing.buttons}
             {canMasters && (
               <a className="button secondary" href={`#/companies/${companyId}/couriers`}>
                 Courier accounts
@@ -439,6 +451,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
           ))}
         </nav>
       </PageHeader>
+      {printing.panel}
       <>
         {open === "new" && (
           <ShipmentForm

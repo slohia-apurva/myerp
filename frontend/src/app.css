@@ -1643,10 +1643,62 @@ form.card .address-card {
     text-align: left;
     vertical-align: top;
   }
+  .print-sheet .num {
+    text-align: right;
+    white-space: nowrap;
+  }
   .print-sheet thead {
     display: table-header-group;
   }
   .print-sheet tr {
     page-break-inside: avoid;
   }
+}
+
+/* The "Actions" button on list screens: Import, Export, Print, PDF. */
+.actions-menu {
+  position: relative;
+  display: inline-flex;
+}
+.actions-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(31, 41, 51, 0.12);
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+}
+.actions-panel a,
+.actions-panel button,
+.actions-panel button:hover:not(:disabled) {
+  height: auto;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  text-decoration: none;
+  justify-content: flex-start;
+}
+.actions-panel a:hover,
+.actions-panel a:focus,
+.actions-panel button:hover:not(:disabled),
+.actions-panel button:focus {
+  background: var(--mint);
+  color: var(--deep-green);
+}
+.actions-menu > button {
+  gap: 8px;
+}
+.actions-holder {
+  display: contents;
 }

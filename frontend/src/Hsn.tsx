@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { PageHeader } from "./Brand";
+import { usePrintMenu } from "./Exchange";
 
 /** HSN / SAC codes: one central list kept by MyERP, the same for every customer. */
 export type Hsn = { id: number; hsn_code: string; description: string; is_active: boolean };
@@ -17,12 +18,15 @@ export function HsnPage(_props: { session: SignedIn }) {
     const t = setTimeout(() => search(q, false).then(setFound), 200);
     return () => clearTimeout(t);
   }, [q]);
+  const printing = usePrintMenu({ title: "HSN codes", scope: q ? `Search: ${q}` : "" });
   return (
     <section className="page">
       <PageHeader
         title="HSN codes"
+        actions={printing.buttons}
         sub={`${found.total} code${found.total === 1 ? "" : "s"} · kept centrally by MyERP, the same for every company. Searched when you enter an item's HSN.`}
       />
+      {printing.panel}
       <input
         type="search"
         placeholder="Search by code or words in the description"

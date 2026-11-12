@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { PageHeader, Section } from "./Brand";
+import { usePrintMenu } from "./Exchange";
 
 type Info = {
   tables: { key: string; label: string; about: string; count: number; open: string }[];
@@ -11,6 +12,7 @@ type Info = {
 export function CentralPage() {
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
+  const printing = usePrintMenu({ title: "Central tables" });
   useEffect(() => {
     api<Info>("v1/central/").then(setInfo, (e) => setError(String(e.message ?? e)));
   }, []);
@@ -18,7 +20,12 @@ export function CentralPage() {
   if (!info) return <p>Loading…</p>;
   return (
     <section className="page">
-      <PageHeader title="Central tables" sub="Kept once by MyERP for every customer. Customers can read these lists but not change them." />
+      <PageHeader
+        title="Central tables"
+        sub="Kept once by MyERP for every customer. Customers can read these lists but not change them."
+        actions={printing.buttons}
+      />
+      {printing.panel}
       <Section title="Central tables">
         <table>
           <thead>
