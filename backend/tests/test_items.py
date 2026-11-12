@@ -348,3 +348,19 @@ def test_sales_and_purchase_tab_fields(accountant, unit):
     # the defaults for an item with none of them
     plain = make(accountant, unit, name="Plain", units=[]).json()
     assert plain["mrp"] is None and plain["best_before_unit"] == "days"
+
+
+def test_default_material_request_type(accountant, unit):
+    made = make(accountant, unit, default_request_type="customer_provided").json()
+    assert made["default_request_type"] == "customer_provided"
+    path = f"items/{made['id']}/"
+    assert (
+        call(accountant, "patch", path, {"default_request_type": "manufacture"}).status_code == 200
+    )
+    assert call(accountant, "patch", path, {"default_request_type": "rent"}).status_code == 400
+    assert (
+        call(accountant, "patch", path, {"default_request_type": ""}).json()["default_request_type"]
+        == ""
+    )
+    plain = make(accountant, unit, name="Plain", units=[]).json()
+    assert plain["default_request_type"] == ""

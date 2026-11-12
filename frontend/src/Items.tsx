@@ -59,6 +59,7 @@ export type Item = {
   max_stock_qty: string | null;
   batch_tracked: boolean;
   qc_required: boolean;
+  default_request_type: string;
   maintain_stock: boolean;
   allow_purchase: boolean;
   allow_sales: boolean;
@@ -74,6 +75,12 @@ const TYPES: [string, string][] = [
   ["goods", "Goods"],
   ["service", "Service"],
 ];
+const REQUEST_TYPES: [string, string][] = [
+  ["manufacture", "Manufacture"],
+  ["purchase", "Purchase"],
+  ["customer_provided", "Customer Provided"],
+];
+const requestLabel = (code: string) => REQUEST_TYPES.find(([c]) => c === code)?.[1] ?? "";
 const USED_FOR: [string, string][] = [
   ["purchase", "Purchase"],
   ["sales", "Sales"],
@@ -352,6 +359,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
           rows={[
             ["Batches tracked", i.batch_tracked ? "Yes" : "No"],
             ["Quality check on receipt", i.qc_required ? "Yes" : "No"],
+            ["Default material request type", requestLabel(i.default_request_type)],
           ]}
         />
       </Section>
@@ -499,6 +507,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const [maxStock, setMaxStock] = useState(from?.max_stock_qty == null ? "" : plain(from.max_stock_qty));
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
+  const [requestType, setRequestType] = useState(from?.default_request_type ?? "");
   const [notes, setNotes] = useState(from?.notes ?? "");
   const changeName = (v: string) => setName(v);
   const [salesText, setSalesText] = useState(from?.sales_description ?? "");
@@ -556,6 +565,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       max_stock_qty: num(maxStock),
       batch_tracked: batches,
       qc_required: qc,
+      default_request_type: requestType,
       notes,
       sales_description: salesText,
       sales_unit: salesUnit ? Number(salesUnit) : null,
@@ -827,6 +837,17 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         )}
         {tab === "stock" && (
         <Section title="Stock and quality">
+          <div className="row">
+            <label>
+              Default material request type
+              <Combobox
+                value={requestType}
+                onChange={setRequestType}
+                empty="Not set"
+                options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
+              />
+            </label>
+          </div>
           <label className="check">
             <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
             Track batches (batch number and expiry on every receipt and issue)

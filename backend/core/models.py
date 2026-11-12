@@ -688,6 +688,12 @@ class Item(models.Model):
 
     GOODS, SERVICE = "goods", "service"
     TYPES = [(GOODS, "Goods"), (SERVICE, "Service")]
+    MANUFACTURE, PURCHASE, CUSTOMER_PROVIDED = "manufacture", "purchase", "customer_provided"
+    REQUEST_TYPES = [
+        (MANUFACTURE, "Manufacture"),
+        (PURCHASE, "Purchase"),
+        (CUSTOMER_PROVIDED, "Customer Provided"),
+    ]
     DAYS, MONTHS = "days", "months"
     PERIODS = [(DAYS, "Days"), (MONTHS, "Months")]
 
@@ -724,6 +730,8 @@ class Item(models.Model):
     max_stock_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
+    # What a material request for this item is raised as, unless changed on it.
+    default_request_type = models.CharField(max_length=20, choices=REQUEST_TYPES, blank=True)
     maintain_stock = models.BooleanField(default=True)
     allow_purchase = models.BooleanField(default=True)
     allow_sales = models.BooleanField(default=True)

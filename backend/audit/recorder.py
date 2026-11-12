@@ -78,6 +78,7 @@ LABELS = {
     "max_stock_qty": "Max stock qty",
     "batch_tracked": "Batches tracked",
     "qc_required": "Quality check on receipt",
+    "default_request_type": "Default material request type",
     "item_type": "Type",
     "maintain_stock": "Maintain stock",
     "allow_purchase": "Allow purchase",
