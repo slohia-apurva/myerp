@@ -636,6 +636,19 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   create={newUnit}
                 />
               </label>
+                <label>
+                  Brand
+                  <Combobox
+                    value={brand}
+                    empty="No brand"
+                    placeholder="Type to search brands…"
+                    options={brands
+                      .filter((b) => b.is_active || String(b.id) === brand)
+                      .map((b) => ({ value: String(b.id), label: b.name }))}
+                    onChange={setBrand}
+                    create={newBrand}
+                  />
+                </label>
             </div>
             <div className="item-checks">
               <label className="check">
@@ -660,21 +673,8 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         </Section>
         )}
         {tab === "general" && (
-        <Section title="Other details">
+        <Section title="Notes">
           <div className="row">
-            <label>
-              Brand
-              <Combobox
-                value={brand}
-                empty="No brand"
-                placeholder="Type to search brands…"
-                options={brands
-                  .filter((b) => b.is_active || String(b.id) === brand)
-                  .map((b) => ({ value: String(b.id), label: b.name }))}
-                onChange={setBrand}
-                create={newBrand}
-              />
-            </label>
             <label>
               Notes
               <input value={notes} onChange={(e) => setNotes(e.target.value)} />

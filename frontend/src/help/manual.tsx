@@ -464,14 +464,13 @@ export const MANUAL: Chapter[] = [
             Under "General", the "Item number" is given when you save. Fill in
             the "Item name", choose "Goods or service", pick the "Item group"
             (see the chapter "Item groups"), give the "HSN code" if you know it,
-            and the "Default unit of measure" (the unit stock is counted in,
-            such as Packet). In the column on the
+            the "Default unit of measure" (the unit stock is counted in, such as
+            Packet) and the "Brand" (see the chapter "Brands"). In the column on the
             right, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold.
             "Maintain stock" is separate from goods or service: untick it for an
             item whose stock is not to be kept, and tick it for a service whose
-            stock is. The "Brand" (see the chapter
-            "Brands") and "Notes" are in the "Other details" box.
+            stock is. "Notes" are in the box below.
           </li>
           <li>
             On the "Sales" tab, the "Sales item name" starts as the item's name;
