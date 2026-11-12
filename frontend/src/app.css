@@ -1786,3 +1786,18 @@ fieldset.item-checks {
 .item-edit .split-panel {
   position: static;
 }
+
+/* General tab on one screen: the fields sit in two columns beside the switches */
+.item-edit .item-general {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+}
+.item-edit .item-general > div:first-child {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+@media (max-width: 720px) {
+  .item-edit .item-general > div:first-child {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
