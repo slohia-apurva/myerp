@@ -301,3 +301,20 @@ def test_gst_rates_are_dated(accountant, unit, alpha):
         {"gst_rates": [{"valid_from": "2027-04-01", "rate": "140"}]},
     )
     assert over.status_code == 400
+
+
+def test_item_ticks_allow_purchase_sales_and_stock(accountant, unit):
+    item = make(accountant, unit).json()
+    assert item["allow_purchase"] is True and item["allow_sales"] is True
+    assert item["item_type"] == "goods"
+    changed = call(
+        accountant,
+        "patch",
+        f"items/{item['id']}/",
+        {"allow_purchase": False, "allow_sales": False},
+    ).json()
+    assert changed["allow_purchase"] is False and changed["allow_sales"] is False
+    listed = {i["id"]: i for i in call(accountant, "get", "items/").json()}
+    assert listed[item["id"]]["allow_purchase"] is False
+    entries = call(accountant, "get", f"audit/?type=item&id={item['id']}").json()["entries"]
+    assert any("Allow purchase" in str(e) for e in entries)

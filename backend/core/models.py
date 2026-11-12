@@ -714,6 +714,8 @@ class Item(models.Model):
     shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
+    allow_purchase = models.BooleanField(default=True)
+    allow_sales = models.BooleanField(default=True)
     notes = models.CharField(max_length=200, blank=True)
     is_active = models.BooleanField(default=True)
 
