@@ -119,8 +119,9 @@ def test_filter_by_group_includes_sub_groups(as_user, company):
     ]
     assert names == ["Acme GmbH", "Local Traders"]
 
-    # A group with ledgers cannot be deleted.
-    response = call(accountant, "delete", f"ledger-groups/{export['id']}/")
+    # A group is never deleted, and one with active ledgers cannot be disabled.
+    assert call(accountant, "delete", f"ledger-groups/{export['id']}/").status_code == 405
+    response = call(accountant, "patch", f"ledger-groups/{export['id']}/", {"is_active": False})
     assert "ledgers" in str(response.json())
 
 

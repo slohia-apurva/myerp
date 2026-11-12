@@ -833,12 +833,13 @@ export const MANUAL: Chapter[] = [
           <li>Type the name, for example Export debtors under Sundry Debtors, and click "Save".</li>
         </ol>
         <p>The new group takes its nature and Schedule III head from the group above it.</p>
-        <h3>Change, move or delete a group you added</h3>
+        <h3>Change, move or disable a group you added</h3>
         <p>
-          Click "Edit" on its row. You can rename it or choose a different group in "Under". "Delete group" works only
-          when nothing is under it: move or delete its sub-groups and ledgers first.
+          Click "Edit" on its row. You can rename it or choose a different group in "Under". Groups are never deleted:
+          click "Disable" to stop using one ("Enable" brings it back). A group can be disabled only when the groups
+          under it and the ledgers in it are disabled or moved first. Nothing new can be added under a disabled group.
         </p>
-        <Note>Standard groups cannot be changed or deleted, because posting rules rely on them.</Note>
+        <Note>Standard groups cannot be changed or disabled, because posting rules rely on them.</Note>
         <p>
           To add many groups at once, use "Actions" and "Import from Excel…" (see "Import, export and print"). Write the
           parent's name under "Under group", and list a new group after the group it sits under. Standard groups may
@@ -1144,7 +1145,7 @@ export const MANUAL: Chapter[] = [
           "Import from a file" lets them bring in masters from Excel (they also need "Create and edit"). No standard
           role except Owner has "Import from a file" until you tick it.
         </p>
-        <p>Standard roles can be edited but not deleted. Roles you made can be deleted with "Delete role".</p>
+        <p>Roles are never deleted. Standard roles can be edited but not disabled. A role you made can be disabled with "Disable" once no active user has it; a disabled role cannot be given to anyone ("Enable" brings it back).</p>
         <p>The Activity column on the right shows every change to roles and their permissions.</p>
       </>
     ),
@@ -1188,10 +1189,6 @@ export const MANUAL: Chapter[] = [
           <li>
             <strong>Changed</strong> shows each field as old → new. The old value is struck through; "blank" means
             the field was empty.
-          </li>
-          <li>
-            <strong>Deleted</strong> lists what the record held when it was deleted (only groups and roles you made can
-            be deleted).
           </li>
         </ul>
         <p>

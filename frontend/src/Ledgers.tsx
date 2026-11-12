@@ -78,7 +78,9 @@ function GroupSelect(props: {
       required={!props.all}
       empty={props.all}
       placeholder="Type to search groups…"
-      options={props.groups.map(({ group, depth }) => ({ value: String(group.id), label: group.name, indent: depth }))}
+      options={props.groups
+        .filter(({ group }) => group.is_active || props.all !== undefined || String(group.id) === props.value)
+        .map(({ group, depth }) => ({ value: String(group.id), label: group.name, indent: depth }))}
       onChange={props.onChange}
       create={props.create}
     />

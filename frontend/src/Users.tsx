@@ -13,6 +13,7 @@ type Role = {
   description: string;
   permissions: string[];
   is_standard: boolean;
+  is_active: boolean;
   user_count: number;
 };
 type Area = { code: string; label: string; permissions: { code: string; label: string }[] };
@@ -214,7 +215,7 @@ function UserForm(props: {
       <fieldset>
         <legend>Roles</legend>
         <Checks
-          items={props.roles}
+          items={props.roles.filter((r) => r.is_active || roleIds.includes(r.id))}
           selected={roleIds}
           onChange={setRoleIds}
           disabled={(r) => r.code === "owner" && !props.isOwner}
@@ -311,9 +312,10 @@ export function RolesPage({ session }: { session: SignedIn }) {
           </thead>
           <tbody>
             {roles.map((r) => (
-              <tr key={r.id}>
+              <tr key={r.id} className={r.is_active ? "" : "inactive"}>
                 <td>
                   {r.name}
+                  {!r.is_active && <span className="pill">Disabled</span>}
                   <br />
                   <span className="small">{r.description}</span>
                 </td>
@@ -362,16 +364,6 @@ function RoleForm(props: {
       setError(err);
     }
   };
-  const remove = async () => {
-    if (!role || !window.confirm(`Delete the role ${role.name}?`)) return;
-    try {
-      await api(`v1/roles/${role.id}/`, undefined, "DELETE");
-      props.onDone();
-    } catch (err) {
-      setError(err);
-    }
-  };
-
   return (
     <form className="card" onSubmit={save}>
       <h3>{role ? `${props.readOnly ? "View" : "Edit"} ${role.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "New role"}</h3>
@@ -407,9 +399,13 @@ function RoleForm(props: {
           {props.readOnly ? "Close" : "Cancel"}
         </button>
         {role && !role.is_standard && !props.readOnly && (
-          <button type="button" className="link danger" onClick={remove}>
-            Delete role
-          </button>
+          <ActiveButton
+            url={`v1/roles/${role.id}/`}
+            active={role.is_active}
+            what={`the role ${role.name}`}
+            onDone={props.onDone}
+            onError={setError}
+          />
         )}
       </div>
     </form>

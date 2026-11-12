@@ -419,6 +419,8 @@ class LedgerGroup(models.Model):
     # Where a standard group is reported under Schedule III of the Companies
     # Act (decision 0015); groups people add are reported with their parent.
     schedule_iii = models.CharField(max_length=150, blank=True)
+    # Groups are never deleted, only disabled (Sidharth, 12 Nov 2026).
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["sequence", "name"]

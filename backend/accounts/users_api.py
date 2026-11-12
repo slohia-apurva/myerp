@@ -35,7 +35,16 @@ class RoleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Role
-        fields = ["id", "code", "name", "description", "permissions", "is_standard", "user_count"]
+        fields = [
+            "id",
+            "code",
+            "name",
+            "description",
+            "permissions",
+            "is_standard",
+            "is_active",
+            "user_count",
+        ]
         read_only_fields = ["code", "is_standard"]
 
     def get_user_count(self, role) -> int:
@@ -95,6 +104,7 @@ class UserListView(APIView):
         serializer = UserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         roles = serializer.validated_data["roles"]
+        _refuse_disabled(roles)
         if any(r.code == OWNER for r in roles) and not request.user.is_owner:
             raise PermissionDenied(OWNER_ONLY)
         clash = User.objects.filter(email__iexact=serializer.validated_data["email"]).first()
@@ -125,6 +135,8 @@ class UserDetailView(APIView):
 
         was_owner = user.is_owner
         new_roles = data.get("roles")
+        if new_roles is not None:
+            _refuse_disabled([r for r in new_roles if r not in user.roles.all()])
         becomes_owner = (
             any(r.code == OWNER for r in new_roles) if new_roles is not None else was_owner
         )
@@ -192,17 +204,19 @@ class RoleDetailView(APIView):
         if "name" in serializer.validated_data:
             extra["name"] = duplicates.tidy(serializer.validated_data["name"])
             _unique_role_name(extra["name"], exclude=role.pk)
+        if serializer.validated_data.get("is_active") is False and role.is_active:
+            if role.is_standard:
+                raise ValidationError({"detail": "Standard roles can be edited but not disabled."})
+            if role.users.filter(is_active=True).exists():
+                raise ValidationError({"detail": "Take this role off its users first."})
         serializer.save(**extra)
         return Response(serializer.data)
 
-    def delete(self, request, pk: int):
-        role = self._editable(request, pk)
-        if role.is_standard:
-            raise ValidationError({"detail": "Standard roles can be edited but not deleted."})
-        if role.users.exists():
-            raise ValidationError({"detail": "Take this role off its users first."})
-        role.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+
+def _refuse_disabled(roles) -> None:
+    off = [r.name for r in roles if not r.is_active]
+    if off:
+        raise ValidationError({"roles": [f"The role {off[0]} is disabled."]})
 
 
 def _unique_role_name(name: str, exclude: int | None = None) -> None:
