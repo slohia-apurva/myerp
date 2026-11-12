@@ -473,16 +473,19 @@ export const MANUAL: Chapter[] = [
             stock is. "Notes" are in the box below.
           </li>
           <li>
-            On the "Sales" tab, the "Sales item name" starts as the item's name;
-            change it if customers know the item by another name (left the same,
-            it follows the item name if you rename the item). Write the "Sales
-            description" customers should see on quotations, orders and bills,
-            and pick the "Default sales unit" (for example Carton). On the
-            "Purchase" tab do the same for suppliers with the "Purchase item
-            name", the "Purchase description" and the "Default purchase unit".
-            The default units are picked from the item's own units, so add a
-            unit on the "Units of measure" tab first. Left blank, the stock unit
-            is used.
+            On the "Sales" tab, write the "Sales description" customers should
+            see on quotations, orders and bills, and pick the "Default sales
+            unit" (for example Carton). Fill in the "MRP (₹)", the "USP" and the
+            "Batch No" printed on the pack. "Best before" is a number with
+            "Days" or "Months": a manufacturing order adds it to the
+            manufacturing date to work out the best-before date. On the
+            "Purchase" tab write the "Purchase description" for suppliers, pick
+            the "Default purchase unit", and fill in the "Lead time in days",
+            "Safety stock qty", "Minimum order qty" and "Max stock qty" (the
+            quantities are in the item's default unit; the maximum cannot be
+            below the safety stock). The default units are picked from the
+            item's own units, so add a unit on the "Units of measure" tab
+            first. Left blank, the stock unit is used.
           </li>
           <li>
             On the "GST rates" tab, click "Add rate" and fill in "From" (the
@@ -492,10 +495,9 @@ export const MANUAL: Chapter[] = [
             date, and the item's details mark today's rate "In force".
           </li>
           <li>
-            On the "Stock and quality" tab, fill in the "Shelf life (days)" if
-            the item expires, tick "Track batches" if you must follow batch
-            numbers, and tick "Quality check on receipt" if goods must be
-            checked when they arrive.
+            On the "Stock and quality" tab, tick "Track batches" if you must
+            follow batch numbers, and tick "Quality check on receipt" if goods
+            must be checked when they arrive.
           </li>
           <li>
             On the "Units of measure" tab, click "Add unit" for each other unit
