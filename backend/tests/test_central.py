@@ -159,3 +159,49 @@ def test_a_transporter_not_in_the_list_asks_the_central_team(alpha, settings):
         HTTP_HOST=HOST,
     )
     assert done.status_code == 200 and done.json()["status"] == "added"
+
+
+def _upload(client, path, text, **extra):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    file = SimpleUploadedFile("list.csv", text.encode(), content_type="text/csv")
+    return client.post(path, {"file": file, **extra}, HTTP_HOST=HOST)
+
+
+def test_platform_admin_loads_hsn_from_a_file(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    csv = 'HSN,Description\n0902,Tea\n0910,"Ginger, turmeric"\n'
+    first = _upload(client, "/api/v1/central/import/hsn/", csv)
+    assert first.status_code == 200, first.json()
+    assert first.json()["added"] == 2
+    assert HsnCode.objects.get(hsn_code="0902").description == "Tea"
+    again = _upload(client, "/api/v1/central/import/hsn/", csv)
+    assert again.json() == {"added": 0, "updated": 0, "unchanged": 2}
+    empty = _upload(client, "/api/v1/central/import/hsn/", "nothing here\n")
+    assert empty.status_code == 400
+
+
+def test_platform_admin_loads_pins_for_a_courier(alpha, settings):
+    from tenancy.models import Carrier, CourierPin, PinCode, State
+
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    carrier = Carrier.objects.create(name="Delhivery Test", kind="courier")
+    State.objects.get_or_create(name="Karnataka")
+    csv = "Pin,Facility City,Facility State,ODA\n591111,Saundatti,Karnataka,True\n"
+    path = "/api/v1/central/import/pins/"
+    assert _upload(client, path, csv).status_code == 400  # no courier chosen
+    done = _upload(client, path, csv, carrier=carrier.pk)
+    assert done.status_code == 200, done.json()
+    assert PinCode.objects.filter(pin="591111").exists()
+    assert CourierPin.objects.filter(carrier=carrier).count() == 1
+    bad = _upload(client, path, csv.replace("Karnataka,", "Nowhere,"), carrier=carrier.pk)
+    assert bad.status_code == 400
+
+
+def test_only_platform_admins_may_import(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    owner = _client(alpha, "owner@x.in", owner=True)
+    assert _upload(owner, "/api/v1/central/import/hsn/", "0902,Tea\n").status_code == 403
+    assert _upload(owner, "/api/v1/central/import/pins/", "Pin\n").status_code == 403

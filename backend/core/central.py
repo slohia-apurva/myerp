@@ -9,11 +9,13 @@ from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import duplicates
 from core.api import Signed
+from tenancy import hsn_import, pin_import
 from tenancy.models import Carrier, CarrierRequest, HsnCode, Tenant
 
 # key, label, what it is for, model, screen to open (a hash route) or "".
@@ -198,3 +200,60 @@ class CarrierRequestDetailView(APIView):
         with transaction.atomic():
             serializer.save()
         return Response(CarrierRequestSerializer(row).data)
+
+
+MAX_UPLOAD = 15 * 1024 * 1024
+
+
+def _uploaded_text(request) -> str:
+    upload = request.FILES.get("file")
+    if upload is None:
+        raise ValidationError({"file": ["Choose a file first."]})
+    if upload.size > MAX_UPLOAD:
+        raise ValidationError({"file": ["The file is too big (most is 15 MB)."]})
+    try:
+        return upload.read().decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValidationError({"file": ["Save the file as CSV (UTF-8) and try again."]}) from exc
+
+
+class HsnImportView(APIView):
+    """Load the central HSN / SAC list from a CSV or tab-separated file."""
+
+    permission_classes = [Signed]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        _platform_admin(request)
+        text = _uploaded_text(request)
+        rows = hsn_import.parse(text) if text.strip() else []
+        if not rows:
+            raise ValidationError({"file": ["No HSN rows found in the file."]})
+        try:
+            with transaction.atomic():
+                done = hsn_import.load(rows)
+        except ValueError as exc:
+            raise ValidationError({"file": [str(exc)]}) from exc
+        return Response(done)
+
+
+class PinImportView(APIView):
+    """Load PIN codes and one courier's coverage from its serviceability CSV."""
+
+    permission_classes = [Signed]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        _platform_admin(request)
+        carrier = Carrier.objects.filter(pk=request.data.get("carrier") or 0).first()
+        if carrier is None:
+            raise ValidationError({"carrier": ["Pick the courier the file is from."]})
+        rows = pin_import.parse(_uploaded_text(request))
+        if not rows:
+            raise ValidationError({"file": ["No PIN rows found in the file."]})
+        try:
+            with transaction.atomic():
+                done = pin_import.load(rows, carrier.name)
+        except ValueError as exc:
+            raise ValidationError({"file": [str(exc)]}) from exc
+        return Response(done)

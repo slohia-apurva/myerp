@@ -577,6 +577,19 @@ export const MANUAL: Chapter[] = [
           customer group (tenant) with its status. Adding customers from here
           will come later.
         </p>
+        <h3>Load HSN codes or a courier's PIN codes</h3>
+        <p>
+          The "Load lists from a file" box fills the central lists from a file.
+          For HSN and SAC codes, click "Choose file" under "HSN and SAC codes"
+          and pick a CSV with the code in the first column and the description
+          in the second: new codes are added and descriptions of existing ones
+          are refreshed. For a courier's PIN codes, first pick the courier in the
+          box under "PIN codes and a courier's coverage", then choose its
+          serviceability CSV: PIN codes we lack are added and that courier's
+          earlier coverage is replaced by the file's. A message under the box
+          says how many were added. If a row is wrong, nothing is loaded and
+          the message says which.
+        </p>
         <h3>Add a courier</h3>
         <p>
           The "Couriers" box lists the couriers, aggregators and transporters
