@@ -1014,3 +1014,55 @@ class NumberSeries(models.Model):
 
     def __str__(self) -> str:
         return self.key
+
+
+class NumberFormat(models.Model):
+    """How one kind of document of a company is numbered: PREFIX + zero-padded
+    count, e.g. SI/2026-27/0001. `{FY}` in the prefix becomes the fiscal year's
+    name, and each year has its own counter, so a series restarts at 0001 in a
+    new year (spec 01). A format with a branch overrides the company's own for
+    that branch. Use core.numbering.next_document_number()."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="number_formats")
+    doc_type = models.CharField(max_length=30)
+    branch = models.ForeignKey(
+        Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="number_formats"
+    )
+    prefix = models.CharField(max_length=20)
+    width = models.PositiveSmallIntegerField(default=4)
+
+    class Meta:
+        ordering = ["company", "doc_type", "branch_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "doc_type"],
+                condition=models.Q(branch__isnull=True),
+                name="number_format_one_per_company",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "doc_type", "branch"],
+                condition=models.Q(branch__isnull=False),
+                name="number_format_one_per_branch",
+            ),
+            # Two series must never hand out the same number.
+            models.UniqueConstraint("company", Lower("prefix"), name="number_format_prefix_unique"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.doc_type} ({self.branch or 'company'})"
+
+
+class NumberCounter(models.Model):
+    """The last number handed out by a format in one fiscal year."""
+
+    format = models.ForeignKey(NumberFormat, on_delete=models.CASCADE, related_name="counters")
+    year = models.ForeignKey(FiscalYear, on_delete=models.PROTECT, related_name="number_counters")
+    last = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["format", "year"], name="number_counter_per_year"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.format} {self.year}: {self.last}"
