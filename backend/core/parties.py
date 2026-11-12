@@ -120,7 +120,12 @@ class PartySerializer(serializers.ModelSerializer):
         """The companies that have a ledger for this party."""
         # Sorted here, not by the database, whose collation varies.
         rows = [
-            {"id": ledger.company_id, "name": ledger.company.name, "ledger": ledger.id}
+            {
+                "id": ledger.company_id,
+                "name": ledger.company.name,
+                "ledger": ledger.id,
+                "side": ledger.party_side,
+            }
             for ledger in party.ledgers.all()
         ]
         return sorted(rows, key=lambda r: r["name"].casefold())
@@ -167,8 +172,10 @@ def save_party(
             )
         if ledger.party_id:
             ledger.party = None
-            ledger.save(update_fields=["party"])
+            ledger.party_side = ""
+            ledger.save(update_fields=["party", "party_side"])
         return
+    side = side_of(ledger)
     data = dict(data or {})
     own = []  # what belongs to this company's ledger, not the shared party
     if "credit_limit" in data:
@@ -184,9 +191,19 @@ def save_party(
         party = Party.objects.select_for_update().filter(pk=party_id).first()
         if party is None:
             raise ValidationError({"party_id": ["No such customer or supplier."]})
-        if party.ledgers.filter(company=ledger.company).exists():
-            raise ValidationError(
-                {"party_id": ["This company already has a ledger for that party."]}
+    if party is not None:
+        # One customer ledger and one supplier ledger per party per company.
+        twin = (
+            party.ledgers.filter(company=ledger.company, party_side=side)
+            .exclude(pk=ledger.pk)
+            .first()
+        )
+        if twin is not None:
+            duplicates.refuse(
+                "party_id",
+                f'This company already has the {side} ledger "{twin.name}" for that party.',
+                twin,
+                "ledger",
             )
     if party is None:
         clash = duplicates.same_name(Party.objects.all(), ledger.name)
@@ -235,7 +252,8 @@ def save_party(
             _refuse_party(
                 "gstin",
                 f'This GSTIN is already on the customer or supplier "{clash.name}". '
-                "Add another address to that party instead.",
+                'Pick it under "Existing customer or supplier" instead (a firm that is '
+                "both can have a customer ledger and a supplier ledger).",
                 clash,
             )
     _number(ledger, party)
@@ -244,15 +262,25 @@ def save_party(
         _save_addresses(party, addresses)
     if contacts is not None:
         _save_contacts(party, contacts)
-    if ledger.party_id != party.pk:
+    if ledger.party_id != party.pk or ledger.party_side != side:
         ledger.party = party
-        ledger.save(update_fields=["party"])
+        ledger.party_side = side
+        ledger.save(update_fields=["party", "party_side"])
     if also_in is not None:
         _add_to_companies(ledger, party, also_in)
     recorder.touch(ledger)
 
 
 NUMBER_FIELDS = {"sundry_debtors": "customer", "sundry_creditors": "vendor"}
+
+
+def side_of(ledger: Ledger) -> str:
+    """ "customer" for a ledger under Sundry Debtors, "supplier" under Sundry
+    Creditors."""
+    group = ledger.group
+    while group.code not in BILL_WISE_GROUP_CODES:
+        group = group.parent
+    return "customer" if group.code == "sundry_debtors" else "supplier"
 
 
 def _refuse_party(field: str, message: str, party: Party) -> None:
@@ -288,17 +316,30 @@ def _add_to_companies(ledger: Ledger, party: Party, companies) -> None:
     group = ledger.group
     while group.code not in BILL_WISE_GROUP_CODES:
         group = group.parent
+    side = side_of(ledger)
     for company in companies.exclude(pk=ledger.company_id):
-        if party.ledgers.filter(company=company).exists():
+        if party.ledgers.filter(company=company, party_side=side).exists():
             continue
         target = company.ledger_groups.filter(code=group.code).first()
         if target is None:
             raise ValidationError({"also_in": [f"{company.name} has no {group.name} group."]})
-        clash = duplicates.same_name(company.ledgers.all(), party.name)
+        name = party.name
+        clash = duplicates.same_name(company.ledgers.all(), name)
+        if clash is not None and clash.party_id == party.pk:
+            # Its ledger on the other side has the plain name.
+            name = f"{party.name} ({side.capitalize()})"
+            clash = duplicates.same_name(company.ledgers.all(), name)
         if clash is not None:
             message = f'{company.name} already has a ledger named "{clash.name}".'
             duplicates.refuse("also_in", message, clash, "ledger")
-        other = Ledger(company=company, group=target, name=party.name, bill_wise=True, party=party)
+        other = Ledger(
+            company=company,
+            group=target,
+            name=name,
+            bill_wise=True,
+            party=party,
+            party_side=side,
+        )
         try:
             other.full_clean(validate_constraints=False)
         except DjangoValidationError as exc:

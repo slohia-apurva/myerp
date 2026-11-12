@@ -759,6 +759,13 @@ export const MANUAL: Chapter[] = [
             credit limit and opening balance, and click "Save".
           </li>
           <li>
+            A firm that both buys from and sells to this company can have two ledgers here: one under Sundry Debtors
+            and one under Sundry Creditors. Add the second one with "Add ledger", choose the other group, and pick the
+            firm under "Existing customer or supplier". MyERP names it, for example, "ABC Foods (Supplier)", because
+            two ledgers cannot share a name. Both ledgers share the firm's GSTIN, addresses and contacts, and keep
+            their own balances. A firm cannot have two ledgers on the same side in one company.
+          </li>
+          <li>
             To add a party to more companies in one go, tick them under "Companies that deal with this party" and click
             "Save". Each ticked company gets a ledger for the party under the same group.
           </li>
@@ -771,7 +778,7 @@ export const MANUAL: Chapter[] = [
           A customer or supplier form has tabs along the top: "General", "GST and credit", "Addresses", "Contacts" and
           "Opening balance". "Save" and "Cancel" are at the bottom of every tab. On the "General" tab, "Under group" is
           followed by the "Customer number" (or "Vendor number") and then the "GSTIN". The number is given automatically when you Save (CUST-00001, VEND-00001 and so on, running on across
-          the group); a party that is a customer in one company and a vendor in another has both. You may type your own
+          the group); a party that is a customer and a vendor (in one company or in different ones) has both. You may type your own
           number over it, but no two parties can share one. Search for a ledger by its number in the Ledgers list.
           Typing the GSTIN makes the party a registered one and fills in the state and PAN; the state decides the place of
           supply on invoices. "Fetch details" asks the GST portal for the name and address and fills them in. The registered address goes on the

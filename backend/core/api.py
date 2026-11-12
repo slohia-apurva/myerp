@@ -889,9 +889,9 @@ def _also_in(request, ids):
 
 
 class PartyListView(APIView):
-    """GET /parties/?not_in=COMPANY: the group's customers and suppliers,
-    optionally only those that company has no ledger for yet (to pick when
-    adding a party ledger)."""
+    """GET /parties/?not_in=COMPANY[&side=customer|supplier]: the group's
+    customers and suppliers, optionally only those that company has no ledger
+    for yet (on that side), to pick when adding a party ledger."""
 
     permission_classes = [Signed]
 
@@ -905,7 +905,14 @@ class PartyListView(APIView):
                 company = int(request.query_params["not_in"])
             except ValueError:
                 raise ValidationError({"not_in": ["Give a number."]}) from None
-            parties = parties.exclude(ledgers__company=company)
+            # With ?side=customer|supplier, only those without a ledger on that
+            # side: a firm can have one customer and one supplier ledger.
+            side = request.query_params.get("side")
+            if side:
+                taken = Ledger.objects.filter(company=company, party_side=side, party__isnull=False)
+                parties = parties.exclude(pk__in=taken.values("party"))
+            else:
+                parties = parties.exclude(ledgers__company=company)
         return Response(PartySerializer(parties.order_by("name"), many=True).data)
 
 

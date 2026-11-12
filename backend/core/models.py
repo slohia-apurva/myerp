@@ -416,6 +416,14 @@ class Ledger(models.Model):
     party = models.ForeignKey(
         "Party", null=True, blank=True, on_delete=models.PROTECT, related_name="ledgers"
     )
+    # Which side of the party this ledger is: a firm that is both customer and
+    # supplier may have one ledger under Sundry Debtors and one under Sundry
+    # Creditors in the same company (Sidharth, 2026-11-11). Set from the group.
+    party_side = models.CharField(
+        max_length=8,
+        blank=True,
+        choices=[("customer", "Customer"), ("supplier", "Supplier")],
+    )
     credit_limit = models.DecimalField(
         max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
     )  # 0 = no limit
@@ -432,9 +440,9 @@ class Ledger(models.Model):
                 "company", Lower("name"), name="ledger_name_unique_per_company"
             ),
             models.UniqueConstraint(
-                fields=["company", "party"],
+                fields=["company", "party", "party_side"],
                 condition=models.Q(party__isnull=False),
-                name="one_ledger_per_party_per_company",
+                name="one_ledger_per_party_side_per_company",
             ),
             models.UniqueConstraint(
                 "company",

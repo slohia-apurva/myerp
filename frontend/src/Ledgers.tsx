@@ -541,9 +541,6 @@ function LedgerForm(props: {
   const [alsoIn, setAlsoIn] = useState<number[]>([]);
   const [existing, setExisting] = useState<Party[]>([]);
   useEffect(() => {
-    if (!l) api<Party[]>(`v1/parties/?not_in=${props.companyId}`).then(setExisting);
-  }, [l, props.companyId]);
-  useEffect(() => {
     if (props.multiCurrency) api<Currency[]>("v1/currencies/").then(setCurrencies);
   }, [props.multiCurrency]);
   const foreign = currency !== "" && currency !== "INR";
@@ -554,6 +551,11 @@ function LedgerForm(props: {
   const isBank = chosen?.is_bank ?? false;
   // Ledgers under Sundry Debtors or Creditors are customers and suppliers.
   const isParty = chosen?.bill_wise_default ?? false;
+  // A firm can have one customer ledger and one supplier ledger in a company.
+  const side = !isParty ? "" : chosen?.nature === "liability" ? "supplier" : "customer";
+  useEffect(() => {
+    if (!l && side) api<Party[]>(`v1/parties/?not_in=${props.companyId}&side=${side}`).then(setExisting);
+  }, [l, props.companyId, side]);
   const usualSide: Side = chosen?.nature === "asset" || chosen?.nature === "expense" ? "dr" : "cr";
 
   const pickGroup = (id: string) => {
@@ -801,7 +803,7 @@ function LedgerForm(props: {
       )}
       {isParty && !l && existing.length > 0 && (
         <label>
-          Existing customer or supplier (from another company)
+          Existing customer or supplier (another company's, or this one's on the other side)
           <Combobox
             value={partyId === null ? "" : String(partyId)}
             empty="None: a new customer or supplier"
@@ -815,7 +817,9 @@ function LedgerForm(props: {
               const picked = existing.find((x) => x.id === Number(v));
               setPartyId(picked?.id ?? null);
               if (picked) {
-                setName(picked.name ?? "");
+                // Its ledger on the other side here already has the plain name.
+                const here = picked.companies?.some((c) => c.id === props.companyId);
+                setName(here ? `${picked.name} (${side === "supplier" ? "Supplier" : "Customer"})` : (picked.name ?? ""));
                 setParty({ ...picked, credit_limit: "", salesman: null });
               } else setParty(blankParty(props.companyState));
             }}
