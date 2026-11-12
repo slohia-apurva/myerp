@@ -71,6 +71,8 @@ LABELS = {
     "batch_tracked": "Batches tracked",
     "qc_required": "Quality check on receipt",
     "item_type": "Type",
+    "allow_purchase": "Allow purchase",
+    "allow_sales": "Allow sales",
     "whole_numbers": "Whole numbers only",
     "carrier_id": "Courier in MyERP's list",
     "account_code": "Account or customer code",

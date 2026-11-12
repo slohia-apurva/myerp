@@ -6,7 +6,7 @@ import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { HsnPicker } from "./Hsn";
-import { ActiveButton, FormBody } from "./RowActions";
+import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
 import { creatable } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
@@ -53,6 +53,8 @@ export type Item = {
   shelf_life_days: number | null;
   batch_tracked: boolean;
   qc_required: boolean;
+  allow_purchase: boolean;
+  allow_sales: boolean;
   notes: string;
   is_active: boolean;
   units: ItemUnit[];
@@ -271,7 +273,9 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
         <Facts
           rows={[
             ["Item number", i.item_number],
-            ["Type", typeLabel(i.item_type)],
+            ["Maintain stock", i.item_type === "goods" ? "Yes" : "No"],
+            ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
+            ["Allow sales", i.allow_sales ? "Yes" : "No"],
             ["Default unit (stock unit)", i.stock_unit_name],
             ["Item group", i.item_group_name ?? ""],
             ["Brand", i.brand_name ?? ""],
@@ -451,7 +455,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const { units, refresh: refreshUnits } = useUnits();
   const newUnit = creatable("unit", "units", refreshUnits);
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (it?.name ?? ""));
-  const [type, setType] = useState(from?.item_type ?? "goods");
+  const [stocked, setStocked] = useState((from?.item_type ?? "goods") === "goods"); // "Maintain stock"
+  const [disabled, setDisabled] = useState(it ? !it.is_active : false);
+  const [allowPurchase, setAllowPurchase] = useState(from?.allow_purchase ?? true);
+  const [allowSales, setAllowSales] = useState(from?.allow_sales ?? true);
   const [stock, setStock] = useState(from ? String(from.stock_unit) : "");
   const { groups: itemGroups, refresh: refreshGroups } = useItemGroups();
   const newGroup = creatable("item_group", "item-groups", refreshGroups);
@@ -508,7 +515,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
     setBusy(true);
     const body = {
       name,
-      item_type: type,
+      item_type: stocked ? "goods" : "service",
+      allow_purchase: allowPurchase,
+      allow_sales: allowSales,
+      is_active: !disabled,
       stock_unit: Number(stock),
       hsn,
       item_group: group === "" ? null : Number(group),
@@ -578,45 +588,72 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       <FormBody>
         {tab === "general" && (
         <Section title="Item">
-          <label>
-            Name
-            <input required autoFocus value={name} onChange={(e) => changeName(e.target.value)} />
-          </label>
+          <div className="item-general">
+            <div>
+              <label>
+                Item number
+                <input readOnly disabled value={it?.item_number ?? "Given when you save"} />
+              </label>
+              <label>
+                Item name
+                <input required autoFocus value={name} onChange={(e) => changeName(e.target.value)} />
+              </label>
+              <label>
+                Item group
+                <Combobox
+                  value={group}
+                  empty="No group"
+                  placeholder="Type to search groups…"
+                  options={itemGroups
+                    .filter((g) => g.is_active || String(g.id) === group)
+                    .map((g) => ({ value: String(g.id), label: groupNames.get(g.id) ?? g.name }))}
+                  onChange={setGroup}
+                  create={newGroup}
+                />
+              </label>
+              <label>
+                HSN code
+                <HsnPicker value={hsn} onChange={setHsn} />
+              </label>
+              <label>
+                Default unit of measure
+                <Combobox
+                  required
+                  value={stock}
+                  placeholder="Type to search units…"
+                  options={units
+                    .filter((u: Unit) => u.is_active || String(u.id) === stock)
+                    .map((u) => ({ value: String(u.id), label: u.name }))}
+                  onChange={setStock}
+                  create={newUnit}
+                />
+              </label>
+            </div>
+            <div className="item-checks">
+              <label className="check">
+                <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
+                Disabled
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={allowPurchase} onChange={(e) => setAllowPurchase(e.target.checked)} />
+                Allow purchase
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={allowSales} onChange={(e) => setAllowSales(e.target.checked)} />
+                Allow sales
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={stocked} onChange={(e) => setStocked(e.target.checked)} />
+                Maintain stock
+              </label>
+              <p className="small">Leave "Maintain stock" unticked for a service, which has no stock.</p>
+            </div>
+          </div>
+        </Section>
+        )}
+        {tab === "general" && (
+        <Section title="Other details">
           <div className="row">
-            <label>
-              Type
-              <Combobox
-                value={type}
-                onChange={setType}
-                options={TYPES.map(([value, label]) => ({ value, label }))}
-              />
-            </label>
-            <label>
-              Default unit (stock unit)
-              <Combobox
-                required
-                value={stock}
-                placeholder="Type to search units…"
-                options={units
-                  .filter((u: Unit) => u.is_active || String(u.id) === stock)
-                  .map((u) => ({ value: String(u.id), label: u.name }))}
-                onChange={setStock}
-                create={newUnit}
-              />
-            </label>
-            <label>
-              Item group
-              <Combobox
-                value={group}
-                empty="No group"
-                placeholder="Type to search groups…"
-                options={itemGroups
-                  .filter((g) => g.is_active || String(g.id) === group)
-                  .map((g) => ({ value: String(g.id), label: groupNames.get(g.id) ?? g.name }))}
-                onChange={setGroup}
-                create={newGroup}
-              />
-            </label>
             <label>
               Brand
               <Combobox
@@ -631,18 +668,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
               />
             </label>
             <label>
-              HSN
-              <HsnPicker value={hsn} onChange={setHsn} />
+              Notes
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
           </div>
-        </Section>
-        )}
-        {tab === "general" && (
-        <Section title="Notes">
-          <label>
-            Notes
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </label>
         </Section>
         )}
         {tab === "sales" && (
@@ -860,9 +889,6 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
-        {it && (
-          <ActiveButton url={`v1/items/${it.id}/`} active={it.is_active} what={`the item ${it.name}`} onDone={() => props.onDone(it.id)} onError={setError} />
-        )}
       </div>
     </form>
   );

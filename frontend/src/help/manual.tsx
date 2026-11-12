@@ -461,11 +461,14 @@ export const MANUAL: Chapter[] = [
             and quality" and "Units of measure".
           </li>
           <li>
-            Under "General", give the "Name", the "Type" (goods you stock, or a
-            service), the "Default unit (stock unit)" (the unit stock is counted
-            in, such as Packet), the "Item group" (see the chapter "Item
-            groups"), the "Brand" (see the chapter "Brands") and the "HSN" code
-            if you know it.
+            Under "General", the "Item number" is given when you save. Fill in
+            the "Item name", the "Item group" (see the chapter "Item groups"),
+            the "HSN code" if you know it, and the "Default unit of measure"
+            (the unit stock is counted in, such as Packet). In the column on the
+            right, tick "Disabled" to stop using the item, and untick "Allow
+            purchase" or "Allow sales" where the item is not bought or sold.
+            Untick "Maintain stock" for a service. The "Brand" (see the chapter
+            "Brands") and "Notes" are in the "Other details" box.
           </li>
           <li>
             On the "Sales" tab, the "Sales item name" starts as the item's name;
@@ -511,9 +514,9 @@ export const MANUAL: Chapter[] = [
           documents. A barcode can belong to one item only.
         </Note>
         <p>
-          Items are never deleted: click "Edit" and then the "Disable" button to
-          stop using one ("Enable" brings it back). Use "Duplicate" to start a
-          new item from an existing one; barcodes are not copied.
+          Items are never deleted: click "Edit", tick "Disabled" and "Save" to
+          stop using one (untick it to bring it back). Use "Duplicate" to start
+          a new item from an existing one; barcodes are not copied.
         </p>
         <p>
           To change many at once, use "Actions" at the top of the screen. See
