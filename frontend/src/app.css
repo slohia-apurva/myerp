@@ -1724,3 +1724,53 @@ form.card .address-card {
     grid-template-columns: 1fr;
   }
 }
+
+.item-head {
+  margin-bottom: 12px;
+}
+.item-title {
+  display: block;
+}
+.item-title input {
+  width: 100%;
+  border: 0;
+  border-bottom: 2px dashed transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: 26px;
+  font-weight: 700;
+  padding: 2px 0;
+}
+.item-title input:hover,
+.item-title input:focus {
+  border-bottom-color: var(--green);
+  outline: none;
+}
+.item-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+.item-sub .tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border: 1px solid var(--line, #c5d6cc);
+  border-radius: 99px;
+}
+.req::after,
+.req-star {
+  color: #b3261e;
+}
+.req::after {
+  content: " *";
+  font-weight: 700;
+}
+fieldset.item-checks {
+  border: 1px solid var(--line, #dbe3de);
+  border-radius: 8px;
+  align-self: start;
+}

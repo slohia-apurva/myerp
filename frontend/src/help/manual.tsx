@@ -461,12 +461,13 @@ export const MANUAL: Chapter[] = [
             and quality" and "Units of measure".
           </li>
           <li>
-            Under "General", the "Item number" is given when you save. Fill in
-            the "Item name", choose "Goods or service", pick the "Item group"
+            The large "Item name" at the top is a box you can click and change at
+            any time; the "Item number" beside it is given when you save. Fields
+            marked with a red * must be filled in. Under "General", choose
+            "Goods or service", pick the "Item group"
             (see the chapter "Item groups"), give the "HSN code" if you know it,
             the "Default unit of measure" (the unit stock is counted in, such as
-            Packet) and the "Brand" (see the chapter "Brands"). In the column on the
-            right, tick "Disabled" to stop using the item, and untick "Allow
+            Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" box, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold.
             "Maintain stock" is separate from goods or service: untick it for an
             item whose stock is not to be kept, and tick it for a service whose
