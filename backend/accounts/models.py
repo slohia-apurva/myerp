@@ -22,8 +22,10 @@ class Role(models.Model):
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=300, blank=True)
     permissions = models.JSONField(default=list, blank=True)
-    # Came with MyERP (can be edited, not deleted); Owner cannot be edited.
+    # Came with MyERP (can be edited, not disabled); Owner cannot be edited.
     is_standard = models.BooleanField(default=False)
+    # Roles are never deleted, only disabled (Sidharth, 12 Nov 2026).
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name"]

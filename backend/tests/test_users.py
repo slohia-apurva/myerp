@@ -155,7 +155,7 @@ def test_email_cannot_be_changed(as_user):
     assert response.status_code == 400
 
 
-def test_owner_creates_edits_and_deletes_a_custom_role(alpha, as_user):
+def test_owner_creates_edits_and_disables_a_custom_role(alpha, as_user):
     client, _ = as_user("owner")
     created = call(
         client, "post", "roles/", {"name": "Dispatch clerk", "permissions": ["stock.view"]}
@@ -166,7 +166,12 @@ def test_owner_creates_edits_and_deletes_a_custom_role(alpha, as_user):
 
     edited = call(client, "patch", f"roles/{rid}/", {"permissions": ["stock.view", "sales.view"]})
     assert edited.json()["permissions"] == ["sales.view", "stock.view"]
-    assert call(client, "delete", f"roles/{rid}/").status_code == 204
+    assert call(client, "delete", f"roles/{rid}/").status_code == 405  # never deleted
+    off = call(client, "patch", f"roles/{rid}/", {"is_active": False})
+    assert off.status_code == 200 and off.json()["is_active"] is False
+    blocked = call(client, "post", "users/", {"email": "n@x.in", "full_name": "N", "roles": [rid]})
+    assert blocked.status_code == 400 and "disabled" in str(blocked.json())
+    assert call(client, "patch", f"roles/{rid}/", {"is_active": True}).status_code == 200
 
 
 def test_unknown_permission_is_refused(as_user):
@@ -179,14 +184,16 @@ def test_owner_role_and_standard_roles_are_protected(alpha, as_user):
     client, _ = as_user("owner")
     owner_id = role_id(alpha, "owner")
     assert call(client, "patch", f"roles/{owner_id}/", {"permissions": []}).status_code == 400
-    assert call(client, "delete", f"roles/{role_id(alpha, 'viewer')}/").status_code == 400
+    viewer = role_id(alpha, "viewer")
+    assert call(client, "patch", f"roles/{viewer}/", {"is_active": False}).status_code == 400
+    assert call(client, "delete", f"roles/{viewer}/").status_code == 405
 
 
-def test_role_in_use_cannot_be_deleted(alpha, as_user):
+def test_role_in_use_cannot_be_disabled(alpha, as_user):
     client, _ = as_user("owner")
     rid = call(client, "post", "roles/", {"name": "Temp", "permissions": []}).json()["id"]
     as_user("temp")
-    assert call(client, "delete", f"roles/{rid}/").status_code == 400
+    assert call(client, "patch", f"roles/{rid}/", {"is_active": False}).status_code == 400
 
 
 def test_only_owner_edits_roles(alpha, as_user):

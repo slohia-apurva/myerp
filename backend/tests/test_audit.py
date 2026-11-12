@@ -129,15 +129,16 @@ def test_moving_a_default_logs_both_branches(as_user, company):
     assert changed(by_name["Depot"]) == {"Default ship from": ("No", "Yes")}
 
 
-def test_deleting_a_group_is_logged(as_user, company):
+def test_disabling_a_group_is_logged(as_user, company):
     owner = as_user("owner")
     debtors = group_id(owner, company, "Sundry Debtors")
     path = f"companies/{company}/ledger-groups/"
     group = call(owner, "post", path, {"name": "Export debtors", "parent": debtors}).json()
-    assert call(owner, "delete", f"ledger-groups/{group['id']}/").status_code == 204
+    off = call(owner, "patch", f"ledger-groups/{group['id']}/", {"is_active": False})
+    assert off.status_code == 200 and off.json()["is_active"] is False
     entries = log(owner, company=company, type="ledger_group", id=group["id"])
-    assert [e["action_label"] for e in entries] == ["Deleted", "Added"]
-    assert changed(entries[0])["Name"] == ("Export debtors", None)
+    assert [e["action_label"] for e in entries] == ["Changed", "Added"]
+    assert list(changed(entries[0]).values()) == [("Yes", "No")]
 
 
 def test_user_roles_and_companies_are_logged(as_user, alpha, company):

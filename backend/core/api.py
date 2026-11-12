@@ -195,6 +195,7 @@ class LedgerGroupSerializer(serializers.ModelSerializer):
             "ledger_count",
             "is_bank",
             "bill_wise_default",
+            "is_active",
         ]
         read_only_fields = ["nature", "affects_gross_profit", "code", "is_standard", "schedule_iii"]
 
@@ -687,6 +688,8 @@ def save_ledger_group(company, group: LedgerGroup | None, data: dict) -> LedgerG
         parent = data.get("parent")
         if parent is None or parent.company_id != company.pk:
             raise ValidationError({"parent": ["Choose the group this one sits under."]})
+        if not parent.is_active:
+            raise ValidationError({"parent": [f"{parent.name} is disabled."]})
         _unique_group_name(company, name)
         return LedgerGroup.objects.create(
             company=company,
@@ -696,6 +699,8 @@ def save_ledger_group(company, group: LedgerGroup | None, data: dict) -> LedgerG
             affects_gross_profit=parent.affects_gross_profit,
         )
     if group.is_standard:
+        if data.get("is_active") is False:
+            raise ValidationError({"detail": "Standard groups cannot be disabled."})
         renamed = "name" in data and duplicates.tidy(data["name"]) != group.name
         moved = "parent" in data and data["parent"] != group.parent
         if renamed or moved:
@@ -711,6 +716,8 @@ def save_ledger_group(company, group: LedgerGroup | None, data: dict) -> LedgerG
         parent = data["parent"]
         if parent is None or parent.company_id != group.company_id:
             raise ValidationError({"parent": ["Choose the group this one sits under."]})
+        if not parent.is_active:
+            raise ValidationError({"parent": [f"{parent.name} is disabled."]})
         if parent.pk == group.pk or parent.pk in group.descendant_ids():
             raise ValidationError({"parent": ["A group cannot sit under itself."]})
         group.parent = parent
@@ -722,6 +729,17 @@ def save_ledger_group(company, group: LedgerGroup | None, data: dict) -> LedgerG
         LedgerGroup.objects.filter(pk__in=group.descendant_ids()).update(
             nature=parent.nature, affects_gross_profit=parent.affects_gross_profit
         )
+    if "is_active" in data and data["is_active"] != group.is_active:
+        if not data["is_active"]:
+            if group.children.filter(is_active=True).exists():
+                raise ValidationError({"is_active": ["Disable the groups under this one first."]})
+            if group.ledgers.filter(is_active=True).exists():
+                raise ValidationError(
+                    {"is_active": ["Disable or move the ledgers in this group first."]}
+                )
+        elif group.parent is not None and not group.parent.is_active:
+            raise ValidationError({"is_active": [f"Enable {group.parent.name} first."]})
+        group.is_active = data["is_active"]
     group.save()
     return group
 
@@ -747,16 +765,6 @@ class LedgerGroupDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         save_ledger_group(group.company, group, dict(serializer.validated_data))
         return Response(LedgerGroupSerializer(group).data)
-
-    @tenant_atomic()
-    def delete(self, request, pk: int):
-        group = self._editable(request, pk)
-        if group.children.exists():
-            raise ValidationError({"detail": "Move or delete the groups under this one first."})
-        if group.ledgers.exists():
-            raise ValidationError({"detail": "Move or delete the ledgers in this group first."})
-        group.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def _unique_group_name(company, name: str, exclude: int | None = None) -> None:
@@ -816,6 +824,8 @@ def _ledger_data(ledger: Ledger, data: dict) -> dict:
     group = data.get("group", getattr(ledger, "group", None))
     if group is not None and group.company_id != ledger.company_id:
         raise ValidationError({"group": ["Choose a group of this company."]})
+    if group is not None and not group.is_active and group != getattr(ledger, "group", None):
+        raise ValidationError({"group": [f"{group.name} is disabled."]})
     if group is not None and not group.is_bank_group():
         data = {**data, **dict.fromkeys(BANK_FIELDS, "")}
     if "name" in data:

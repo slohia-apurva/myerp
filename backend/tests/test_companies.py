@@ -192,8 +192,18 @@ def test_custom_groups_follow_their_parent(owner):
     response = call(owner, "patch", f"ledger-groups/{export_id}/", {"parent": europe["id"]})
     assert "itself" in str(response.json())
 
-    assert "first" in str(call(owner, "delete", f"ledger-groups/{export_id}/").json())
-    assert call(owner, "delete", f"ledger-groups/{europe['id']}/").status_code == 204
+    # Groups are never deleted; one with active groups under it cannot be disabled.
+    assert call(owner, "delete", f"ledger-groups/{export_id}/").status_code == 405
+    off = {"is_active": False}
+    assert "first" in str(call(owner, "patch", f"ledger-groups/{export_id}/", off).json())
+    assert call(owner, "patch", f"ledger-groups/{europe['id']}/", off).status_code == 200
+    assert call(owner, "patch", f"ledger-groups/{export_id}/", off).status_code == 200
+    # Nothing new goes under a disabled group; enabling needs its parent enabled.
+    path = f"companies/{company_id}/ledger-groups/"
+    again = call(owner, "post", path, {"name": "More", "parent": export_id})
+    assert again.status_code == 400 and "disabled" in str(again.json())
+    back = call(owner, "patch", f"ledger-groups/{europe['id']}/", {"is_active": True})
+    assert back.status_code == 400 and "Enable" in str(back.json())
 
 
 def test_standard_groups_cannot_be_changed(owner, as_user):
@@ -202,7 +212,9 @@ def test_standard_groups_cannot_be_changed(owner, as_user):
     assert (
         call(owner, "patch", f"ledger-groups/{debtors}/", {"name": "Customers"}).status_code == 400
     )
-    assert call(owner, "delete", f"ledger-groups/{debtors}/").status_code == 400
+    off = call(owner, "patch", f"ledger-groups/{debtors}/", {"is_active": False})
+    assert off.status_code == 400 and "cannot be changed" in str(off.json())
+    assert call(owner, "delete", f"ledger-groups/{debtors}/").status_code == 405
     path = f"companies/{company_id}/ledger-groups/"
     assert (
         call(as_user("viewer"), "post", path, {"name": "X", "parent": debtors}).status_code == 403

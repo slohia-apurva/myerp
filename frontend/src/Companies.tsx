@@ -275,6 +275,7 @@ export type Group = {
   code: string;
   is_standard: boolean;
   schedule_iii: string;
+  is_active: boolean;
   ledger_count: number;
   is_bank: boolean;
   bill_wise_default: boolean;
@@ -1392,7 +1393,11 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
     const kids = children.get(g.id) ?? [];
     const top = depth === 0;
     const out = [
-      <tr key={g.id} id={`group-${g.id}`} className={`${top ? "group-top" : ""}${marked === g.id ? " marked" : ""}`}>
+      <tr
+        key={g.id}
+        id={`group-${g.id}`}
+        className={`${top ? "group-top" : ""}${marked === g.id ? " marked" : ""}${g.is_active ? "" : " inactive"}`}
+      >
         <td>
           <span className="group-name" style={{ paddingLeft: depth * 22 }} data-indent={depth}>
             {kids.length > 0 ? (
@@ -1414,6 +1419,7 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
               {g.schedule_iii && <span className="sch3 sub">{g.schedule_iii}</span>}
             </span>
             {!g.is_standard && <span className="tag">added</span>}
+            {!g.is_active && <span className="tag">disabled</span>}
           </span>
         </td>
         <td>
@@ -1430,9 +1436,11 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
         <td className="row-actions">
           {props.canEdit && (
             <>
-              <button className="link" onClick={() => setEditing({ group: null, parent: g.id })}>
-                + Sub-group
-              </button>
+              {g.is_active && (
+                <button className="link" onClick={() => setEditing({ group: null, parent: g.id })}>
+                  + Sub-group
+                </button>
+              )}
               {!g.is_standard && (
                 <button className="link" onClick={() => setEditing({ group: g, parent: g.parent })}>
                   Edit
@@ -1521,16 +1529,6 @@ function GroupForm(props: {
       setError(err);
     }
   };
-  const remove = async () => {
-    if (!g || !window.confirm(`Delete the group ${g.name}?`)) return;
-    try {
-      await api(`v1/ledger-groups/${g.id}/`, undefined, "DELETE");
-      props.onDone();
-    } catch (err) {
-      setError(err);
-    }
-  };
-
   return (
     <form className="card inline" onSubmit={save}>
       <Section title={g ? "Ledger group" : "New ledger group"}>
@@ -1545,7 +1543,7 @@ function GroupForm(props: {
             <Combobox
               required
               value={parent === null ? "" : String(parent)}
-              options={props.groups.filter((o) => o.id !== g?.id).map((o) => ({ value: String(o.id), label: o.name }))}
+              options={props.groups.filter((o) => o.id !== g?.id && (o.is_active || o.id === g?.parent)).map((o) => ({ value: String(o.id), label: o.name }))}
               onChange={(v) => setParent(Number(v))}
             />
           </label>
@@ -1559,9 +1557,13 @@ function GroupForm(props: {
           Cancel
         </button>
         {g && (
-          <button type="button" className="link danger" onClick={remove}>
-            Delete group
-          </button>
+          <ActiveButton
+            url={`v1/ledger-groups/${g.id}/`}
+            active={g.is_active}
+            what={`the group ${g.name}`}
+            onDone={props.onDone}
+            onError={setError}
+          />
         )}
       </div>
     </form>
