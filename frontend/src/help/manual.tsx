@@ -1370,8 +1370,8 @@ export const MANUAL: Chapter[] = [
               '"B2C (parcel / express)", "B2B (freight)" or "Aggregator" (Shiprocket).',
             ],
             [
-              "Address and contact",
-              "Address, PIN code, city, phone, email and the contact person.",
+              "Contact",
+              "The contact person, phone and email. The transporter's pickup details come from the sales invoice, so there is no address here.",
             ],
             [
               "Account or customer code",

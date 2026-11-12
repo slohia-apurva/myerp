@@ -2,7 +2,12 @@ import { FiscalYears, type FiscalYear } from "./FiscalYears";
 import { Numbering } from "./Numbering";
 import { Warehouses, type Warehouse } from "./Warehouses";
 import { PinInput } from "./Pin";
-import { announceCreated, creatable, type Creatable, useNewName } from "./Create";
+import {
+  announceCreated,
+  creatable,
+  type Creatable,
+  useNewName,
+} from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { Combobox } from "./Combobox";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -13,39 +18,70 @@ import { useExchange, usePrintMenu } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
-export type Contact = { address: string; pincode: string; city: string; phone: string; email: string; contact_person: string };
-export const NO_CONTACT: Contact = { address: "", pincode: "", city: "", phone: "", email: "", contact_person: "" };
+export type Contact = {
+  address: string;
+  pincode: string;
+  city: string;
+  phone: string;
+  email: string;
+  contact_person: string;
+};
+export const NO_CONTACT: Contact = {
+  address: "",
+  pincode: "",
+  city: "",
+  phone: "",
+  email: "",
+  contact_person: "",
+};
 export const contactOf = (x: Contact | null | undefined): Contact =>
   x
-    ? { address: x.address, pincode: x.pincode, city: x.city, phone: x.phone, email: x.email, contact_person: x.contact_person }
+    ? {
+        address: x.address,
+        pincode: x.pincode,
+        city: x.city,
+        phone: x.phone,
+        email: x.email,
+        contact_person: x.contact_person,
+      }
     : NO_CONTACT;
 
-export function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; addressLabel?: string }) {
+export function ContactFields(props: {
+  value: Contact;
+  onChange: (c: Contact) => void;
+  addressLabel?: string;
+  noAddress?: boolean;
+}) {
   const v = props.value;
-  const set = (field: keyof Contact) => (e: { target: { value: string } }) => props.onChange({ ...v, [field]: e.target.value });
+  const set = (field: keyof Contact) => (e: { target: { value: string } }) =>
+    props.onChange({ ...v, [field]: e.target.value });
   return (
     <>
-      <label>
-        {props.addressLabel ?? "Address"}
-        <textarea rows={2} value={v.address} onChange={set("address")} />
-      </label>
-      <div className="row">
-        <label>
-          PIN code
-          <PinInput
-            value={v.pincode}
-            maxLength={6}
-            onChange={(pincode) => props.onChange({ ...v, pincode })}
-            onFound={(f) => {
-              if (!v.city && f.city) props.onChange({ ...v, city: f.city });
-            }}
-          />
-        </label>
-        <label>
-          City
-          <input value={v.city} onChange={set("city")} />
-        </label>
-      </div>
+      {!props.noAddress && (
+        <>
+          <label>
+            {props.addressLabel ?? "Address"}
+            <textarea rows={2} value={v.address} onChange={set("address")} />
+          </label>
+          <div className="row">
+            <label>
+              PIN code
+              <PinInput
+                value={v.pincode}
+                maxLength={6}
+                onChange={(pincode) => props.onChange({ ...v, pincode })}
+                onFound={(f) => {
+                  if (!v.city && f.city) props.onChange({ ...v, city: f.city });
+                }}
+              />
+            </label>
+            <label>
+              City
+              <input value={v.city} onChange={set("city")} />
+            </label>
+          </div>
+        </>
+      )}
       <div className="row">
         <label>
           Contact person
@@ -55,7 +91,13 @@ export function ContactFields(props: { value: Contact; onChange: (c: Contact) =>
       <div className="row">
         <label>
           Phone
-          <input type="tel" value={v.phone} maxLength={20} placeholder="+91 98200 12345" onChange={set("phone")} />
+          <input
+            type="tel"
+            value={v.phone}
+            maxLength={20}
+            placeholder="+91 98200 12345"
+            onChange={set("phone")}
+          />
         </label>
         <label>
           Email
@@ -67,8 +109,13 @@ export function ContactFields(props: { value: Contact; onChange: (c: Contact) =>
 }
 
 function contactLines(x: Contact) {
-  const reach = [x.contact_person, x.phone, x.email].filter(Boolean).join(" · ");
-  return { where: [x.address, x.city, x.pincode].filter(Boolean).join(" ") || "—", reach: reach || "—" };
+  const reach = [x.contact_person, x.phone, x.email]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    where: [x.address, x.city, x.pincode].filter(Boolean).join(" ") || "—",
+    reach: reach || "—",
+  };
 }
 
 export type Company = Contact & {
@@ -117,7 +164,12 @@ function useModules() {
 }
 
 // Ticking a module also ticks what it needs; unticking one unticks what needs it.
-function toggleModule(all: Module[], chosen: string[], code: string, on: boolean): string[] {
+function toggleModule(
+  all: Module[],
+  chosen: string[],
+  code: string,
+  on: boolean,
+): string[] {
   const set = new Set(chosen);
   const add = (c: string) => {
     set.add(c);
@@ -125,15 +177,22 @@ function toggleModule(all: Module[], chosen: string[], code: string, on: boolean
   };
   const remove = (c: string) => {
     set.delete(c);
-    all.filter((m) => m.needs.includes(c) && set.has(m.code)).forEach((m) => remove(m.code));
+    all
+      .filter((m) => m.needs.includes(c) && set.has(m.code))
+      .forEach((m) => remove(m.code));
   };
   if (on) add(code);
   else remove(code);
   return all.map((m) => m.code).filter((c) => set.has(c) || c === "accounts");
 }
 
-function ModulePicker(props: { modules: Module[]; value: string[]; onChange?: (v: string[]) => void }) {
-  const label = (code: string) => props.modules.find((m) => m.code === code)?.label ?? code;
+function ModulePicker(props: {
+  modules: Module[];
+  value: string[];
+  onChange?: (v: string[]) => void;
+}) {
+  const label = (code: string) =>
+    props.modules.find((m) => m.code === code)?.label ?? code;
   return (
     <table className="modules">
       <thead>
@@ -156,17 +215,28 @@ function ModulePicker(props: { modules: Module[]; value: string[]; onChange?: (v
                     aria-label={`Use ${m.label}`}
                     checked={on}
                     disabled={m.code === "accounts"}
-                    onChange={(e) => props.onChange?.(toggleModule(props.modules, props.value, m.code, e.target.checked))}
+                    onChange={(e) =>
+                      props.onChange?.(
+                        toggleModule(
+                          props.modules,
+                          props.value,
+                          m.code,
+                          e.target.checked,
+                        ),
+                      )
+                    }
                   />
                 ) : (
-                  <span className={on ? "pill on" : "pill"}>{on ? "In use" : "Not used"}</span>
+                  <span className={on ? "pill on" : "pill"}>
+                    {on ? "In use" : "Not used"}
+                  </span>
                 )}
               </td>
-              <td className="module-name">
-                {m.label}
-              </td>
+              <td className="module-name">{m.label}</td>
               <td>{m.what}</td>
-              <td className="small">{m.needs.length ? m.needs.map(label).join(", ") : "—"}</td>
+              <td className="small">
+                {m.needs.length ? m.needs.map(label).join(", ") : "—"}
+              </td>
             </tr>
           );
         })}
@@ -175,7 +245,11 @@ function ModulePicker(props: { modules: Module[]; value: string[]; onChange?: (v
   );
 }
 
-function ModulesSection(props: { company: Company; isOwner: boolean; reload: () => void }) {
+function ModulesSection(props: {
+  company: Company;
+  isOwner: boolean;
+  reload: () => void;
+}) {
   const all = useModules();
   const [editing, setEditing] = useState(false);
   const [chosen, setChosen] = useState(props.company.modules);
@@ -183,7 +257,11 @@ function ModulesSection(props: { company: Company; isOwner: boolean; reload: () 
   const save = async () => {
     setError("");
     try {
-      await api(`v1/companies/${props.company.id}/`, { modules: chosen }, "PATCH");
+      await api(
+        `v1/companies/${props.company.id}/`,
+        { modules: chosen },
+        "PATCH",
+      );
       setEditing(false);
       props.reload();
     } catch (err) {
@@ -201,8 +279,14 @@ function ModulesSection(props: { company: Company; isOwner: boolean; reload: () 
         )}
       </div>
       <p className="small">
-        {all.filter((m) => props.company.modules.includes(m.code) || m.code === "accounts").length} of {all.length} modules in
-        use. Screens for modules that are not used stay hidden for this company.
+        {
+          all.filter(
+            (m) =>
+              props.company.modules.includes(m.code) || m.code === "accounts",
+          ).length
+        }{" "}
+        of {all.length} modules in use. Screens for modules that are not used
+        stay hidden for this company.
       </p>
       <div>
         {editing ? (
@@ -257,15 +341,16 @@ const CERTIFICATE_KINDS: [string, string][] = [
   ["other", "Other"],
 ];
 
-type Branch = Contact & Record<DefaultFlag, boolean> & {
-  id: number;
-  name: string;
-  state_code: string;
-  gstin: string;
-  is_head_office: boolean;
-  is_active: boolean;
-  is_warehouse: boolean;
-};
+type Branch = Contact &
+  Record<DefaultFlag, boolean> & {
+    id: number;
+    name: string;
+    state_code: string;
+    gstin: string;
+    is_head_office: boolean;
+    is_active: boolean;
+    is_warehouse: boolean;
+  };
 export type Group = {
   id: number;
   name: string;
@@ -282,15 +367,46 @@ export type Group = {
 };
 export type State = { code: string; name: string };
 type Opening = { dr: string; cr: string; difference: string };
-type Detail = { company: Company; branches: Branch[]; certificates: Certificate[]; ledger_groups: Group[]; opening: Opening };
+type Detail = {
+  company: Company;
+  branches: Branch[];
+  certificates: Certificate[];
+  ledger_groups: Group[];
+  opening: Opening;
+};
 
 export const money = (v: string | number) =>
-  Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  Number(v).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 export const longDate = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const NATURE = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const NATURE = {
+  asset: "Asset",
+  liability: "Liability",
+  income: "Income",
+  expense: "Expense",
+};
 
 export function useStates() {
   const [states, setStates] = useState<State[]>([]);
@@ -311,7 +427,10 @@ export function StateSelect(props: {
       required={!props.optional}
       value={props.value}
       placeholder="Type a state or its code…"
-      options={props.states.map((s) => ({ value: s.code, label: `${s.name} (${s.code})` }))}
+      options={props.states.map((s) => ({
+        value: s.code,
+        label: `${s.name} (${s.code})`,
+      }))}
       onChange={props.onChange}
     />
   );
@@ -355,8 +474,9 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
       />
       {printing.panel}
       <p className="small">
-        Each company keeps its own books, GST registration and document numbers. A new company starts with a Head
-        office branch and the standard ledger groups.
+        Each company keeps its own books, GST registration and document numbers.
+        A new company starts with a Head office branch and the standard ledger
+        groups.
       </p>
       {error && <p className="error">{error}</p>}
       {adding && (
@@ -434,16 +554,21 @@ function CompanyForm(props: {
   const [contact, setContact] = useState(contactOf(from));
   const [fyMonth, setFyMonth] = useState(from?.fiscal_year_start_month ?? 4);
   const [booksStart, setBooksStart] = useState(c?.books_start ?? "");
-  const [multiCurrency, setMultiCurrency] = useState(from?.multi_currency ?? false);
+  const [multiCurrency, setMultiCurrency] = useState(
+    from?.multi_currency ?? false,
+  );
   const allModules = useModules();
-  const [modules, setModules] = useState<string[] | null>(props.copyOf?.modules ?? null);
+  const [modules, setModules] = useState<string[] | null>(
+    props.copyOf?.modules ?? null,
+  );
   const [error, setError] = useState<unknown>("");
 
   // A GSTIN starts with the state code and contains the PAN.
   const onGstin = (value: string) => {
     const v = value.toUpperCase();
     setGstin(v);
-    if (v.length >= 2 && props.states.some((s) => s.code === v.slice(0, 2))) setStateCode(v.slice(0, 2));
+    if (v.length >= 2 && props.states.some((s) => s.code === v.slice(0, 2)))
+      setStateCode(v.slice(0, 2));
     if (v.length >= 12) setPan(v.slice(2, 12));
   };
 
@@ -467,7 +592,11 @@ function CompanyForm(props: {
       ...(c ? {} : abbr ? { abbr } : {}),
     };
     try {
-      props.onDone(c ? await api<Company>(`v1/companies/${c.id}/`, body, "PATCH") : await api<Company>("v1/companies/", body));
+      props.onDone(
+        c
+          ? await api<Company>(`v1/companies/${c.id}/`, body, "PATCH")
+          : await api<Company>("v1/companies/", body),
+      );
     } catch (err) {
       setError(err);
     }
@@ -475,90 +604,148 @@ function CompanyForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h3>{c ? `Edit ${c.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add company"}</h3>
+      <h3>
+        {c
+          ? `Edit ${c.name}`
+          : props.copyOf
+            ? `Duplicate ${props.copyOf.name}`
+            : "Add company"}
+      </h3>
       <Section title="Registration">
-      <label>
-        Legal name
-        <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      {!c && (
         <label>
-          Short code for document numbers (leave blank to use initials)
-          <input value={abbr} maxLength={10} placeholder="e.g. AOL" onChange={(e) => setAbbr(e.target.value.toUpperCase())} />
-        </label>
-      )}
-      <div className="row">
-        <label>
-          GSTIN (blank if unregistered)
-          <input value={gstin} maxLength={15} onChange={(e) => onGstin(e.target.value)} />
-        </label>
-        <label>
-          PAN
-          <input value={pan} maxLength={10} onChange={(e) => setPan(e.target.value.toUpperCase())} />
-        </label>
-      </div>
-      <label>
-        State
-        <StateSelect states={props.states} value={stateCode} onChange={setStateCode} />
-      </label>
-      <div className="row">
-        <label>
-          Type of entity
-          <Combobox
-            value={entityType}
-            onChange={setEntityType}
-            empty="Choose…"
-            options={ENTITY_TYPES.map(([value, label]) => ({ value, label }))}
+          Legal name
+          <input
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
           />
         </label>
-        {MCA_TYPES.includes(entityType) && (
+        {!c && (
           <label>
-            {cinLabel(entityType)}
+            Short code for document numbers (leave blank to use initials)
             <input
-              value={cin}
-              maxLength={21}
-              placeholder={entityType === "llp" ? "AAB-1234" : "U01100MH2015PTC123456"}
-              onChange={(e) => setCin(e.target.value.toUpperCase())}
+              value={abbr}
+              maxLength={10}
+              placeholder="e.g. AOL"
+              onChange={(e) => setAbbr(e.target.value.toUpperCase())}
             />
           </label>
         )}
-      </div>
-      <div className="row">
+        <div className="row">
+          <label>
+            GSTIN (blank if unregistered)
+            <input
+              value={gstin}
+              maxLength={15}
+              onChange={(e) => onGstin(e.target.value)}
+            />
+          </label>
+          <label>
+            PAN
+            <input
+              value={pan}
+              maxLength={10}
+              onChange={(e) => setPan(e.target.value.toUpperCase())}
+            />
+          </label>
+        </div>
         <label>
-          Date of incorporation
-          <input type="date" value={incorporated} onChange={(e) => setIncorporated(e.target.value)} />
+          State
+          <StateSelect
+            states={props.states}
+            value={stateCode}
+            onChange={setStateCode}
+          />
         </label>
-        <label>
-          TAN (for deducting TDS)
-          <input value={tan} maxLength={10} onChange={(e) => setTan(e.target.value.toUpperCase())} />
-        </label>
-      </div>
+        <div className="row">
+          <label>
+            Type of entity
+            <Combobox
+              value={entityType}
+              onChange={setEntityType}
+              empty="Choose…"
+              options={ENTITY_TYPES.map(([value, label]) => ({ value, label }))}
+            />
+          </label>
+          {MCA_TYPES.includes(entityType) && (
+            <label>
+              {cinLabel(entityType)}
+              <input
+                value={cin}
+                maxLength={21}
+                placeholder={
+                  entityType === "llp" ? "AAB-1234" : "U01100MH2015PTC123456"
+                }
+                onChange={(e) => setCin(e.target.value.toUpperCase())}
+              />
+            </label>
+          )}
+        </div>
+        <div className="row">
+          <label>
+            Date of incorporation
+            <input
+              type="date"
+              value={incorporated}
+              onChange={(e) => setIncorporated(e.target.value)}
+            />
+          </label>
+          <label>
+            TAN (for deducting TDS)
+            <input
+              value={tan}
+              maxLength={10}
+              onChange={(e) => setTan(e.target.value.toUpperCase())}
+            />
+          </label>
+        </div>
       </Section>
       <Section title="Registered address and contact">
-      <ContactFields value={contact} onChange={setContact} addressLabel="Registered address" />
+        <ContactFields
+          value={contact}
+          onChange={setContact}
+          addressLabel="Registered address"
+        />
       </Section>
       <Section title="Books">
-      <label>
-        Financial year starts in
-        <Combobox
-          value={String(fyMonth)}
-          onChange={(v) => setFyMonth(Number(v))}
-          options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
-        />
-      </label>
-      <label>
-        Books beginning from (opening balances are as at this date; blank = start of this financial year)
-        <input type="date" value={booksStart} onChange={(e) => setBooksStart(e.target.value)} />
-      </label>
-      <label className="check">
-        <input type="checkbox" checked={multiCurrency} onChange={(e) => setMultiCurrency(e.target.checked)} />
-        Use foreign currencies (exports, imports, EEFC accounts). Books stay in INR.
-      </label>
+        <label>
+          Financial year starts in
+          <Combobox
+            value={String(fyMonth)}
+            onChange={(v) => setFyMonth(Number(v))}
+            options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+          />
+        </label>
+        <label>
+          Books beginning from (opening balances are as at this date; blank =
+          start of this financial year)
+          <input
+            type="date"
+            value={booksStart}
+            onChange={(e) => setBooksStart(e.target.value)}
+          />
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={multiCurrency}
+            onChange={(e) => setMultiCurrency(e.target.checked)}
+          />
+          Use foreign currencies (exports, imports, EEFC accounts). Books stay
+          in INR.
+        </label>
       </Section>
       {!c && (
         <fieldset>
-          <legend>Modules this company uses (the Owner can change them later)</legend>
-          <ModulePicker modules={allModules} value={modules ?? allModules.map((m) => m.code)} onChange={setModules} />
+          <legend>
+            Modules this company uses (the Owner can change them later)
+          </legend>
+          <ModulePicker
+            modules={allModules}
+            value={modules ?? allModules.map((m) => m.code)}
+            onChange={setModules}
+          />
         </fieldset>
       )}
       <ErrorNote error={error} />
@@ -572,7 +759,11 @@ function CompanyForm(props: {
   );
 }
 
-export function CompanyPage(props: { id: number; session: SignedIn; tab?: string }) {
+export function CompanyPage(props: {
+  id: number;
+  session: SignedIn;
+  tab?: string;
+}) {
   const { id, session } = props;
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
@@ -638,7 +829,12 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
           ? numberIo
           : branchIo;
 
-  if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
+  if (!detail)
+    return (
+      <section className="page">
+        {error ? <p className="error">{error}</p> : <p>Loading…</p>}
+      </section>
+    );
   const c = detail.company;
   const sub = [
     ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1],
@@ -656,7 +852,12 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         sub={sub}
         actions={
           <>
-            {(tab === "branches" || tab === "certificates" || tab === "years" || tab === "warehouses" || tab === "numbering") && printing.buttons}
+            {(tab === "branches" ||
+              tab === "certificates" ||
+              tab === "years" ||
+              tab === "warehouses" ||
+              tab === "numbering") &&
+              printing.buttons}
             {canEdit && !editing && (
               <button
                 onClick={() => {
@@ -684,7 +885,11 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         </nav>
       </PageHeader>
       {printing.panel}
-      <WithActivity activity={<Activity company={c.id} filter stamp={JSON.stringify(detail)} />}>
+      <WithActivity
+        activity={
+          <Activity company={c.id} filter stamp={JSON.stringify(detail)} />
+        }
+      >
         {tab === "" &&
           (editing ? (
             <CompanyForm
@@ -700,7 +905,13 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
             <Overview detail={detail} />
           ))}
         {tab === "branches" && (
-          <Branches company={c} branches={detail.branches} states={states} canEdit={canEdit} reload={reload} />
+          <Branches
+            company={c}
+            branches={detail.branches}
+            states={states}
+            canEdit={canEdit}
+            reload={reload}
+          />
         )}
         {tab === "certificates" && (
           <Certificates
@@ -709,7 +920,11 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
             branches={detail.branches}
             canEdit={canEdit}
             reload={reload}
-            createBranch={canEdit ? creatable("branch", `companies/${c.id}/branches`, refresh) : undefined}
+            createBranch={
+              canEdit
+                ? creatable("branch", `companies/${c.id}/branches`, refresh)
+                : undefined
+            }
           />
         )}
         {tab === "years" && (
@@ -725,13 +940,28 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
           />
         )}
         {tab === "warehouses" && (
-          <Warehouses warehouses={warehouses} companyId={c.id} canEdit={canEdit} reload={loadWarehouses} />
+          <Warehouses
+            warehouses={warehouses}
+            companyId={c.id}
+            canEdit={canEdit}
+            reload={loadWarehouses}
+          />
         )}
         {tab === "numbering" && (
-          <Numbering companyId={c.id} branches={detail.branches} canEdit={canEdit} onChanged={reload} />
+          <Numbering
+            companyId={c.id}
+            branches={detail.branches}
+            canEdit={canEdit}
+            onChanged={reload}
+          />
         )}
         {tab === "modules" && (
-          <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
+          <ModulesSection
+            key={c.modules.join()}
+            company={c}
+            isOwner={session.user.is_owner}
+            reload={reload}
+          />
         )}
       </WithActivity>
     </section>
@@ -763,7 +993,9 @@ function Overview({ detail }: { detail: Detail }) {
         <div className="stat">
           <span className="stat-label">Opening balance difference</span>
           <span className={`stat-value ${diff !== 0 ? "error" : "ok"}`}>
-            {diff === 0 ? "Balanced" : `${money(Math.abs(diff))} ${diff > 0 ? "Dr" : "Cr"}`}
+            {diff === 0
+              ? "Balanced"
+              : `${money(Math.abs(diff))} ${diff > 0 ? "Dr" : "Cr"}`}
           </span>
           <span className="stat-note">
             Dr {money(detail.opening.dr)} · Cr {money(detail.opening.cr)}
@@ -771,17 +1003,23 @@ function Overview({ detail }: { detail: Detail }) {
         </div>
         <div className="stat">
           <span className="stat-label">Next renewal</span>
-          <span className={`stat-value ${renewal?.cls === "small" ? "" : (renewal?.cls ?? "")}`}>
+          <span
+            className={`stat-value ${renewal?.cls === "small" ? "" : (renewal?.cls ?? "")}`}
+          >
             {next ? longDate(next.valid_until!) : "None due"}
           </span>
           <span className="stat-note">
-            {next ? `${next.kind === "other" ? next.name : next.kind_label} · ${next.branch_name || "Company"}` : "No licence with a renewal date"}
+            {next
+              ? `${next.kind === "other" ? next.name : next.kind_label} · ${next.branch_name || "Company"}`
+              : "No licence with a renewal date"}
           </span>
         </div>
         <div className="stat">
           <span className="stat-label">Branches</span>
           <span className="stat-value">{open.length}</span>
-          <span className="stat-note">{open.map((b) => b.name).join(" · ")}</span>
+          <span className="stat-note">
+            {open.map((b) => b.name).join(" · ")}
+          </span>
         </div>
       </div>
       <div className="cards">
@@ -794,7 +1032,10 @@ function Overview({ detail }: { detail: Detail }) {
             </div>
             <div>
               <dt>Type of entity</dt>
-              <dd>{ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1] ?? "—"}</dd>
+              <dd>
+                {ENTITY_TYPES.find(([code]) => code === c.entity_type)?.[1] ??
+                  "—"}
+              </dd>
             </div>
             <div>
               <dt>GSTIN</dt>
@@ -816,7 +1057,9 @@ function Overview({ detail }: { detail: Detail }) {
             </div>
             <div>
               <dt>Incorporated</dt>
-              <dd>{c.incorporation_date ? longDate(c.incorporation_date) : "—"}</dd>
+              <dd>
+                {c.incorporation_date ? longDate(c.incorporation_date) : "—"}
+              </dd>
             </div>
             <div>
               <dt>State</dt>
@@ -835,7 +1078,8 @@ function Overview({ detail }: { detail: Detail }) {
             <div>
               <dt>Financial year</dt>
               <dd>
-                {MONTHS[c.fiscal_year_start_month - 1]} to {MONTHS[(c.fiscal_year_start_month + 10) % 12]}
+                {MONTHS[c.fiscal_year_start_month - 1]} to{" "}
+                {MONTHS[(c.fiscal_year_start_month + 10) % 12]}
               </dd>
             </div>
             <div>
@@ -848,7 +1092,11 @@ function Overview({ detail }: { detail: Detail }) {
             </div>
             <div>
               <dt>Currencies</dt>
-              <dd>{c.multi_currency ? "INR, plus foreign currencies on ledgers" : "INR only"}</dd>
+              <dd>
+                {c.multi_currency
+                  ? "INR, plus foreign currencies on ledgers"
+                  : "INR only"}
+              </dd>
             </div>
           </dl>
         </div>
@@ -857,14 +1105,21 @@ function Overview({ detail }: { detail: Detail }) {
   );
 }
 
-function Branches(props: { company: Company; branches: Branch[]; states: State[]; canEdit: boolean; reload: () => void }) {
+function Branches(props: {
+  company: Company;
+  branches: Branch[];
+  states: State[];
+  canEdit: boolean;
+  reload: () => void;
+}) {
   const [editing, setEditing] = useState<Branch | "new" | null>(null);
   const [copyOf, setCopyOf] = useState<Branch | null>(null);
   const startName = useNewName();
   useEffect(() => {
     if (startName && props.canEdit) setEditing("new"); // opened by "Create …" in a dropdown
   }, [startName, props.canEdit]);
-  const stateName = (code: string) => props.states.find((s) => s.code === code)?.name ?? code;
+  const stateName = (code: string) =>
+    props.states.find((s) => s.code === code)?.name ?? code;
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     const found = openId && props.branches.find((b) => b.id === openId);
@@ -896,7 +1151,9 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
           key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
           branch={editing === "new" ? null : editing}
           copyOf={copyOf}
-          startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
+          startName={
+            editing === "new" && !copyOf ? (startName ?? undefined) : undefined
+          }
           readOnly={!props.canEdit}
           states={props.states}
           onDone={() => {
@@ -926,12 +1183,20 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
             <tr key={b.id} className={b.is_active ? "" : "inactive"}>
               <td>
                 {b.name}
-                {b.is_head_office && <span className="small"> · head office</span>}
+                {b.is_head_office && (
+                  <span className="small"> · head office</span>
+                )}
                 {b.is_warehouse && <span className="small"> · warehouse</span>}
                 <div>
                   {DEFAULTS.filter(([flag]) => b[flag]).map(([flag]) => (
                     <span key={flag} className="tag">
-                      {{ default_billing: "Billing", default_ship_to: "Ship to", default_ship_from: "Ship from" }[flag]}
+                      {
+                        {
+                          default_billing: "Billing",
+                          default_ship_to: "Ship to",
+                          default_ship_from: "Ship from",
+                        }[flag]
+                      }
                     </span>
                   ))}
                 </div>
@@ -973,7 +1238,9 @@ function BranchForm(props: {
   const b = props.branch;
   const from = b ?? props.copyOf; // a duplicate copies the place and contacts, not the name, GSTIN or defaults
   const [name, setName] = useState(b?.name ?? props.startName ?? "");
-  const [stateCode, setStateCode] = useState(from?.state_code ?? props.company.state_code);
+  const [stateCode, setStateCode] = useState(
+    from?.state_code ?? props.company.state_code,
+  );
   const [gstin, setGstin] = useState(b?.gstin ?? "");
   const [contact, setContact] = useState(contactOf(from));
   const [flags, setFlags] = useState<Record<DefaultFlag, boolean>>({
@@ -988,11 +1255,27 @@ function BranchForm(props: {
     event.preventDefault();
     setError("");
     // Only newly ticked defaults are sent; ticking moves it from the other branch.
-    const ticked = Object.fromEntries(DEFAULTS.filter(([f]) => flags[f] && !b?.[f]).map(([f]) => [f, true]));
-    const body = { name, state_code: stateCode, gstin, is_warehouse: isWarehouse, ...contact, ...ticked };
+    const ticked = Object.fromEntries(
+      DEFAULTS.filter(([f]) => flags[f] && !b?.[f]).map(([f]) => [f, true]),
+    );
+    const body = {
+      name,
+      state_code: stateCode,
+      gstin,
+      is_warehouse: isWarehouse,
+      ...contact,
+      ...ticked,
+    };
     try {
       if (b) await api(`v1/branches/${b.id}/`, body, "PATCH");
-      else announceCreated("branch", await api<{ id: number; name: string }>(`v1/companies/${props.company.id}/branches/`, body));
+      else
+        announceCreated(
+          "branch",
+          await api<{ id: number; name: string }>(
+            `v1/companies/${props.company.id}/branches/`,
+            body,
+          ),
+        );
       props.onDone();
     } catch (err) {
       setError(err);
@@ -1001,49 +1284,79 @@ function BranchForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{b ? `${props.readOnly ? "View" : "Edit"} ${b.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add branch"}</h4>
+      <h4>
+        {b
+          ? `${props.readOnly ? "View" : "Edit"} ${b.name}`
+          : props.copyOf
+            ? `Duplicate ${props.copyOf.name}`
+            : "Add branch"}
+      </h4>
       <FormBody readOnly={props.readOnly}>
-      <Section title="Branch">
-      <label>
-        Name
-        <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Bhiwandi warehouse" />
-      </label>
-      <div className="row">
-        <label>
-          State
-          <StateSelect states={props.states} value={stateCode} onChange={setStateCode} />
-        </label>
-        <label>
-          GSTIN (only if registered separately in that state)
-          <input value={gstin} maxLength={15} onChange={(e) => setGstin(e.target.value.toUpperCase())} />
-        </label>
-      </div>
-      </Section>
-      <Section title="Address and contact">
-      <ContactFields value={contact} onChange={setContact} />
-      </Section>
-      <fieldset>
-        <legend>Default addresses (picked first on documents, can be changed on each)</legend>
-        {DEFAULTS.map(([flag, label]) => (
-          <label key={flag} className="check">
+        <Section title="Branch">
+          <label>
+            Name
+            <input
+              required
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Bhiwandi warehouse"
+            />
+          </label>
+          <div className="row">
+            <label>
+              State
+              <StateSelect
+                states={props.states}
+                value={stateCode}
+                onChange={setStateCode}
+              />
+            </label>
+            <label>
+              GSTIN (only if registered separately in that state)
+              <input
+                value={gstin}
+                maxLength={15}
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+              />
+            </label>
+          </div>
+        </Section>
+        <Section title="Address and contact">
+          <ContactFields value={contact} onChange={setContact} />
+        </Section>
+        <fieldset>
+          <legend>
+            Default addresses (picked first on documents, can be changed on
+            each)
+          </legend>
+          {DEFAULTS.map(([flag, label]) => (
+            <label key={flag} className="check">
+              <input
+                type="checkbox"
+                checked={flags[flag]}
+                disabled={b?.[flag]}
+                onChange={(e) =>
+                  setFlags({ ...flags, [flag]: e.target.checked })
+                }
+              />
+              {label}
+              {b?.[flag] ? " (to move it, tick it on another branch)" : ""}
+            </label>
+          ))}
+        </fieldset>
+        <fieldset>
+          <legend>Warehouse</legend>
+          <label className="check">
             <input
               type="checkbox"
-              checked={flags[flag]}
-              disabled={b?.[flag]}
-              onChange={(e) => setFlags({ ...flags, [flag]: e.target.checked })}
+              checked={isWarehouse}
+              onChange={(e) => setIsWarehouse(e.target.checked)}
             />
-            {label}
-            {b?.[flag] ? " (to move it, tick it on another branch)" : ""}
+            This branch is a warehouse (goods are stored here; add its racks,
+            bins and areas on the "Warehouses" tab)
           </label>
-        ))}
-      </fieldset>
-      <fieldset>
-        <legend>Warehouse</legend>
-        <label className="check">
-          <input type="checkbox" checked={isWarehouse} onChange={(e) => setIsWarehouse(e.target.checked)} />
-          This branch is a warehouse (goods are stored here; add its racks, bins and areas on the "Warehouses" tab)
-        </label>
-      </fieldset>
+        </fieldset>
       </FormBody>
       <ErrorNote error={error} />
       <div className="buttons">
@@ -1069,7 +1382,8 @@ export function renewalNote(until: string | null) {
   if (!until) return { text: "No renewal", cls: "small" };
   const days = Math.ceil((new Date(until).getTime() - Date.now()) / 86400000);
   if (days < 0) return { text: `Expired ${longDate(until)}`, cls: "error" };
-  if (days <= 90) return { text: `Renew by ${longDate(until)} (${days} days)`, cls: "warn" };
+  if (days <= 90)
+    return { text: `Renew by ${longDate(until)} (${days} days)`, cls: "warn" };
   return { text: `Renew by ${longDate(until)}`, cls: "" };
 }
 
@@ -1120,7 +1434,10 @@ function Certificates(props: {
         />
       )}
       {props.certificates.length === 0 ? (
-        <p className="small">None yet. Add the FSSAI licence, Udyam, IEC, organic and ISO certificates with their renewal dates.</p>
+        <p className="small">
+          None yet. Add the FSSAI licence, Udyam, IEC, organic and ISO
+          certificates with their renewal dates.
+        </p>
       ) : (
         <table>
           <thead>
@@ -1145,7 +1462,11 @@ function Certificates(props: {
                     {x.number}
                     {x.issued_by && <div className="small">{x.issued_by}</div>}
                   </td>
-                  <td>{x.branch_name || <span className="small">Whole company</span>}</td>
+                  <td>
+                    {x.branch_name || (
+                      <span className="small">Whole company</span>
+                    )}
+                  </td>
                   <td className={note.cls}>{note.text}</td>
                   <ActionCells
                     canEdit={props.canEdit}
@@ -1214,61 +1535,100 @@ function CertificateForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{x ? `${props.readOnly ? "View" : "Edit"} ${x.kind_label}` : props.copyOf ? "Duplicate certificate" : "Add certificate"}</h4>
+      <h4>
+        {x
+          ? `${props.readOnly ? "View" : "Edit"} ${x.kind_label}`
+          : props.copyOf
+            ? "Duplicate certificate"
+            : "Add certificate"}
+      </h4>
       <FormBody readOnly={props.readOnly}>
-      <Section title="Certificate">
-      <div className="row">
-        <label>
-          Type
-          <Combobox
-            value={kind}
-            onChange={setKind}
-            options={CERTIFICATE_KINDS.map(([value, label]) => ({ value, label }))}
-          />
-        </label>
-        <label>
-          Name {kind === "other" ? "" : "(optional, e.g. ISO 9001:2015)"}
-          <input value={name} required={kind === "other"} onChange={(e) => setName(e.target.value)} />
-        </label>
-      </div>
-      <div className="row">
-        <label>
-          Number
-          <input required value={number} onChange={(e) => setNumber(e.target.value)} />
-        </label>
-        <label>
-          Issued by
-          <input value={issuedBy} placeholder="e.g. FSSAI, DGFT, certification body" onChange={(e) => setIssuedBy(e.target.value)} />
-        </label>
-      </div>
-      <label>
-        Branch (for licences issued per premises)
-        <Combobox
-          value={branch === null ? "" : String(branch)}
-          empty="Whole company"
-          options={props.branches.map((b) => ({ value: String(b.id), label: b.name }))}
-          onChange={(v) => setBranch(v ? Number(v) : null)}
-          create={props.createBranch}
-        />
-      </label>
-      </Section>
-      <Section title="Validity">
-      <div className="row">
-        <label>
-          Valid from
-          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
-        </label>
-        <label>
-          Renewal date (blank if it does not lapse)
-          <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
-        </label>
-      </div>
-      <label>
-        Notes
-        <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </label>
-      <p className="small">A renewed certificate is added as a new one, so the old one stays on record.</p>
-      </Section>
+        <Section title="Certificate">
+          <div className="row">
+            <label>
+              Type
+              <Combobox
+                value={kind}
+                onChange={setKind}
+                options={CERTIFICATE_KINDS.map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+              />
+            </label>
+            <label>
+              Name {kind === "other" ? "" : "(optional, e.g. ISO 9001:2015)"}
+              <input
+                value={name}
+                required={kind === "other"}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              Number
+              <input
+                required
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+              />
+            </label>
+            <label>
+              Issued by
+              <input
+                value={issuedBy}
+                placeholder="e.g. FSSAI, DGFT, certification body"
+                onChange={(e) => setIssuedBy(e.target.value)}
+              />
+            </label>
+          </div>
+          <label>
+            Branch (for licences issued per premises)
+            <Combobox
+              value={branch === null ? "" : String(branch)}
+              empty="Whole company"
+              options={props.branches.map((b) => ({
+                value: String(b.id),
+                label: b.name,
+              }))}
+              onChange={(v) => setBranch(v ? Number(v) : null)}
+              create={props.createBranch}
+            />
+          </label>
+        </Section>
+        <Section title="Validity">
+          <div className="row">
+            <label>
+              Valid from
+              <input
+                type="date"
+                value={validFrom}
+                onChange={(e) => setValidFrom(e.target.value)}
+              />
+            </label>
+            <label>
+              Renewal date (blank if it does not lapse)
+              <input
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </label>
+          </div>
+          <label>
+            Notes
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </label>
+          <p className="small">
+            A renewed certificate is added as a new one, so the old one stays on
+            record.
+          </p>
+        </Section>
       </FormBody>
       <ErrorNote error={error} />
       <div className="buttons">
@@ -1281,7 +1641,13 @@ function CertificateForm(props: {
   );
 }
 
-export function LedgerGroupsPage({ id, session }: { id: number; session: SignedIn }) {
+export function LedgerGroupsPage({
+  id,
+  session,
+}: {
+  id: number;
+  session: SignedIn;
+}) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -1298,7 +1664,12 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
     onImported: reload,
     printScreen: { title: "Ledger groups", scope: detail?.company.name },
   });
-  if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
+  if (!detail)
+    return (
+      <section className="page">
+        {error ? <p className="error">{error}</p> : <p>Loading…</p>}
+      </section>
+    );
   return (
     <section className="page">
       <PageHeader
@@ -1317,7 +1688,15 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
         }
       />
       {printing.panel}
-      <WithActivity activity={<Activity company={id} type="ledger_group" stamp={JSON.stringify(detail)} />}>
+      <WithActivity
+        activity={
+          <Activity
+            company={id}
+            type="ledger_group"
+            stamp={JSON.stringify(detail)}
+          />
+        }
+      >
         <LedgerGroups
           company={detail.company}
           groups={detail.ledger_groups}
@@ -1329,11 +1708,21 @@ export function LedgerGroupsPage({ id, session }: { id: number; session: SignedI
   );
 }
 
-function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boolean; reload: () => void }) {
-  const [editing, setEditing] = useState<{ group: Group | null; parent: number | null; copyName?: string } | null>(null);
+function LedgerGroups(props: {
+  company: Company;
+  groups: Group[];
+  canEdit: boolean;
+  reload: () => void;
+}) {
+  const [editing, setEditing] = useState<{
+    group: Group | null;
+    parent: number | null;
+    copyName?: string;
+  } | null>(null);
   const children = useMemo(() => {
     const map = new Map<number | null, Group[]>();
-    for (const g of props.groups) map.set(g.parent, [...(map.get(g.parent) ?? []), g]);
+    for (const g of props.groups)
+      map.set(g.parent, [...(map.get(g.parent) ?? []), g]);
     return map;
   }, [props.groups]);
 
@@ -1341,7 +1730,8 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
   const startName = useNewName();
   useEffect(() => {
     // Opened by "Create …" in a dropdown: a new group, its place picked on the form.
-    if (startName && props.canEdit) setEditing({ group: null, parent: null, copyName: startName });
+    if (startName && props.canEdit)
+      setEditing({ group: null, parent: null, copyName: startName });
   }, [startName, props.canEdit]);
   const [openId, opened] = useOpenParam();
   const [marked, setMarked] = useState<number | null>(null);
@@ -1351,7 +1741,13 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
     setFolded(new Set());
     setMarked(openId);
     opened();
-    window.setTimeout(() => document.getElementById(`group-${openId}`)?.scrollIntoView({ block: "center" }), 0);
+    window.setTimeout(
+      () =>
+        document
+          .getElementById(`group-${openId}`)
+          ?.scrollIntoView({ block: "center" }),
+      0,
+    );
   }, [openId, props.groups, opened]);
   const [level, setLevel] = useState<number | null>(Infinity);
   const tops = children.get(null) ?? [];
@@ -1368,7 +1764,15 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
   const deepest = Math.max(0, ...depthOf.values());
   const showLevels = (n: number) => {
     setLevel(n);
-    setFolded(new Set(props.groups.filter((g) => children.has(g.id) && (depthOf.get(g.id) ?? 0) >= n - 1).map((g) => g.id)));
+    setFolded(
+      new Set(
+        props.groups
+          .filter(
+            (g) => children.has(g.id) && (depthOf.get(g.id) ?? 0) >= n - 1,
+          )
+          .map((g) => g.id),
+      ),
+    );
   };
   const toggle = (id: number) =>
     setFolded((f) => {
@@ -1378,7 +1782,9 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
       else next.add(id);
       return next;
     });
-  const total = (g: Group): number => g.ledger_count + (children.get(g.id) ?? []).reduce((t, c) => t + total(c), 0);
+  const total = (g: Group): number =>
+    g.ledger_count +
+    (children.get(g.id) ?? []).reduce((t, c) => t + total(c), 0);
   function done() {
     setEditing(null);
     props.reload();
@@ -1399,7 +1805,11 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
         className={`${top ? "group-top" : ""}${marked === g.id ? " marked" : ""}${g.is_active ? "" : " inactive"}`}
       >
         <td>
-          <span className="group-name" style={{ paddingLeft: depth * 22 }} data-indent={depth}>
+          <span
+            className="group-name"
+            style={{ paddingLeft: depth * 22 }}
+            data-indent={depth}
+          >
             {kids.length > 0 ? (
               <button
                 className="fold"
@@ -1416,7 +1826,9 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
             )}
             <span className="gname">
               {g.name}
-              {g.schedule_iii && <span className="sch3 sub">{g.schedule_iii}</span>}
+              {g.schedule_iii && (
+                <span className="sch3 sub">{g.schedule_iii}</span>
+              )}
             </span>
             {!g.is_standard && <span className="tag">added</span>}
             {!g.is_active && <span className="tag">disabled</span>}
@@ -1424,11 +1836,15 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
         </td>
         <td>
           {NATURE[g.nature]}
-          {top && g.affects_gross_profit && <span className="small"> · trading</span>}
+          {top && g.affects_gross_profit && (
+            <span className="small"> · trading</span>
+          )}
         </td>
         <td className="num">
           {total(g) > 0 ? (
-            <a href={`#/companies/${props.company.id}/ledgers/${g.id}`}>{total(g)}</a>
+            <a href={`#/companies/${props.company.id}/ledgers/${g.id}`}>
+              {total(g)}
+            </a>
           ) : (
             <span className="small">—</span>
           )}
@@ -1437,19 +1853,31 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
           {props.canEdit && (
             <>
               {g.is_active && (
-                <button className="link" onClick={() => setEditing({ group: null, parent: g.id })}>
+                <button
+                  className="link"
+                  onClick={() => setEditing({ group: null, parent: g.id })}
+                >
                   + Sub-group
                 </button>
               )}
               {!g.is_standard && (
-                <button className="link" onClick={() => setEditing({ group: g, parent: g.parent })}>
+                <button
+                  className="link"
+                  onClick={() => setEditing({ group: g, parent: g.parent })}
+                >
                   Edit
                 </button>
               )}
               {g.parent !== null && (
                 <button
                   className="link"
-                  onClick={() => setEditing({ group: null, parent: g.parent, copyName: `${g.name} (copy)` })}
+                  onClick={() =>
+                    setEditing({
+                      group: null,
+                      parent: g.parent,
+                      copyName: `${g.name} (copy)`,
+                    })
+                  }
                 >
                   Duplicate
                 </button>
@@ -1463,17 +1891,33 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
       out.push(
         formRow(
           `new-${g.id}`,
-          <GroupForm company={props.company} groups={props.groups} group={null} parent={g.id} initialName={editing.copyName} onDone={done} onCancel={() => setEditing(null)} />,
+          <GroupForm
+            company={props.company}
+            groups={props.groups}
+            group={null}
+            parent={g.id}
+            initialName={editing.copyName}
+            onDone={done}
+            onCancel={() => setEditing(null)}
+          />,
         ),
       );
     if (editing?.group?.id === g.id)
       out.push(
         formRow(
           `edit-${g.id}`,
-          <GroupForm company={props.company} groups={props.groups} group={g} parent={g.parent} onDone={done} onCancel={() => setEditing(null)} />,
+          <GroupForm
+            company={props.company}
+            groups={props.groups}
+            group={g}
+            parent={g.parent}
+            onDone={done}
+            onCancel={() => setEditing(null)}
+          />,
         ),
       );
-    if (!folded.has(g.id)) for (const c of kids) out.push(...rows(c, depth + 1));
+    if (!folded.has(g.id))
+      for (const c of kids) out.push(...rows(c, depth + 1));
     return out;
   };
 
@@ -1481,13 +1925,22 @@ function LedgerGroups(props: { company: Company; groups: Group[]; canEdit: boole
     <>
       <div className="page-head">
         <p className="small">
-          {props.groups.length} groups. The standard groups follow Schedule III of the Companies Act and cannot be
-          changed; add your own under them, for example Export debtors under Sundry Debtors.
+          {props.groups.length} groups. The standard groups follow Schedule III
+          of the Companies Act and cannot be changed; add your own under them,
+          for example Export debtors under Sundry Debtors.
         </p>
         <LevelPicker levels={deepest} value={level} onPick={showLevels} />
       </div>
       {editing && editing.group === null && editing.parent === null && (
-        <GroupForm company={props.company} groups={props.groups} group={null} parent={null} initialName={editing.copyName} onDone={done} onCancel={() => setEditing(null)} />
+        <GroupForm
+          company={props.company}
+          groups={props.groups}
+          group={null}
+          parent={null}
+          initialName={editing.copyName}
+          onDone={done}
+          onCancel={() => setEditing(null)}
+        />
       )}
       <table className="groups">
         <thead>
@@ -1523,7 +1976,14 @@ function GroupForm(props: {
     setError("");
     try {
       if (g) await api(`v1/ledger-groups/${g.id}/`, { name, parent }, "PATCH");
-      else announceCreated("ledger_group", await api<{ id: number; name: string }>(`v1/companies/${props.company.id}/ledger-groups/`, { name, parent }));
+      else
+        announceCreated(
+          "ledger_group",
+          await api<{ id: number; name: string }>(
+            `v1/companies/${props.company.id}/ledger-groups/`,
+            { name, parent },
+          ),
+        );
       props.onDone();
     } catch (err) {
       setError(err);
@@ -1532,23 +1992,33 @@ function GroupForm(props: {
   return (
     <form className="card inline" onSubmit={save}>
       <Section title={g ? "Ledger group" : "New ledger group"}>
-      <div className="row">
-        <label>
-          {g ? "Name" : "New group name"}
-          <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        {(g || props.parent === null) && (
+        <div className="row">
           <label>
-            Under
-            <Combobox
+            {g ? "Name" : "New group name"}
+            <input
               required
-              value={parent === null ? "" : String(parent)}
-              options={props.groups.filter((o) => o.id !== g?.id && (o.is_active || o.id === g?.parent)).map((o) => ({ value: String(o.id), label: o.name }))}
-              onChange={(v) => setParent(Number(v))}
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
             />
           </label>
-        )}
-      </div>
+          {(g || props.parent === null) && (
+            <label>
+              Under
+              <Combobox
+                required
+                value={parent === null ? "" : String(parent)}
+                options={props.groups
+                  .filter(
+                    (o) =>
+                      o.id !== g?.id && (o.is_active || o.id === g?.parent),
+                  )
+                  .map((o) => ({ value: String(o.id), label: o.name }))}
+                onChange={(v) => setParent(Number(v))}
+              />
+            </label>
+          )}
+        </div>
       </Section>
       <ErrorNote error={error} />
       <div className="buttons">
