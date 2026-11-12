@@ -296,6 +296,8 @@ def _save_item(item: Item, data: dict) -> Item:
             setattr(item, field, data[field])
     if "hsn" in data and data["hsn"] and not data["hsn"].isdigit():
         raise ValidationError({"hsn": ["The HSN code is digits only."]})
+    if not item.hsn:
+        raise ValidationError({"hsn": ["Give the HSN code."]})
     if rows is None and not item.pk:
         rows = []
     if rows is not None:

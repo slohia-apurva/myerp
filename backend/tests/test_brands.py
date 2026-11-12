@@ -71,7 +71,12 @@ def test_an_item_has_a_brand_and_counts_show(accountant, company):
         accountant,
         "post",
         "items/",
-        {"name": "Turmeric powder", "stock_unit": kg(accountant), "brand": brand["id"]},
+        {
+            "name": "Turmeric powder",
+            "stock_unit": kg(accountant),
+            "brand": brand["id"],
+            "hsn": "0902",
+        },
     )
     assert made.status_code == 201, made.json()
     assert made.json()["brand_name"] == "Apurvam"
@@ -88,7 +93,7 @@ def test_a_disabled_brand_takes_no_new_items(accountant, company):
         accountant,
         "post",
         "items/",
-        {"name": "Cumin", "stock_unit": kg(accountant), "brand": brand["id"]},
+        {"name": "Cumin", "stock_unit": kg(accountant), "brand": brand["id"], "hsn": "0902"},
     )
     assert bad.status_code == 400
     assert "disabled" in str(bad.json())

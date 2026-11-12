@@ -544,9 +544,15 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
     setError("");
     // The General tab's boxes are not on screen while another tab is open, so
     // the browser cannot check them: check here and take the person there.
-    if (!name.trim() || !stock) {
+    if (!name.trim() || !stock || !hsn) {
       setTab("general");
-      setError(!name.trim() ? "Give the item name on the General tab." : "Pick the default unit of measure on the General tab.");
+      setError(
+        !name.trim()
+          ? "Give the item name at the top."
+          : !stock
+            ? "Pick the default unit of measure on the General tab."
+            : "Pick the HSN code on the General tab.",
+      );
       return;
     }
     setBusy(true);
@@ -606,7 +612,26 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
 
   return (
     <form className="card" onSubmit={save}>
-      <h3>{it ? `Edit ${it.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add item"}</h3>
+      <div className="item-head">
+        <label className="item-title">
+          <span className="req small">Item name</span>
+          <input
+            required
+            autoFocus
+            maxLength={120}
+            placeholder="Item name"
+            aria-label="Item name"
+            value={name}
+            onChange={(e) => changeName(e.target.value)}
+          />
+        </label>
+        <p className="item-sub">
+          <b>{it?.item_number ?? "Number given when you save"}</b>
+          <span className="tag">{typeLabel(type)}</span>
+          <span className="tag">{stocked ? "Stock kept" : "No stock kept"}</span>
+          {disabled && <span className="tag">Disabled</span>}
+        </p>
+      </div>
       <div className="form-tabs" role="tablist">
         {(
           [
@@ -633,18 +658,11 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       <FormBody>
         {tab === "general" && (
         <Section title="Item">
+          <p className="small"><span className="req-star">*</span> Required</p>
           <div className="item-general">
             <div>
               <label>
-                Item number
-                <input readOnly disabled value={it?.item_number ?? "Given when you save"} />
-              </label>
-              <label>
-                Item name
-                <input required autoFocus value={name} onChange={(e) => changeName(e.target.value)} />
-              </label>
-              <label>
-                Goods or service
+                <span className="req">Goods or service</span>
                 <Combobox value={type} onChange={setType} options={TYPES.map(([value, label]) => ({ value, label }))} />
               </label>
               <label>
@@ -661,11 +679,11 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 />
               </label>
               <label>
-                HSN code
+                <span className="req">HSN code</span>
                 <HsnPicker value={hsn} onChange={setHsn} />
               </label>
               <label>
-                Default unit of measure
+                <span className="req">Default unit of measure</span>
                 <Combobox
                   required
                   value={stock}
@@ -691,7 +709,8 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   />
                 </label>
             </div>
-            <div className="item-checks">
+            <fieldset className="item-checks">
+              <legend>Switches</legend>
               <label className="check">
                 <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
                 Disabled
@@ -709,7 +728,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 Maintain stock
               </label>
               <p className="small">"Maintain stock" says whether stock of this item is kept, goods or service.</p>
-            </div>
+            </fieldset>
           </div>
         </Section>
         )}

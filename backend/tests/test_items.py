@@ -83,6 +83,7 @@ def make(client, unit, **data):
     body = {
         "name": "Jaggery Powder 500 g",
         "stock_unit": unit("Packet"),
+        "hsn": "0902",
         "units": chain(unit),
         **data,
     }
@@ -110,7 +111,10 @@ def test_item_with_a_chain_of_units(accountant, unit):
 
 def test_the_stock_unit_always_has_a_row(accountant, unit):
     made = call(
-        accountant, "post", "items/", {"name": "Bag of rice", "stock_unit": unit("Kilogram")}
+        accountant,
+        "post",
+        "items/",
+        {"name": "Bag of rice", "stock_unit": unit("Kilogram"), "hsn": "0902"},
     )
     assert made.status_code == 201, made.json()
     assert [(r["unit_name"], r["factor"]) for r in made.json()["units"]] == [
@@ -201,7 +205,10 @@ def test_viewer_may_read_but_not_change(viewer, accountant, unit):
     make(accountant, unit)
     assert len(call(viewer, "get", "items/").json()) == 1
     assert (
-        call(viewer, "post", "items/", {"name": "X", "stock_unit": unit("Nos")}).status_code == 403
+        call(
+            viewer, "post", "items/", {"name": "X", "stock_unit": unit("Nos"), "hsn": "0902"}
+        ).status_code
+        == 403
     )
 
 
@@ -364,3 +371,11 @@ def test_default_material_request_type(accountant, unit):
     )
     plain = make(accountant, unit, name="Plain", units=[]).json()
     assert plain["default_request_type"] == ""
+
+
+def test_hsn_code_is_required(accountant, unit):
+    body = {"name": "No HSN", "stock_unit": unit("Packet"), "units": []}
+    refused = call(accountant, "post", "items/", body)
+    assert refused.status_code == 400
+    assert "hsn" in refused.json()
+    assert call(accountant, "post", "items/", {**body, "hsn": "0902"}).status_code == 201

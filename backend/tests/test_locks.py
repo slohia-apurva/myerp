@@ -43,7 +43,12 @@ def unit_ids(client):
 
 def make_item(client, name="Jaggery", stock="Packet"):
     ids = unit_ids(client)
-    made = call(client, "post", "items/", {"name": name, "stock_unit": ids[stock], "units": []})
+    made = call(
+        client,
+        "post",
+        "items/",
+        {"name": name, "stock_unit": ids[stock], "units": [], "hsn": "0902"},
+    )
     assert made.status_code == 201, made.json()
     return made.json(), ids
 

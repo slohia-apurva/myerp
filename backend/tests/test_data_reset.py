@@ -90,7 +90,10 @@ def populate(client, company, alpha):
     )
     units = {u["name"]: u["id"] for u in call(client, "get", "units/").json()}
     item = call(
-        client, "post", "items/", {"name": "Jaggery", "stock_unit": units["Packet"], "units": []}
+        client,
+        "post",
+        "items/",
+        {"name": "Jaggery", "stock_unit": units["Packet"], "units": [], "hsn": "0902"},
     )
     assert item.status_code == 201, item.json()
     custom = call(
