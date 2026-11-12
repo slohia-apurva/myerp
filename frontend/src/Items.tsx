@@ -544,9 +544,15 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
     setError("");
     // The General tab's boxes are not on screen while another tab is open, so
     // the browser cannot check them: check here and take the person there.
-    if (!name.trim() || !stock) {
+    if (!name.trim() || !stock || !hsn) {
       setTab("general");
-      setError(!name.trim() ? "Give the item name at the top." : "Pick the default unit of measure on the General tab.");
+      setError(
+        !name.trim()
+          ? "Give the item name at the top."
+          : !stock
+            ? "Pick the default unit of measure on the General tab."
+            : "Pick the HSN code on the General tab.",
+      );
       return;
     }
     setBusy(true);
@@ -673,7 +679,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 />
               </label>
               <label>
-                HSN code
+                <span className="req">HSN code</span>
                 <HsnPicker value={hsn} onChange={setHsn} />
               </label>
               <label>

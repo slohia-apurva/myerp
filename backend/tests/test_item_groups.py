@@ -91,7 +91,12 @@ def test_an_item_sits_in_a_group_and_counts_show(accountant, company):
         accountant,
         "post",
         "items/",
-        {"name": "Turmeric finger", "stock_unit": kg(accountant), "item_group": whole["id"]},
+        {
+            "name": "Turmeric finger",
+            "stock_unit": kg(accountant),
+            "item_group": whole["id"],
+            "hsn": "0902",
+        },
     )
     assert made.status_code == 201, made.json()
     assert made.json()["item_group_name"] == "Whole spices"
@@ -107,7 +112,12 @@ def test_a_group_with_items_below_it_cannot_move(accountant, company):
         accountant,
         "post",
         "items/",
-        {"name": "Turmeric finger", "stock_unit": kg(accountant), "item_group": whole["id"]},
+        {
+            "name": "Turmeric finger",
+            "stock_unit": kg(accountant),
+            "item_group": whole["id"],
+            "hsn": "0902",
+        },
     )
     bad = call(accountant, "patch", f"item-groups/{spices['id']}/", {"parent": other["id"]})
     assert bad.status_code == 400
@@ -127,7 +137,7 @@ def test_a_disabled_group_takes_no_new_items(accountant, company):
         accountant,
         "post",
         "items/",
-        {"name": "Cumin", "stock_unit": kg(accountant), "item_group": whole["id"]},
+        {"name": "Cumin", "stock_unit": kg(accountant), "item_group": whole["id"], "hsn": "0902"},
     )
     assert bad.status_code == 400
     assert "disabled" in str(bad.json())
@@ -177,7 +187,7 @@ def test_groups_import_with_parents_listed_first(alpha, company):
 
 def test_items_sit_only_in_groups_without_sub_groups(accountant, company):
     raw, spices, whole = tree(accountant, company)
-    body = {"name": "Turmeric finger", "stock_unit": kg(accountant)}
+    body = {"name": "Turmeric finger", "stock_unit": kg(accountant), "hsn": "0902"}
     bad = call(accountant, "post", "items/", {**body, "item_group": raw["id"]})
     assert bad.status_code == 400
     assert "sub-groups" in str(bad.json())

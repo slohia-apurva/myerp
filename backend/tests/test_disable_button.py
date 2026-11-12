@@ -51,7 +51,7 @@ def test_disable_and_enable_each_master(owner, company):
     unit = call(owner, "get", "units/").json()[0]["id"]
     flip(owner, f"units/{unit}/")
 
-    item = call(owner, "post", "items/", {"name": "Tea", "stock_unit": unit})
+    item = call(owner, "post", "items/", {"name": "Tea", "stock_unit": unit, "hsn": "0902"})
     assert item.status_code == 201, item.json()
     flip(owner, f"items/{item.json()['id']}/")
 

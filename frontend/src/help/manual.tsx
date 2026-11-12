@@ -465,7 +465,7 @@ export const MANUAL: Chapter[] = [
             any time; the "Item number" beside it is given when you save. Fields
             marked with a red * must be filled in. Under "General", choose
             "Goods or service", pick the "Item group"
-            (see the chapter "Item groups"), give the "HSN code" if you know it,
+            (see the chapter "Item groups"), pick the "HSN code" (it must be filled in),
             the "Default unit of measure" (the unit stock is counted in, such as
             Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" box, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold.
