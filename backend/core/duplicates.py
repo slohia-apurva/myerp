@@ -33,6 +33,7 @@ TIDY_FIELDS: dict[str, tuple[str, ...]] = {
     "core.Company": ("name",),
     "core.Branch": ("name",),
     "core.FiscalYear": ("name",),
+    "core.WarehouseLocation": ("name",),
     "core.LedgerGroup": ("name",),
     "core.Ledger": ("name",),
     "core.Party": ("name",),

@@ -30,6 +30,8 @@ export function existingHref(e: Existing): string | null {
       return company && `${company}/ledgers?open=${e.id}`;
     case "fiscal_year":
       return company && `${company}/years?open=${e.id}`;
+    case "warehouse_location":
+      return company && `${company}/warehouses?open=${e.id}`;
     case "courier_account":
       return company && `${company}/couriers?open=${e.id}`;
     default:

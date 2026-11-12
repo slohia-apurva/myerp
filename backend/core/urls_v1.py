@@ -17,6 +17,7 @@ from core import (
     places,
     printout,
     units,
+    warehouses,
 )
 
 urlpatterns = [
@@ -44,6 +45,21 @@ urlpatterns = [
         "companies/<int:pk>/fiscal-years/",
         fiscal.FiscalYearListView.as_view(),
         name="fiscal-years",
+    ),
+    path(
+        "companies/<int:pk>/warehouses/",
+        warehouses.WarehouseListView.as_view(),
+        name="warehouses",
+    ),
+    path(
+        "companies/<int:pk>/warehouse-locations/",
+        warehouses.LocationListView.as_view(),
+        name="warehouse-locations",
+    ),
+    path(
+        "warehouse-locations/<int:pk>/",
+        warehouses.LocationDetailView.as_view(),
+        name="warehouse-location",
     ),
     path("fiscal-years/<int:pk>/", fiscal.FiscalYearDetailView.as_view(), name="fiscal-year"),
     path("fiscal-periods/<int:pk>/", fiscal.PeriodDetailView.as_view(), name="fiscal-period"),

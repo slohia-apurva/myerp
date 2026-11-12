@@ -46,6 +46,7 @@ LABELS = {
     "default_billing": "Default billing address",
     "default_ship_to": "Default ship to",
     "default_ship_from": "Default ship from",
+    "is_warehouse": "Warehouse",
     "kind": "Type",
     "valid_until": "Renewal date",
     "parent": "Under",
@@ -142,6 +143,7 @@ def _register() -> None:
         Ledger,
         LedgerGroup,
         Unit,
+        WarehouseLocation,
     )
     from core.parties import party_extras
     from shipping.models import CourierAccount, Shipment
@@ -186,6 +188,11 @@ def _register() -> None:
             Branch: Tracked("branch", "Branch", by_company, formats={"state_code": state}),
             Certificate: Tracked("certificate", "Licence or certificate", by_company),
             LedgerGroup: Tracked("ledger_group", "Ledger group", by_company),
+            WarehouseLocation: Tracked(
+                "warehouse_location",
+                "Rack, bin or area",
+                lambda r: r.branch.company_id,
+            ),
             FiscalYear: Tracked(
                 "fiscal_year",
                 "Fiscal year",

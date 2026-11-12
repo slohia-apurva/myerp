@@ -256,6 +256,10 @@ export const MANUAL: Chapter[] = [
               "Default addresses",
               "Tick Default billing address, Default ship to or Default ship from. Each can be on only one branch; documents pick it first and you can change it on each document. To move a default, tick it on the other branch.",
             ],
+            [
+              "Warehouse",
+              'Tick "This branch is a warehouse" when goods are stored here. It then gets a section on the "Warehouses" tab for its racks, bins and areas.',
+            ],
           ]}
         />
         <p>
@@ -668,6 +672,44 @@ export const MANUAL: Chapter[] = [
           Anyone who can see a list can print it or download its PDF, and anyone who can see a master can export it. Importing needs two permissions: "Create and edit" and
           "Import from a file" under Masters. Only the Owner has "Import from a file" to start with; tick it on the
           "User roles" screen for any other role that should import. Up to 5,000 rows and 5 MB at a time.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "warehouses",
+    title: "Warehouses",
+    summary: "A warehouse's racks, bins and areas.",
+    body: (
+      <>
+        <p>
+          A physical warehouse is a branch of the company. Inside it there are racks, a rack holds bins, and a bin is a
+          physical location where stock is kept. Apart from the bins, the warehouse has areas, which are named zones
+          such as Receiving, Production and Despatch.
+        </p>
+        <h3>Make a branch a warehouse</h3>
+        <ol>
+          <li>Open the company and click the "Branches" tab.</li>
+          <li>Click "Add branch", or "Edit" on a branch.</li>
+          <li>Tick "This branch is a warehouse" and click "Save".</li>
+        </ol>
+        <h3>Add racks, bins and areas</h3>
+        <ol>
+          <li>Click the "Warehouses" tab. Each warehouse has its own box.</li>
+          <li>Click "Add rack" and give the rack a name, for example R1, then click "Save".</li>
+          <li>Click "Add bin" beside the rack and give the bin a name, for example A1, then click "Save".</li>
+          <li>
+            Click "Add area", give it a name such as Despatch bay and pick what it is used for in "Used for" (Receiving,
+            Storage, Production, Quality check, Quarantine, Packing, Despatch or Other), then click "Save".
+          </li>
+        </ol>
+        <p>
+          Names cannot repeat: a warehouse has one rack of each name, a rack has one bin of each name, and a warehouse
+          has one area of each name. Use the arrow beside a rack to fold or show its bins. Racks, bins and areas are never
+          deleted: click "Edit" and then "Disable". A rack can be disabled only after its bins are disabled. A branch
+          that has racks, bins or areas stays a warehouse. To add many at once, use "Actions" at the top of the
+          Warehouses tab (see "Import, export and print"); in the file a bin names its rack in "On rack", and a rack must
+          come before the bins on it.
         </p>
       </>
     ),

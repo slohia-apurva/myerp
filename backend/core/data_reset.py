@@ -49,6 +49,7 @@ from core.models import (
     PartyAddress,
     PartyContact,
     Unit,
+    WarehouseLocation,
 )
 from core.units import STANDARD_UNITS
 from tenancy.context import tenant_atomic
@@ -112,6 +113,12 @@ def _plan(level: str, company):
             ("Customers and suppliers", _orphan_parties(company)),
             ("Ledger groups you added", _own_groups(company)),
             ("Licences and certificates", _certificates(company)),
+            (
+                "Racks, bins and areas",
+                WarehouseLocation.objects.filter(branch__company=company)
+                if company
+                else WarehouseLocation.objects.all(),
+            ),
             ("Branches other than the head office", _own_branches(company)),
         ]
     if level == "all":

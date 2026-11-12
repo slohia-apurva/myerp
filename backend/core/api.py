@@ -150,6 +150,7 @@ class BranchSerializer(serializers.ModelSerializer):
             "is_head_office",
             "is_active",
             *DEFAULT_FLAGS,
+            "is_warehouse",
         ]
         read_only_fields = ["is_head_office"]
 
@@ -547,7 +548,15 @@ class BranchListView(APIView):
         return Response(BranchSerializer(branch).data, status=status.HTTP_201_CREATED)
 
 
-BRANCH_FIELDS = ["name", "state_code", "gstin", *CONTACT_FIELDS, "is_active", *DEFAULT_FLAGS]
+BRANCH_FIELDS = [
+    "name",
+    "state_code",
+    "gstin",
+    *CONTACT_FIELDS,
+    "is_active",
+    *DEFAULT_FLAGS,
+    "is_warehouse",
+]
 
 
 def save_branch(branch: Branch, data: dict) -> Branch:
@@ -558,6 +567,10 @@ def save_branch(branch: Branch, data: dict) -> Branch:
         _unique_branch_name(branch.company, data["name"], exclude=branch.pk)
     if branch.pk:
         refuse_key_changes("branch", branch, data)
+    if branch.pk and data.get("is_warehouse") is False and branch.locations.exists():
+        raise ValidationError(
+            {"is_warehouse": ["This warehouse has racks, bins or areas; disable them instead."]}
+        )
     _move_defaults(branch, data)
     _save(branch, data, BRANCH_FIELDS)
     return branch
