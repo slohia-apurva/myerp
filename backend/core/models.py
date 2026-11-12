@@ -687,7 +687,7 @@ class Item(models.Model):
     measure"). Never deleted, only made inactive."""
 
     GOODS, SERVICE = "goods", "service"
-    TYPES = [(GOODS, "Goods (stocked)"), (SERVICE, "Service")]
+    TYPES = [(GOODS, "Goods"), (SERVICE, "Service")]
 
     item_number = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=120)
@@ -714,6 +714,7 @@ class Item(models.Model):
     shelf_life_days = models.PositiveIntegerField(null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
+    maintain_stock = models.BooleanField(default=True)
     allow_purchase = models.BooleanField(default=True)
     allow_sales = models.BooleanField(default=True)
     notes = models.CharField(max_length=200, blank=True)
