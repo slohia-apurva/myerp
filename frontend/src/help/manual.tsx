@@ -437,6 +437,26 @@ export const MANUAL: Chapter[] = [
           "Customers" box lists every customer group (tenant) with its status. Adding customers from here will come
           later.
         </p>
+        <h3>Add a courier</h3>
+        <p>
+          The "Couriers" box lists the couriers, aggregators and transporters that every customer can pick on a
+          transporter. Customers cannot add to it: a courier is added here once MyERP can look it up, such as one whose
+          API can be arranged, and then every customer sees it.
+        </p>
+        <ol>
+          <li>Click "Central" in the top menu and find the "Couriers" box.</li>
+          <li>Click "Add courier" and fill in the "Name" and "Kind".</li>
+          <li>
+            Fill in "Tracking number looks like" in words, and the "Tracking page" with {"{awb}"} where the tracking
+            number goes, so that shipments get a "Track" link. "Tracking number pattern" is optional: a regular
+            expression that a tracking number must match.
+          </li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          Couriers are never deleted: click "Edit" and then "Disable" to stop offering one; transporters already using it
+          keep it.
+        </p>
       </>
     ),
   },
