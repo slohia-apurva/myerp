@@ -1,8 +1,8 @@
-"""Couriers, courier accounts and shipments (spec 06, build step 1).
+"""Couriers, transporters and shipments (spec 06, build step 1).
 
 Who may do what:
-- Courier accounts are masters: `masters.view` sees them, `masters.edit`
-  adds and changes them.
+- Transporters (the company's courier accounts) are masters: `masters.view` sees them,
+  `masters.edit` adds and changes them.
 - Shipments belong to despatch: `sales.view` or `stock.view` sees them,
   `sales.create` or `stock.create` enters them and types their status.
 - All of it needs the company's Sales module (decision 0014).
@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import duplicates, exchange
-from core.api import EDIT, VIEW, Signed, _check
+from core.api import CONTACT_FIELDS, EDIT, VIEW, Signed, _check
 from core.api import _company as _visible_company
 from core.companies import visible_companies
 from core.locks import refuse_key_changes
@@ -79,31 +79,55 @@ class CarrierListView(APIView):
         return Response([_carrier_out(c) for c in Carrier.objects.all()])
 
 
-# Courier accounts ----------------------------------------------------------
+# Transporters ----------------------------------------------------------
 
 
 class CourierAccountSerializer(serializers.ModelSerializer):
+    carrier_id = serializers.IntegerField(allow_null=True, required=False)
+    gstin = serializers.CharField(max_length=15, allow_blank=True, required=False)
+
     class Meta:
         model = CourierAccount
-        fields = ["id", "carrier_id", "name", "service", "account_code", "notes", "is_active"]
+        fields = [
+            "id",
+            "carrier_id",
+            "name",
+            "gstin",
+            "state_code",
+            *CONTACT_FIELDS,
+            "service",
+            "account_code",
+            "pickup_location",
+            "notes",
+            "is_active",
+        ]
+        read_only_fields = ["state_code"]
 
 
 def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
     data = CourierAccountSerializer(a).data
     carrier = carriers.get(a.carrier_id)
-    data["carrier_name"] = carrier.name if carrier else "?"
+    data["carrier_name"] = carrier.name if carrier else ""
     data["service_label"] = a.get_service_display()
     data["company"] = a.company_id
     return data
 
 
 def _save_account(account: CourierAccount, data: dict) -> None:
-    if "carrier_id" in data:
+    if data.get("carrier_id") is not None:
         carrier = Carrier.objects.filter(pk=data["carrier_id"]).first()
         if carrier is None or (not carrier.is_active and carrier.pk != account.carrier_id):
             raise ValidationError({"carrier_id": ["Pick a courier from the list."]})
-    elif not account.carrier_id:
-        raise ValidationError({"carrier_id": ["Pick a courier from the list."]})
+    if "gstin" in data:
+        data["gstin"] = data["gstin"].strip().upper()
+    if not data.get("gstin", account.gstin):
+        raise ValidationError(
+            {
+                "gstin": [
+                    "Give the transporter's GSTIN: an e-way bill needs it as the Transporter ID."
+                ]
+            }
+        )
     if "name" in data:
         data["name"] = duplicates.tidy(data["name"])
         duplicates.check_name(
@@ -111,7 +135,7 @@ def _save_account(account: CourierAccount, data: dict) -> None:
             data["name"],
             exclude=account.pk,
             kind="courier_account",
-            message='This company already has an account named "{name}".',
+            message='This company already has a transporter named "{name}".',
         )
     refuse_key_changes("courier_account", account, data)
     for field, value in data.items():
@@ -134,7 +158,10 @@ def _carrier_from(text: str) -> int:
     carrier = Carrier.objects.filter(name__iexact=text.strip()).first()
     if carrier is None:
         names = ", ".join(Carrier.objects.filter(is_active=True).values_list("name", flat=True))
-        raise ValueError(f"there is no courier {text.strip()!r}; pick one of: {names}")
+        raise ValueError(
+            f"there is no courier {text.strip()!r} in MyERP's list; pick one of: {names}, "
+            "or leave it empty for a transporter that is not in the list"
+        )
     return carrier.pk
 
 
@@ -147,13 +174,22 @@ def _import_account(ctx, account, data):
 exchange.register(
     exchange.Master(
         key="courier-accounts",
-        label="Courier accounts",
-        noun="courier account",
+        label="Transporters",
+        noun="transporter",
         serializer=CourierAccountSerializer,
         queryset=lambda ctx: ctx.company.courier_accounts.order_by("name"),
         save=_import_account,
         per_company=True,
-        labels={"carrier_id": "Courier", "account_code": "Account code"},
+        labels={
+            "carrier_id": "Courier in MyERP's list",
+            "account_code": "Account code",
+            "gstin": "GSTIN",
+            "pickup_location": "Pickup location",
+        },
+        hints={
+            "gstin": "Required: it is the Transporter ID on an e-way bill",
+            "carrier_id": "Leave empty for a transporter that is not in MyERP's list of couriers",
+        },
         codecs={
             "carrier_id": exchange.Codec(
                 _carrier_name,
@@ -203,7 +239,7 @@ class CourierAccountDetailView(APIView):
             .first()
         )
         if account is None:
-            raise NotFound("No such courier account.")
+            raise NotFound("No such transporter.")
         serializer = CourierAccountSerializer(account, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         _save_account(account, dict(serializer.validated_data))
@@ -237,7 +273,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
 
 
 # What may still change once the courier has reported on the shipment.
-FIXED_AFTER_TRACKING = {"account": "courier account", "awb": "tracking number"}
+FIXED_AFTER_TRACKING = {"account": "transporter", "awb": "tracking number"}
 
 
 def _tracking_link(s: Shipment, carriers) -> str:
@@ -267,7 +303,7 @@ def _shipment_out(s: Shipment, carriers, now=None, events=False) -> dict:
     data.update(
         {
             "company": s.company_id,
-            "carrier_name": carrier.name if carrier else "?",
+            "carrier_name": carrier.name if carrier else "",
             "account_name": s.account.name,
             "party_name": s.party.name if s.party else "",
             "branch_name": s.branch.name if s.branch else "",
@@ -295,9 +331,9 @@ def _save_shipment(s: Shipment, data: dict) -> None:
     if "account" in data:
         account = data["account"]
         if account.company_id != s.company_id:
-            errors["account"] = ["Pick a courier account of this company."]
+            errors["account"] = ["Pick a transporter of this company."]
         elif not account.is_active and account.pk != s.account_id:
-            errors["account"] = ["This courier account is disabled."]
+            errors["account"] = ["This transporter is disabled."]
         else:
             data["carrier_id"] = account.carrier_id
     branch = data.get("branch")
@@ -329,7 +365,11 @@ def _save_shipment(s: Shipment, data: dict) -> None:
     if why := check_awb(s.awb, Carrier.objects.filter(pk=s.carrier_id).first()):
         errors["awb"] = [why]
     elif (
-        Shipment.objects.filter(carrier_id=s.carrier_id, awb=s.awb, cancelled=False)
+        Shipment.objects.filter(
+            **({"carrier_id": s.carrier_id} if s.carrier_id else {"account": s.account}),
+            awb=s.awb,
+            cancelled=False,
+        )
         .exclude(pk=s.pk)
         .exists()
     ):

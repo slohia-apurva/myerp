@@ -72,7 +72,7 @@ LABELS = {
     "qc_required": "Quality check on receipt",
     "item_type": "Type",
     "whole_numbers": "Whole numbers only",
-    "carrier_id": "Courier",
+    "carrier_id": "Courier in MyERP's list",
     "account_code": "Account or customer code",
     "awb": "Tracking number (AWB)",
     "booked_on": "Booked on",
@@ -273,7 +273,7 @@ def _register() -> None:
             Role: Tracked("role", "Role", lambda r: None),
             CourierAccount: Tracked(
                 "courier_account",
-                "Courier account",
+                "Transporter",
                 by_company,
                 formats={"carrier_id": carrier_name},
             ),

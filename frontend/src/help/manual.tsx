@@ -57,7 +57,7 @@ export const MANUAL: Chapter[] = [
         <h3>Adding a missing record from a list</h3>
         <p>
           If what you type in a list of customers' credit terms, units, item groups, brands, ledger groups, branches or
-          courier accounts is not there, the list offers 'Create "<em>what you typed</em>"' at the bottom. Click it
+          transporters is not there, the list offers 'Create "<em>what you typed</em>"' at the bottom. Click it
           (or press Enter on it): that master's screen opens in a new browser tab with the "Add" form open and the name
           filled in, so nothing on the screen you were filling is lost. Fill in the rest and click "Save". The new tab
           closes by itself and the list on your first screen picks the new record. If the tab stays open (some
@@ -73,7 +73,7 @@ export const MANUAL: Chapter[] = [
           MyERP will not save a second record that means the same as one already there. Names are compared without
           capital letters and extra spaces, so "Acme  Foods " and "ACME Foods" are the same name, and extra spaces are
           taken out when you save. Customers and suppliers, items, units, credit terms and roles must differ across the
-          whole group; ledgers, ledger groups, branches and courier accounts must differ within their company. A
+          whole group; ledgers, ledger groups, branches and transporters must differ within their company. A
           GSTIN or a PAN can belong to one company only, a GSTIN to one customer or supplier only (add another address
           to that party instead), a bank account number to one bank ledger of a company, and a barcode to one item.
         </p>
@@ -588,7 +588,7 @@ export const MANUAL: Chapter[] = [
           Every list screen has an "Actions" button at the top right. Click it for a short list: "Print" and
           "Download PDF" on every list, and on masters also "Import from Excel…" and "Export to Excel". They work the
           same way everywhere. Import and export are on "Units", "Credit terms", "Items", "Item groups", "Brands",
-          "Ledgers", "Ledger groups", "Branches", "Licences and certificates" and "Courier accounts". "Companies"
+          "Ledgers", "Ledger groups", "Branches", "Licences and certificates" and "Transporters". "Companies"
           has "Print" and "Download PDF" only: add a company with "Add company". The columns are always the fields of that master's
           form, so when a field is added to the form it appears in the file too.
         </p>
@@ -997,40 +997,57 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
-    id: "courier-accounts",
-    title: "Courier accounts",
-    summary: "Your accounts with each courier, such as a B2C and a B2B account with Delhivery.",
+    id: "transporters",
+    title: "Transporters",
+    summary: "The couriers and road transporters you send goods with, such as a B2C and a B2B account with Delhivery.",
     body: (
       <>
         <p>
-          MyERP keeps one list of couriers for everyone: Delhivery, Blue Dart, DP World and Shiprocket to start with.
-          Each company then adds its own accounts with them. One courier can have more than one account, for example
-          "Delhivery B2C" for parcels and "Delhivery B2B" for heavier freight, because each has its own rates. This
-          screen shows only for a company that uses the Sales module.
+          A transporter is a courier, an aggregator such as Shiprocket, an airline or a road transporter that carries
+          your goods. MyERP also keeps one list of couriers for everyone (Delhivery, Blue Dart, DP World and Shiprocket
+          to start with), which gives the tracking page, the tracking number check and which PIN codes a courier
+          serves. A transporter can point at one of those, or stand alone when it is not in the list, such as a local
+          road transporter. One courier can have more than one transporter, for example "Delhivery B2C" for parcels and
+          "Delhivery B2B" for heavier freight, because each has its own rates. This screen shows only for a company that
+          uses the Sales module.
         </p>
-        <h3>Add a courier account</h3>
+        <h3>Add a transporter</h3>
         <ol>
-          <li>Pick the company at the top right, then click "Masters" in the top menu, then "Courier accounts".</li>
-          <li>Click "Add courier account".</li>
+          <li>Pick the company at the top right, then click "Masters" in the top menu, then "Transporters".</li>
+          <li>Click "Add transporter".</li>
           <li>Fill in the form (see below) and click "Save".</li>
         </ol>
         <Fields
           rows={[
-            ["Courier", "The courier or aggregator, picked from MyERP's list."],
+            ["Name", 'What the transporter is called on screens, for example "Blue Dart B2B". Each name is used once per company.'],
+            [
+              "GSTIN",
+              "Required. It is the Transporter ID on an e-way bill. The state is read from its first two digits. A courier with a B2C and a B2B account uses the same GSTIN on both.",
+            ],
+            [
+              "Courier in MyERP's list",
+              'Pick the courier from the list, or choose "Not in the list" for a transporter that is not there.',
+            ],
             ["Service", '"B2C (parcel / express)", "B2B (freight)" or "Aggregator" (Shiprocket).'],
-            ["Name", 'What the account is called on screens, for example "Blue Dart B2B". Each name is used once per company.'],
-            ["Account or customer code", "The code the courier gave you, to find the account on their bills."],
-            ["Notes", "Anything worth knowing, such as the contact at the courier."],
+            ["Address and contact", "Address, PIN code, city, phone, email and the contact person."],
+            ["Account or customer code", "The code the transporter gave you, to find the account on their bills."],
+            [
+              "Pickup location name",
+              "The pickup or warehouse name registered with the courier, which booking through their system will need.",
+            ],
+            ["Notes", "Anything worth knowing."],
           ]}
         />
         <p>
-          Once a shipment has been entered against an account, its "Courier" and "Service" cannot be changed. The name
-          and notes can still be corrected. Accounts are never deleted: click "Edit" and then "Disable" to stop
-          offering one ("Enable" brings it back).
+          API keys and passwords are not kept on this form; they are set up separately when a courier is connected.
+          Once a shipment has been entered against a transporter, its "Courier in MyERP's list" and "Service" cannot be
+          changed. The name, GSTIN and notes can still be corrected. Transporters are never deleted: click "Edit" and then
+          "Disable" to stop offering one ("Enable" brings it back).
         </p>
         <p>
-          To add or change many accounts at once, use "Actions" at the top of the screen (see "Import, export and
-          print"). In the file, "Courier" is the courier's name as in MyERP's list, for example "Delhivery".
+          To add or change many transporters at once, use "Actions" at the top of the screen (see "Import, export and
+          print"). In the file, "Courier in MyERP's list" is the courier's name as in MyERP's list, for example
+          "Delhivery", and can stay empty; "GSTIN" must be filled.
         </p>
       </>
     ),
@@ -1047,8 +1064,8 @@ export const MANUAL: Chapter[] = [
           courier's website. Later MyERP will fetch it every morning by itself, and email the despatch team a summary.
         </p>
         <p>
-          Before the first shipment, add the company's courier accounts (the "Courier accounts" button at the top, or
-          "Masters", "Courier accounts").
+          Before the first shipment, add the company's transporters (the "Transporters" button at the top, or
+          "Masters", "Transporters").
         </p>
         <h3>The lists</h3>
         <Fields
@@ -1066,7 +1083,7 @@ export const MANUAL: Chapter[] = [
         <h3>Add a shipment</h3>
         <ol>
           <li>Click "Add shipment".</li>
-          <li>Pick the "Courier account" and type the "AWB (tracking number)". Spaces are dropped.</li>
+          <li>Pick the "Transporter" and type the "AWB (tracking number)". Spaces are dropped.</li>
           <li>
             Fill in who it went to: the "Customer" and the "Invoice or delivery note number" (for now, the ERPNext
             number), with the city and "PIN code".
@@ -1091,7 +1108,7 @@ export const MANUAL: Chapter[] = [
         <p>
           "Status history" shows every status with who entered it. Statuses are never changed or removed: if one was
           wrong, add the right one with a later time. "Edit details" corrects the customer, invoice number, weight and
-          the like. Once the courier itself has reported on a shipment, its courier account and AWB are fixed.
+          the like. Once the courier itself has reported on a shipment, its transporter and AWB are fixed.
         </p>
       </>
     ),

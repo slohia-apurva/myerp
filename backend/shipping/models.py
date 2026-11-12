@@ -16,6 +16,7 @@ from django.db.models import Q
 from django.db.models.functions import Lower
 from django.utils import timezone
 
+from core import india
 from core.models import Branch, Company, Party
 
 # Letters, digits and hyphens: what any carrier's tracking number looks like
@@ -39,10 +40,14 @@ def check_awb(awb: str, carrier) -> str:
 
 
 class CourierAccount(models.Model):
-    """A company's account with a carrier from the central list, e.g.
-    "Delhivery B2B". One courier can have several accounts (B2C parcel and
-    B2B freight), each with its own rates and, later, its own API keys (kept
-    in Secret Manager, never here). Never deleted, only disabled."""
+    """A transporter of a company (shown as "Transporter" on the screens): a
+    courier, aggregator, airline or road transporter it ships with, e.g.
+    "Delhivery B2B". It may point at a carrier of the central list (for AWB
+    checks, tracking pages and PIN coverage) or stand alone for a local
+    transporter. One carrier can have several (B2C parcel and B2B freight),
+    each with its own rates and, later, its own API keys (kept in Secret
+    Manager, never here). The GSTIN is the Transporter ID of an e-way bill.
+    Never deleted, only disabled."""
 
     B2C, B2B, AGGREGATOR = "b2c", "b2b", "aggregator"
     SERVICES = [
@@ -54,8 +59,20 @@ class CourierAccount(models.Model):
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="courier_accounts")
     # tenancy.Carrier lives in the platform database, so it is kept by id.
-    carrier_id = models.PositiveIntegerField()
+    carrier_id = models.PositiveIntegerField(null=True, blank=True)
     name = models.CharField(max_length=60)
+    # Required on the screen (an e-way bill needs the Transporter ID); the
+    # state comes from its first two digits.
+    gstin = models.CharField(max_length=15, blank=True, validators=[india.validate_gstin])
+    state_code = models.CharField(max_length=2, blank=True)
+    address = models.TextField(blank=True)
+    pincode = models.CharField(max_length=6, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
+    email = models.EmailField(blank=True)
+    contact_person = models.CharField(max_length=100, blank=True)
+    # The pickup or warehouse name registered with the carrier, for booking APIs.
+    pickup_location = models.CharField(max_length=60, blank=True)
     service = models.CharField(max_length=12, choices=SERVICES, default=B2C)
     account_code = models.CharField(max_length=40, blank=True)
     notes = models.TextField(blank=True)
@@ -71,6 +88,12 @@ class CourierAccount(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def clean(self):
+        self.gstin = self.gstin.strip().upper()
+        self.state_code = self.gstin[:2]
+        if self.pincode and not re.fullmatch(r"[1-9][0-9]{5}", self.pincode):
+            raise ValidationError({"pincode": "A PIN code is 6 digits."})
 
 
 class Status(models.TextChoices):
@@ -112,7 +135,9 @@ class Shipment(models.Model):
         Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="shipments"
     )
     account = models.ForeignKey(CourierAccount, on_delete=models.PROTECT, related_name="shipments")
-    carrier_id = models.PositiveIntegerField()  # copied from the account, for the AWB check
+    # Copied from the account, for the AWB check; empty for a transporter that
+    # is not in the central list.
+    carrier_id = models.PositiveIntegerField(null=True, blank=True)
     awb = models.CharField(max_length=30)
     booked_on = models.DateField()
     party = models.ForeignKey(
@@ -151,7 +176,13 @@ class Shipment(models.Model):
                 "awb",
                 condition=Q(cancelled=False),
                 name="shipment_awb_unique_per_carrier",
-            )
+            ),
+            models.UniqueConstraint(
+                "account",
+                "awb",
+                condition=Q(cancelled=False, carrier_id__isnull=True),
+                name="shipment_awb_unique_per_account",
+            ),
         ]
 
     def __str__(self) -> str:

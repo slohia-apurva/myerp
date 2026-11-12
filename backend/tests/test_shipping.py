@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from accounts.models import Role, User
 from core.companies import create_company
+from core.india import gstin_check_char
 from core.models import Party
 from shipping.models import Shipment, Status, TrackingEvent, check_awb
 from tenancy.context import use_tenant
@@ -18,6 +19,7 @@ from tenancy.models import Carrier
 pytestmark = pytest.mark.django_db(databases="__all__")
 
 HOST = "alpha.localhost"
+GSTIN = "07AAACD1234F1Z" + gstin_check_char("07AAACD1234F1Z")  # a transporter in Delhi
 
 
 def _client(alpha, email, role):
@@ -73,7 +75,12 @@ def b2b(owner, company):
         owner,
         "post",
         f"companies/{company}/courier-accounts/",
-        {"carrier_id": carrier("Delhivery"), "name": "Delhivery B2B", "service": "b2b"},
+        {
+            "carrier_id": carrier("Delhivery"),
+            "name": "Delhivery B2B",
+            "gstin": GSTIN,
+            "service": "b2b",
+        },
     )
     assert resp.status_code == 201, resp.json()
     return resp.json()["id"]
@@ -100,7 +107,12 @@ def test_two_accounts_with_one_courier(owner, company, b2b):
         owner,
         "post",
         f"companies/{company}/courier-accounts/",
-        {"carrier_id": carrier("Delhivery"), "name": "Delhivery B2C", "service": "b2c"},
+        {
+            "carrier_id": carrier("Delhivery"),
+            "name": "Delhivery B2C",
+            "gstin": GSTIN,
+            "service": "b2c",
+        },
     )
     assert resp.status_code == 201
     rows = call(owner, "get", f"companies/{company}/courier-accounts/").json()
@@ -112,9 +124,57 @@ def test_two_accounts_with_one_courier(owner, company, b2b):
         owner,
         "post",
         f"companies/{company}/courier-accounts/",
-        {"carrier_id": carrier("Blue Dart"), "name": "delhivery b2b"},
+        {"carrier_id": carrier("Blue Dart"), "name": "delhivery b2b", "gstin": GSTIN},
     )
     assert same.status_code == 400 and "name" in same.json()
+
+
+def test_a_transporter_needs_its_gstin(owner, company):
+    path = f"companies/{company}/courier-accounts/"
+    none = call(owner, "post", path, {"name": "Local Roadways"})
+    assert none.status_code == 400 and "Transporter ID" in str(none.json())
+    bad = call(owner, "post", path, {"name": "Local Roadways", "gstin": "07AAACD1234F1Z0"})
+    assert bad.status_code == 400 and "gstin" in bad.json()
+    ok = call(owner, "post", path, {"name": "Local Roadways", "gstin": GSTIN.lower()})
+    assert ok.status_code == 201, ok.json()
+    assert ok.json()["gstin"] == GSTIN and ok.json()["state_code"] == "07"
+    cleared = call(owner, "patch", f"courier-accounts/{ok.json()['id']}/", {"gstin": ""})
+    assert cleared.status_code == 400
+
+
+def test_a_transporter_may_be_one_that_is_not_in_the_courier_list(owner, store, company):
+    made = call(
+        owner,
+        "post",
+        f"companies/{company}/courier-accounts/",
+        {
+            "name": "Shree Roadlines",
+            "gstin": GSTIN,
+            "service": "b2b",
+            "pincode": "110001",
+            "city": "Delhi",
+            "contact_person": "Mr Shah",
+            "pickup_location": "Bhiwandi",
+        },
+    )
+    assert made.status_code == 201, made.json()
+    account = made.json()
+    assert account["carrier_id"] is None and account["carrier_name"] == ""
+    assert account["pickup_location"] == "Bhiwandi"
+    assert (
+        call(
+            owner,
+            "post",
+            f"companies/{company}/courier-accounts/",
+            {"name": "Bad PIN", "gstin": GSTIN, "pincode": "12"},
+        ).status_code
+        == 400
+    )
+    first = ship(store, company, account["id"])
+    assert first.status_code == 201, first.json()
+    assert first.json()["carrier_name"] == ""
+    again = ship(store, company, account["id"])  # the same LR number, same transporter
+    assert again.status_code == 400 and "already entered" in str(again.json())
 
 
 def test_courier_account_needs_a_courier_from_the_list(owner, company):
@@ -122,7 +182,7 @@ def test_courier_account_needs_a_courier_from_the_list(owner, company):
         owner,
         "post",
         f"companies/{company}/courier-accounts/",
-        {"carrier_id": 999999, "name": "Mystery"},
+        {"carrier_id": 999999, "name": "Mystery", "gstin": GSTIN},
     )
     assert resp.status_code == 400 and "carrier_id" in resp.json()
 
@@ -173,7 +233,7 @@ def test_same_awb_twice_for_one_courier_is_refused(store, owner, company, b2b):
         owner,
         "post",
         f"companies/{company}/courier-accounts/",
-        {"carrier_id": carrier("Blue Dart"), "name": "Blue Dart B2C"},
+        {"carrier_id": carrier("Blue Dart"), "name": "Blue Dart B2C", "gstin": GSTIN},
     ).json()["id"]
     assert ship(store, company, other).status_code == 201
 
