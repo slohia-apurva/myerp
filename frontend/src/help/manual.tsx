@@ -733,8 +733,10 @@ export const MANUAL: Chapter[] = [
         <h3>Document series</h3>
         <p>
           Every kind of document (sales invoice, purchase order, payment and so on) has a series of its own, shown with
-          what a number looks like, for example SI/2026-27/0001. In the prefix, {"{FY}"} stands for the fiscal year, and
-          every fiscal year counts again from 0001. Click "Edit" to change the prefix and "Digits". A sales invoice, credit
+          what a number looks like, for example AO/SI/2627/00001: the company's short code, the document, the fiscal year
+          (2627 is 2026-27) and a number of five digits. In the prefix, {"{YY}"} stands for the fiscal year as 2627 and
+          {"{FY}"} as 2026-27; every fiscal year counts again from 00001. A company with a long short code gets fewer
+          digits on invoices so that the number stays within 16 characters. Click "Edit" to change the prefix and "Digits". A sales invoice, credit
           note or debit note number can be at most 16 characters of letters, digits, / and -, as GST requires. No two
           series of a company can share a prefix. Once a number has been given from a series, its prefix and digits can
           no longer change.

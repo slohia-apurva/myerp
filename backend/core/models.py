@@ -1018,10 +1018,11 @@ class NumberSeries(models.Model):
 
 class NumberFormat(models.Model):
     """How one kind of document of a company is numbered: PREFIX + zero-padded
-    count, e.g. SI/2026-27/0001. `{FY}` in the prefix becomes the fiscal year's
-    name, and each year has its own counter, so a series restarts at 0001 in a
-    new year (spec 01). A format with a branch overrides the company's own for
-    that branch. Use core.numbering.next_document_number()."""
+    count, e.g. AO/SI/2627/00001. `{YY}` in the prefix becomes the fiscal year
+    (2627) and `{FY}` its name (2026-27). Each year has its own counter, so a
+    series restarts at 0001 in a new year (spec 01). A format with a branch
+    overrides the company's own for that branch. Use
+    core.numbering.next_document_number()."""
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="number_formats")
     doc_type = models.CharField(max_length=30)
@@ -1029,7 +1030,7 @@ class NumberFormat(models.Model):
         Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="number_formats"
     )
     prefix = models.CharField(max_length=20)
-    width = models.PositiveSmallIntegerField(default=4)
+    width = models.PositiveSmallIntegerField(default=5)
 
     class Meta:
         ordering = ["company", "doc_type", "branch_id"]

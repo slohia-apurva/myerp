@@ -31,32 +31,43 @@ def next_number(key: str, taken=lambda number: False) -> str:
 
 # --- Document series: per company (and branch), restarting every fiscal year --
 
-# (code, label, default prefix, GST invoice?) A GST invoice number is at most
+# (key, label, short code in the number, GST invoice?) A GST invoice number is at most
 # 16 characters of letters, digits, "/" and "-" (CGST Rule 46).
 DOCUMENT_TYPES = [
-    ("sales_invoice", "Sales invoice", "SI/{FY}/", True),
-    ("credit_note", "Credit note", "CN/{FY}/", True),
-    ("debit_note", "Debit note", "DN/{FY}/", True),
-    ("sales_order", "Sales order", "SO/{FY}/", False),
-    ("delivery_challan", "Delivery challan", "DC/{FY}/", False),
-    ("purchase_order", "Purchase order", "PO/{FY}/", False),
-    ("goods_receipt", "Goods receipt (GRN)", "GRN/{FY}/", False),
-    ("purchase_invoice", "Purchase invoice", "PI/{FY}/", False),
-    ("payment", "Payment", "PAY/{FY}/", False),
-    ("receipt", "Receipt", "RCT/{FY}/", False),
-    ("journal", "Journal voucher", "JV/{FY}/", False),
-    ("contra", "Contra voucher", "CV/{FY}/", False),
-    ("stock_transfer", "Stock transfer", "ST/{FY}/", False),
-    ("production_order", "Production order", "PRD/{FY}/", False),
+    ("sales_invoice", "Sales invoice", "SI", True),
+    ("credit_note", "Credit note", "CN", True),
+    ("debit_note", "Debit note", "DN", True),
+    ("sales_order", "Sales order", "SO", False),
+    ("delivery_challan", "Delivery challan", "DC", False),
+    ("purchase_order", "Purchase order", "PO", False),
+    ("goods_receipt", "Goods receipt (GRN)", "GRN", False),
+    ("purchase_invoice", "Purchase invoice", "PI", False),
+    ("payment", "Payment", "PAY", False),
+    ("receipt", "Receipt", "RCT", False),
+    ("journal", "Journal voucher", "JV", False),
+    ("contra", "Contra voucher", "CV", False),
+    ("stock_transfer", "Stock transfer", "ST", False),
+    ("production_order", "Production order", "PRD", False),
 ]
-DOC_TYPES = {code: (label, prefix, gst) for code, label, prefix, gst in DOCUMENT_TYPES}
+DOC_TYPES = {code: (label, short, gst) for code, label, short, gst in DOCUMENT_TYPES}
 DOC_CHOICES = [(code, label) for code, label, *_ in DOCUMENT_TYPES]
 MAX_GST_NUMBER = 16
 PREFIX_CHARS = re.compile(r"[A-Za-z0-9/._-]*")
 
 
+def short_year(year_name: str) -> str:
+    """2026-27 -> 2627, 2026 -> 26: the year as it goes into a document number."""
+    two = re.fullmatch(r"(\d{4})-(\d{2})", year_name)
+    if two:
+        return two.group(1)[2:] + two.group(2)
+    one = re.fullmatch(r"\d{4}", year_name)
+    return year_name[2:] if one else re.sub(r"[^A-Za-z0-9]", "", year_name)
+
+
 def render(prefix: str, year_name: str, width: int, n: int) -> str:
-    return f"{prefix.replace('{FY}', year_name)}{n:0{width}d}"
+    """{FY} in a prefix is the year's name (2026-27), {YY} its short form (2627)."""
+    prefix = prefix.replace("{FY}", year_name).replace("{YY}", short_year(year_name))
+    return f"{prefix}{n:0{width}d}"
 
 
 def check_format(doc_type: str, prefix: str, width: int, year_name: str = "2026-27") -> None:
@@ -64,9 +75,9 @@ def check_format(doc_type: str, prefix: str, width: int, year_name: str = "2026-
     format makes would be unusable."""
     if doc_type not in DOC_TYPES:
         raise ValueError("Pick a kind of document.")
-    if not prefix or not PREFIX_CHARS.fullmatch(prefix.replace("{FY}", "")):
+    if not prefix or not PREFIX_CHARS.fullmatch(prefix.replace("{FY}", "").replace("{YY}", "")):
         raise ValueError(
-            "The prefix holds letters, digits, / . _ - and {FY} for the year; it cannot be empty."
+            "The prefix holds letters, digits, / . _ - and {YY} (2627) or {FY} (2026-27)."
         )
     if not 3 <= width <= 8:
         raise ValueError("The number part is 3 to 8 digits long.")
@@ -86,9 +97,24 @@ def ensure_formats(company) -> None:
             "doc_type", flat=True
         )
     )
-    for code, _label, prefix, _gst in DOCUMENT_TYPES:
+    for code, *_ in DOCUMENT_TYPES:
         if code not in have:
-            NumberFormat.objects.create(company=company, doc_type=code, prefix=prefix, width=4)
+            NumberFormat.objects.create(company=company, doc_type=code, **_default(company, code))
+
+
+def _default(company, doc_type: str) -> dict:
+    """AO/SI/2627/00001: company code, document, year and five digits. A GST
+    invoice number holds 16 characters at most, so a longer company code gets
+    fewer digits (or none of its code) to fit."""
+    short = DOC_TYPES[doc_type][1]
+    for prefix in (f"{company.abbr}/{short}/{{YY}}/", f"{short}/{{YY}}/"):
+        for width in (5, 4, 3):
+            try:
+                check_format(doc_type, prefix, width)
+            except ValueError:
+                continue
+            return {"prefix": prefix, "width": width}
+    return {"prefix": f"{short}/{{YY}}/", "width": 3}
 
 
 def format_for(company, doc_type: str, branch=None) -> NumberFormat:

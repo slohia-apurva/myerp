@@ -40,7 +40,7 @@ def viewer(alpha):
 @pytest.fixture
 def company(alpha):
     with use_tenant(alpha):
-        return create_company(name="Apurvam Organics LLP", state_code="27").pk
+        return create_company(name="Apurvam Organics LLP", state_code="27", abbr="AO").pk
 
 
 def call(client, method, path, data=None):
@@ -73,7 +73,7 @@ def test_every_kind_of_document_starts_with_a_series(owner, company):
     kinds = {f["doc_type"] for f in body["formats"]}
     assert kinds == {code for code, *_ in numbering.DOCUMENT_TYPES}
     invoice = series(owner, company, "sales_invoice")
-    assert invoice["prefix"] == "SI/{FY}/" and invoice["example"] == "SI/2026-27/0001"
+    assert invoice["prefix"] == "AO/SI/{YY}/" and invoice["example"] == "AO/SI/2627/00001"
     assert {y["name"] for y in invoice["years"]}  # a row for every fiscal year
 
 
@@ -89,12 +89,25 @@ def test_numbers_run_on_and_restart_each_fiscal_year(alpha, company):
         )
     first = issue(alpha, company, "sales_invoice", today)
     second = issue(alpha, company, "sales_invoice", today)
-    assert first == f"SI/{year.name}/0001" and second == f"SI/{year.name}/0002"
+    yy = numbering.short_year(year.name)
+    assert first == f"AO/SI/{yy}/00001" and second == f"AO/SI/{yy}/00002"
     assert issue(alpha, company, "sales_invoice", next_year.start_date) == (
-        f"SI/{next_year.name}/0001"
+        f"AO/SI/{numbering.short_year(next_year.name)}/00001"
     )  # a new year starts again
-    assert issue(alpha, company, "purchase_order", today) == f"PO/{year.name}/0001"
-    assert issue(alpha, company, "sales_invoice", today) == f"SI/{year.name}/0003"
+    assert issue(alpha, company, "purchase_order", today) == f"AO/PO/{yy}/00001"
+    assert issue(alpha, company, "sales_invoice", today) == f"AO/SI/{yy}/00003"
+
+
+def test_a_long_company_code_gets_fewer_digits_to_fit_gst(alpha):
+    with use_tenant(alpha):
+        c = create_company(name="Long Name Exports", state_code="27", abbr="LNEX")
+        numbering.ensure_formats(c)
+        invoice = c.number_formats.get(doc_type="sales_invoice")
+        order = c.number_formats.get(doc_type="purchase_order")
+    assert (invoice.prefix, invoice.width) == ("LNEX/SI/{YY}/", 3)
+    assert len(numbering.render(invoice.prefix, "2026-27", invoice.width, 1)) <= 16
+    assert (order.prefix, order.width) == ("LNEX/PO/{YY}/", 5)  # no 16-character limit
+    assert numbering.short_year("2026-27") == "2627" and numbering.short_year("2026") == "26"
 
 
 def test_a_date_outside_every_year_gets_no_number(alpha, company):
@@ -113,7 +126,7 @@ def test_a_branch_can_have_its_own_series(alpha, owner, company):
         owner,
         "post",
         f"companies/{company}/numbering/formats/",
-        {"doc_type": "sales_invoice", "branch": branch, "prefix": "PN/{FY}/", "width": 4},
+        {"doc_type": "sales_invoice", "branch": branch, "prefix": "PN/{YY}/", "width": 4},
     )
     assert made.status_code == 201, made.json()
     today = date.today()
@@ -122,14 +135,14 @@ def test_a_branch_can_have_its_own_series(alpha, owner, company):
     mine = issue(alpha, company, "sales_invoice", today, branch=pune)
     head = issue(alpha, company, "sales_invoice", today)
     assert mine.startswith("PN/") and mine.endswith("/0001")
-    assert head.startswith("SI/") and head.endswith("/0001")
+    assert head.startswith("AO/SI/") and head.endswith("/00001")
     # A branch without its own series uses the company's.
     other = call(
         owner, "post", f"companies/{company}/branches/", {"name": "Surat depot", "state_code": "24"}
     ).json()["id"]
     with use_tenant(alpha):
         surat = alpha_branch(company, other)
-    assert issue(alpha, company, "sales_invoice", today, branch=surat).endswith("/0002")
+    assert issue(alpha, company, "sales_invoice", today, branch=surat).endswith("/00002")
 
 
 def alpha_branch(company, pk):
@@ -144,15 +157,15 @@ def test_the_rules_for_a_prefix(owner, company):
     def patch(**body):
         return call(owner, "patch", f"numbering/formats/{invoice['id']}/", body)
 
-    long_prefix = patch(prefix="APURVAM-EXPORT/{FY}/")
+    long_prefix = patch(prefix="APURVAM-EXP/{YY}/")
     assert long_prefix.status_code == 400 and "16 characters" in str(long_prefix.json())
-    assert patch(prefix="SI #{FY}").status_code == 400  # a space or # is not allowed
+    assert patch(prefix="SI #{YY}").status_code == 400  # a space or # is not allowed
     assert patch(width=2).status_code == 400
-    clash = patch(prefix="po/{FY}/")  # the purchase order's
+    clash = patch(prefix="ao/po/{YY}/")  # the purchase order's
     assert clash.status_code == 400 and "already the series" in str(clash.json())
-    ok = patch(prefix="INV/{FY}/", width=4)
-    assert ok.status_code == 200 and ok.json()["example"] == "INV/2026-27/0001"
-    assert patch(width=5).status_code == 400  # 17 characters
+    ok = patch(prefix="INV/{YY}/", width=5)
+    assert ok.status_code == 200 and ok.json()["example"] == "INV/2627/00001"
+    assert patch(width=8).status_code == 400  # 17 characters
     # A purchase order is not a GST invoice: it may be longer.
     po = series(owner, company, "purchase_order")
     long_po = call(
@@ -165,7 +178,7 @@ def test_prefix_and_width_lock_once_a_number_is_issued(alpha, owner, company):
     issue(alpha, company, "journal", date.today())
     journal = series(owner, company, "journal")
     assert journal["in_use"] is True
-    r = call(owner, "patch", f"numbering/formats/{journal['id']}/", {"prefix": "J/{FY}/"})
+    r = call(owner, "patch", f"numbering/formats/{journal['id']}/", {"prefix": "J/{YY}/"})
     assert r.status_code == 400 and "numbers already issued" in str(r.json())
     same = call(
         owner, "patch", f"numbering/formats/{journal['id']}/", {"prefix": journal["prefix"]}
@@ -185,7 +198,7 @@ def test_the_last_number_can_only_go_up(alpha, owner, company):
     with use_tenant(alpha):
         y = FiscalYear.objects.get(pk=year)
     day = y.start_date
-    assert issue(alpha, company, "receipt", day).endswith("/0251")
+    assert issue(alpha, company, "receipt", day).endswith("/00251")
     with use_tenant(alpha):
         texts = [str(e.changes) for e in AuditEntry.objects.filter(record_type="number_format")]
         assert any("Last numbers" in t for t in texts)

@@ -2,10 +2,10 @@
 vendor, item) and the company's document series, one counter per fiscal year.
 
 Master numbers are shared by every company. A document series has a prefix
-(with `{FY}` for the year's name) and a width; a branch can have its own
-series for a kind of document. Once a series has handed out a number its
-prefix and width are fixed; the last number can only go up (to carry on from
-numbers used before MyERP).
+(with `{YY}` for the short fiscal year, 2627, or `{FY}` for 2026-27) and a
+width; a branch can have its own series for a kind of document. Once a series
+has handed out a number its prefix and width are fixed; the last number can
+only go up (to carry on from numbers used before MyERP).
 """
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -207,8 +207,8 @@ exchange.register(
         exclude=("example",),
         labels={"doc_type": "Document", "branch": "Branch", "width": "Digits"},
         hints={
-            "prefix": "Letters, digits, / . _ - and {FY} for the fiscal year's name, "
-            "for example SI/{FY}/",
+            "prefix": "Letters, digits, / . _ - and {YY} for the fiscal year (2627) or {FY} "
+            "(2026-27), for example AO/SI/{YY}/",
             "branch": "Leave empty for the company's series; fill it to give that branch its own",
         },
     )

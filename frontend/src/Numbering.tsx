@@ -48,8 +48,8 @@ export function Numbering(props: { companyId: number; branches: Branch[]; canEdi
   return (
     <>
       <p className="small">
-        A document series makes numbers like SI/2026-27/0001: its prefix, then the number. {"{FY}"} in the prefix becomes
-        the fiscal year, and every year counts again from 0001.
+        A document series makes numbers like AO/SI/2627/00001: its prefix, then the number. {"{YY}"} in the prefix becomes
+        the fiscal year (2627 for 2026-27; {"{FY}"} gives 2026-27), and every year counts again from 1.
       </p>
       {master && <MasterForm key={master.key} master={master} onDone={done} onCancel={() => setMaster(null)} />}
       {series && (
@@ -341,7 +341,7 @@ function SeriesForm(props: {
               autoFocus
               value={prefix}
               maxLength={20}
-              placeholder="e.g. SI/{FY}/"
+              placeholder="e.g. AO/SI/{YY}/"
               disabled={s?.in_use}
               onChange={(e) => setPrefix(e.target.value)}
             />
@@ -360,7 +360,7 @@ function SeriesForm(props: {
           </label>
         </div>
         <p className="small">
-          Use {"{FY}"} for the fiscal year, for example SI/{"{FY}"}/. A sales invoice, credit note or debit note number
+          Use {"{YY}"} for the fiscal year, for example AO/SI/{"{YY}"}/. A sales invoice, credit note or debit note number
           can be at most 16 characters (letters, digits, / and -). No two series of a company can share a prefix.
           {s?.in_use && " Numbers have been given from this series, so its prefix and digits can no longer change."}
         </p>
