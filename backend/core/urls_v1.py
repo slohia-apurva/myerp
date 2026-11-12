@@ -36,6 +36,12 @@ urlpatterns = [
     path("credit-terms/<int:pk>/", credit_terms.CreditTermDetailView.as_view(), name="credit_term"),
     path("admin/reset/", data_reset.DataResetView.as_view(), name="data-reset"),
     path("central/", central.CentralView.as_view(), name="central"),
+    path("central/carriers/", central.CarrierAdminListView.as_view(), name="central-carriers"),
+    path(
+        "central/carriers/<int:pk>/",
+        central.CarrierAdminDetailView.as_view(),
+        name="central-carrier",
+    ),
     path("countries/", places.CountryListView.as_view(), name="countries"),
     path("pin/<str:pin>/", places.PinView.as_view(), name="pin"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
