@@ -715,6 +715,48 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "numbering",
+    title: "Numbering",
+    summary: "How customers, items and documents get their numbers.",
+    body: (
+      <>
+        <p>
+          The "Numbering" tab of a company shows two things: the numbers of masters, which are the same for every company,
+          and the document series of this company.
+        </p>
+        <h3>Master numbers</h3>
+        <p>
+          Customer numbers, supplier numbers and item numbers (for example CUST-00001) each have a prefix and a number of
+          digits. Click "Edit" to change the prefix or digits, which applies to numbers made from then on, or to raise the
+          "Last number used" so that new numbers carry on from your old system. It can only go up.
+        </p>
+        <h3>Document series</h3>
+        <p>
+          Every kind of document (sales invoice, purchase order, payment and so on) has a series of its own, shown with
+          what a number looks like, for example AO/SI/2627/00001: the company's short code, the document, the fiscal year
+          (2627 is 2026-27) and a number of five digits. In the prefix, {"{YY}"} stands for the fiscal year as 2627 and
+          {"{FY}"} as 2026-27; every fiscal year counts again from 00001. A company with a long short code gets fewer
+          digits on invoices so that the number stays within 16 characters. Click "Edit" to change the prefix and "Digits". A sales invoice, credit
+          note or debit note number can be at most 16 characters of letters, digits, / and -, as GST requires. No two
+          series of a company can share a prefix. Once a number has been given from a series, its prefix and digits can
+          no longer change.
+        </p>
+        <h3>A series for one branch</h3>
+        <p>
+          Click "Add branch series", pick the "Document" and the "Branch", give a prefix different from the others, and
+          click "Save". That branch then numbers that document in its own series; other branches use the company's.
+        </p>
+        <h3>Carrying on from old numbers</h3>
+        <p>
+          Click "Years" beside a series to see the last number used in each fiscal year. Click "Set last number" and
+          enter the last number your old system used, then "Save", and new documents carry on after it. The number can
+          only go up. To change many series at once, use "Actions" at the top of the tab (see "Import, export and
+          print").
+        </p>
+      </>
+    ),
+  },
+  {
     id: "fiscal-years",
     title: "Fiscal years",
     summary: "A company's financial years and their months, and locking a closed month.",

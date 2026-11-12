@@ -1,4 +1,5 @@
 import { FiscalYears, type FiscalYear } from "./FiscalYears";
+import { Numbering } from "./Numbering";
 import { Warehouses, type Warehouse } from "./Warehouses";
 import { PinInput } from "./Pin";
 import { announceCreated, creatable, type Creatable, useNewName } from "./Create";
@@ -620,7 +621,21 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
     company: id,
     onImported: loadWarehouses,
   });
-  const printing = tab === "certificates" ? certificateIo : tab === "warehouses" ? locationIo : branchIo;
+  const numberIo = useExchange({
+    master: "number-formats",
+    noun: "document series",
+    session,
+    company: id,
+    onImported: reload,
+  });
+  const printing =
+    tab === "certificates"
+      ? certificateIo
+      : tab === "warehouses"
+        ? locationIo
+        : tab === "numbering"
+          ? numberIo
+          : branchIo;
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   const c = detail.company;
@@ -640,7 +655,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         sub={sub}
         actions={
           <>
-            {(tab === "branches" || tab === "certificates" || tab === "years" || tab === "warehouses") && printing.buttons}
+            {(tab === "branches" || tab === "certificates" || tab === "years" || tab === "warehouses" || tab === "numbering") && printing.buttons}
             {canEdit && !editing && (
               <button
                 onClick={() => {
@@ -711,6 +726,9 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         {tab === "warehouses" && (
           <Warehouses warehouses={warehouses} companyId={c.id} canEdit={canEdit} reload={loadWarehouses} />
         )}
+        {tab === "numbering" && (
+          <Numbering companyId={c.id} branches={detail.branches} canEdit={canEdit} onChanged={reload} />
+        )}
         {tab === "modules" && (
           <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
         )}
@@ -725,6 +743,7 @@ const TABS: [string, string][] = [
   ["certificates", "Licences and certificates"],
   ["warehouses", "Warehouses"],
   ["years", "Fiscal years"],
+  ["numbering", "Numbering"],
   ["modules", "Modules"],
 ];
 

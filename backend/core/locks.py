@@ -26,6 +26,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
     "item_group": {"parent": "the group it sits under"},
     "fiscal_year": {"start_date": "start date", "end_date": "end date"},
     "warehouse_location": {"kind": "kind", "parent": "the rack it stands on"},
+    "number_format": {"prefix": "prefix", "width": "number of digits"},
     "brand": {},  # the name stays open; nothing else on a brand is a key
     "ledger_group": {"parent": "the group it sits under"},
     "ledger": {"group": "group", "currency": "currency", "bill_wise": "bill-wise"},

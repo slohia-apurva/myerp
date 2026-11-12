@@ -14,6 +14,7 @@ from core import (
     item_groups,
     items,
     ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
+    numbering_api,
     places,
     printout,
     units,
@@ -60,6 +61,27 @@ urlpatterns = [
         "warehouse-locations/<int:pk>/",
         warehouses.LocationDetailView.as_view(),
         name="warehouse-location",
+    ),
+    path("companies/<int:pk>/numbering/", numbering_api.NumberingView.as_view(), name="numbering"),
+    path(
+        "companies/<int:pk>/numbering/formats/",
+        numbering_api.FormatListView.as_view(),
+        name="number-formats",
+    ),
+    path(
+        "numbering/formats/<int:pk>/",
+        numbering_api.FormatDetailView.as_view(),
+        name="number-format",
+    ),
+    path(
+        "numbering/formats/<int:pk>/years/<int:year>/",
+        numbering_api.CounterView.as_view(),
+        name="number-counter",
+    ),
+    path(
+        "numbering/masters/<str:key>/",
+        numbering_api.MasterSeriesView.as_view(),
+        name="number-master",
     ),
     path("fiscal-years/<int:pk>/", fiscal.FiscalYearDetailView.as_view(), name="fiscal-year"),
     path("fiscal-periods/<int:pk>/", fiscal.PeriodDetailView.as_view(), name="fiscal-period"),

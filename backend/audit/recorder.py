@@ -142,6 +142,7 @@ def _register() -> None:
         ItemGroup,
         Ledger,
         LedgerGroup,
+        NumberFormat,
         Unit,
         WarehouseLocation,
     )
@@ -188,6 +189,22 @@ def _register() -> None:
             Branch: Tracked("branch", "Branch", by_company, formats={"state_code": state}),
             Certificate: Tracked("certificate", "Licence or certificate", by_company),
             LedgerGroup: Tracked("ledger_group", "Ledger group", by_company),
+            NumberFormat: Tracked(
+                "number_format",
+                "Document series",
+                by_company,
+                extras={
+                    "counters": (
+                        "Last numbers",
+                        lambda f: "; ".join(
+                            f"{c.year.name}: {c.last}"
+                            for c in f.counters.select_related("year").order_by("year__start_date")
+                            if c.last
+                        )
+                        or None,
+                    )
+                },
+            ),
             WarehouseLocation: Tracked(
                 "warehouse_location",
                 "Rack, bin or area",
