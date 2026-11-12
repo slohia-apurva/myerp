@@ -1,4 +1,5 @@
 import { FiscalYears, type FiscalYear } from "./FiscalYears";
+import { Warehouses, type Warehouse } from "./Warehouses";
 import { PinInput } from "./Pin";
 import { announceCreated, creatable, type Creatable, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
@@ -262,6 +263,7 @@ type Branch = Contact & Record<DefaultFlag, boolean> & {
   gstin: string;
   is_head_office: boolean;
   is_active: boolean;
+  is_warehouse: boolean;
 };
 export type Group = {
   id: number;
@@ -591,6 +593,11 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
     api<FiscalYear[]>(`v1/companies/${id}/fiscal-years/`).then(setYears);
   }, [id]);
   useEffect(loadYears, [loadYears]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const loadWarehouses = useCallback(() => {
+    api<Warehouse[]>(`v1/companies/${id}/warehouses/`).then(setWarehouses);
+  }, [id]);
+  useEffect(loadWarehouses, [loadWarehouses, detail]); // a branch ticked or unticked as a warehouse
   const tab = TABS.some(([code]) => code === props.tab) ? props.tab : "";
   const branchIo = useExchange({
     master: "branches",
@@ -606,7 +613,14 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
     company: id,
     onImported: reload,
   });
-  const printing = tab === "certificates" ? certificateIo : branchIo;
+  const locationIo = useExchange({
+    master: "warehouse-locations",
+    noun: "racks, bins and areas",
+    session,
+    company: id,
+    onImported: loadWarehouses,
+  });
+  const printing = tab === "certificates" ? certificateIo : tab === "warehouses" ? locationIo : branchIo;
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   const c = detail.company;
@@ -626,7 +640,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         sub={sub}
         actions={
           <>
-            {(tab === "branches" || tab === "certificates" || tab === "years") && printing.buttons}
+            {(tab === "branches" || tab === "certificates" || tab === "years" || tab === "warehouses") && printing.buttons}
             {canEdit && !editing && (
               <button
                 onClick={() => {
@@ -694,6 +708,9 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
             }}
           />
         )}
+        {tab === "warehouses" && (
+          <Warehouses warehouses={warehouses} companyId={c.id} canEdit={canEdit} reload={loadWarehouses} />
+        )}
         {tab === "modules" && (
           <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
         )}
@@ -706,6 +723,7 @@ const TABS: [string, string][] = [
   ["", "Overview"],
   ["branches", "Branches"],
   ["certificates", "Licences and certificates"],
+  ["warehouses", "Warehouses"],
   ["years", "Fiscal years"],
   ["modules", "Modules"],
 ];
@@ -889,6 +907,7 @@ function Branches(props: { company: Company; branches: Branch[]; states: State[]
               <td>
                 {b.name}
                 {b.is_head_office && <span className="small"> · head office</span>}
+                {b.is_warehouse && <span className="small"> · warehouse</span>}
                 <div>
                   {DEFAULTS.filter(([flag]) => b[flag]).map(([flag]) => (
                     <span key={flag} className="tag">
@@ -942,6 +961,7 @@ function BranchForm(props: {
     default_ship_to: b?.default_ship_to ?? false,
     default_ship_from: b?.default_ship_from ?? false,
   });
+  const [isWarehouse, setIsWarehouse] = useState(b?.is_warehouse ?? false);
   const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
@@ -949,7 +969,7 @@ function BranchForm(props: {
     setError("");
     // Only newly ticked defaults are sent; ticking moves it from the other branch.
     const ticked = Object.fromEntries(DEFAULTS.filter(([f]) => flags[f] && !b?.[f]).map(([f]) => [f, true]));
-    const body = { name, state_code: stateCode, gstin, ...contact, ...ticked };
+    const body = { name, state_code: stateCode, gstin, is_warehouse: isWarehouse, ...contact, ...ticked };
     try {
       if (b) await api(`v1/branches/${b.id}/`, body, "PATCH");
       else announceCreated("branch", await api<{ id: number; name: string }>(`v1/companies/${props.company.id}/branches/`, body));
@@ -996,6 +1016,13 @@ function BranchForm(props: {
             {b?.[flag] ? " (to move it, tick it on another branch)" : ""}
           </label>
         ))}
+      </fieldset>
+      <fieldset>
+        <legend>Warehouse</legend>
+        <label className="check">
+          <input type="checkbox" checked={isWarehouse} onChange={(e) => setIsWarehouse(e.target.checked)} />
+          This branch is a warehouse (goods are stored here; add its racks, bins and areas on the "Warehouses" tab)
+        </label>
       </fieldset>
       </FormBody>
       <ErrorNote error={error} />

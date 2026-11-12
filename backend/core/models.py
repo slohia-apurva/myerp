@@ -212,6 +212,8 @@ class Branch(models.Model):
     default_billing = models.BooleanField(default=False)
     default_ship_to = models.BooleanField(default=False)
     default_ship_from = models.BooleanField(default=False)
+    # A branch that is a physical warehouse: it holds racks, bins and areas.
+    is_warehouse = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-is_head_office", "name"]
@@ -255,6 +257,57 @@ class Branch(models.Model):
             raise ValidationError(
                 {"is_active": "Move this branch's default addresses before closing it."}
             )
+
+
+class WarehouseLocation(models.Model):
+    """A place inside a warehouse branch. A rack stands in the warehouse and
+    holds bins; a bin is a physical storage location on a rack; an area is a
+    named zone of the warehouse (production, receiving, despatch...) that
+    stock can also sit in. Stock entries will point at a bin or an area."""
+
+    RACK, BIN, AREA = "rack", "bin", "area"
+    KINDS = [(RACK, "Rack"), (BIN, "Bin"), (AREA, "Area")]
+    PURPOSES = [
+        ("receiving", "Receiving"),
+        ("storage", "Storage"),
+        ("production", "Production"),
+        ("quality", "Quality check"),
+        ("quarantine", "Quarantine"),
+        ("packing", "Packing"),
+        ("despatch", "Despatch"),
+        ("other", "Other"),
+    ]
+
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="locations")
+    kind = models.CharField(max_length=4, choices=KINDS)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="children"
+    )  # a bin's rack
+    name = models.CharField(max_length=60)
+    purpose = models.CharField(max_length=12, choices=PURPOSES, blank=True)  # areas only
+    notes = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["branch_id", "kind", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                "branch",
+                "kind",
+                Lower("name"),
+                condition=models.Q(parent__isnull=True),
+                name="location_name_unique_in_branch",
+            ),
+            models.UniqueConstraint(
+                "parent",
+                Lower("name"),
+                condition=models.Q(parent__isnull=False),
+                name="bin_name_unique_in_rack",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.parent.name} / {self.name}" if self.parent_id else self.name
 
 
 class Certificate(models.Model):
