@@ -673,6 +673,37 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "fiscal-years",
+    title: "Fiscal years",
+    summary: "A company's financial years and their months, and locking a closed month.",
+    body: (
+      <>
+        <p>
+          Each company has its own financial years. A year runs in whole months and is split into monthly periods. New
+          companies start with the years from the one their books begin in up to the current one, using the "Financial
+          year starts in" month of the company.
+        </p>
+        <h3>Add a year</h3>
+        <ol>
+          <li>Open the company and click the "Fiscal years" tab.</li>
+          <li>
+            Click "Add year". The dates offered are the year after the last one. A year starts on the 1st of a month,
+            ends on the last day of a month, and can be up to 18 months long (a first year may be longer than twelve
+            months). Years of one company cannot overlap. Leave "Name" empty to get a name like 2026-27.
+          </li>
+          <li>Click "Save".</li>
+        </ol>
+        <h3>Lock a month</h3>
+        <p>
+          Click "Months" beside a year, then "Lock" beside a month that is closed: nothing can be entered into a locked
+          month. Only an Owner can click "Unlock" to open it again. Every lock and unlock is written to the "Activity"
+          column. The dates of a year cannot be changed while any of its months is locked. Years are never deleted:
+          click "Edit" and then "Disable" to stop using one.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "modules",
     title: "Modules",
     summary: "Choosing which parts of MyERP a company uses.",

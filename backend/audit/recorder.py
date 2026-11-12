@@ -136,6 +136,7 @@ def _register() -> None:
         Certificate,
         Company,
         CreditTerm,
+        FiscalYear,
         Item,
         ItemGroup,
         Ledger,
@@ -185,6 +186,20 @@ def _register() -> None:
             Branch: Tracked("branch", "Branch", by_company, formats={"state_code": state}),
             Certificate: Tracked("certificate", "Licence or certificate", by_company),
             LedgerGroup: Tracked("ledger_group", "Ledger group", by_company),
+            FiscalYear: Tracked(
+                "fiscal_year",
+                "Fiscal year",
+                by_company,
+                extras={
+                    "periods": (
+                        "Locked months",
+                        lambda y: ", ".join(
+                            f"{p.start_date:%b %Y}" for p in y.periods.filter(is_locked=True)
+                        )
+                        or "None",
+                    )
+                },
+            ),
             Ledger: Tracked(
                 "ledger",
                 "Ledger",

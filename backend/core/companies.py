@@ -34,6 +34,9 @@ def _starting_records(company: Company) -> None:
         setattr(head, field, getattr(company, field))
     head.default_billing = head.default_ship_to = head.default_ship_from = True
     head.save()
+    from core.fiscal import ensure_years
+
+    ensure_years(company)
     seed_standard_groups(LedgerGroup, company, Ledger)
     ensure_cash_ledger(Ledger, LedgerGroup, company)
     from core.credit_terms import seed_credit_terms

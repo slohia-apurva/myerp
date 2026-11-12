@@ -32,6 +32,7 @@ def tidy(text: str | None) -> str:
 TIDY_FIELDS: dict[str, tuple[str, ...]] = {
     "core.Company": ("name",),
     "core.Branch": ("name",),
+    "core.FiscalYear": ("name",),
     "core.LedgerGroup": ("name",),
     "core.Ledger": ("name",),
     "core.Party": ("name",),

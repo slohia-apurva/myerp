@@ -1,3 +1,4 @@
+import { FiscalYears, type FiscalYear } from "./FiscalYears";
 import { PinInput } from "./Pin";
 import { announceCreated, creatable, type Creatable, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
@@ -585,6 +586,11 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  const [years, setYears] = useState<FiscalYear[]>([]);
+  const loadYears = useCallback(() => {
+    api<FiscalYear[]>(`v1/companies/${id}/fiscal-years/`).then(setYears);
+  }, [id]);
+  useEffect(loadYears, [loadYears]);
   const tab = TABS.some(([code]) => code === props.tab) ? props.tab : "";
   const branchIo = useExchange({
     master: "branches",
@@ -620,7 +626,7 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
         sub={sub}
         actions={
           <>
-            {(tab === "branches" || tab === "certificates") && printing.buttons}
+            {(tab === "branches" || tab === "certificates" || tab === "years") && printing.buttons}
             {canEdit && !editing && (
               <button
                 onClick={() => {
@@ -676,6 +682,18 @@ export function CompanyPage(props: { id: number; session: SignedIn; tab?: string
             createBranch={canEdit ? creatable("branch", `companies/${c.id}/branches`, refresh) : undefined}
           />
         )}
+        {tab === "years" && (
+          <FiscalYears
+            years={years}
+            companyId={c.id}
+            canEdit={canEdit}
+            isOwner={session.user.is_owner}
+            reload={() => {
+              loadYears();
+              reload();
+            }}
+          />
+        )}
         {tab === "modules" && (
           <ModulesSection key={c.modules.join()} company={c} isOwner={session.user.is_owner} reload={reload} />
         )}
@@ -688,6 +706,7 @@ const TABS: [string, string][] = [
   ["", "Overview"],
   ["branches", "Branches"],
   ["certificates", "Licences and certificates"],
+  ["years", "Fiscal years"],
   ["modules", "Modules"],
 ];
 
