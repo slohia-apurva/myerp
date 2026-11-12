@@ -696,7 +696,10 @@ export const MANUAL: Chapter[] = [
           Item groups are one tree shared by every company in the group, built
           the same way as ledger groups. Each item sits in one group, which you
           pick in the "Item group" box on the item form (click the box and type
-          a few letters).
+          a few letters). Only a group with no sub-groups is offered there, so
+          an item always sits in the lowest group, such as "Whole spices" and
+          not "Spices". A group that already has items cannot be given a
+          sub-group until its items are moved to another group.
         </p>
         <h3>Add a group</h3>
         <ol>

@@ -463,6 +463,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const { groups: itemGroups, refresh: refreshGroups } = useItemGroups();
   const newGroup = creatable("item_group", "item-groups", refreshGroups);
   const groupNames = groupPaths(itemGroups);
+  const parents = new Set(itemGroups.map((g) => g.parent)); // groups with sub-groups are not offered
   const [group, setGroup] = useState(from?.item_group == null ? "" : String(from.item_group));
   const { brands, refresh: refreshBrands } = useBrands();
   const newBrand = creatable("brand", "brands", refreshBrands);
@@ -605,7 +606,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   empty="No group"
                   placeholder="Type to search groups…"
                   options={itemGroups
-                    .filter((g) => g.is_active || String(g.id) === group)
+                    .filter((g) => (g.is_active && !parents.has(g.id)) || String(g.id) === group)
                     .map((g) => ({ value: String(g.id), label: groupNames.get(g.id) ?? g.name }))}
                   onChange={setGroup}
                   create={newGroup}
