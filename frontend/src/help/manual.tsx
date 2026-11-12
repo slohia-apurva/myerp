@@ -495,7 +495,11 @@ export const MANUAL: Chapter[] = [
             date, and the item's details mark today's rate "In force".
           </li>
           <li>
-            On the "Stock and quality" tab, tick "Track batches" if you must
+            On the "Stock and quality" tab, choose the "Default material request
+            type": "Manufacture" if the item is made in-house, "Purchase" if it
+            is bought, or "Customer Provided" if the customer supplies it (it is
+            what a material request for the item starts as, and can be left
+            "Not set"). Tick "Track batches" if you must
             follow batch numbers, and tick "Quality check on receipt" if goods
             must be checked when they arrive.
           </li>
