@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api } from "./api";
+import { api, upload } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
@@ -59,6 +59,7 @@ export function CentralPage() {
           </tbody>
         </table>
       </Section>
+      <LoadLists />
       <Couriers />
       <CourierRequests />
       <Section title="Customers">
@@ -391,5 +392,94 @@ function CourierForm(props: {
         )}
       </div>
     </form>
+  );
+}
+
+type Loaded = Record<string, number>;
+
+/** Load the HSN list and a courier's PIN coverage from files. */
+function LoadLists() {
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [carrier, setCarrier] = useState("");
+  const [busy, setBusy] = useState("");
+  const [result, setResult] = useState<{ what: string; text: string } | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api<Courier[]>("v1/central/carriers/").then(setCouriers);
+  }, []);
+  const send = async (what: "hsn" | "pins", file: File | undefined) => {
+    if (!file) return;
+    setError("");
+    setResult(null);
+    if (what === "pins" && !carrier) {
+      setError("Pick the courier the PIN file is from.");
+      return;
+    }
+    setBusy(what);
+    const form = new FormData();
+    form.append("file", file);
+    if (what === "pins") form.append("carrier", carrier);
+    try {
+      const done = await upload<Loaded>(`v1/central/import/${what}/`, form);
+      setResult({
+        what,
+        text:
+          what === "hsn"
+            ? `${done.added} HSN codes added, ${done.updated} updated, ${done.unchanged} unchanged.`
+            : `${done.pins_added} PIN codes added, ${done.state_filled} given a state; the courier now covers ${done.coverage} (replaced ${done.replaced}).`,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <Section title="Load lists from a file">
+      <div className="grid">
+        <label>
+          HSN and SAC codes
+          <input
+            type="file"
+            accept=".csv,.tsv,.txt"
+            disabled={busy !== ""}
+            onChange={(e) => {
+              send("hsn", e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <span className="small">
+            A CSV or tab-separated file with the code in the first column and the description in the second. New codes are
+            added and descriptions of existing ones refreshed.
+          </span>
+        </label>
+        <label>
+          PIN codes and a courier's coverage
+          <Combobox
+            value={carrier}
+            empty="Pick the courier"
+            placeholder="Type to search couriers…"
+            options={couriers.filter((c) => c.is_active).map((c) => ({ value: String(c.id), label: c.name }))}
+            onChange={setCarrier}
+          />
+          <input
+            type="file"
+            accept=".csv"
+            disabled={busy !== ""}
+            onChange={(e) => {
+              send("pins", e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <span className="small">
+            The courier's serviceability CSV (Pin, Facility City, Facility State, ODA…). PIN codes we lack are added and that
+            courier's earlier coverage is replaced by the file's.
+          </span>
+        </label>
+      </div>
+      {busy && <p className="small">Loading… a large file can take a minute.</p>}
+      {result && <p className="note">{result.text}</p>}
+      {error && <p className="error">{error}</p>}
+    </Section>
   );
 }
