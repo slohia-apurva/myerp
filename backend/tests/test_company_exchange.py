@@ -9,6 +9,7 @@ from django.test import Client
 from openpyxl import load_workbook
 
 from accounts.models import Role, User
+from core.india import gstin_check_char
 from core.models import Branch, Certificate, LedgerGroup
 from shipping.models import CourierAccount
 from tenancy.context import use_tenant
@@ -17,6 +18,7 @@ from tests.test_exchange import book
 pytestmark = pytest.mark.django_db(databases="__all__")
 
 HOST = "alpha.localhost"
+TRANSPORTER_GSTIN = "07AAACD1234F1Z" + gstin_check_char("07AAACD1234F1Z")
 
 
 @pytest.fixture
@@ -122,13 +124,23 @@ def test_branches_and_certificates(owner, company, alpha):
 
 
 def test_courier_accounts_name_their_courier(owner, company, alpha):
-    head = ["ID", "Courier", "Name", "Service"]
-    rows = [head, [None, "Delhivery", "Delhivery B2C", "B2C"]]
+    head = ["ID", "Courier in MyERP's list", "Name", "GSTIN", "Service"]
+    rows = [head, [None, "Delhivery", "Delhivery B2C", TRANSPORTER_GSTIN, "B2C"]]
     out = send(owner, "courier-accounts", company, rows, commit=True)
     assert out["errors"] == [], out
     with use_tenant(alpha):
         assert CourierAccount.objects.get(company_id=company).name == "Delhivery B2C"
     assert export(owner, "courier-accounts", company)[1][1] == "Delhivery"
+    own = [head, [None, None, "Local Roadways", TRANSPORTER_GSTIN, "B2B"]]
+    assert send(owner, "courier-accounts", company, own, commit=True)["errors"] == []
+    missing = [head, [None, None, "No GST Roadways", None, "B2B"]]
+    out = send(owner, "courier-accounts", company, missing)
+    assert "GSTIN" in str(out["errors"])
 
-    bad = send(owner, "courier-accounts", company, [head, [None, "Pigeon Post", "X", "B2C"]])
+    bad = send(
+        owner,
+        "courier-accounts",
+        company,
+        [head, [None, "Pigeon Post", "X", TRANSPORTER_GSTIN, "B2C"]],
+    )
     assert "no courier 'Pigeon Post'" in bad["errors"][0]["messages"][0]

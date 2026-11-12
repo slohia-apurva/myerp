@@ -12,7 +12,7 @@ export function helpTopicFor(hash: string): string {
   if (sub === "ledgers") return "ledgers";
   if (sub === "groups") return "ledger-groups";
   if (sub === "shipments") return "shipments";
-  if (sub === "couriers") return "courier-accounts";
+  if (sub === "couriers") return "transporters";
   if (sub === "years") return "fiscal-years";
   if (sub === "warehouses") return "warehouses";
   if (sub === "numbering") return "numbering";

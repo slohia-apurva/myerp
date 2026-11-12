@@ -6,19 +6,21 @@ import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange, usePrintMenu } from "./Exchange";
 import { Combobox } from "./Combobox";
-import type { Company } from "./Companies";
+import { ContactFields, contactOf, type Company, type Contact } from "./Companies";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
-/** Couriers, courier accounts and shipments (spec 06, step 1). Statuses are
+/** Couriers, transporters and shipments (spec 06, step 1). Statuses are
  * typed by hand until each courier's tracking API is connected. */
 
 export type Carrier = { id: number; name: string; kind: string; kind_label: string; awb_hint: string; is_active: boolean };
 
-export type CourierAccount = {
+export type CourierAccount = Contact & {
   id: number;
-  carrier_id: number;
+  carrier_id: number | null;
   carrier_name: string;
   name: string;
+  gstin: string;
+  state_code: string;
   service: string;
   service_label: string;
   account_code: string;
@@ -171,9 +173,9 @@ function NoSales({ company }: { company: Company }) {
   );
 }
 
-// Courier accounts ------------------------------------------------------------
+// Transporters ------------------------------------------------------------
 
-/** Masters > Courier accounts: the company's accounts with each courier. */
+/** Masters > Transporters: the company's couriers, aggregators and road transporters. */
 export function CourierAccountsPage({ companyId, session }: { companyId: number; session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
   const company = useCompany(companyId);
@@ -196,7 +198,7 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
   }, [openId, accounts, opened]);
   const printing = useExchange({
     master: "courier-accounts",
-    noun: "courier accounts",
+    noun: "transporters",
     session,
     company: companyId,
     onImported: reload,
@@ -210,9 +212,9 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
   return (
     <section className="page">
       <PageHeader
-        title="Courier accounts"
+        title="Transporters"
         crumbs={[{ label: "Shipments", href: `#/companies/${companyId}/shipments` }]}
-        sub={`${company?.name ?? ""}: your accounts with each courier, such as a B2C and a B2B account with the same courier.`}
+        sub={`${company?.name ?? ""}: the couriers and transporters you send goods with, such as a B2C and a B2B account with the same courier.`}
         actions={
           <>
             {printing.buttons}
@@ -223,7 +225,7 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
                   setEditing("new");
                 }}
               >
-                Add courier account
+                Add transporter
               </button>
             )}
           </>
@@ -248,13 +250,14 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
           />
         )}
         {accounts.length === 0 ? (
-          <p className="small">No courier accounts yet. Add one for each account you hold, for example "Delhivery B2C".</p>
+          <p className="small">No transporters yet. Add one for each you ship with, for example "Delhivery B2C".</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Account</th>
-                <th>Courier</th>
+                <th>Transporter</th>
+                <th>GSTIN</th>
+                <th>Courier in MyERP's list</th>
                 <th>Service</th>
                 <th>Account code</th>
                 <ActionHeads />
@@ -267,6 +270,7 @@ export function CourierAccountsPage({ companyId, session }: { companyId: number;
                     {a.name}
                     {!a.is_active && <span className="pill">Disabled</span>}
                   </td>
+                  <td>{a.gstin || <span className="small">Missing: needed for e-way bills</span>}</td>
                   <td>{a.carrier_name}</td>
                   <td>{a.service_label}</td>
                   <td>{a.account_code}</td>
@@ -303,7 +307,9 @@ function AccountForm(props: {
 }) {
   const a = props.account;
   const from = a ?? props.copyOf;
-  const [carrierId, setCarrierId] = useState(from ? String(from.carrier_id) : "");
+  const [carrierId, setCarrierId] = useState(from?.carrier_id ? String(from.carrier_id) : "");
+  const [gstin, setGstin] = useState(props.copyOf ? "" : (a?.gstin ?? ""));
+  const [contact, setContact] = useState(contactOf(from));
   const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (a?.name ?? "")));
   const [service, setService] = useState(from?.service ?? "b2c");
   const [code, setCode] = useState(props.copyOf ? "" : (a?.account_code ?? ""));
@@ -313,7 +319,15 @@ function AccountForm(props: {
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    const body = { carrier_id: Number(carrierId), name, service, account_code: code, notes };
+    const body = {
+      carrier_id: carrierId ? Number(carrierId) : null,
+      name,
+      gstin,
+      service,
+      account_code: code,
+      notes,
+      ...contact,
+    };
     try {
       if (a) await api(`v1/courier-accounts/${a.id}/`, body, "PATCH");
       else announceCreated("courier_account", await api<{ id: number; name: string }>(`v1/companies/${props.companyId}/courier-accounts/`, body));
@@ -325,14 +339,29 @@ function AccountForm(props: {
 
   return (
     <form className="card" onSubmit={save}>
-      <h4>{a ? `${props.readOnly ? "View" : "Edit"} ${a.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add courier account"}</h4>
+      <h4>{a ? `${props.readOnly ? "View" : "Edit"} ${a.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add transporter"}</h4>
       <FormBody readOnly={props.readOnly}>
-        <Section title="Account">
+        <Section title="Transporter">
           <div className="row">
             <label>
-              Courier
-              <Combobox
+              Name
+              <input required value={name} placeholder="e.g. Delhivery B2B or Shree Roadlines" onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label>
+              GSTIN (the Transporter ID on an e-way bill)
+              <input
                 required
+                value={gstin}
+                maxLength={15}
+                placeholder="15 characters"
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+              />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              Courier in MyERP's list (leave empty if it is not there)
+              <Combobox
                 value={carrierId}
                 onChange={(v) => {
                   setCarrierId(v);
@@ -340,7 +369,7 @@ function AccountForm(props: {
                   if (c && !name) setName(c.name);
                   if (c?.kind === "aggregator") setService("aggregator");
                 }}
-                empty="Pick a courier"
+                empty="Not in the list"
                 options={props.carriers
                   .filter((c) => c.is_active || String(c.id) === carrierId)
                   .map((c) => ({ value: String(c.id), label: c.name, hint: c.kind_label }))}
@@ -351,20 +380,22 @@ function AccountForm(props: {
               <Combobox value={service} onChange={setService} options={SERVICES.map(([value, label]) => ({ value, label }))} />
             </label>
           </div>
+        </Section>
+        <Section title="Address and contact">
+          <ContactFields value={contact} onChange={setContact} />
+        </Section>
+        <Section title="Booking and tracking">
           <div className="row">
             <label>
-              Name
-              <input required value={name} placeholder="e.g. Delhivery B2B" onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label>
               Account or customer code
-              <input value={code} placeholder="The code the courier gave you" onChange={(e) => setCode(e.target.value)} />
+              <input value={code} placeholder="The code the transporter gave you" onChange={(e) => setCode(e.target.value)} />
             </label>
           </div>
           <label>
             Notes
             <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
+          <p className="small">API keys and passwords are never kept here; they are set up separately when a courier is connected.</p>
         </Section>
       </FormBody>
       <ErrorNote error={error} />
@@ -377,7 +408,7 @@ function AccountForm(props: {
           <ActiveButton
             url={`v1/courier-accounts/${a.id}/`}
             active={a.is_active}
-            what={`the courier account ${a.name}`}
+            what={`the transporter ${a.name}`}
             onDone={props.onDone}
             onError={setError}
           />
@@ -397,7 +428,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
   const canMasters = session.permissions.includes("masters.view");
   const company = useCompany(companyId);
   const { accounts, refresh: refreshAccounts } = useCourierAccounts(companyId);
-  // "Create …" a courier account from the shipment form, for those who may add masters.
+  // "Create …" a transporter from the shipment form, for those who may add masters.
   const newAccount = session.permissions.includes("masters.edit")
     ? creatable("courier_account", `companies/${companyId}/couriers`, refreshAccounts)
     : undefined;
@@ -432,7 +463,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
             {printing.buttons}
             {canMasters && (
               <a className="button secondary" href={`#/companies/${companyId}/couriers`}>
-                Courier accounts
+                Transporters
               </a>
             )}
             {canEnter && <button onClick={() => setOpen("new")}>Add shipment</button>}
@@ -486,7 +517,7 @@ export function ShipmentsPage({ companyId, session }: { companyId: number; sessi
         )}
         {accounts.length === 0 && canEnter && (
           <p className="small">
-            Add your courier accounts first (the "Courier accounts" button above), then add shipments against them.
+            Add your transporters first (the "Transporters" button above), then add shipments against them.
           </p>
         )}
         <div className="row">
@@ -631,7 +662,7 @@ function ShipmentForm(props: {
       <Section title="Courier">
         <div className="row">
           <label>
-            Courier account
+            Transporter
             <Combobox
               required
               value={account}
@@ -777,7 +808,7 @@ function ShipmentCard(props: {
   };
 
   const facts: [string, string][] = [
-    ["Courier", `${s.account_name} (${s.carrier_name})`],
+    ["Courier", s.carrier_name ? `${s.account_name} (${s.carrier_name})` : s.account_name],
     ["Booked on", day(s.booked_on)],
     ["Expected delivery", day(s.expected_on)],
     ["Customer", s.party_name],

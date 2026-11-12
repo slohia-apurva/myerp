@@ -13,14 +13,14 @@ import { useExchange, usePrintMenu } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
-type Contact = { address: string; pincode: string; city: string; phone: string; email: string; contact_person: string };
-const NO_CONTACT: Contact = { address: "", pincode: "", city: "", phone: "", email: "", contact_person: "" };
-const contactOf = (x: Contact | null | undefined): Contact =>
+export type Contact = { address: string; pincode: string; city: string; phone: string; email: string; contact_person: string };
+export const NO_CONTACT: Contact = { address: "", pincode: "", city: "", phone: "", email: "", contact_person: "" };
+export const contactOf = (x: Contact | null | undefined): Contact =>
   x
     ? { address: x.address, pincode: x.pincode, city: x.city, phone: x.phone, email: x.email, contact_person: x.contact_person }
     : NO_CONTACT;
 
-function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; addressLabel?: string }) {
+export function ContactFields(props: { value: Contact; onChange: (c: Contact) => void; addressLabel?: string }) {
   const v = props.value;
   const set = (field: keyof Contact) => (e: { target: { value: string } }) => props.onChange({ ...v, [field]: e.target.value });
   return (
