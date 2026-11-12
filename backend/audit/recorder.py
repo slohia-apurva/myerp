@@ -71,6 +71,7 @@ LABELS = {
     "batch_tracked": "Batches tracked",
     "qc_required": "Quality check on receipt",
     "item_type": "Type",
+    "maintain_stock": "Maintain stock",
     "allow_purchase": "Allow purchase",
     "allow_sales": "Allow sales",
     "whole_numbers": "Whole numbers only",

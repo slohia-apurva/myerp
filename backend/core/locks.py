@@ -17,6 +17,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
     "unit": {"gst_code": "GST unit code", "whole_numbers": "whole numbers only"},
     "item": {
         "item_type": "type",
+        "maintain_stock": "maintain stock",
         "stock_unit": "stock unit",
         "hsn": "HSN",
         "batch_tracked": "batch tracking",

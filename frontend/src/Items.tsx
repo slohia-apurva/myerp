@@ -53,6 +53,7 @@ export type Item = {
   shelf_life_days: number | null;
   batch_tracked: boolean;
   qc_required: boolean;
+  maintain_stock: boolean;
   allow_purchase: boolean;
   allow_sales: boolean;
   notes: string;
@@ -64,7 +65,7 @@ export type Item = {
 export type GstRate = { valid_from: string; rate: string };
 
 const TYPES: [string, string][] = [
-  ["goods", "Goods (stocked)"],
+  ["goods", "Goods"],
   ["service", "Service"],
 ];
 const USED_FOR: [string, string][] = [
@@ -273,7 +274,8 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
         <Facts
           rows={[
             ["Item number", i.item_number],
-            ["Maintain stock", i.item_type === "goods" ? "Yes" : "No"],
+            ["Goods or service", typeLabel(i.item_type)],
+            ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
             ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
             ["Allow sales", i.allow_sales ? "Yes" : "No"],
             ["Default unit (stock unit)", i.stock_unit_name],
@@ -455,7 +457,8 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const { units, refresh: refreshUnits } = useUnits();
   const newUnit = creatable("unit", "units", refreshUnits);
   const [name, setName] = useState(props.copyOf ? `${props.copyOf.name} (copy)` : (it?.name ?? ""));
-  const [stocked, setStocked] = useState((from?.item_type ?? "goods") === "goods"); // "Maintain stock"
+  const [type, setType] = useState(from?.item_type ?? "goods");
+  const [stocked, setStocked] = useState(from?.maintain_stock ?? true); // "Maintain stock", whatever the type
   const [disabled, setDisabled] = useState(it ? !it.is_active : false);
   const [allowPurchase, setAllowPurchase] = useState(from?.allow_purchase ?? true);
   const [allowSales, setAllowSales] = useState(from?.allow_sales ?? true);
@@ -516,7 +519,8 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
     setBusy(true);
     const body = {
       name,
-      item_type: stocked ? "goods" : "service",
+      item_type: type,
+      maintain_stock: stocked,
       allow_purchase: allowPurchase,
       allow_sales: allowSales,
       is_active: !disabled,
@@ -600,6 +604,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 <input required autoFocus value={name} onChange={(e) => changeName(e.target.value)} />
               </label>
               <label>
+                Goods or service
+                <Combobox value={type} onChange={setType} options={TYPES.map(([value, label]) => ({ value, label }))} />
+              </label>
+              <label>
                 Item group
                 <Combobox
                   value={group}
@@ -629,6 +637,19 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   create={newUnit}
                 />
               </label>
+                <label>
+                  Brand
+                  <Combobox
+                    value={brand}
+                    empty="No brand"
+                    placeholder="Type to search brands…"
+                    options={brands
+                      .filter((b) => b.is_active || String(b.id) === brand)
+                      .map((b) => ({ value: String(b.id), label: b.name }))}
+                    onChange={setBrand}
+                    create={newBrand}
+                  />
+                </label>
             </div>
             <div className="item-checks">
               <label className="check">
@@ -647,27 +668,14 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 <input type="checkbox" checked={stocked} onChange={(e) => setStocked(e.target.checked)} />
                 Maintain stock
               </label>
-              <p className="small">Leave "Maintain stock" unticked for a service, which has no stock.</p>
+              <p className="small">"Maintain stock" says whether stock of this item is kept, goods or service.</p>
             </div>
           </div>
         </Section>
         )}
         {tab === "general" && (
-        <Section title="Other details">
+        <Section title="Notes">
           <div className="row">
-            <label>
-              Brand
-              <Combobox
-                value={brand}
-                empty="No brand"
-                placeholder="Type to search brands…"
-                options={brands
-                  .filter((b) => b.is_active || String(b.id) === brand)
-                  .map((b) => ({ value: String(b.id), label: b.name }))}
-                onChange={setBrand}
-                create={newBrand}
-              />
-            </label>
             <label>
               Notes
               <input value={notes} onChange={(e) => setNotes(e.target.value)} />

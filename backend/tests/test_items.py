@@ -318,3 +318,12 @@ def test_item_ticks_allow_purchase_sales_and_stock(accountant, unit):
     assert listed[item["id"]]["allow_purchase"] is False
     entries = call(accountant, "get", f"audit/?type=item&id={item['id']}").json()["entries"]
     assert any("Allow purchase" in str(e) for e in entries)
+
+
+def test_maintain_stock_is_separate_from_goods_or_service(accountant, unit):
+    plain = make(accountant, unit).json()
+    assert plain["item_type"] == "goods" and plain["maintain_stock"] is True
+    service = make(accountant, unit, name="Freight", item_type="service", units=[]).json()
+    assert service["item_type"] == "service" and service["maintain_stock"] is True
+    goods = call(accountant, "patch", f"items/{plain['id']}/", {"maintain_stock": False}).json()
+    assert goods["item_type"] == "goods" and goods["maintain_stock"] is False
