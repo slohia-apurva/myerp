@@ -21,7 +21,6 @@ export type CourierAccount = Contact & {
   name: string;
   gstin: string;
   state_code: string;
-  pickup_location: string;
   service: string;
   service_label: string;
   account_code: string;
@@ -311,7 +310,6 @@ function AccountForm(props: {
   const [carrierId, setCarrierId] = useState(from?.carrier_id ? String(from.carrier_id) : "");
   const [gstin, setGstin] = useState(props.copyOf ? "" : (a?.gstin ?? ""));
   const [contact, setContact] = useState(contactOf(from));
-  const [pickup, setPickup] = useState(from?.pickup_location ?? "");
   const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (a?.name ?? "")));
   const [service, setService] = useState(from?.service ?? "b2c");
   const [code, setCode] = useState(props.copyOf ? "" : (a?.account_code ?? ""));
@@ -327,7 +325,6 @@ function AccountForm(props: {
       gstin,
       service,
       account_code: code,
-      pickup_location: pickup,
       notes,
       ...contact,
     };
@@ -392,14 +389,6 @@ function AccountForm(props: {
             <label>
               Account or customer code
               <input value={code} placeholder="The code the transporter gave you" onChange={(e) => setCode(e.target.value)} />
-            </label>
-            <label>
-              Pickup location name
-              <input
-                value={pickup}
-                placeholder="The pickup or warehouse name registered with them"
-                onChange={(e) => setPickup(e.target.value)}
-              />
             </label>
           </div>
           <label>

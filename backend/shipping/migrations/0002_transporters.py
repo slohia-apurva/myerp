@@ -50,11 +50,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name="courieraccount",
-            name="pickup_location",
-            field=models.CharField(blank=True, max_length=60),
-        ),
-        migrations.AddField(
-            model_name="courieraccount",
             name="pincode",
             field=models.CharField(blank=True, max_length=6),
         ),

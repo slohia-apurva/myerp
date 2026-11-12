@@ -1031,15 +1031,12 @@ export const MANUAL: Chapter[] = [
             ["Service", '"B2C (parcel / express)", "B2B (freight)" or "Aggregator" (Shiprocket).'],
             ["Address and contact", "Address, PIN code, city, phone, email and the contact person."],
             ["Account or customer code", "The code the transporter gave you, to find the account on their bills."],
-            [
-              "Pickup location name",
-              "The pickup or warehouse name registered with the courier, which booking through their system will need.",
-            ],
             ["Notes", "Anything worth knowing."],
           ]}
         />
         <p>
-          API keys and passwords are not kept on this form; they are set up separately when a courier is connected.
+          The pickup address and other details a booking needs come from the sales invoice, not from this form. API keys
+          and passwords are not kept here either; they are set up separately when a courier is connected.
           Once a shipment has been entered against a transporter, its "Courier in MyERP's list" and "Service" cannot be
           changed. The name, GSTIN and notes can still be corrected. Transporters are never deleted: click "Edit" and then
           "Disable" to stop offering one ("Enable" brings it back).

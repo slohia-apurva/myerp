@@ -97,7 +97,6 @@ class CourierAccountSerializer(serializers.ModelSerializer):
             *CONTACT_FIELDS,
             "service",
             "account_code",
-            "pickup_location",
             "notes",
             "is_active",
         ]
@@ -184,7 +183,6 @@ exchange.register(
             "carrier_id": "Courier in MyERP's list",
             "account_code": "Account code",
             "gstin": "GSTIN",
-            "pickup_location": "Pickup location",
         },
         hints={
             "gstin": "Required: it is the Transporter ID on an e-way bill",

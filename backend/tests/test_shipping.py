@@ -154,13 +154,11 @@ def test_a_transporter_may_be_one_that_is_not_in_the_courier_list(owner, store, 
             "pincode": "110001",
             "city": "Delhi",
             "contact_person": "Mr Shah",
-            "pickup_location": "Bhiwandi",
         },
     )
     assert made.status_code == 201, made.json()
     account = made.json()
     assert account["carrier_id"] is None and account["carrier_name"] == ""
-    assert account["pickup_location"] == "Bhiwandi"
     assert (
         call(
             owner,

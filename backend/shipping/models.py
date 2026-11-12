@@ -71,8 +71,6 @@ class CourierAccount(models.Model):
     phone = models.CharField(max_length=20, blank=True, validators=[india.validate_phone])
     email = models.EmailField(blank=True)
     contact_person = models.CharField(max_length=100, blank=True)
-    # The pickup or warehouse name registered with the carrier, for booking APIs.
-    pickup_location = models.CharField(max_length=60, blank=True)
     service = models.CharField(max_length=12, choices=SERVICES, default=B2C)
     account_code = models.CharField(max_length=40, blank=True)
     notes = models.TextField(blank=True)
