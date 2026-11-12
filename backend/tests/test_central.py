@@ -116,3 +116,46 @@ def test_only_platform_admins_manage_couriers(alpha, settings):
         HTTP_HOST=HOST,
     )
     assert r.status_code == 403
+
+
+def test_a_transporter_not_in_the_list_asks_the_central_team(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    boss = _client(alpha, "boss@x.in")
+    owner = _client(alpha, "owner@x.in", owner=True)
+    from core.models import Company
+
+    with use_tenant(alpha):
+        company = Company.objects.create(name="Co", abbr="CO")
+    body = {
+        "name": "Shree Roadlines",
+        "gstin": "27AAACR5055K1Z7",
+        "note_for_central": "Used for Pune loads",
+    }
+    r = owner.post(
+        f"/api/v1/companies/{company.pk}/courier-accounts/",
+        body,
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert r.status_code == 201, r.json()
+    rows = boss.get("/api/v1/central/carrier-requests/", HTTP_HOST=HOST).json()
+    assert [(x["name"], x["note"], x["status"]) for x in rows] == [
+        ("Shree Roadlines", "Used for Pune loads", "open")
+    ]
+    # Saving again does not pile up a second request.
+    owner.patch(
+        f"/api/v1/courier-accounts/{r.json()['id']}/",
+        {"note_for_central": "Pune and Nashik"},
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    rows = boss.get("/api/v1/central/carrier-requests/", HTTP_HOST=HOST).json()
+    assert len(rows) == 1 and rows[0]["note"] == "Pune and Nashik"
+    assert owner.get("/api/v1/central/carrier-requests/", HTTP_HOST=HOST).status_code == 403
+    done = boss.patch(
+        f"/api/v1/central/carrier-requests/{rows[0]['id']}/",
+        {"status": "added"},
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert done.status_code == 200 and done.json()["status"] == "added"

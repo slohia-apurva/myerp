@@ -7,7 +7,13 @@ import { usePrintMenu } from "./Exchange";
 import { ActiveButton } from "./RowActions";
 
 type Info = {
-  tables: { key: string; label: string; about: string; count: number; open: string }[];
+  tables: {
+    key: string;
+    label: string;
+    about: string;
+    count: number;
+    open: string;
+  }[];
   tenants: { slug: string; name: string; status: string; created: string }[];
 };
 
@@ -17,7 +23,9 @@ export function CentralPage() {
   const [error, setError] = useState("");
   const printing = usePrintMenu({ title: "Central tables" });
   useEffect(() => {
-    api<Info>("v1/central/").then(setInfo, (e) => setError(String(e.message ?? e)));
+    api<Info>("v1/central/").then(setInfo, (e) =>
+      setError(String(e.message ?? e)),
+    );
   }, []);
   if (error) return <p className="error">{error}</p>;
   if (!info) return <p>Loading…</p>;
@@ -52,6 +60,7 @@ export function CentralPage() {
         </table>
       </Section>
       <Couriers />
+      <CourierRequests />
       <Section title="Customers">
         <table>
           <thead>
@@ -99,7 +108,10 @@ const KINDS: [string, string][] = [
 function Couriers() {
   const [rows, setRows] = useState<Courier[]>([]);
   const [editing, setEditing] = useState<Courier | "new" | null>(null);
-  const load = useCallback(() => api<Courier[]>("v1/central/carriers/").then(setRows), []);
+  const load = useCallback(
+    () => api<Courier[]>("v1/central/carriers/").then(setRows),
+    [],
+  );
   useEffect(() => {
     load();
   }, [load]);
@@ -111,11 +123,16 @@ function Couriers() {
     <Section title="Couriers">
       <div className="page-head">
         <p className="small">
-          Every customer picks from this list when adding a transporter. Add a courier here once MyERP can look it up:
-          its tracking page, tracking number format and, later, its API.
+          Every customer picks from this list when adding a transporter. Add a
+          courier here once MyERP can look it up: its tracking page, tracking
+          number format and, later, its API.
         </p>
         {!editing && (
-          <button type="button" className="secondary" onClick={() => setEditing("new")}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setEditing("new")}
+          >
             Add courier
           </button>
         )}
@@ -147,9 +164,17 @@ function Couriers() {
               </td>
               <td>{KINDS.find(([k]) => k === c.kind)?.[1]}</td>
               <td>{c.awb_hint}</td>
-              <td>{c.tracking_url && <span className="small">{c.tracking_url}</span>}</td>
+              <td>
+                {c.tracking_url && (
+                  <span className="small">{c.tracking_url}</span>
+                )}
+              </td>
               <td className="row-actions">
-                <button type="button" className="link" onClick={() => setEditing(c)}>
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => setEditing(c)}
+                >
                   Edit
                 </button>
               </td>
@@ -161,7 +186,119 @@ function Couriers() {
   );
 }
 
-function CourierForm(props: { courier: Courier | null; onDone: () => void; onCancel: () => void }) {
+type CourierRequest = {
+  id: number;
+  customer: string;
+  name: string;
+  gstin: string;
+  note: string;
+  requested_by: string;
+  status: string;
+  created_at: string;
+};
+
+/** Transporters that customers saved with "Not in the list", for the team to add as couriers. */
+function CourierRequests() {
+  const [rows, setRows] = useState<CourierRequest[]>([]);
+  const [error, setError] = useState<unknown>("");
+  const load = useCallback(
+    () => api<CourierRequest[]>("v1/central/carrier-requests/").then(setRows),
+    [],
+  );
+  useEffect(() => {
+    load();
+  }, [load]);
+  const set = async (r: CourierRequest, status: string) => {
+    setError("");
+    try {
+      await api(`v1/central/carrier-requests/${r.id}/`, { status }, "PATCH");
+      load();
+    } catch (err) {
+      setError(err);
+    }
+  };
+  const label: Record<string, string> = {
+    open: "Open",
+    added: "Added to the list",
+    declined: "Not needed",
+  };
+  return (
+    <Section title="Courier requests">
+      <p className="small">
+        Transporters that customers saved with "Not in the list". Add the
+        courier above if MyERP can look it up, then mark the request as added.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Transporter</th>
+            <th>GSTIN</th>
+            <th>Customer</th>
+            <th>Note</th>
+            <th>Status</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className={r.status === "open" ? "" : "off"}>
+              <td>{r.name}</td>
+              <td>{r.gstin}</td>
+              <td>
+                {r.customer}
+                <div className="small">{r.requested_by}</div>
+              </td>
+              <td>{r.note}</td>
+              <td>{label[r.status] ?? r.status}</td>
+              <td className="row-actions">
+                {r.status === "open" ? (
+                  <>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => set(r, "added")}
+                    >
+                      Mark as added
+                    </button>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => set(r, "declined")}
+                    >
+                      Not needed
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => set(r, "open")}
+                  >
+                    Reopen
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={6} className="small">
+                No requests.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <ErrorNote error={error} />
+    </Section>
+  );
+}
+
+function CourierForm(props: {
+  courier: Courier | null;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const c = props.courier;
   const [name, setName] = useState(c?.name ?? "");
   const [kind, setKind] = useState(c?.kind ?? "courier");
@@ -172,7 +309,13 @@ function CourierForm(props: { courier: Courier | null; onDone: () => void; onCan
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    const body = { name, kind, awb_hint: hint, awb_pattern: pattern, tracking_url: url };
+    const body = {
+      name,
+      kind,
+      awb_hint: hint,
+      awb_pattern: pattern,
+      tracking_url: url,
+    };
     try {
       if (c) await api(`v1/central/carriers/${c.id}/`, body, "PATCH");
       else await api("v1/central/carriers/", body);
@@ -188,26 +331,47 @@ function CourierForm(props: { courier: Courier | null; onDone: () => void; onCan
         <div className="row">
           <label>
             Name
-            <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            <input
+              required
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </label>
           <label>
             Kind
-            <Combobox value={kind} onChange={setKind} options={KINDS.map(([value, label]) => ({ value, label }))} />
+            <Combobox
+              value={kind}
+              onChange={setKind}
+              options={KINDS.map(([value, label]) => ({ value, label }))}
+            />
           </label>
         </div>
         <div className="row">
           <label>
             Tracking number looks like (words, for people)
-            <input value={hint} placeholder="e.g. 11 digits" onChange={(e) => setHint(e.target.value)} />
+            <input
+              value={hint}
+              placeholder="e.g. 11 digits"
+              onChange={(e) => setHint(e.target.value)}
+            />
           </label>
           <label>
             Tracking number pattern (optional, a regular expression)
-            <input value={pattern} placeholder="e.g. \d{11}" onChange={(e) => setPattern(e.target.value)} />
+            <input
+              value={pattern}
+              placeholder="e.g. \d{11}"
+              onChange={(e) => setPattern(e.target.value)}
+            />
           </label>
         </div>
         <label>
           Tracking page (with {"{awb}"} where the number goes)
-          <input value={url} placeholder="https://courier.example/track?awb={awb}" onChange={(e) => setUrl(e.target.value)} />
+          <input
+            value={url}
+            placeholder="https://courier.example/track?awb={awb}"
+            onChange={(e) => setUrl(e.target.value)}
+          />
         </label>
       </Section>
       <ErrorNote error={error} />

@@ -162,3 +162,35 @@ class Carrier(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class CarrierRequest(models.Model):
+    """A customer's transporter that is not in the central list of couriers.
+    Saving such a transporter leaves a request here, with an optional note, so
+    the MyERP team can add the courier to the central list (Central screen)."""
+
+    OPEN, ADDED, DECLINED = "open", "added", "declined"
+    STATUSES = [(OPEN, "Open"), (ADDED, "Added to the list"), (DECLINED, "Not needed")]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="carrier_requests")
+    name = models.CharField(max_length=200)
+    gstin = models.CharField(max_length=15, blank=True)
+    note = models.TextField(blank=True)
+    requested_by = models.CharField(max_length=254, blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=OPEN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["status", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                "tenant",
+                condition=models.Q(status="open"),
+                name="one_open_carrier_request_per_name",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name

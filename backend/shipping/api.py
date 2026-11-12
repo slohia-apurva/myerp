@@ -33,8 +33,8 @@ from shipping.models import (
     check_awb,
     clean_awb,
 )
-from tenancy.context import tenant_atomic
-from tenancy.models import Carrier
+from tenancy.context import require_tenant, tenant_atomic
+from tenancy.models import Carrier, CarrierRequest
 
 SEE = ("sales.view", "stock.view")
 ENTER = ("sales.create", "stock.create")
@@ -85,6 +85,8 @@ class CarrierListView(APIView):
 class CourierAccountSerializer(serializers.ModelSerializer):
     carrier_id = serializers.IntegerField(allow_null=True, required=False)
     gstin = serializers.CharField(max_length=15, allow_blank=True, required=False)
+    # For a transporter that is not in the courier list: a word for the MyERP team.
+    note_for_central = serializers.CharField(write_only=True, allow_blank=True, required=False)
 
     class Meta:
         model = CourierAccount
@@ -98,6 +100,7 @@ class CourierAccountSerializer(serializers.ModelSerializer):
             "service",
             "account_code",
             "notes",
+            "note_for_central",
             "is_active",
         ]
         read_only_fields = ["state_code"]
@@ -112,7 +115,26 @@ def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
     return data
 
 
-def _save_account(account: CourierAccount, data: dict) -> None:
+def _ask_central(account: CourierAccount, note: str, user) -> None:
+    """A transporter without a listed courier leaves (or updates) an open
+    request for the MyERP team to add it to the central list."""
+    tenant = require_tenant()
+    req = (
+        CarrierRequest.objects.filter(tenant=tenant, status=CarrierRequest.OPEN)
+        .filter(name__iexact=account.name)
+        .first()
+    )
+    if req is None:
+        req = CarrierRequest(tenant=tenant, name=account.name)
+    req.gstin = account.gstin
+    if note:
+        req.note = note
+    req.requested_by = user.email
+    req.save()
+
+
+def _save_account(account: CourierAccount, data: dict, user=None) -> None:
+    note = data.pop("note_for_central", "").strip()
     if data.get("carrier_id") is not None:
         carrier = Carrier.objects.filter(pk=data["carrier_id"]).first()
         if carrier is None or (not carrier.is_active and carrier.pk != account.carrier_id):
@@ -144,6 +166,8 @@ def _save_account(account: CourierAccount, data: dict) -> None:
     except DjangoValidationError as exc:
         raise ValidationError(exc.message_dict) from exc
     account.save()
+    if user is not None and account.carrier_id is None and (note or "carrier_id" in data):
+        _ask_central(account, note, user)
 
 
 def _carrier_name(pk) -> str:
@@ -219,7 +243,7 @@ class CourierAccountListView(APIView):
         serializer = CourierAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         account = CourierAccount(company=company)
-        _save_account(account, dict(serializer.validated_data))
+        _save_account(account, dict(serializer.validated_data), request.user)
         return Response(_account_out(account, _carriers()), status=status.HTTP_201_CREATED)
 
 
@@ -240,7 +264,7 @@ class CourierAccountDetailView(APIView):
             raise NotFound("No such transporter.")
         serializer = CourierAccountSerializer(account, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        _save_account(account, dict(serializer.validated_data))
+        _save_account(account, dict(serializer.validated_data), request.user)
         return Response(_account_out(account, _carriers()))
 
 

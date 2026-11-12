@@ -42,6 +42,16 @@ urlpatterns = [
         central.CarrierAdminDetailView.as_view(),
         name="central-carrier",
     ),
+    path(
+        "central/carrier-requests/",
+        central.CarrierRequestListView.as_view(),
+        name="central-carrier-requests",
+    ),
+    path(
+        "central/carrier-requests/<int:pk>/",
+        central.CarrierRequestDetailView.as_view(),
+        name="central-carrier-request",
+    ),
     path("countries/", places.CountryListView.as_view(), name="countries"),
     path("pin/<str:pin>/", places.PinView.as_view(), name="pin"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
