@@ -453,6 +453,11 @@ export const MANUAL: Chapter[] = [
           change log, "Activity", below. Type in the search box to find an item
           by name, number, HSN or barcode.
         </p>
+        <p>
+          While you add or change an item the list on the left is hidden so the
+          form has the whole width; only the search box stays at the top. Click
+          "Save" or "Cancel" to bring the list back.
+        </p>
         <h3>Add an item</h3>
         <ol>
           <li>

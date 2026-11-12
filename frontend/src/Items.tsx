@@ -164,7 +164,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
       />
       {error && <p className="error">{error}</p>}
       {io.panel}
-      <div className={`split${editing ? " editing" : ""}`}>
+      <div className={`split${editing ? " editing item-edit" : ""}`}>
         <div className="split-list">
           <div className="row filters">
             <input
