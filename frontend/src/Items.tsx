@@ -8,9 +8,10 @@ import { Combobox } from "./Combobox";
 import { HsnDescription, HsnPicker } from "./Hsn";
 import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
+import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
-import { useUnits, type Unit } from "./Units";
+import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -164,6 +165,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
 
 function ItemList({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
+  const { units } = useUnits();
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -266,7 +268,7 @@ function ItemList({ session }: { session: SignedIn }) {
                     {!i.is_active && <span className="small"> · inactive</span>}
                     <div className="small">{i.item_number}</div>
                   </td>
-                  <td>{i.stock_unit_name}</td>
+                  <td>{labelFor(units, i.stock_unit, i.stock_unit_name)}</td>
                 </tr>
               ))}
             </tbody>
@@ -277,6 +279,7 @@ function ItemList({ session }: { session: SignedIn }) {
           {selected ? (
             <ItemPanel
               item={selected}
+              units={units}
               canEdit={canEdit}
               onEdit={() => openItemForm(String(selected.id))}
               onDuplicate={() => openItemForm(`copy-${selected.id}`)}
@@ -307,8 +310,9 @@ function Facts({ rows }: { rows: [string, string][] }) {
   );
 }
 
-function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; onDuplicate: () => void }) {
-  const { item: i, canEdit } = props;
+function ItemPanel(props: { item: Item; units: Unit[]; canEdit: boolean; onEdit: () => void; onDuplicate: () => void }) {
+  const { item: i, canEdit, units } = props;
+  const unit = (id: number | null, name: string | null) => labelFor(units, id, name);
   return (
     <div className="card panel">
       <div className="panel-head">
@@ -336,7 +340,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
             ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
             ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
             ["Allow sales", i.allow_sales ? "Yes" : "No"],
-            ["Default unit (stock unit)", i.stock_unit_name],
+            ["Default unit (stock unit)", unit(i.stock_unit, i.stock_unit_name)],
             ["Item group", i.item_group_name ?? ""],
             ["Brand", i.brand_name ?? ""],
             ["HSN", i.hsn],
@@ -348,14 +352,14 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
         <Section title="Sales">
           <Facts
             rows={[
-              ["Default sales unit", i.sales_unit_name ?? ""],
+              ["Default sales unit", unit(i.sales_unit, i.sales_unit_name)],
               ["MRP", i.mrp === null ? "" : `₹ ${plain(i.mrp)}`],
               ["USP", i.usp],
               ["Best before", i.best_before_value === null ? "" : `${i.best_before_value} ${i.best_before_unit}`],
               ["Batch No", i.batch_no],
             ]}
           />
-          {i.sales_description && <p className="pre">{i.sales_description}</p>}
+          {i.sales_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.sales_description }} />}
         </Section>
       )}
       {(i.purchase_description ||
@@ -367,14 +371,14 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
         <Section title="Purchase">
           <Facts
             rows={[
-              ["Default purchase unit", i.purchase_unit_name ?? ""],
+              ["Default purchase unit", unit(i.purchase_unit, i.purchase_unit_name)],
               ["Lead time", i.lead_time_days === null ? "" : `${i.lead_time_days} days`],
               ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
               ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
               ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
             ]}
           />
-          {i.purchase_description && <p className="pre">{i.purchase_description}</p>}
+          {i.purchase_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.purchase_description }} />}
         </Section>
       )}
       {i.gst_rates.length > 0 && (
@@ -423,12 +427,14 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
               return (
                 <li key={u.unit} className="address-card">
                   <div>
-                    <strong>{u.unit_name}</strong>
+                    <strong>{unit(u.unit, u.unit_name)}</strong>
                   </div>
                   <div>
                     {u.contains_unit_name
-                      ? `${plain(u.contains_qty)} ${u.contains_unit_name}${
-                          u.contains_unit_name === i.stock_unit_name ? "" : ` = ${plain(u.factor)} ${i.stock_unit_name}`
+                      ? `${plain(u.contains_qty)} ${unit(u.contains_unit, u.contains_unit_name)}${
+                          u.contains_unit_name === i.stock_unit_name
+                            ? ""
+                            : ` = ${plain(u.factor)} ${unit(i.stock_unit, i.stock_unit_name)}`
                         }`
                       : "Stock unit"}
                   </div>
@@ -580,7 +586,7 @@ function ItemForm(props: {
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
     units.filter((u) => (u.is_active || String(u.id) === current) && (!used.has(String(u.id)) || String(u.id) === current));
-  const unitName = (id: string) => units.find((u) => String(u.id) === id)?.name ?? "";
+  const unitName = (id: string) => labelFor(units, id);
   const fac = factors(stock, rows);
   const stockName = unitName(stock);
   const listed = [stock, ...rows.map((r) => r.unit)].filter((id, k, all) => id && all.indexOf(id) === k);
@@ -769,7 +775,7 @@ function ItemForm(props: {
                   placeholder="Type to search units…"
                   options={units
                     .filter((u: Unit) => u.is_active || String(u.id) === stock)
-                    .map((u) => ({ value: String(u.id), label: u.name }))}
+                    .map((u) => ({ value: String(u.id), label: unitLabel(u) }))}
                   onChange={setStock}
                   create={newUnit}
                 />
@@ -812,23 +818,22 @@ function ItemForm(props: {
         </Section>
         )}
         {tab === "general" && (
-        <Section title="Notes">
-          <div className="row">
-            <label>
-              Notes
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
-          </div>
+        <Section>
+          <label>
+            Notes
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
         </Section>
         )}
         {tab === "sales" && (
-          <Section title="Sales">
-            <label>
-              Sales description
-              <textarea rows={3} maxLength={500} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
-            </label>
-            <p className="small">The wording customers see for this item on quotations, orders and sales bills.</p>
-            <div className="row">
+          <Section>
+            <div className="item-fields">
+              <RichText
+                label="Sales description"
+                value={salesText}
+                onChange={setSalesText}
+                hint="The wording customers see for this item on quotations, orders and sales bills."
+              />
               <label>
                 Default sales unit
                 <Combobox value={salesUnit} onChange={setSalesUnit} empty="Same as the stock unit" options={unitChoices} />
@@ -837,12 +842,14 @@ function ItemForm(props: {
                 MRP (₹)
                 <input className="num" inputMode="decimal" value={mrp} onChange={(e) => setMrp(e.target.value)} />
               </label>
-            </div>
-            <label>
-              USP
-              <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
-            </label>
-            <div className="row">
+              <label>
+                USP
+                <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
+              </label>
+              <label>
+                Batch No
+                <input maxLength={60} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
+              </label>
               <label>
                 Best before (counted from the manufacturing date)
                 <input className="num" inputMode="numeric" value={bestBefore} onChange={(e) => setBestBefore(e.target.value)} />
@@ -858,21 +865,18 @@ function ItemForm(props: {
                   ]}
                 />
               </label>
-              <label>
-                Batch No
-                <input maxLength={60} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
-              </label>
             </div>
           </Section>
         )}
         {tab === "purchase" && (
-          <Section title="Purchase">
-            <label>
-              Purchase description
-              <textarea rows={3} maxLength={500} value={buyText} onChange={(e) => setBuyText(e.target.value)} />
-            </label>
-            <p className="small">The wording suppliers see for this item on purchase orders.</p>
-            <div className="row">
+          <Section>
+            <div className="item-fields">
+              <RichText
+                label="Purchase description"
+                value={buyText}
+                onChange={setBuyText}
+                hint="The wording suppliers see for this item on purchase orders."
+              />
               <label>
                 Default purchase unit
                 <Combobox value={buyUnit} onChange={setBuyUnit} empty="Same as the stock unit" options={unitChoices} />
@@ -881,8 +885,6 @@ function ItemForm(props: {
                 Lead time in days
                 <input className="num" inputMode="numeric" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
               </label>
-            </div>
-            <div className="row">
               <label>
                 Safety stock qty
                 <input className="num" inputMode="decimal" value={safety} onChange={(e) => setSafety(e.target.value)} />
@@ -895,12 +897,12 @@ function ItemForm(props: {
                 Max stock qty
                 <input className="num" inputMode="decimal" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
               </label>
+              <p className="small wide">The quantities are in the item's default unit.</p>
             </div>
-            <p className="small">The quantities are in the item's default unit.</p>
           </Section>
         )}
         {tab === "gst" && (
-          <Section title="GST rates">
+          <Section>
             <p className="small">
               When the law changes, click "Add rate" and give the new rate and the date it starts. Keep the old rows: bills
               take the rate in force on the bill date.
@@ -909,8 +911,8 @@ function ItemForm(props: {
               <table className="grid">
                 <thead>
                   <tr>
-                    <th>From</th>
-                    <th className="num">GST rate (%)</th>
+                    <th><span className="req">From</span></th>
+                    <th className="num"><span className="req">GST rate (%)</span></th>
                     <th />
                   </tr>
                 </thead>
@@ -941,26 +943,32 @@ function ItemForm(props: {
           </Section>
         )}
         {tab === "stock" && (
-        <Section title="Stock and quality">
-          <div className="row">
-            <label>
-              Default material request type
-              <Combobox
-                value={requestType}
-                onChange={setRequestType}
-                empty="Not set"
-                options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
-              />
-            </label>
+        <Section>
+          <div className="item-general">
+            <div className="item-fields">
+              <label>
+                Default material request type
+                <Combobox
+                  value={requestType}
+                  onChange={setRequestType}
+                  empty="Not set"
+                  options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
+                />
+              </label>
+            </div>
+            <fieldset className="item-checks">
+              <legend>Switches</legend>
+              <label className="check">
+                <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
+                Track batches
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={qc} onChange={(e) => setQc(e.target.checked)} />
+                Quality check on receipt
+              </label>
+              <p className="small">"Track batches" asks for the batch number and expiry on every receipt and issue.</p>
+            </fieldset>
           </div>
-          <label className="check">
-            <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
-            Track batches (batch number and expiry on every receipt and issue)
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={qc} onChange={(e) => setQc(e.target.checked)} />
-            Quality check on receipt
-          </label>
         </Section>
         )}
         {tab === "connections" && (
@@ -972,7 +980,7 @@ function ItemForm(props: {
           </Section>
         )}
         {tab === "units" && (
-        <Section title="Units of measure">
+        <Section>
           <p className="small">
             The stock unit is added for you. For every other unit say how many of which unit it contains; "= {stockName || "stock unit"}" is
             worked out from that.
@@ -984,12 +992,12 @@ function ItemForm(props: {
                 <li key={i} className="address-card">
                   <div className="row">
                     <label>
-                      Unit
+                      <span className="req">Unit</span>
                       <Combobox
                         required
                         value={r.unit}
                         placeholder="Type to search units…"
-                        options={offered(r.unit).map((u) => ({ value: String(u.id), label: u.name }))}
+                        options={offered(r.unit).map((u) => ({ value: String(u.id), label: unitLabel(u) }))}
                         create={newUnit}
                         onChange={(v) => {
                           const picked = units.find((u) => String(u.id) === v);
@@ -999,13 +1007,13 @@ function ItemForm(props: {
                     </label>
                     {!isStock && (
                       <label>
-                        Contains how many
+                        <span className="req">Contains how many</span>
                         <input required inputMode="decimal" value={r.contains_qty} onChange={(e) => setRow(i, { contains_qty: e.target.value })} />
                       </label>
                     )}
                     {!isStock && (
                       <label>
-                        Of
+                        <span className="req">Of</span>
                         <Combobox
                           required
                           value={r.contains_unit}

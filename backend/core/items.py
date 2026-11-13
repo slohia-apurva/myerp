@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import duplicates, exchange
+from core import duplicates, exchange, richtext
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import USED_FOR, Brand, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
@@ -358,7 +358,10 @@ def _save_item(item: Item, data: dict) -> Item:
         ]
         _resolve_chain(item.stock_unit, existing)
     for field in ("sales_description", "purchase_description"):
-        setattr(item, field, getattr(item, field).strip())
+        cleaned = richtext.clean(getattr(item, field))
+        if len(cleaned) > richtext.MAX_LENGTH:
+            raise ValidationError({field: ["That description is too long; shorten it."]})
+        setattr(item, field, cleaned)
     item.usp = " ".join(item.usp.split())
     item.batch_no = item.batch_no.strip()
     if (
@@ -459,6 +462,14 @@ exchange.register(
         queryset=lambda ctx: _queryset().order_by("name"),
         save=lambda ctx, item, data: _save_item(item or Item(), data),
         show=("item_number",),
+        codecs={
+            field: exchange.Codec(
+                richtext.to_text,
+                richtext.from_text,
+                hint="Plain text here; formatting is added on the item screen",
+            )
+            for field in ("sales_description", "purchase_description")
+        },
         labels={
             "stock_unit": "Default unit (stock unit)",
             "mrp": "MRP (₹)",
