@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 
 from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
-from core.locks import refuse_key_changes
+from core.locks import lock_status, refuse_key_changes
 from core.models import Unit
 from tenancy.context import tenant_atomic
 
@@ -60,9 +60,14 @@ def seed_units(Unit) -> None:
 
 
 class UnitSerializer(serializers.ModelSerializer):
+    lock = serializers.SerializerMethodField()
+
+    def get_lock(self, unit) -> dict:
+        return lock_status("unit", unit)
+
     class Meta:
         model = Unit
-        fields = ["id", "name", "short_name", "gst_code", "whole_numbers", "is_active"]
+        fields = ["id", "name", "short_name", "gst_code", "whole_numbers", "is_active", "lock"]
 
 
 def _save_unit(unit: Unit, data: dict) -> Unit:

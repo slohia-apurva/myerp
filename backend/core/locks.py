@@ -23,9 +23,10 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
         "delivery_hsn": "delivery HSN",
         "batch_tracked": "batch tracking",
         "units": "units of measure",
+        # item_group is not here: once in use it may move, but only within its top-level group.
     },
-    "credit_term": {"parts": "parts"},
-    "item_group": {"parent": "the group it sits under"},
+    "credit_term": {},  # the parts stay editable (Sidharth, 2026-11-13)
+    "item_group": {},  # the parent may move, but only within the same top-level group
     "fiscal_year": {"start_date": "start date", "end_date": "end date"},
     "warehouse_location": {"kind": "kind", "parent": "the rack it stands on"},
     "number_format": {"prefix": "prefix", "width": "number of digits"},
@@ -90,6 +91,41 @@ def refuse_key_changes(kind: str, record, changes: dict) -> None:
             for f in changed
         }
     )
+
+
+def lock_status(kind: str, record) -> dict:
+    """What the screens need to grey fields out: why the record is in use
+    (`in_use`, a list of short reasons) and which key fields are then locked
+    (`locked`, field names). Both are empty for a free record."""
+    why = uses(kind, record)
+    return {"in_use": why, "locked": list(KEY_FIELDS[kind]) if why else []}
+
+
+def root_group(group):
+    """The top-level group of an item group or ledger group (itself if it has no parent)."""
+    while group.parent_id is not None:
+        group = group.parent
+    return group
+
+
+def refuse_move_outside_top(kind: str, record, field: str, old_group, new_group, label: str):
+    """A record in use may move to another group only under the same top-level
+    group (Sidharth, 2026-11-13). `old_group` and `new_group` are the groups
+    before and after (None for none)."""
+    if record is None or not record.pk or not uses(kind, record):
+        return
+    if old_group is None or (new_group is not None and old_group.pk == new_group.pk):
+        return
+    top = root_group(old_group)
+    if new_group is None or root_group(new_group).pk != top.pk:
+        raise ValidationError(
+            {
+                field: [
+                    f"Cannot move the {label} out of {top.name}: this is in use "
+                    f"({', '.join(uses(kind, record))}). Pick a group under {top.name}."
+                ]
+            }
+        )
 
 
 def _differs(record, field: str, new) -> bool:

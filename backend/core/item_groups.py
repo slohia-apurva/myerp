@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
-from core.locks import refuse_key_changes
+from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
 from core.models import ItemGroup
 from tenancy.context import tenant_atomic
 
@@ -34,10 +34,14 @@ class ItemGroupSerializer(serializers.ModelSerializer):
         queryset=ItemGroup.objects.all(), allow_null=True, required=False
     )
     item_count = serializers.IntegerField(read_only=True, default=0)
+    lock = serializers.SerializerMethodField()
+
+    def get_lock(self, group) -> dict:
+        return lock_status("item_group", group)
 
     class Meta:
         model = ItemGroup
-        fields = ["id", "name", "parent", "notes", "is_active", "item_count"]
+        fields = ["id", "name", "parent", "notes", "is_active", "item_count", "lock"]
 
 
 def _save_group(group: ItemGroup, data: dict) -> ItemGroup:
@@ -69,6 +73,10 @@ def _save_group(group: ItemGroup, data: dict) -> ItemGroup:
             }
         )
     refuse_key_changes("item_group", group, data)
+    if "parent" in data:
+        refuse_move_outside_top(
+            "item_group", group, "parent", group.parent, data["parent"], "group"
+        )
     for field in ("name", "parent", "notes", "is_active"):
         if field in data:
             setattr(group, field, data[field])

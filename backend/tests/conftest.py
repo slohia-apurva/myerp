@@ -83,9 +83,9 @@ def hsn_list(db):
 
 @pytest.fixture(autouse=True)
 def _items_get_a_default_group(monkeypatch):
-    """An item must have an item group. Most tests are about something else, so
+    """An item must have an item group and a brand. Most tests are about something else, so
     an item posted without one gets the group "General" (made on first use).
-    A test that is about the rule posts `"item_group": None` to say so."""
+    A test that is about the rule posts `"item_group": None` (or `"brand": None`) to say so."""
     import json
 
     from django.test import Client
@@ -117,6 +117,30 @@ def _items_get_a_default_group(monkeypatch):
                 found = [made.json()] if made.status_code == 201 else []
             if found:
                 data = {**data, "item_group": found[0]["id"]}
+        if (
+            path == "/api/v1/items/"
+            and isinstance(data, dict)
+            and "stock_unit" in data
+            and "brand" not in data
+        ):
+            host = {"HTTP_HOST": kwargs["HTTP_HOST"]} if "HTTP_HOST" in kwargs else {}
+            brands = self.get("/api/v1/brands/", **host)
+            found = (
+                [b for b in brands.json() if b["name"] == "General brand"]
+                if brands.status_code == 200
+                else []
+            )
+            if not found and brands.status_code == 200:
+                made = real_post(
+                    self,
+                    "/api/v1/brands/",
+                    data=json.dumps({"name": "General brand"}),
+                    content_type="application/json",
+                    **host,
+                )
+                found = [made.json()] if made.status_code == 201 else []
+            if found:
+                data = {**data, "brand": found[0]["id"]}
         return real_post(self, path, data, *args, **kwargs)
 
     monkeypatch.setattr(Client, "post", post)

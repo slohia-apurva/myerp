@@ -25,7 +25,7 @@ from rest_framework.views import APIView
 from audit import recorder
 from core import duplicates, exchange, richtext
 from core.api import EDIT, VIEW, Signed, _check
-from core.locks import refuse_key_changes
+from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
 from core.models import USED_FOR, Brand, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
@@ -166,8 +166,14 @@ class ItemSerializer(serializers.ModelSerializer):
             "units",
             "gst_rates",
             "warnings",
+            "lock",
         ]
         read_only_fields = ["item_number"]
+
+    lock = serializers.SerializerMethodField()
+
+    def get_lock(self, item) -> dict:
+        return lock_status("item", item)
 
     def get_warnings(self, item) -> list[str]:
         missing = [
@@ -247,6 +253,10 @@ def _save_item(item: Item, data: dict) -> Item:
     rows = data.pop("units", None)
     rates = data.pop("gst_rates", None)
     refuse_key_changes("item", item, data)
+    if "item_group" in data:
+        refuse_move_outside_top(
+            "item", item, "item_group", item.item_group, data["item_group"], "item"
+        )
     if "name" in data:
         data["name"] = duplicates.tidy(data["name"])
         duplicates.check_name(
@@ -305,6 +315,8 @@ def _save_item(item: Item, data: dict) -> Item:
         raise ValidationError({"hsn": ["Give the HSN code."]})
     if item.item_group_id is None:
         raise ValidationError({"item_group": ["Pick the item group."]})
+    if item.brand_id is None:
+        raise ValidationError({"brand": ["Pick the brand."]})
     if (not item.pk or item.hsn != _saved_hsn(item)) and not HsnCode.objects.filter(
         hsn_code=item.hsn, is_active=True
     ).exists():
