@@ -713,12 +713,15 @@ dl.kv div {
   gap: 3px;
 }
 dl.kv dt {
-  font-size: 12px;
-  color: var(--slate);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green);
+  text-transform: capitalize;
 }
 dl.kv dd {
   margin: 0;
-  font-weight: 500;
+  font-weight: 400;
+  color: var(--ink);
 }
 .card p {
   font-size: 14px;
@@ -1569,8 +1572,9 @@ ul.address-list.cards-2 > li.address-card > div:first-child .pill {
 
 /* Type scale. Two sets, used everywhere:
    FORMS (entering data): box heading 15px bold deep green; field labels 14px.
-   DISPLAY (reading data): box heading 12px capitals slate, like "Activity";
-   values 14px ink, facts' labels 12px slate. */
+   DISPLAY (reading data, Sidharth 2026-11-13): the same look as forms, so the
+   two line up: box heading 15px bold deep green, facts' labels 14px bold green
+   Title Case, values 14px ink. */
 form.card .panel-card > h4,
 form.card fieldset:not(.plain) > legend {
   font-size: 15px;
@@ -1581,11 +1585,11 @@ form.card fieldset:not(.plain) > legend {
 }
 .panel .panel-card > h4,
 .panel h3 {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--slate);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--deep-green);
+  text-transform: capitalize;
+  letter-spacing: 0;
   margin: 0;
 }
 .panel .address-card,
