@@ -219,7 +219,7 @@ function DocumentForm(props: {
 
   return (
     <div
-      className="card"
+      className="card doc-form"
       onKeyDown={(e) => {
         // This sits inside the ledger form: Enter must not save the whole ledger.
         if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault();
@@ -227,43 +227,40 @@ function DocumentForm(props: {
     >
       <h4>{x ? `${props.readOnly ? "View" : "Edit"} ${x.kind_label}` : "Add document"}</h4>
       <FormBody readOnly={props.readOnly}>
-        <Section title="Document">
-          <div className="row">
+        <Section>
+          <div className="doc-grid">
             <label>
-              <span className="req">Document type</span>
+              <span className="req">Document Type</span>
               <Combobox value={kind} onChange={setKind} options={KINDS.map(([value, label]) => ({ value, label }))} />
             </label>
             <label>
-              {kind === "other" ? <span className="req">Name</span> : "Name (optional)"}
+              {kind === "other" ? <span className="req">Name</span> : <>Name <span className="small">(optional)</span></>}
               <input value={name} onChange={(e) => setName(e.target.value)} />
             </label>
-          </div>
-          <div className="row">
             <label>
               {kind === "bank" || kind === "other" ? "Number" : <span className="req">Number</span>}
               <input value={number} onChange={(e) => setNumber(e.target.value)} />
             </label>
             <label>
-              Issued by
+              Issued By
               <input value={issuedBy} onChange={(e) => setIssuedBy(e.target.value)} />
             </label>
-          </div>
-          <label>
-            Premises (for papers issued per address)
-            <input value={premises} placeholder="Blank for the whole party" onChange={(e) => setPremises(e.target.value)} />
-          </label>
-        </Section>
-        <Section title="Validity">
-          <div className="row">
             <label>
-              Valid from
+              Valid From
               <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
             </label>
             <label>
-              Renewal date (blank if it does not lapse)
+              Renewal Date <span className="small">(blank if it does not lapse)</span>
               <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
             </label>
+            <label>
+              Premises <span className="small">(for papers issued per address)</span>
+              <input value={premises} placeholder="Blank for the whole party" onChange={(e) => setPremises(e.target.value)} />
+            </label>
           </div>
+          <p className="small">
+            <span className="req-star">*</span> Required
+          </p>
         </Section>
         <Section title="Attachments">
           {kept.map((f) => (
@@ -311,8 +308,11 @@ function DocumentForm(props: {
             </label>
           )}
         </Section>
-        <Section title="Notes">
-          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <Section>
+          <label>
+            Notes
+            <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
         </Section>
       </FormBody>
       <ErrorNote error={error} />
