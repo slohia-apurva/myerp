@@ -7,7 +7,7 @@ from accounts.models import Role, User
 from core.companies import create_company
 from tenancy.context import use_tenant
 
-pytestmark = pytest.mark.django_db(databases="__all__")
+pytestmark = [pytest.mark.django_db(databases="__all__"), pytest.mark.usefixtures("hsn_list")]
 
 HOST = "alpha.localhost"
 

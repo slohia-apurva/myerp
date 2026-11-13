@@ -8,7 +8,7 @@ import pytest
 
 from core.companies import create_company
 from tenancy.context import use_tenant
-from tenancy.models import Tenant
+from tenancy.models import HsnCode, Tenant
 from tenancy.provisioning import create_tenant, drop_tenant_database
 
 TEST_TENANTS = {
@@ -67,3 +67,15 @@ def logged_in(tenants):
         return client
 
     return make
+
+
+@pytest.fixture
+def hsn_list(db):
+    """A few central HSN codes, rolled back with the test, for tests that make items."""
+    for code, text in [
+        ("0405", "Butter and ghee"),
+        ("0902", "Tea"),
+        ("0910", "Ginger, turmeric"),
+        ("1701", "Cane or beet sugar"),
+    ]:
+        HsnCode.objects.get_or_create(hsn_code=code, defaults={"description": text})
