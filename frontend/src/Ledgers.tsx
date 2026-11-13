@@ -8,7 +8,7 @@ import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, PartyTa
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
-import { ActiveButton } from "./RowActions";
+import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 
 type Ledger = {
   id: number;
@@ -17,6 +17,7 @@ type Ledger = {
   group_name: string;
   nature: string;
   is_active: boolean;
+  lock?: LockInfo;
   notes: string;
   bank_name: string;
   account_number: string;
@@ -497,6 +498,8 @@ function LedgerForm(props: {
   const [name, setName] = useState(l?.name ?? (c ? `${c.name} (copy)` : ""));
   const [group, setGroup] = useState(from ? String(from.group) : props.defaultGroup);
   const [notes, setNotes] = useState(from?.notes ?? "");
+  const [disabled, setDisabled] = useState(l ? !l.is_active : false);
+  const locked = (field: string) => isLocked(l?.lock, field);
   const [tab, setTab] = useState<PartyTab>("general");
   const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -582,6 +585,7 @@ function LedgerForm(props: {
     const body = {
       name,
       group: Number(group),
+      ...(l ? { is_active: !disabled } : {}),
       notes,
       bank_name: bankName,
       account_number: accountNumber,
@@ -622,8 +626,10 @@ function LedgerForm(props: {
   const openingFields = (
     <>
         <label className="check">
-          <input type="checkbox" checked={billWise} onChange={(e) => setBillWise(e.target.checked)} />
-          Maintain balances bill by bill (customers, suppliers)
+          <Locked on={locked("bill_wise")}>
+            <input type="checkbox" checked={billWise} onChange={(e) => setBillWise(e.target.checked)} />
+            Maintain balances bill by bill (customers, suppliers)
+          </Locked>
         </label>
         {billWise ? (
           <>
@@ -775,13 +781,16 @@ function LedgerForm(props: {
   return (
     <form className="card" onSubmit={save} ref={formRef}>
       <h3>{l ? `Edit ${l.name}` : c ? `Duplicate ${c.name}` : "Add ledger"}</h3>
+      <InUseNote lock={l?.lock} />
       {isParty && <PartyTabBar tab={tab} onTab={setTab} party={party} extraLabel="Opening balance" supplier={chosen?.nature === "liability"} />}
       <div className="tab-general" data-tab="general" hidden={isParty && tab !== "general"}>
       <Section title="Ledger">
       <div className="row">
         <label>
           Under group
-          <GroupSelect groups={props.groups} value={group} onChange={pickGroup} create={props.createGroup} />
+          <Locked on={locked("group")}>
+            <GroupSelect groups={props.groups} value={group} onChange={pickGroup} create={props.createGroup} />
+          </Locked>
         </label>
         {isParty && <PartyNumber party={party} supplier={chosen?.nature === "liability"} onChange={setParty} />}
       </div>
@@ -795,6 +804,7 @@ function LedgerForm(props: {
       {props.multiCurrency && (
         <label>
           Currency
+          <Locked on={locked("currency")}>
           <Combobox
             required
             value={currency || "INR"}
@@ -802,6 +812,7 @@ function LedgerForm(props: {
             options={currencies.map((c) => ({ value: c.code, label: `${c.code} · ${c.name}${c.code === "INR" ? " (base)" : ""}` }))}
             onChange={(v) => setCurrency(v === "INR" ? "" : v)}
           />
+          </Locked>
         </label>
       )}
       {isParty && !l && existing.length > 0 && (
@@ -886,21 +897,18 @@ function LedgerForm(props: {
         Notes
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
+      {l && (
+        <label className="check" hidden={isParty && tab !== "general"}>
+          <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
+          Disabled
+        </label>
+      )}
       <ErrorNote error={error} />
       <div className="buttons">
         <button>Save</button>
         <button type="button" className="link" onClick={props.onCancel}>
           Cancel
         </button>
-        {l && (
-          <ActiveButton
-            url={`v1/ledgers/${l.id}/`}
-            active={l.is_active}
-            what={`the ledger ${l.name}`}
-            onDone={() => props.onDone(l.id)}
-            onError={setError}
-          />
-        )}
       </div>
     </form>
   );

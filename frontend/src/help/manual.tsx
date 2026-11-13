@@ -1443,8 +1443,17 @@ export const MANUAL: Chapter[] = [
         </p>
         <Note>
           Ledgers are never deleted, so past entries always have their account.
-          When a ledger is no longer needed, click "Edit" and then "Disable"; it
-          then cannot be used in new entries. "Enable" brings it back.
+          When a ledger (or a customer or supplier) is no longer needed, click
+          "Edit", tick "Disabled" and "Save"; it then cannot be used in new
+          entries. Untick it to bring it back.
+        </Note>
+        <Note>
+          Once a ledger, customer or supplier is in use, a line at the top of
+          its form says what uses it, and its key fields are greyed with a
+          "Locked" tag: "Under group", "Currency" and the bill-by-bill tick on
+          a ledger, and "GST type", "GSTIN", "PAN" and "State" on a customer or
+          supplier. Everything else stays open, including the name, credit
+          terms and "Disabled".
         </Note>
         <p>
           To change many at once, use "Actions" at the top of the screen. See

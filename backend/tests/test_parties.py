@@ -458,3 +458,34 @@ def test_products_list_limits_what_a_party_is_offered(accountant, company, alpha
     cleared = call(accountant, "patch", ledger_url, {"party": {"products": []}})
     assert cleared.status_code == 200, cleared.json()
     assert names() == ["Tea C"]
+
+
+def test_a_party_in_use_reports_its_locked_fields(accountant, company):
+    from core import locks
+
+    made = add_ledger(
+        accountant,
+        company,
+        "Sundry Debtors",
+        party={"gst_type": "unregistered", "state_code": "27"},
+    )
+    assert made.status_code == 201, made.json()
+    assert made.json()["party"]["lock"] == {"in_use": [], "locked": []}
+    url = f"ledgers/{made.json()['id']}/"
+    fn = lambda record: "12 sales invoices"  # noqa: E731
+    locks.register("party", fn)
+    try:
+        rows = call(accountant, "get", f"companies/{company}/ledgers/").json()
+        got = next(r for r in rows if r["id"] == made.json()["id"])
+        assert got["party"]["lock"]["in_use"] == ["12 sales invoices"]
+        assert set(got["party"]["lock"]["locked"]) == {"gst_type", "gstin", "pan", "state_code"}
+        refused = call(accountant, "patch", url, {"party": {"gst_type": "consumer"}})
+        assert refused.status_code == 400
+        # Credit terms, the credit limit and the name stay open, and so does Disabled.
+        open_ = call(
+            accountant, "patch", url, {"party": {"credit_limit": "500"}, "is_active": False}
+        )
+        assert open_.status_code == 200, open_.json()
+        assert open_.json()["is_active"] is False
+    finally:
+        locks._USES["party"].remove(fn)

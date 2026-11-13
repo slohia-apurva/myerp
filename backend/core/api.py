@@ -24,7 +24,7 @@ from audit import recorder
 from core import duplicates, india
 from core import modules as company_modules
 from core.companies import create_company, visible_companies
-from core.locks import refuse_key_changes
+from core.locks import lock_status, refuse_key_changes
 from core.models import (
     BILL_WISE_GROUP_CODES,
     CR,
@@ -227,6 +227,11 @@ class LedgerSerializer(serializers.ModelSerializer):
     )
     bill_wise = serializers.BooleanField(required=False)
     party = PartySerializer(required=False, allow_null=True)
+    lock = serializers.SerializerMethodField()
+
+    def get_lock(self, ledger) -> dict:
+        return lock_status("ledger", ledger)
+
     # Link a new ledger to a party another company has (decision 0020) and
     # add the party's ledger to more companies.
     party_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
@@ -266,6 +271,7 @@ class LedgerSerializer(serializers.ModelSerializer):
             "party",
             "party_id",
             "also_in",
+            "lock",
         ]
 
 

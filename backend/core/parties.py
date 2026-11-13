@@ -18,7 +18,7 @@ from rest_framework.exceptions import ValidationError
 from accounts.models import User
 from audit import recorder
 from core import duplicates
-from core.locks import refuse_key_changes
+from core.locks import lock_status, refuse_key_changes
 from core.models import (
     BILL_WISE_GROUP_CODES,
     CONTACT_KINDS,
@@ -109,6 +109,10 @@ class PartySerializer(serializers.ModelSerializer):
     contacts = PartyContactSerializer(many=True, required=False)
     products = PartyProductSerializer(many=True, required=False)
     document_count = serializers.SerializerMethodField()
+    lock = serializers.SerializerMethodField()
+
+    def get_lock(self, party) -> dict:
+        return lock_status("party", party)
 
     class Meta:
         model = Party
@@ -131,6 +135,7 @@ class PartySerializer(serializers.ModelSerializer):
             "contacts",
             "products",
             "document_count",
+            "lock",
         ]
 
     def get_document_count(self, party) -> int:
@@ -161,6 +166,7 @@ _NOT_PARTY_FIELDS = (
     "addresses",
     "contacts",
     "products",
+    "lock",
 )
 PARTY_FIELDS = [f for f in PartySerializer.Meta.fields if f not in _NOT_PARTY_FIELDS]
 
