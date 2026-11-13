@@ -2311,3 +2311,10 @@ table.groups tr.selected td {
 table.groups tr.selected td:first-child {
   box-shadow: inset 3px 0 0 var(--green);
 }
+
+/* Master pages with several boxes stack them with a gap */
+.item-edit fieldset.plain {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

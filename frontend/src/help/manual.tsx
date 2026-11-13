@@ -406,8 +406,8 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Credit terms".</li>
           <li>
-            Click "Add credit terms" and give them a name, such as "30% advance,
-            70% in 15 days".
+            Click "Add credit terms" (it opens in a new browser tab) and give
+            them a name, such as "30% advance, 70% in 15 days".
           </li>
           <li>
             Fill in one row per part: the share of the bill, when it falls "Due"
@@ -421,15 +421,17 @@ export const MANUAL: Chapter[] = [
           </li>
         </ol>
         <p>
-          Once a customer or supplier uses credit terms, their parts cannot be
-          changed (you can still rename them or add notes). Add new credit terms
-          and move the customer to them instead.
+          Credit terms can be changed at any time, also after customers or
+          suppliers use them (their parts stay editable).
         </p>
         <p>
-          The list shows each term in words and how many parties use it. Credit
-          terms are never deleted: click "Edit" and then the "Disable" button to
-          stop offering them to new parties ("Enable" brings them back). Parties
-          that already have them keep them.
+          The list shows each term in words and how many parties use it. Click
+          a row to see its details and activity in the panels on the right;
+          "Edit" and "Duplicate" open in a new browser tab, and "Save" or
+          "Cancel" closes it. Credit terms are never deleted: tick "Disabled"
+          in the "Switches" panel and "Save" to stop offering them to new
+          parties (untick it to bring them back). Parties that already have
+          them keep them.
         </p>
         <p>
           To change many at once, use "Actions" at the top of the screen. See
