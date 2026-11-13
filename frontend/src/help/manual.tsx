@@ -601,15 +601,20 @@ export const MANUAL: Chapter[] = [
         <p>
           The "Load lists from a file" box fills the central lists from a file.
           For HSN and SAC codes, click "Choose file" under "HSN and SAC codes"
-          and pick an Excel or CSV file with the code in the first column and the
-          description in the second (every sheet of an Excel file is read): new codes are added and descriptions of existing ones
-          are refreshed. For a courier's PIN codes, first pick the courier in the
-          box under "PIN codes and a courier's coverage", then choose its
-          serviceability CSV: PIN codes we lack are added and that courier's
-          earlier coverage is replaced by the file's. A message under the box
-          says how many were added, and names any code that was left out because
-          it is not 2, 4, 6 or 8 digits or has no description. If a row is wrong, nothing is loaded and
-          the message says which.
+          and pick an Excel or CSV file with the code in the first column and
+          the description in the second (every sheet of an Excel file is read).
+          For a courier's PIN codes, first pick the courier in the box under
+          "PIN codes and a courier's coverage", then choose its serviceability
+          CSV.
+        </p>
+        <p>
+          A window opens and checks the file first: it says "Checking the
+          file…" while it works, and nothing is saved yet. It then shows how
+          many codes are new, changed or already there, and lists every row with
+          a problem at one time, such as a code that is not 2, 4, 6 or 8 digits
+          or a row with no description. Click "Load" (or "Load the rest" when
+          there are problems, which leaves those rows out) to save, or "Cancel"
+          to stop. A last message says what was loaded.
         </p>
         <h3>Add a courier</h3>
         <p>

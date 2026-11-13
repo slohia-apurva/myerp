@@ -242,12 +242,15 @@ class HsnImportView(APIView):
             rows = hsn_import.parse(text) if text.strip() else []
         if not rows:
             raise ValidationError({"file": ["No HSN rows found in the file."]})
+        commit = str(request.data.get("commit", "1")) == "1"
         try:
             with transaction.atomic():
                 done = hsn_import.load(rows)
+                if not commit:
+                    transaction.set_rollback(True)  # only checking: show the result, save nothing
         except ValueError as exc:
             raise ValidationError({"file": [str(exc)]}) from exc
-        return Response(done)
+        return Response({**done, "saved": commit})
 
 
 class PinImportView(APIView):
@@ -264,12 +267,15 @@ class PinImportView(APIView):
         rows = pin_import.parse(_uploaded_text(request))
         if not rows:
             raise ValidationError({"file": ["No PIN rows found in the file."]})
+        commit = str(request.data.get("commit", "1")) == "1"
         try:
             with transaction.atomic():
                 done = pin_import.load(rows, carrier.name)
+                if not commit:
+                    transaction.set_rollback(True)  # only checking: show the result, save nothing
         except ValueError as exc:
             raise ValidationError({"file": [str(exc)]}) from exc
-        return Response(done)
+        return Response({**done, "saved": commit, "courier": carrier.name})
 
 
 class TenantCreateView(APIView):

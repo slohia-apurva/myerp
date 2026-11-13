@@ -78,9 +78,16 @@ def load(rows: list[tuple[str, str]]) -> dict:
     be shown: such rows are left out and named in the result."""
     wanted: dict[str, str] = {}
     skipped: list[str] = []
+    problems: list[str] = []
+    seen: set[str] = set()
+    repeated: list[str] = []
     for n, (code, description) in enumerate(rows, 1):
+        if code in seen and code not in repeated:
+            repeated.append(code)
+        seen.add(code)
         if code.isdigit() and len(code) not in (2, 4, 6, 8):
             skipped.append(code)
+            problems.append(f"{code}: not 2, 4, 6 or 8 digits")
             continue
         try:
             HsnCode(hsn_code=code, description=description).clean()
@@ -88,6 +95,7 @@ def load(rows: list[tuple[str, str]]) -> dict:
             raise ValueError(f"Row {n} ({code or 'blank'}): {exc.messages[0]}") from exc
         if not description:
             skipped.append(code)
+            problems.append(f"{code}: no description")
             continue
         wanted[code] = description[:MAX_LEN]
     have = {h.hsn_code: h for h in HsnCode.objects.filter(hsn_code__in=wanted)}
@@ -106,4 +114,6 @@ def load(rows: list[tuple[str, str]]) -> dict:
         "updated": len(changed),
         "unchanged": len(wanted) - len(new) - len(changed),
         "skipped": skipped,
+        "problems": problems,
+        "repeated": repeated,
     }
