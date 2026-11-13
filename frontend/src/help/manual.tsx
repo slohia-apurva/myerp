@@ -454,9 +454,11 @@ export const MANUAL: Chapter[] = [
           by name, number, HSN or barcode.
         </p>
         <p>
-          While you add or change an item the list on the left is hidden so the
-          form has the whole width; only the search box stays at the top. Click
-          "Save" or "Cancel" to bring the list back.
+          "Add item", "Edit" and "Duplicate" open the form in a new browser tab
+          with the whole width, so the list stays open in the first tab.
+          "Save" or "Cancel" closes the new tab and the list refreshes and
+          selects the item. If you opened the form link by hand, the tab cannot
+          close itself and shows the list instead.
         </p>
         <h3>Add an item</h3>
         <ol>

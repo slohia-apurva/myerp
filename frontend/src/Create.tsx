@@ -77,3 +77,23 @@ export function creatable(kind: string, page: string, reload: () => unknown): Cr
     reload,
   };
 }
+
+/** Tell the other tabs a record of `kind` was saved (for a list to refresh and select it). */
+export function announceSaved(kind: string, record: { id: number; name: string }) {
+  try {
+    const channel = new BroadcastChannel(CHANNEL);
+    channel.postMessage({ kind, id: record.id, name: record.name } satisfies Created);
+    channel.close();
+  } catch {
+    // Very old browsers: the list is refreshed by hand.
+  }
+}
+
+/** Close this tab if the page opened it. A tab the person opened by hand cannot be
+ * closed by script, so after a moment `stay` runs instead (show the list there). */
+export function closeThisTab(stay: () => void) {
+  window.close();
+  setTimeout(() => {
+    if (!window.closed) stay();
+  }, 300);
+}
