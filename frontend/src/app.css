@@ -212,8 +212,6 @@ main.narrow {
   margin-bottom: 12px;
 }
 .band-inner {
-  max-width: 1200px;
-  margin: 0 auto;
   padding: 24px 24px 22px;
   box-sizing: border-box;
 }
@@ -268,7 +266,6 @@ main.narrow {
 }
 .page > :not(.band) {
   width: calc(100% - 48px);
-  max-width: 1152px;
   margin-left: auto;
   margin-right: auto;
   box-sizing: border-box;
