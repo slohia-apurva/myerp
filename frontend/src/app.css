@@ -1783,6 +1783,7 @@ fieldset.item-checks {
 .split.item-edit {
   grid-template-columns: minmax(0, 1fr);
 }
+.item-edit .split-list .filters,
 .item-edit .split-list table.pick,
 .item-edit .split-list > p {
   display: none;
