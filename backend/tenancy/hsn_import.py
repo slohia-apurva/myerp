@@ -73,21 +73,35 @@ def _rows(lines: list[list[str]]) -> list[tuple[str, str]]:
 
 def load(rows: list[tuple[str, str]]) -> dict:
     """Add new codes and refresh descriptions of ones already there. A bad
-    row stops the whole load, so the list is never half loaded. A code of 3,
+    row is left out and named (and returned in `rejected`), the good rows load. A code of 3,
     5 or 7 digits is not a valid HSN code, and a row with no description cannot
     be shown: such rows are left out and named in the result."""
     wanted: dict[str, str] = {}
     skipped: list[str] = []
+    problems: list[str] = []
+    seen: set[str] = set()
+    repeated: list[str] = []
+    rejected: list[tuple[str, str, str]] = []
     for n, (code, description) in enumerate(rows, 1):
+        if code in seen and code not in repeated:
+            repeated.append(code)
+        seen.add(code)
         if code.isdigit() and len(code) not in (2, 4, 6, 8):
             skipped.append(code)
+            problems.append(f"{code}: not 2, 4, 6 or 8 digits")
+            rejected.append((code, description, "Not 2, 4, 6 or 8 digits"))
             continue
         try:
             HsnCode(hsn_code=code, description=description).clean()
         except ValidationError as exc:
-            raise ValueError(f"Row {n} ({code or 'blank'}): {exc.messages[0]}") from exc
+            skipped.append(code)
+            problems.append(f"Row {n} ({code or 'blank'}): {exc.messages[0]}")
+            rejected.append((code, description, exc.messages[0]))
+            continue
         if not description:
             skipped.append(code)
+            problems.append(f"{code}: no description")
+            rejected.append((code, description, "No description"))
             continue
         wanted[code] = description[:MAX_LEN]
     have = {h.hsn_code: h for h in HsnCode.objects.filter(hsn_code__in=wanted)}
@@ -106,4 +120,7 @@ def load(rows: list[tuple[str, str]]) -> dict:
         "updated": len(changed),
         "unchanged": len(wanted) - len(new) - len(changed),
         "skipped": skipped,
+        "problems": problems,
+        "repeated": repeated,
+        "rejected": rejected,
     }

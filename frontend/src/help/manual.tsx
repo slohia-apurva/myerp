@@ -470,7 +470,7 @@ export const MANUAL: Chapter[] = [
             any time; the "Item number" beside it is given when you save. Fields
             marked with a red * must be filled in. Under "General", choose
             "Goods or service", pick the "Item group"
-            (see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused),
+            (see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it),
             the "Default unit of measure" (the unit stock is counted in, such as
             Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" box, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold.
@@ -601,15 +601,23 @@ export const MANUAL: Chapter[] = [
         <p>
           The "Load lists from a file" box fills the central lists from a file.
           For HSN and SAC codes, click "Choose file" under "HSN and SAC codes"
-          and pick an Excel or CSV file with the code in the first column and the
-          description in the second (every sheet of an Excel file is read): new codes are added and descriptions of existing ones
-          are refreshed. For a courier's PIN codes, first pick the courier in the
-          box under "PIN codes and a courier's coverage", then choose its
-          serviceability CSV: PIN codes we lack are added and that courier's
-          earlier coverage is replaced by the file's. A message under the box
-          says how many were added, and names any code that was left out because
-          it is not 2, 4, 6 or 8 digits or has no description. If a row is wrong, nothing is loaded and
-          the message says which.
+          and pick an Excel or CSV file with the code in the first column and
+          the description in the second (every sheet of an Excel file is read).
+          For a courier's PIN codes, first pick the courier in the box under
+          "PIN codes and a courier's coverage", then choose its serviceability
+          CSV.
+        </p>
+        <p>
+          A window opens and checks the file first: it says "Checking the
+          file…" while it works, and nothing is saved yet. It then shows how
+          many codes are new, changed or already there, and lists every row with
+          a problem at one time, such as a code that is not 2, 4, 6 or 8 digits
+          or a row with no description. Click "Load" (or "Load the rest" when
+          there are problems, which leaves those rows out) to save, or "Cancel"
+          to stop. A last message says what was loaded. When rows were left out, click
+          "Download the left-out rows (Excel)": the file has the same columns
+          plus "Why it was left out", so you can correct those rows and load
+          the file again. The good rows are already in.
         </p>
         <h3>Add a courier</h3>
         <p>

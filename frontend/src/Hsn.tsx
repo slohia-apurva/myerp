@@ -66,6 +66,25 @@ export function HsnPage(_props: { session: SignedIn }) {
   );
 }
 
+/** The description of the picked HSN code, shown read-only beside the picker. */
+export function HsnDescription(props: { code: string }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    if (!props.code) {
+      setText("");
+      return;
+    }
+    let live = true;
+    search(props.code, true).then((f) => {
+      if (live) setText(f.results.find((h) => h.hsn_code === props.code)?.description ?? "");
+    });
+    return () => {
+      live = false;
+    };
+  }, [props.code]);
+  return <input readOnly tabIndex={-1} value={text} placeholder="Shown when a code is picked" />;
+}
+
 /** The HSN box on the item form: type a code or words from the description
  * and pick from the list. A code that is not in the list is refused. */
 export function HsnPicker(props: { value: string; onChange: (code: string) => void }) {

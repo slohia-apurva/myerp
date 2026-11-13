@@ -54,19 +54,20 @@ def load(rows: list[dict], courier: str) -> dict:
     states = _state_ids()
     have = {p.pin: p for p in PinCode.objects.all()}
     new, fill = [], []
-    unknown_states = set()
+    rejected: list[dict] = []
+    good: list[dict] = []
     for r in rows:
         state_id = states.get(r["state"].lower())
         if r["state"] and state_id is None:
-            unknown_states.add(r["state"])
+            rejected.append({**r, "reason": f"Unknown state name: {r['state']}"})
+            continue
+        good.append(r)
         pin = have.get(r["pin"])
         if pin is None:
             new.append(PinCode(pin=r["pin"], city=r["city"], state_id=state_id))
         elif pin.state_id is None and state_id:
             pin.state_id = state_id
             fill.append(pin)
-    if unknown_states:
-        raise ValueError("Unknown state names: " + ", ".join(sorted(unknown_states)) + ".")
     PinCode.objects.bulk_create(new)
     PinCode.objects.bulk_update(fill, ["state"])
     ids = dict(PinCode.objects.values_list("pin", "pk"))
@@ -81,12 +82,14 @@ def load(rows: list[dict], courier: str) -> dict:
                 origin_center=r["origin_center"],
                 return_center=r["return_center"],
             )
-            for r in rows
+            for r in good
         ]
     )
     return {
         "pins_added": len(new),
         "state_filled": len(fill),
-        "coverage": len(rows),
+        "coverage": len(good),
         "replaced": removed,
+        "problems": [f"{r['pin']}: {r['reason']}" for r in rejected],
+        "rejected": rejected,
     }

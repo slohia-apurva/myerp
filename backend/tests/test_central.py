@@ -177,7 +177,15 @@ def test_platform_admin_loads_hsn_from_a_file(alpha, settings):
     assert first.json()["added"] == 2
     assert HsnCode.objects.get(hsn_code="0902").description == "Tea"
     again = _upload(client, "/api/v1/central/import/hsn/", csv)
-    assert again.json() == {"added": 0, "updated": 0, "unchanged": 2, "skipped": []}
+    assert again.json() == {
+        "added": 0,
+        "updated": 0,
+        "unchanged": 2,
+        "skipped": [],
+        "problems": [],
+        "repeated": [],
+        "saved": True,
+    }
     empty = _upload(client, "/api/v1/central/import/hsn/", "nothing here\n")
     assert empty.status_code == 400
 
@@ -197,7 +205,35 @@ def test_platform_admin_loads_pins_for_a_courier(alpha, settings):
     assert PinCode.objects.filter(pin="591111").exists()
     assert CourierPin.objects.filter(carrier=carrier).count() == 1
     bad = _upload(client, path, csv.replace("Karnataka,", "Nowhere,"), carrier=carrier.pk)
-    assert bad.status_code == 400
+    assert bad.status_code == 200 and bad.json()["problems"] == [
+        "591111: Unknown state name: Nowhere"
+    ]
+    assert bad.json()["coverage"] == 0
+    sheet = _upload(
+        client, path, csv.replace("Karnataka,", "Nowhere,"), carrier=carrier.pk, download="1"
+    )
+    assert "spreadsheetml" in sheet["Content-Type"]
+
+
+def test_left_out_hsn_rows_come_back_as_an_excel_file(alpha, settings):
+    import io
+
+    from openpyxl import load_workbook
+
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    csv = "HSN,Description\n0902,Tea\n30559,Fish dried\n17x,Oops\n0910,\n"
+    path = "/api/v1/central/import/hsn/"
+    done = _upload(client, path, csv)
+    assert done.json()["added"] == 1 and len(done.json()["problems"]) == 2
+    assert "rejected" not in done.json()
+    assert HsnCode.objects.filter(hsn_code="0902").exists()
+    HsnCode.objects.all().delete()
+    sheet = _upload(client, path, csv, download="1")  # downloading saves nothing
+    assert HsnCode.objects.count() == 0
+    rows = list(load_workbook(io.BytesIO(sheet.content)).active.values)
+    assert rows[0] == ("HSN code", "Description", "Why it was left out")
+    assert [r[0] for r in rows[1:]] == ["30559", "0910"]
 
 
 def test_only_platform_admins_may_import(alpha, settings):
@@ -304,3 +340,20 @@ def test_hsn_can_be_loaded_from_an_excel_file(alpha, settings):
     assert (
         client.post("/api/v1/central/import/hsn/", {"file": bad}, HTTP_HOST=HOST).status_code == 400
     )
+
+
+def test_checking_a_file_saves_nothing_and_lists_every_problem(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    csv = "HSN,Description\n0902,Tea\n30559,Fish\n0910,\n0902,Tea again\n"
+    path = "/api/v1/central/import/hsn/"
+    checked = _upload(client, path, csv, commit="0")
+    body = checked.json()
+    assert checked.status_code == 200, body
+    assert body["saved"] is False and body["added"] == 1
+    assert body["problems"] == ["30559: not 2, 4, 6 or 8 digits", "0910: no description"]
+    assert body["repeated"] == ["0902"]
+    assert not HsnCode.objects.filter(hsn_code="0902").exists()
+    saved = _upload(client, path, csv, commit="1").json()
+    assert saved["saved"] is True
+    assert HsnCode.objects.get(hsn_code="0902").description == "Tea again"

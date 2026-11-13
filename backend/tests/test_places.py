@@ -71,10 +71,10 @@ def test_second_load_replaces_that_couriers_rows_and_keeps_cities():
     assert CourierPin.objects.filter(carrier__name="Blue Dart").count() == 2
 
 
-def test_unknown_state_stops_the_load():
+def test_unknown_state_rows_are_left_out_and_named():
     bad = "Pin,Facility City,Facility State\n751001,X,Atlantis\n"
-    with pytest.raises(ValueError, match="Atlantis"):
-        pin_import.load(pin_import.parse(bad), "Delhivery")
+    done = pin_import.load(pin_import.parse(bad), "Delhivery")
+    assert done["coverage"] == 0 and done["rejected"][0]["reason"].endswith("Atlantis")
     with pytest.raises(ValueError, match="courier"):
         pin_import.load(pin_import.parse(CSV), " ")
     with pytest.raises(ValueError, match="No courier called Acme"):

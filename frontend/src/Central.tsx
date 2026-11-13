@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, upload } from "./api";
+import { api, upload, uploadForFile } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
@@ -434,45 +434,200 @@ function CourierForm(props: {
   );
 }
 
-type Loaded = Record<string, number>;
+type Checked = {
+  added?: number;
+  updated?: number;
+  unchanged?: number;
+  problems?: string[];
+  repeated?: string[];
+  pins_added?: number;
+  state_filled?: number;
+  coverage?: number;
+  replaced?: number;
+  courier?: string;
+  saved: boolean;
+};
+
+type Picked = { what: "hsn" | "pins"; file: File; carrier: string };
+
+/** The pop-up for loading a list: check the file, show everything found at once, then load it. */
+function LoadDialog(props: { picked: Picked; onClose: () => void }) {
+  const { what, file, carrier } = props.picked;
+  const [stage, setStage] = useState<"checking" | "report" | "loading" | "done" | "error">("checking");
+  const [report, setReport] = useState<Checked | null>(null);
+  const [error, setError] = useState("");
+  const send = useCallback(
+    async (commit: boolean) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("commit", commit ? "1" : "0");
+      if (what === "pins") form.append("carrier", carrier);
+      return upload<Checked>(`v1/central/import/${what}/`, form);
+    },
+    [file, what, carrier],
+  );
+  useEffect(() => {
+    let live = true;
+    send(false).then(
+      (r) => {
+        if (!live) return;
+        setReport(r);
+        setStage("report");
+      },
+      (e) => {
+        if (!live) return;
+        setError(String(e.message ?? e));
+        setStage("error");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [send]);
+  const load = async () => {
+    setStage("loading");
+    try {
+      setReport(await send(true));
+      setStage("done");
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+      setStage("error");
+    }
+  };
+  const problems = report?.problems ?? [];
+  const leftOut = async () => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("download", "1");
+    if (what === "pins") form.append("carrier", carrier);
+    try {
+      await uploadForFile(
+        `v1/central/import/${what}/`,
+        form,
+        what === "hsn" ? "hsn-left-out.xlsx" : "pins-left-out.xlsx",
+      );
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+    }
+  };
+  const summary = report
+    ? what === "hsn"
+      ? `${report.added} new, ${report.updated} changed and ${report.unchanged} already in the list.`
+      : `${report.pins_added} new PIN codes, ${report.state_filled} given a state. ${report.courier} will cover ${report.coverage} PIN codes (${report.replaced} earlier ones replaced).`
+    : "";
+  return (
+    <div className="popup-back" role="presentation">
+      <div className="popup" role="dialog" aria-modal="true" aria-label="Load a list">
+        <h3>{what === "hsn" ? "HSN and SAC codes" : "PIN codes and courier coverage"}</h3>
+        <p className="small">{file.name}</p>
+        {(stage === "checking" || stage === "loading") && (
+          <div className="popup-wait" role="status" aria-live="polite">
+            <span className="spinner" aria-hidden="true" />
+            <span>
+              {stage === "checking"
+                ? "Checking the file… a large file can take up to a minute."
+                : "Loading… please keep this window open."}
+            </span>
+          </div>
+        )}
+        {stage === "report" && report && (
+          <>
+            <p>
+              <b>File checked.</b> {summary}
+            </p>
+            {(report.repeated?.length ?? 0) > 0 && (
+              <p className="small">
+                Codes that appear more than once (the last one is used): {report.repeated!.slice(0, 20).join(", ")}
+                {report.repeated!.length > 20 ? " …" : ""}
+              </p>
+            )}
+            {problems.length > 0 ? (
+              <>
+                <p className="error">
+                  {problems.length} {problems.length === 1 ? "row has" : "rows have"} a problem and will be left out:
+                </p>
+                <ul className="popup-list">
+                  {problems.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="note">No problems found.</p>
+            )}
+            {error && <p className="error">{error}</p>}
+            <div className="buttons">
+              <button type="button" onClick={load}>
+                {problems.length > 0 ? "Load the rest" : "Load"}
+              </button>
+              {problems.length > 0 && (
+                <button type="button" className="secondary" onClick={leftOut}>
+                  Download the left-out rows (Excel)
+                </button>
+              )}
+              <button type="button" className="secondary" onClick={props.onClose}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+        {stage === "done" && report && (
+          <>
+            <p className="note">
+              <b>Loaded.</b> {summary}
+            </p>
+            {problems.length > 0 && (
+              <p className="small">
+                {problems.length} rows were left out. Download them, correct them and load the file again.
+              </p>
+            )}
+            {error && <p className="error">{error}</p>}
+            <div className="buttons">
+              <button type="button" onClick={props.onClose}>
+                Close
+              </button>
+              {problems.length > 0 && (
+                <button type="button" className="secondary" onClick={leftOut}>
+                  Download the left-out rows (Excel)
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        {stage === "error" && (
+          <>
+            <p className="error">{error}</p>
+            <p className="small">Nothing was loaded.</p>
+            <div className="buttons">
+              <button type="button" onClick={props.onClose}>
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Load the HSN list and a courier's PIN coverage from files. */
 function LoadLists() {
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [carrier, setCarrier] = useState("");
-  const [busy, setBusy] = useState("");
-  const [result, setResult] = useState<{ what: string; text: string } | null>(null);
+  const [picked, setPicked] = useState<Picked | null>(null);
   const [error, setError] = useState("");
+  const [shown, setShown] = useState(0);
   useEffect(() => {
     api<Courier[]>("v1/central/carriers/").then(setCouriers);
   }, []);
-  const send = async (what: "hsn" | "pins", file: File | undefined) => {
+  const choose = (what: "hsn" | "pins", file: File | undefined) => {
     if (!file) return;
     setError("");
-    setResult(null);
     if (what === "pins" && !carrier) {
       setError("Pick the courier the PIN file is from.");
       return;
     }
-    setBusy(what);
-    const form = new FormData();
-    form.append("file", file);
-    if (what === "pins") form.append("carrier", carrier);
-    try {
-      const done = await upload<Loaded & { skipped?: string[] }>(`v1/central/import/${what}/`, form);
-      const skipped = done.skipped ?? [];
-      setResult({
-        what,
-        text:
-          what === "hsn"
-            ? `${done.added} HSN codes added, ${done.updated} updated, ${done.unchanged} unchanged.${skipped.length ? ` Left out (not 2, 4, 6 or 8 digits, or no description): ${skipped.join(", ")}.` : ""}`
-            : `${done.pins_added} PIN codes added, ${done.state_filled} given a state; the courier now covers ${done.coverage} (replaced ${done.replaced}).`,
-      });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy("");
-    }
+    setPicked({ what, file, carrier });
   };
   return (
     <Section title="Load lists from a file">
@@ -480,13 +635,10 @@ function LoadLists() {
         <label>
           HSN and SAC codes
           <input
+            key={`hsn${shown}`}
             type="file"
             accept=".csv,.tsv,.txt,.xlsx"
-            disabled={busy !== ""}
-            onChange={(e) => {
-              send("hsn", e.target.files?.[0]);
-              e.target.value = "";
-            }}
+            onChange={(e) => choose("hsn", e.target.files?.[0])}
           />
           <span className="small">
             An Excel, CSV or tab-separated file with the code in the first column and the description in the second (every sheet
@@ -503,13 +655,10 @@ function LoadLists() {
             onChange={setCarrier}
           />
           <input
+            key={`pins${shown}`}
             type="file"
             accept=".csv"
-            disabled={busy !== ""}
-            onChange={(e) => {
-              send("pins", e.target.files?.[0]);
-              e.target.value = "";
-            }}
+            onChange={(e) => choose("pins", e.target.files?.[0])}
           />
           <span className="small">
             The courier's serviceability CSV (Pin, Facility City, Facility State, ODA…). PIN codes we lack are added and that
@@ -517,9 +666,16 @@ function LoadLists() {
           </span>
         </label>
       </div>
-      {busy && <p className="small">Loading… a large file can take a minute.</p>}
-      {result && <p className="note">{result.text}</p>}
       {error && <p className="error">{error}</p>}
+      {picked && (
+        <LoadDialog
+          picked={picked}
+          onClose={() => {
+            setPicked(null);
+            setShown((n) => n + 1);
+          }}
+        />
+      )}
     </Section>
   );
 }
