@@ -6,6 +6,7 @@ sign-in emails are in MYERP_PLATFORM_ADMINS. A customer's Owner is not one."""
 import re
 
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -13,10 +14,13 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import Role, User
 from core import duplicates
 from core.api import Signed
 from tenancy import hsn_import, pin_import
+from tenancy.context import use_tenant
 from tenancy.models import Carrier, CarrierRequest, HsnCode, Tenant
+from tenancy.provisioning import create_tenant, drop_tenant_database
 
 # key, label, what it is for, model, screen to open (a hash route) or "".
 CENTRAL_TABLES = [
@@ -257,3 +261,42 @@ class PinImportView(APIView):
         except ValueError as exc:
             raise ValidationError({"file": [str(exc)]}) from exc
         return Response(done)
+
+
+class TenantCreateView(APIView):
+    """Create a customer: its record, its own database, and its first Owner."""
+
+    permission_classes = [Signed]
+
+    def post(self, request):
+        _platform_admin(request)
+        slug = str(request.data.get("slug", "")).strip().lower()
+        name = " ".join(str(request.data.get("name", "")).split())
+        email = str(request.data.get("owner_email", "")).strip().lower()
+        owner_name = " ".join(str(request.data.get("owner_name", "")).split())
+        if not name:
+            raise ValidationError({"name": ["Give the customer's name."]})
+        if not slug:
+            raise ValidationError({"slug": ["Give the short name used in the web address."]})
+        if "@" not in email:
+            raise ValidationError({"owner_email": ["Give the Owner's sign-in email address."]})
+        if Tenant.objects.filter(slug=slug).exists():
+            raise ValidationError(
+                {"slug": ["That short name is already used by another customer."]}
+            )
+        try:
+            tenant = create_tenant(slug=slug, name=name)
+        except DjangoValidationError as exc:
+            raise ValidationError({"slug": exc.messages}) from exc
+        try:
+            with use_tenant(tenant):
+                user = User.objects.create_user(email=email, full_name=owner_name)
+                user.roles.add(Role.objects.get(code="owner"))
+        except Exception:
+            drop_tenant_database(tenant)
+            tenant.delete()
+            raise
+        return Response(
+            {"slug": tenant.slug, "name": tenant.name, "owner": email},
+            status=status.HTTP_201_CREATED,
+        )

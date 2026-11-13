@@ -205,3 +205,57 @@ def test_only_platform_admins_may_import(alpha, settings):
     owner = _client(alpha, "owner@x.in", owner=True)
     assert _upload(owner, "/api/v1/central/import/hsn/", "0902,Tea\n").status_code == 403
     assert _upload(owner, "/api/v1/central/import/pins/", "Pin\n").status_code == 403
+
+
+def test_platform_admin_creates_a_customer_with_its_owner(alpha, settings, monkeypatch):
+    # CREATE DATABASE cannot run inside the test's transaction, so the
+    # provisioning step is stood in for by the existing test tenant.
+    seen = {}
+
+    def fake_create(slug, name, db_name=None):
+        seen.update(slug=slug, name=name)
+        return alpha
+
+    monkeypatch.setattr("core.central.create_tenant", fake_create)
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    body = {
+        "slug": "NewCo",
+        "name": " New  Co group",
+        "owner_email": "Boss@NewCo.in",
+        "owner_name": "Nina",
+    }
+    made = client.post(
+        "/api/v1/central/tenants/", body, content_type="application/json", HTTP_HOST=HOST
+    )
+    assert made.status_code == 201, made.json()
+    assert seen == {"slug": "newco", "name": "New Co group"}
+    with use_tenant(alpha):
+        assert User.objects.get(email="boss@newco.in").is_owner
+    taken = {**body, "slug": alpha.slug}
+    again = client.post(
+        "/api/v1/central/tenants/", taken, content_type="application/json", HTTP_HOST=HOST
+    )
+    assert again.status_code == 400
+
+
+def test_creating_a_customer_needs_the_basics_and_an_admin(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    boss = _client(alpha, "boss@x.in")
+    for bad in (
+        {"slug": "a", "name": "", "owner_email": "a@b.in"},
+        {"slug": "Bad Slug!", "name": "X", "owner_email": "a@b.in"},
+        {"slug": "okay", "name": "X", "owner_email": "nope"},
+    ):
+        r = boss.post(
+            "/api/v1/central/tenants/", bad, content_type="application/json", HTTP_HOST=HOST
+        )
+        assert r.status_code == 400
+    owner = _client(alpha, "owner@x.in", owner=True)
+    r = owner.post(
+        "/api/v1/central/tenants/",
+        {"slug": "zz", "name": "Z", "owner_email": "a@b.in"},
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert r.status_code == 403

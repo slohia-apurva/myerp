@@ -577,10 +577,25 @@ export const MANUAL: Chapter[] = [
           about, see "Central" in the top menu. A customer's Owner does not.
         </p>
         <p>
-          The "Central tables" box shows each list with the number of rows in
-          it; click "Open" to look inside. The "Customers" box lists every
-          customer group (tenant) with its status. Adding customers from here
-          will come later.
+          The screen has three tabs. "Customers" lists every customer group
+          (tenant) with its status. "Shared lists" shows each central list with
+          the number of rows in it (click "Open" to look inside) and the "Load
+          lists from a file" box. "Couriers" holds the courier list and the
+          requests customers have sent.
+        </p>
+        <h3>Add a customer</h3>
+        <ol>
+          <li>Click "Central" in the top menu, then the "Customers" tab.</li>
+          <li>In the "Add customer" box click "Add customer".</li>
+          <li>
+            Give the "Customer name", the "Short name (web address)", the
+            "Owner's sign-in email" and the "Owner's name", then click "Save".
+            Creating the customer's own database can take half a minute.
+          </li>
+        </ol>
+        <p>
+          The Owner can then sign in with the Google account for that email
+          address and set up the companies.
         </p>
         <h3>Load HSN codes or a courier's PIN codes</h3>
         <p>

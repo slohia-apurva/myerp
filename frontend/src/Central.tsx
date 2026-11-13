@@ -21,47 +21,50 @@ type Info = {
 export function CentralPage() {
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState<"customers" | "lists" | "couriers">("customers");
   const printing = usePrintMenu({ title: "Central tables" });
+  const reload = useCallback(
+    () =>
+      api<Info>("v1/central/").then(setInfo, (e) =>
+        setError(String(e.message ?? e)),
+      ),
+    [],
+  );
   useEffect(() => {
-    api<Info>("v1/central/").then(setInfo, (e) =>
-      setError(String(e.message ?? e)),
-    );
-  }, []);
+    reload();
+  }, [reload]);
   if (error) return <p className="error">{error}</p>;
   if (!info) return <p>Loading…</p>;
   return (
     <section className="page">
       <PageHeader
-        title="Central tables"
-        sub="Kept once by MyERP for every customer. Customers can read these lists but not change them."
+        title="Central"
+        sub="For the MyERP owner: the customers, and the lists kept once for every customer."
         actions={printing.buttons}
       />
       {printing.panel}
-      <Section title="Central tables">
-        <table>
-          <thead>
-            <tr>
-              <th>Table</th>
-              <th>What it is for</th>
-              <th>Rows</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {info.tables.map((t) => (
-              <tr key={t.key}>
-                <td>{t.label}</td>
-                <td>{t.about}</td>
-                <td>{t.count}</td>
-                <td>{t.open && <a href={t.open}>Open</a>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
-      <LoadLists />
-      <Couriers />
-      <CourierRequests />
+      <div className="form-tabs" role="tablist">
+        {(
+          [
+            ["customers", "Customers"],
+            ["lists", "Shared lists"],
+            ["couriers", "Couriers"],
+          ] as const
+        ).map(([code, label]) => (
+          <button
+            key={code}
+            type="button"
+            role="tab"
+            aria-selected={tab === code}
+            className={tab === code ? "active" : ""}
+            onClick={() => setTab(code)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "customers" && (
+        <>
       <Section title="Customers">
         <table>
           <thead>
@@ -84,6 +87,42 @@ export function CentralPage() {
           </tbody>
         </table>
       </Section>
+          <NewCustomer onDone={reload} />
+        </>
+      )}
+      {tab === "lists" && (
+        <>
+      <Section title="Central tables">
+        <table>
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>What it is for</th>
+              <th>Rows</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {info.tables.map((t) => (
+              <tr key={t.key}>
+                <td>{t.label}</td>
+                <td>{t.about}</td>
+                <td>{t.count}</td>
+                <td>{t.open && <a href={t.open}>Open</a>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+          <LoadLists />
+        </>
+      )}
+      {tab === "couriers" && (
+        <>
+      <Couriers />
+      <CourierRequests />
+        </>
+      )}
     </section>
   );
 }
@@ -480,6 +519,84 @@ function LoadLists() {
       {busy && <p className="small">Loading… a large file can take a minute.</p>}
       {result && <p className="note">{result.text}</p>}
       {error && <p className="error">{error}</p>}
+    </Section>
+  );
+}
+
+/** Add a customer (tenant) with its first Owner. */
+function NewCustomer(props: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [email, setEmail] = useState("");
+  const [person, setPerson] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>("");
+  const [done, setDone] = useState("");
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api("v1/central/tenants/", { name, slug, owner_email: email, owner_name: person });
+      setDone(`${name} is ready. ${email} can sign in with Google at ${slug}.`);
+      setOpen(false);
+      setName("");
+      setSlug("");
+      setEmail("");
+      setPerson("");
+      props.onDone();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Add customer">
+      {done && <p className="note">{done}</p>}
+      {!open ? (
+        <button type="button" className="secondary" onClick={() => setOpen(true)}>
+          Add customer
+        </button>
+      ) : (
+        <form onSubmit={save}>
+          <p className="small">
+            Creates the customer's own database and its first Owner. This can take half a minute.
+          </p>
+          <div className="grid">
+            <label>
+              Customer name
+              <input required value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label>
+              Short name (web address)
+              <input
+                required
+                maxLength={40}
+                value={slug}
+                placeholder="apurvam"
+                onChange={(e) => setSlug(e.target.value.toLowerCase())}
+              />
+            </label>
+            <label>
+              Owner's sign-in email
+              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </label>
+            <label>
+              Owner's name
+              <input value={person} onChange={(e) => setPerson(e.target.value)} />
+            </label>
+          </div>
+          <ErrorNote error={error} />
+          <div className="buttons">
+            <button disabled={busy}>{busy ? "Creating…" : "Save"}</button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
     </Section>
   );
 }
