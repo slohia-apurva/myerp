@@ -103,7 +103,7 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false, kinds: [] });
 
 type Person = { id: number; name: string };
-export type PartyTab = "general" | "details" | "addresses" | "contacts" | "documents" | "extra";
+export type PartyTab = "general" | "details" | "addresses" | "contacts" | "documents" | "labels" | "extra";
 
 /** The tab strip at the top of a customer/supplier ledger form. */
 export function PartyTabBar(props: {
@@ -118,6 +118,7 @@ export function PartyTabBar(props: {
     ["addresses", `Addresses (${props.party.addresses.length})`],
     ["contacts", `Contacts (${props.party.contacts.length})`],
     ["documents", `Documents (${props.party.document_count ?? 0})`],
+    ["labels", "Labels"],
     ["extra", props.extraLabel],
   ];
   return (
@@ -414,6 +415,17 @@ export function PartyFields({
       >
         + Add address
       </button>
+      </div>
+
+      <div data-tab="labels" hidden={tab !== "labels"}>
+        <Section>
+          <p className="small">
+            The label format for each item this {supplier ? "supplier" : "customer"} buys will be set here: one format for
+            a customer and one item, another for the same customer and another item. When labels are printed for a
+            despatch, MyERP will use the format set here, otherwise the customer's default format, otherwise the item's
+            default format. This tab is a placeholder until the sales and despatch screens are built.
+          </p>
+        </Section>
       </div>
 
       <div data-tab="documents" hidden={tab !== "documents"}>
