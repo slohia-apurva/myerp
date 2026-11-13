@@ -108,6 +108,18 @@ function formParam(): string | null {
   return new URLSearchParams(query).get("form");
 }
 
+/** `?view=<id>` on #/items: the item's own page (all its sections, read only). */
+function viewParam(): number | null {
+  const query = window.location.hash.split("?")[1] ?? "";
+  const id = Number(new URLSearchParams(query).get("view"));
+  return id > 0 ? id : null;
+}
+
+/** Open an item's own page. */
+function openItemView(id: number) {
+  window.location.hash = `#/items?view=${id}`;
+}
+
 /** Open the add / change form of an item in a new tab, beside the list. */
 function openItemForm(form: string) {
   window.open(`${window.location.pathname}${window.location.search}#/items?form=${form}`, "_blank");
@@ -160,7 +172,10 @@ function ItemFormTab({ form }: { form: string }) {
 
 export function ItemsPage({ session }: { session: SignedIn }) {
   const form = formParam();
-  return form && session.permissions.includes("masters.edit") ? <ItemFormTab form={form} /> : <ItemList session={session} />;
+  const view = viewParam();
+  if (form && session.permissions.includes("masters.edit")) return <ItemFormTab form={form} />;
+  if (view) return <ItemViewPage id={view} session={session} />;
+  return <ItemList session={session} />;
 }
 
 function ItemList({ session }: { session: SignedIn }) {
@@ -226,8 +241,8 @@ function ItemList({ session }: { session: SignedIn }) {
       />
       {error && <p className="error">{error}</p>}
       {io.panel}
-      <div className="split">
-        <div className="split-list">
+      <div className="side-layout">
+        <div className="side-main">
           <div className="row filters">
             <input
               type="search"
@@ -239,57 +254,87 @@ function ItemList({ session }: { session: SignedIn }) {
           <table className="pick">
             <thead>
               <tr>
-                <th>Item</th>
-                <th>Stock unit</th>
+                <th>Item No</th>
+                <th>Item Name</th>
+                <th>Item Group</th>
+                <th>HSN</th>
+                <th>Stock Unit</th>
+                <th className="num">GST Rate</th>
               </tr>
             </thead>
             <tbody onKeyDown={onListKey}>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="small">
+                  <td colSpan={6} className="small">
                     No items match.
                   </td>
                 </tr>
               )}
-              {shown.map((i) => (
-                <tr
-                  key={i.id}
-                  id={`item-${i.id}`}
-                  tabIndex={0}
-                  aria-selected={selected?.id === i.id}
-                  className={["ledger-row", i.is_active ? "" : "inactive", selected?.id === i.id ? "selected" : ""].join(" ")}
-                  onClick={() => pick(i)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") pick(i);
-                  }}
-                >
-                  <td>
-                    {i.name}
-                    {!i.is_active && <span className="small"> · inactive</span>}
-                    <div className="small">{i.item_number}</div>
-                  </td>
-                  <td>{labelFor(units, i.stock_unit, i.stock_unit_name)}</td>
-                </tr>
-              ))}
+              {shown.map((i) => {
+                const rate = rateToday(i.gst_rates);
+                return (
+                  <tr
+                    key={i.id}
+                    id={`item-${i.id}`}
+                    tabIndex={0}
+                    aria-selected={selected?.id === i.id}
+                    className={["ledger-row", i.is_active ? "" : "inactive", selected?.id === i.id ? "selected" : ""].join(" ")}
+                    onClick={() => pick(i)}
+                    onDoubleClick={() => openItemView(i.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") openItemView(i.id);
+                    }}
+                  >
+                    <td>{i.item_number}</td>
+                    <td>
+                      {i.name}
+                      {!i.is_active && <span className="small"> · inactive</span>}
+                    </td>
+                    <td>{i.item_group_name ?? ""}</td>
+                    <td>{i.hsn}</td>
+                    <td>{labelFor(units, i.stock_unit, i.stock_unit_name)}</td>
+                    <td className="num">{rate ? `${plain(rate.rate)}%` : ""}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {shown.length > 1 && <p className="small">Tip: click an item, then use ↑ and ↓ to move through the list.</p>}
+          {shown.length > 0 && <p className="small">Click an item to see its details at the right; double-click or press Enter to open it.</p>}
         </div>
-        <aside className="split-panel" aria-label="Item details">
+        <div className="side-col" aria-label="Item details">
           {selected ? (
-            <ItemPanel
-              item={selected}
-              units={units}
-              canEdit={canEdit}
-              onEdit={() => openItemForm(String(selected.id))}
-              onDuplicate={() => openItemForm(`copy-${selected.id}`)}
-            />
+            <>
+              <SidePanel title="Item Details" tag={selected.item_number}>
+                <SideRows
+                  rows={[
+                    ["Goods or service", typeLabel(selected.item_type)],
+                    ["Item group", selected.item_group_name ?? ""],
+                    ["Brand", selected.brand_name ?? ""],
+                    ["HSN code", selected.hsn],
+                    ...(selected.delivery_hsn ? ([["Delivery HSN", selected.delivery_hsn]] as [string, string][]) : []),
+                    ["Default unit", labelFor(units, selected.stock_unit, selected.stock_unit_name)],
+                    ["GST rate today", rateToday(selected.gst_rates) ? `${plain(rateToday(selected.gst_rates)!.rate)}%` : ""],
+                  ]}
+                />
+                <div className="side-buttons">
+                  <button type="button" onClick={() => openItemView(selected.id)}>
+                    Open
+                  </button>
+                  {canEdit && (
+                    <button type="button" className="link" onClick={() => openItemForm(`copy-${selected.id}`)}>
+                      Duplicate
+                    </button>
+                  )}
+                </div>
+              </SidePanel>
+              <ItemActivity item={selected} />
+            </>
           ) : (
-            <div className="card">
+            <SidePanel title="Item Details">
               <p className="small">Pick an item to see its details here.</p>
-            </div>
+            </SidePanel>
           )}
-        </aside>
+        </div>
       </div>
     </section>
   );
@@ -310,167 +355,250 @@ function Facts({ rows }: { rows: [string, string][] }) {
   );
 }
 
-function ItemPanel(props: { item: Item; units: Unit[]; canEdit: boolean; onEdit: () => void; onDuplicate: () => void }) {
-  const { item: i, canEdit, units } = props;
-  const unit = (id: number | null, name: string | null) => labelFor(units, id, name);
+/** A side panel: a light green title strip over a white body (the one box look of the app). */
+function SidePanel(props: { title: string; tag?: string; children: React.ReactNode }) {
   return (
-    <div className="card panel">
-      <div className="panel-head">
-        <div>
-          <h2>{i.name}</h2>
-          <p className="small">
-            {i.item_number} · {typeLabel(i.item_type)}
-            {!i.is_active && " · inactive"}
-          </p>
-        </div>
-        {canEdit && (
-          <div className="buttons">
-            <button onClick={props.onEdit}>Edit</button>
-            <button type="button" className="link" onClick={props.onDuplicate}>
-              Duplicate
-            </button>
+    <section className="side-panel">
+      <h3>
+        {props.title}
+        {props.tag && <em>{props.tag}</em>}
+      </h3>
+      <div className="side-body">{props.children}</div>
+    </section>
+  );
+}
+
+/** Label on the left, value against the right edge; empty values are left out. */
+function SideRows({ rows }: { rows: [string, string][] }) {
+  return (
+    <>
+      {rows
+        .filter(([, v]) => v)
+        .map(([k, v]) => (
+          <div key={k} className="side-row">
+            <span>{k}</span>
+            <span>{v}</span>
           </div>
-        )}
-      </div>
-      <Section title="Item">
-        <Facts
-          rows={[
-            ["Item number", i.item_number],
-            ["Goods or service", typeLabel(i.item_type)],
-            ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
-            ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
-            ["Allow sales", i.allow_sales ? "Yes" : "No"],
-            ["Default unit (stock unit)", unit(i.stock_unit, i.stock_unit_name)],
-            ["Item group", i.item_group_name ?? ""],
-            ["Brand", i.brand_name ?? ""],
-            ["HSN", i.hsn],
-            ...(i.delivery_hsn ? ([["Delivery HSN", i.delivery_hsn]] as [string, string][]) : []),
-          ]}
-        />
-      </Section>
-      {(i.sales_description || i.sales_unit_name || i.mrp || i.usp || i.best_before_value || i.batch_no) && (
-        <Section title="Sales">
-          <Facts
-            rows={[
-              ["Default sales unit", unit(i.sales_unit, i.sales_unit_name)],
-              ["MRP", i.mrp === null ? "" : `₹ ${plain(i.mrp)}`],
-              ["USP", i.usp],
-              ["Best before", i.best_before_value === null ? "" : `${i.best_before_value} ${i.best_before_unit}`],
-              ["Batch No", i.batch_no],
-            ]}
-          />
-          {i.sales_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.sales_description }} />}
-        </Section>
-      )}
-      {(i.purchase_description ||
-        i.purchase_unit_name ||
-        i.lead_time_days !== null ||
-        i.safety_stock_qty ||
-        i.min_order_qty ||
-        i.max_stock_qty) && (
-        <Section title="Purchase">
-          <Facts
-            rows={[
-              ["Default purchase unit", unit(i.purchase_unit, i.purchase_unit_name)],
-              ["Lead time", i.lead_time_days === null ? "" : `${i.lead_time_days} days`],
-              ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
-              ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
-              ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
-            ]}
-          />
-          {i.purchase_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.purchase_description }} />}
-        </Section>
-      )}
-      {i.gst_rates.length > 0 && (
-        <Section title="GST rates">
-          <table className="grid">
-            <thead>
-              <tr>
-                <th>From</th>
-                <th className="num">GST rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...i.gst_rates].reverse().map((r) => (
-                <tr key={r.valid_from}>
-                  <td>
-                    {showDate(r.valid_from)}
-                    {r === rateToday(i.gst_rates) && <span className="pill on">In force</span>}
-                  </td>
-                  <td className="num">{plain(r.rate)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Section>
-      )}
-      <Section title="Stock and quality">
-        <Facts
-          rows={[
-            ["Batches tracked", i.batch_tracked ? "Yes" : "No"],
-            ["Quality check on receipt", i.qc_required ? "Yes" : "No"],
-            ["Default material request type", requestLabel(i.default_request_type)],
-          ]}
-        />
-      </Section>
-      {i.units.length > 0 && (
-        <Section title="Units of measure">
-          <ul className="address-list cards-2">
-            {i.units.map((u) => {
-              const size =
-                u.length_cm && u.breadth_cm && u.height_cm
-                  ? `${plain(u.length_cm)} × ${plain(u.breadth_cm)} × ${plain(u.height_cm)} cm${u.volume_m3 ? ` · ${u.volume_m3} m³` : ""}`
-                  : "";
-              const weight = [u.net_kg && `Net ${plain(u.net_kg)} kg`, u.gross_kg && `Gross ${plain(u.gross_kg)} kg`]
+        ))}
+    </>
+  );
+}
+
+function ItemActivity({ item }: { item: Item }) {
+  return (
+    <SidePanel title="Activity">
+      <ChangeLog type="item" id={item.id} stamp={JSON.stringify(item)} />
+    </SidePanel>
+  );
+}
+
+/** A folding section: the title strip always shows a one-line summary of what is inside. */
+function Fold(props: { title: string; summary?: string; open?: boolean; children?: React.ReactNode }) {
+  return (
+    <details className="fold" open={props.open}>
+      <summary>
+        <span className="fold-title">{props.title}</span>
+        {props.summary && <span className="fold-summary">{props.summary}</span>}
+      </summary>
+      {props.children && <div className="fold-body">{props.children}</div>}
+    </details>
+  );
+}
+
+/** The item's own page: every section, read only; Edit opens the form in a new tab. */
+function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
+  const canEdit = session.permissions.includes("masters.edit");
+  const { units } = useUnits();
+  const unit = (id: number | null, name: string | null) => labelFor(units, id, name);
+  const [items, setItems] = useState<Item[] | null>(null);
+  const [error, setError] = useState("");
+  const reload = useCallback(() => {
+    api<Item[]>("v1/items/")
+      .then(setItems)
+      .catch((err: Error) => setError(err.message));
+  }, []);
+  useEffect(reload, [reload]);
+  useCreated("item_saved", reload);
+  const close = () => {
+    window.location.hash = "#/items";
+  };
+  const i = items?.find((x) => x.id === id) ?? null;
+  const rate = i ? rateToday(i.gst_rates) : undefined;
+  return (
+    <section className="page">
+      <PageHeader
+        title={i?.name ?? "Item"}
+        sub={i ? `${i.item_number} · ${typeLabel(i.item_type)}${i.maintain_stock ? " · Stock kept" : ""}${i.is_active ? "" : " · inactive"}` : undefined}
+        actions={
+          <>
+            {i && canEdit && (
+              <button type="button" className="link" onClick={() => openItemForm(`copy-${i.id}`)}>
+                Duplicate
+              </button>
+            )}
+            <button type="button" className="link" onClick={close}>
+              Close
+            </button>
+            {i && canEdit && <button onClick={() => openItemForm(String(i.id))}>Edit</button>}
+          </>
+        }
+      />
+      {error && <p className="error">{error}</p>}
+      {items !== null && !i && <p className="error">That item was not found.</p>}
+      {i && (
+        <div className="side-layout">
+          <div className="side-main">
+            <Fold
+              open
+              title="General"
+              summary={[typeLabel(i.item_type), i.item_group_name, i.hsn && `HSN ${i.hsn}`].filter(Boolean).join(" · ")}
+            >
+              <Facts
+                rows={[
+                  ["Goods or service", typeLabel(i.item_type)],
+                  ["Item group", i.item_group_name ?? ""],
+                  ["HSN code", i.hsn],
+                  ...(i.delivery_hsn ? ([["Delivery HSN code", i.delivery_hsn]] as [string, string][]) : []),
+                  ["Default unit of measure", unit(i.stock_unit, i.stock_unit_name)],
+                  ["Brand", i.brand_name ?? ""],
+                  ["Notes", i.notes],
+                ]}
+              />
+            </Fold>
+            <Fold
+              title="Sales"
+              summary={[i.mrp ? `MRP ₹ ${plain(i.mrp)}` : "MRP not set", i.best_before_value !== null && `Best before ${i.best_before_value} ${i.best_before_unit}`]
                 .filter(Boolean)
-                .join(" · ");
-              return (
-                <li key={u.unit} className="address-card">
-                  <div>
-                    <strong>{unit(u.unit, u.unit_name)}</strong>
-                  </div>
-                  <div>
-                    {u.contains_unit_name
-                      ? `${plain(u.contains_qty)} ${unit(u.contains_unit, u.contains_unit_name)}${
-                          u.contains_unit_name === i.stock_unit_name
-                            ? ""
-                            : ` = ${plain(u.factor)} ${unit(i.stock_unit, i.stock_unit_name)}`
-                        }`
-                      : "Stock unit"}
-                  </div>
-                  {size && <div className="small">{size}</div>}
-                  {weight && <div className="small">{weight}</div>}
-                  {u.barcode && <div className="small">Barcode {u.barcode}</div>}
-                  {u.used_for.length > 0 && (
-                    <div>
-                      {u.used_for.map((c) => (
-                        <span key={c} className="pill on">
-                          {usedLabel(c)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          {i.warnings.map((w) => (
-            <p key={w} className="small">
-              {w}
-            </p>
-          ))}
-        </Section>
+                .join(" · ")}
+            >
+              <Facts
+                rows={[
+                  ["Default sales unit", unit(i.sales_unit, i.sales_unit_name)],
+                  ["MRP", i.mrp === null ? "" : `₹ ${plain(i.mrp)}`],
+                  ["USP", i.usp],
+                  ["Best before", i.best_before_value === null ? "" : `${i.best_before_value} ${i.best_before_unit}`],
+                  ["Batch No", i.batch_no],
+                ]}
+              />
+              {i.sales_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.sales_description }} />}
+            </Fold>
+            <Fold
+              title="Purchase"
+              summary={[i.lead_time_days !== null && `Lead time ${i.lead_time_days} days`, i.safety_stock_qty && `Safety stock ${plain(i.safety_stock_qty)}`]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              <Facts
+                rows={[
+                  ["Default purchase unit", unit(i.purchase_unit, i.purchase_unit_name)],
+                  ["Lead time", i.lead_time_days === null ? "" : `${i.lead_time_days} days`],
+                  ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
+                  ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
+                  ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
+                ]}
+              />
+              {i.purchase_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.purchase_description }} />}
+            </Fold>
+            <Fold title="GST Rates" summary={rate ? `${plain(rate.rate)}% from ${showDate(rate.valid_from)} (in force)` : "No rate set"}>
+              {i.gst_rates.length > 0 && (
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>From</th>
+                      <th className="num">GST rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...i.gst_rates].reverse().map((r) => (
+                      <tr key={r.valid_from}>
+                        <td>
+                          {showDate(r.valid_from)}
+                          {r === rate && <span className="pill on">In force</span>}
+                        </td>
+                        <td className="num">{plain(r.rate)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Fold>
+            <Fold
+              title="Stock And Quality"
+              summary={[i.batch_tracked ? "Batches tracked" : "Batches not tracked", i.qc_required ? "Quality check on receipt" : "No quality check"].join(" · ")}
+            >
+              <Facts
+                rows={[
+                  ["Batches tracked", i.batch_tracked ? "Yes" : "No"],
+                  ["Quality check on receipt", i.qc_required ? "Yes" : "No"],
+                  ["Default material request type", requestLabel(i.default_request_type)],
+                ]}
+              />
+            </Fold>
+            <Fold
+              title="Units Of Measure"
+              summary={`${i.units.length} ${i.units.length === 1 ? "unit" : "units"}${i.units.length ? `: ${i.units.map((u) => unit(u.unit, u.unit_name)).join(", ")}` : ""}`}
+            >
+              <ul className="address-list cards-2">
+                {i.units.map((u) => {
+                  const size =
+                    u.length_cm && u.breadth_cm && u.height_cm
+                      ? `${plain(u.length_cm)} × ${plain(u.breadth_cm)} × ${plain(u.height_cm)} cm${u.volume_m3 ? ` · ${u.volume_m3} m³` : ""}`
+                      : "";
+                  const weight = [u.net_kg && `Net ${plain(u.net_kg)} kg`, u.gross_kg && `Gross ${plain(u.gross_kg)} kg`]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <li key={u.unit} className="address-card">
+                      <div>
+                        <strong>{unit(u.unit, u.unit_name)}</strong>
+                      </div>
+                      <div>
+                        {u.contains_unit_name
+                          ? `${plain(u.contains_qty)} ${unit(u.contains_unit, u.contains_unit_name)}${
+                              u.contains_unit_name === i.stock_unit_name ? "" : ` = ${plain(u.factor)} ${unit(i.stock_unit, i.stock_unit_name)}`
+                            }`
+                          : "Stock unit"}
+                      </div>
+                      {size && <div className="small">{size}</div>}
+                      {weight && <div className="small">{weight}</div>}
+                      {u.barcode && <div className="small">Barcode {u.barcode}</div>}
+                      {u.used_for.length > 0 && (
+                        <div>
+                          {u.used_for.map((c) => (
+                            <span key={c} className="pill on">
+                              {usedLabel(c)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {i.warnings.map((w) => (
+                <p key={w} className="small">
+                  {w}
+                </p>
+              ))}
+            </Fold>
+            <Fold title="Connections" summary="No documents yet" />
+          </div>
+          <div className="side-col">
+            <SidePanel title="Switches">
+              <SideRows
+                rows={[
+                  ["Disabled", i.is_active ? "No" : "Yes"],
+                  ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
+                  ["Allow sales", i.allow_sales ? "Yes" : "No"],
+                  ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
+                ]}
+              />
+            </SidePanel>
+            <ItemActivity item={i} />
+          </div>
+        </div>
       )}
-      {i.notes && (
-        <Section title="Notes">
-          <p className="pre">{i.notes}</p>
-        </Section>
-      )}
-      <div className="panel-activity">
-        <h3>Activity</h3>
-        <ChangeLog type="item" id={i.id} stamp={JSON.stringify(i)} />
-      </div>
-    </div>
+    </section>
   );
 }
 
