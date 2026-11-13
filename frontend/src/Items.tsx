@@ -6,7 +6,6 @@ import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { HsnDescription, HsnPicker } from "./Hsn";
-import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
 import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
@@ -149,24 +148,21 @@ function ItemFormTab({ form }: { form: string }) {
     closeThisTab(toList);
   };
   const missing = form !== "new" && items !== null && target === null;
+  const title = form === "new" ? "Add item" : copy ? "Duplicate item" : "Edit item";
   return (
-    <section className="page">
-      <PageHeader title={form === "new" ? "Add item" : copy ? "Duplicate item" : "Change item"} />
+    <section className="page item-edit">
       {error && <p className="error">{error}</p>}
       {missing && <p className="error">That item was not found.</p>}
-      <div className="split editing item-edit">
-        <div className="split-list" />
-        <aside className="split-panel" aria-label="Item form">
-          {items !== null && !missing && (
-            <ItemForm
-              item={copy ? null : target}
-              copyOf={copy ? target : null}
-              onDone={(id, name) => finish(id ? { id, name: name ?? "" } : undefined)}
-              onCancel={() => finish()}
-            />
-          )}
-        </aside>
-      </div>
+      {items !== null && !missing && (
+        <ItemForm
+          title={title}
+          item={copy ? null : target}
+          copyOf={copy ? target : null}
+          onDone={(id, name) => finish(id ? { id, name: name ?? "" } : undefined)}
+          onCancel={() => finish()}
+        />
+      )}
+      {items === null && !error && <PageHeader title={title} />}
     </section>
   );
 }
@@ -658,6 +654,7 @@ function factors(stock: string, rows: Row[]): Map<string, number> {
 }
 
 function ItemForm(props: {
+  title: string;
   item: Item | null;
   copyOf: Item | null;
   onDone: (savedId?: number, savedName?: string) => void;
@@ -808,8 +805,33 @@ function ItemForm(props: {
     }
   };
 
+  const folds = [
+    ["general", "General", [typeLabel(type), hsn && `HSN ${hsn}`].filter(Boolean).join(" · ")],
+    ["sales", "Sales", [mrp ? `MRP ₹ ${mrp}` : "", bestBefore ? `Best before ${bestBefore} ${bestBeforeUnit}` : ""].filter(Boolean).join(" · ")],
+    ["purchase", "Purchase", [leadTime ? `Lead time ${leadTime} days` : "", safety ? `Safety stock ${safety}` : ""].filter(Boolean).join(" · ")],
+    ["gst", "GST Rates", `${rates.length} ${rates.length === 1 ? "rate" : "rates"}`],
+    ["stock", "Stock And Quality", [batches ? "Batches tracked" : "", qc ? "Quality check on receipt" : ""].filter(Boolean).join(" · ")],
+    ["units", "Units Of Measure", `${rows.length} ${rows.length === 1 ? "unit" : "units"}`],
+    ["connections", "Connections", "No documents yet"],
+  ] as const;
   return (
-    <form className="card" onSubmit={save}>
+    <>
+      <PageHeader
+        title={props.title}
+        sub={it ? `${it.item_number} · ${typeLabel(type)}${stocked ? " · Stock kept" : ""}${disabled ? " · Disabled" : ""}` : undefined}
+        actions={
+          <>
+            <button type="button" className="link" onClick={props.onCancel}>
+              Cancel
+            </button>
+            <button type="submit" form="item-form" disabled={busy}>
+              Save
+            </button>
+          </>
+        }
+      />
+      <form id="item-form" className="side-layout" onSubmit={save}>
+        <div className="side-main">
       <div className="item-head">
         <label className="item-title">
           <span className="req small">Item name</span>
@@ -830,35 +852,17 @@ function ItemForm(props: {
           {disabled && <span className="tag">Disabled</span>}
         </p>
       </div>
-      <div className="form-tabs" role="tablist">
-        {(
-          [
-            ["general", "General"],
-            ["sales", "Sales"],
-            ["purchase", "Purchase"],
-            ["gst", `GST rates (${rates.length})`],
-            ["stock", "Stock and quality"],
-            ["units", `Units of measure (${rows.length})`],
-            ["connections", "Connections"],
-          ] as const
-        ).map(([code, label]) => (
-          <button
-            key={code}
-            type="button"
-            role="tab"
-            aria-selected={tab === code}
-            className={tab === code ? "active" : ""}
-            onClick={() => setTab(code)}
-          >
-            {label}
+
+        <div className={"fold" + (tab === "general" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "general"} onClick={() => setTab("general")}>
+            <span className="fold-title">{folds[0][1]}</span>
+            {tab !== "general" && <span className="fold-summary">{folds[0][2]}</span>}
           </button>
-        ))}
-      </div>
-      <FormBody>
-        {tab === "general" && (
+          {tab === "general" && <div className="fold-body">
+        {true && (
         <Section>
           <p className="small"><span className="req-star">*</span> Required</p>
-          <div className="item-general">
+          <div className="item-general single">
             <div>
               <label>
                 <span className="req">Goods or service</span>
@@ -926,34 +930,10 @@ function ItemForm(props: {
                   />
                 </label>
             </div>
-            <fieldset className="item-checks">
-              <legend>Switches</legend>
-              <label className="check">
-                <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
-                Disabled
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={allowPurchase} onChange={(e) => setAllowPurchase(e.target.checked)} />
-                Allow purchase
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={allowSales} onChange={(e) => setAllowSales(e.target.checked)} />
-                Allow sales
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={offerAll} onChange={(e) => setOfferAll(e.target.checked)} />
-                Offer to all
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={stocked} onChange={(e) => setStocked(e.target.checked)} />
-                Maintain stock
-              </label>
-              <p className="small">"Maintain stock" says whether stock of this item is kept, goods or service.</p>
-            </fieldset>
           </div>
         </Section>
         )}
-        {tab === "general" && (
+        {true && (
         <Section>
           <label>
             Notes
@@ -961,7 +941,15 @@ function ItemForm(props: {
           </label>
         </Section>
         )}
-        {tab === "sales" && (
+          </div>}
+        </div>
+        <div className={"fold" + (tab === "sales" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "sales"} onClick={() => setTab("sales")}>
+            <span className="fold-title">{folds[1][1]}</span>
+            {tab !== "sales" && <span className="fold-summary">{folds[1][2]}</span>}
+          </button>
+          {tab === "sales" && <div className="fold-body">
+        {true && (
           <Section>
             <div className="item-fields">
               <RichText
@@ -1004,7 +992,15 @@ function ItemForm(props: {
             </div>
           </Section>
         )}
-        {tab === "purchase" && (
+          </div>}
+        </div>
+        <div className={"fold" + (tab === "purchase" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "purchase"} onClick={() => setTab("purchase")}>
+            <span className="fold-title">{folds[2][1]}</span>
+            {tab !== "purchase" && <span className="fold-summary">{folds[2][2]}</span>}
+          </button>
+          {tab === "purchase" && <div className="fold-body">
+        {true && (
           <Section>
             <div className="item-fields">
               <RichText
@@ -1037,7 +1033,15 @@ function ItemForm(props: {
             </div>
           </Section>
         )}
-        {tab === "gst" && (
+          </div>}
+        </div>
+        <div className={"fold" + (tab === "gst" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "gst"} onClick={() => setTab("gst")}>
+            <span className="fold-title">{folds[3][1]}</span>
+            {tab !== "gst" && <span className="fold-summary">{folds[3][2]}</span>}
+          </button>
+          {tab === "gst" && <div className="fold-body">
+        {true && (
           <Section>
             <p className="small">
               When the law changes, click "Add rate" and give the new rate and the date it starts. Keep the old rows: bills
@@ -1078,7 +1082,15 @@ function ItemForm(props: {
             </div>
           </Section>
         )}
-        {tab === "stock" && (
+          </div>}
+        </div>
+        <div className={"fold" + (tab === "stock" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "stock"} onClick={() => setTab("stock")}>
+            <span className="fold-title">{folds[4][1]}</span>
+            {tab !== "stock" && <span className="fold-summary">{folds[4][2]}</span>}
+          </button>
+          {tab === "stock" && <div className="fold-body">
+        {true && (
         <Section>
           <div className="item-general">
             <div className="item-fields">
@@ -1107,15 +1119,15 @@ function ItemForm(props: {
           </div>
         </Section>
         )}
-        {tab === "connections" && (
-          <Section>
-            <p className="small">
-              The documents that use this item, with a count for each, will be listed here once purchase, sales and stock
-              entries are built.
-            </p>
-          </Section>
-        )}
-        {tab === "units" && (
+          </div>}
+        </div>
+        <div className={"fold" + (tab === "units" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "units"} onClick={() => setTab("units")}>
+            <span className="fold-title">{folds[5][1]}</span>
+            {tab !== "units" && <span className="fold-summary">{folds[5][2]}</span>}
+          </button>
+          {tab === "units" && <div className="fold-body">
+        {true && (
         <Section>
           <p className="small">
             The stock unit is added for you. For every other unit say how many of which unit it contains; "= {stockName || "stock unit"}" is
@@ -1226,14 +1238,63 @@ function ItemForm(props: {
           </div>
         </Section>
         )}
-      </FormBody>
+          </div>}
+        </div>
+        <div className={"fold" + (tab === "connections" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "connections"} onClick={() => setTab("connections")}>
+            <span className="fold-title">{folds[6][1]}</span>
+            {tab !== "connections" && <span className="fold-summary">{folds[6][2]}</span>}
+          </button>
+          {tab === "connections" && <div className="fold-body">
+        {true && (
+          <Section>
+            <p className="small">
+              The documents that use this item, with a count for each, will be listed here once purchase, sales and stock
+              entries are built.
+            </p>
+          </Section>
+        )}
+          </div>}
+        </div>
       <ErrorNote error={error} />
-      <div className="buttons">
-        <button disabled={busy}>Save</button>
-        <button type="button" className="link" onClick={props.onCancel}>
-          Cancel
-        </button>
-      </div>
-    </form>
+        </div>
+        <div className="side-col">
+          <SidePanel title="Switches">
+            <div className="item-switches">
+                            <label className="check">
+                <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
+                Disabled
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={allowPurchase} onChange={(e) => setAllowPurchase(e.target.checked)} />
+                Allow purchase
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={allowSales} onChange={(e) => setAllowSales(e.target.checked)} />
+                Allow sales
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={offerAll} onChange={(e) => setOfferAll(e.target.checked)} />
+                Offer to all
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={stocked} onChange={(e) => setStocked(e.target.checked)} />
+                Maintain stock
+              </label>
+              <p className="small">"Maintain stock" says whether stock of this item is kept, goods or service.</p>
+            </div>
+          </SidePanel>
+          <SidePanel title="Tips">
+            <p className="small">A red * marks a field that must be filled in.</p>
+            <p className="small">Pick an item group that has no sub-groups.</p>
+          </SidePanel>
+          {it && (
+            <SidePanel title="Activity">
+              <ChangeLog type="item" id={it.id} stamp={JSON.stringify(it)} />
+            </SidePanel>
+          )}
+        </div>
+      </form>
+    </>
   );
 }
