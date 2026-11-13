@@ -702,6 +702,10 @@ class Item(models.Model):
     item_type = models.CharField(max_length=10, choices=TYPES, default=GOODS)
     stock_unit = models.ForeignKey("Unit", on_delete=models.PROTECT, related_name="stock_items")
     hsn = models.CharField(max_length=8, blank=True)
+    # A service that keeps stock (job work) also has the goods code that goes on
+    # the delivery challan and e-way bill; `hsn` stays the service (SAC) code for
+    # the invoice and e-invoice. Blank unless item_type is service and maintain_stock.
+    delivery_hsn = models.CharField(max_length=8, blank=True)
     sales_description = models.CharField(max_length=500, blank=True)
     sales_unit = models.ForeignKey(
         "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"

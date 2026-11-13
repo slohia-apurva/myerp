@@ -134,6 +134,7 @@ class ItemSerializer(serializers.ModelSerializer):
             "stock_unit",
             "stock_unit_name",
             "hsn",
+            "delivery_hsn",
             "item_group",
             "item_group_name",
             "brand",
@@ -269,6 +270,7 @@ def _save_item(item: Item, data: dict) -> Item:
         "item_type",
         "stock_unit",
         "hsn",
+        "delivery_hsn",
         "sales_description",
         "sales_unit",
         "purchase_description",
@@ -307,6 +309,23 @@ def _save_item(item: Item, data: dict) -> Item:
         raise ValidationError(
             {"hsn": ["That HSN code is not in the list. Pick one from the list."]}
         )
+    # A service that keeps stock (job work) also has the goods code for the delivery
+    # challan and e-way bill; for every other item the field is cleared.
+    if item.item_type == Item.SERVICE and item.maintain_stock:
+        if "delivery_hsn" in data and data["delivery_hsn"] and not data["delivery_hsn"].isdigit():
+            raise ValidationError({"delivery_hsn": ["The delivery HSN code is digits only."]})
+        if not item.delivery_hsn:
+            raise ValidationError(
+                {"delivery_hsn": ["Give the delivery HSN code (the goods code for the challan)."]}
+            )
+        if (not item.pk or item.delivery_hsn != _saved_hsn(item, "delivery_hsn")) and not (
+            HsnCode.objects.filter(hsn_code=item.delivery_hsn, is_active=True).exists()
+        ):
+            raise ValidationError(
+                {"delivery_hsn": ["That HSN code is not in the list. Pick one from the list."]}
+            )
+    else:
+        item.delivery_hsn = ""
     if rows is None and not item.pk:
         rows = []
     if rows is not None:
@@ -522,6 +541,6 @@ class ItemDetailView(APIView):
         return Response(ItemSerializer(_queryset().get(pk=item.pk)).data)
 
 
-def _saved_hsn(item) -> str:
+def _saved_hsn(item, field: str = "hsn") -> str:
     """The HSN code stored for an existing item (blank for a new one)."""
-    return Item.objects.filter(pk=item.pk).values_list("hsn", flat=True).first() or ""
+    return Item.objects.filter(pk=item.pk).values_list(field, flat=True).first() or ""

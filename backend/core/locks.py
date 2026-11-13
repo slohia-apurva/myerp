@@ -20,6 +20,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
         "maintain_stock": "maintain stock",
         "stock_unit": "stock unit",
         "hsn": "HSN",
+        "delivery_hsn": "delivery HSN",
         "batch_tracked": "batch tracking",
         "units": "units of measure",
     },

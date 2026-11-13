@@ -67,6 +67,7 @@ LABELS = {
     "gst_code": "GST unit code",
     "item_number": "Item number",
     "hsn": "HSN",
+    "delivery_hsn": "Delivery HSN",
     "mrp": "MRP",
     "usp": "USP",
     "best_before_value": "Best before",

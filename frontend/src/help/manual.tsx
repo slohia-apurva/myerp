@@ -471,13 +471,19 @@ export const MANUAL: Chapter[] = [
             any time; the "Item number" beside it is given when you save. Fields
             marked with a red * must be filled in. Under "General", choose
             "Goods or service", pick the "Item group"
-            (it must be filled in; see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it),
+            (it must be filled in; see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it; for a service use its SAC code),
             the "Default unit of measure" (the unit stock is counted in, such as
             Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" box, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold.
             "Maintain stock" is separate from goods or service: untick it for an
             item whose stock is not to be kept, and tick it for a service whose
-            stock is. "Notes" are in the box below.
+            stock is. For a service that keeps stock (job work, where the
+            customer's goods are processed and sent back), two more boxes
+            appear: "Delivery HSN code" and its description. Pick the HSN code
+            of the goods there; it goes on the delivery challan and e-way
+            bill, while the "HSN code" above (the service code) goes on the
+            invoice and e-invoice. The boxes disappear when the item is goods
+            or does not keep stock. "Notes" are in the box below.
           </li>
           <li>
             On the "Sales" tab, write the "Sales description" customers should
