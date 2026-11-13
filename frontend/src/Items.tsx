@@ -115,9 +115,9 @@ function viewParam(): number | null {
   return id > 0 ? id : null;
 }
 
-/** Open an item's own page. */
+/** Open an item's own page in a new tab, beside the list. */
 function openItemView(id: number) {
-  window.location.hash = `#/items?view=${id}`;
+  window.open(`${window.location.pathname}${window.location.search}#/items?view=${id}`, "_blank");
 }
 
 /** Open the add / change form of an item in a new tab, beside the list. */
@@ -416,9 +416,11 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
   }, []);
   useEffect(reload, [reload]);
   useCreated("item_saved", reload);
-  const close = () => {
-    window.location.hash = "#/items";
-  };
+  // The page opens in its own tab: Close shuts it (or shows the list if it was opened by hand).
+  const close = () =>
+    closeThisTab(() => {
+      window.location.hash = "#/items";
+    });
   const i = items?.find((x) => x.id === id) ?? null;
   const rate = i ? rateToday(i.gst_rates) : undefined;
   return (
