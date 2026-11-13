@@ -177,7 +177,15 @@ def test_platform_admin_loads_hsn_from_a_file(alpha, settings):
     assert first.json()["added"] == 2
     assert HsnCode.objects.get(hsn_code="0902").description == "Tea"
     again = _upload(client, "/api/v1/central/import/hsn/", csv)
-    assert again.json() == {"added": 0, "updated": 0, "unchanged": 2, "skipped": []}
+    assert again.json() == {
+        "added": 0,
+        "updated": 0,
+        "unchanged": 2,
+        "skipped": [],
+        "problems": [],
+        "repeated": [],
+        "saved": True,
+    }
     empty = _upload(client, "/api/v1/central/import/hsn/", "nothing here\n")
     assert empty.status_code == 400
 
@@ -304,3 +312,20 @@ def test_hsn_can_be_loaded_from_an_excel_file(alpha, settings):
     assert (
         client.post("/api/v1/central/import/hsn/", {"file": bad}, HTTP_HOST=HOST).status_code == 400
     )
+
+
+def test_checking_a_file_saves_nothing_and_lists_every_problem(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    csv = "HSN,Description\n0902,Tea\n30559,Fish\n0910,\n0902,Tea again\n"
+    path = "/api/v1/central/import/hsn/"
+    checked = _upload(client, path, csv, commit="0")
+    body = checked.json()
+    assert checked.status_code == 200, body
+    assert body["saved"] is False and body["added"] == 1
+    assert body["problems"] == ["30559: not 2, 4, 6 or 8 digits", "0910: no description"]
+    assert body["repeated"] == ["0902"]
+    assert not HsnCode.objects.filter(hsn_code="0902").exists()
+    saved = _upload(client, path, csv, commit="1").json()
+    assert saved["saved"] is True
+    assert HsnCode.objects.get(hsn_code="0902").description == "Tea again"
