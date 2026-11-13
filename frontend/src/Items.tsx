@@ -523,7 +523,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"general" | "sales" | "purchase" | "gst" | "stock" | "units">("general");
+  const [tab, setTab] = useState<"general" | "sales" | "purchase" | "gst" | "stock" | "units" | "connections">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -544,14 +544,16 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
     setError("");
     // The General tab's boxes are not on screen while another tab is open, so
     // the browser cannot check them: check here and take the person there.
-    if (!name.trim() || !stock || !hsn) {
+    if (!name.trim() || !stock || !hsn || !group) {
       setTab("general");
       setError(
         !name.trim()
           ? "Give the item name at the top."
           : !stock
             ? "Pick the default unit of measure on the General tab."
-            : "Pick the HSN code on the General tab.",
+            : !hsn
+              ? "Pick the HSN code on the General tab."
+              : "Pick the item group on the General tab.",
       );
       return;
     }
@@ -641,6 +643,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             ["gst", `GST rates (${rates.length})`],
             ["stock", "Stock and quality"],
             ["units", `Units of measure (${rows.length})`],
+            ["connections", "Connections"],
           ] as const
         ).map(([code, label]) => (
           <button
@@ -666,10 +669,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                 <Combobox value={type} onChange={setType} options={TYPES.map(([value, label]) => ({ value, label }))} />
               </label>
               <label>
-                Item group
+                <span className="req">Item group</span>
                 <Combobox
+                  required
                   value={group}
-                  empty="No group"
                   placeholder="Type to search groups…"
                   options={itemGroups
                     .filter((g) => (g.is_active && !parents.has(g.id)) || String(g.id) === group)
@@ -887,6 +890,14 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             Quality check on receipt
           </label>
         </Section>
+        )}
+        {tab === "connections" && (
+          <Section>
+            <p className="small">
+              The documents that use this item, with a count for each, will be listed here once purchase, sales and stock
+              entries are built.
+            </p>
+          </Section>
         )}
         {tab === "units" && (
         <Section title="Units of measure">

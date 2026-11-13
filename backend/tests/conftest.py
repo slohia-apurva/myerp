@@ -79,3 +79,44 @@ def hsn_list(db):
         ("1701", "Cane or beet sugar"),
     ]:
         HsnCode.objects.get_or_create(hsn_code=code, defaults={"description": text})
+
+
+@pytest.fixture(autouse=True)
+def _items_get_a_default_group(monkeypatch):
+    """An item must have an item group. Most tests are about something else, so
+    an item posted without one gets the group "General" (made on first use).
+    A test that is about the rule posts `"item_group": None` to say so."""
+    import json
+
+    from django.test import Client
+
+    real_post = Client.post
+
+    def post(self, path, data=None, *args, **kwargs):
+        if (
+            path == "/api/v1/items/"
+            and isinstance(data, dict)
+            and "stock_unit" in data
+            and "item_group" not in data
+        ):
+            host = {"HTTP_HOST": kwargs["HTTP_HOST"]} if "HTTP_HOST" in kwargs else {}
+            groups = self.get("/api/v1/item-groups/", **host)
+            found = (
+                [g for g in groups.json() if g["name"] == "General"]
+                if groups.status_code == 200
+                else []
+            )
+            if not found and groups.status_code == 200:
+                made = real_post(
+                    self,
+                    "/api/v1/item-groups/",
+                    data=json.dumps({"name": "General"}),
+                    content_type="application/json",
+                    **host,
+                )
+                found = [made.json()] if made.status_code == 201 else []
+            if found:
+                data = {**data, "item_group": found[0]["id"]}
+        return real_post(self, path, data, *args, **kwargs)
+
+    monkeypatch.setattr(Client, "post", post)

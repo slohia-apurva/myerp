@@ -293,14 +293,14 @@ def test_leaving_out_a_child_sheet_keeps_those_rows(owner, alpha):
     assert term["notes"] == "Usual" and len(term["parts"]) == 1
 
 
-ITEMS = ["Name", "Type", "Default unit (stock unit)", "HSN"]
+ITEMS = ["Name", "Type", "Item group", "Default unit (stock unit)", "HSN"]
 UNITS = ["Item", "Unit", "Contains how many", "Of", "Barcode", "Used for"]
 RATES = ["Item", "From", "GST rate (%)"]
 
 
 def test_items_with_units_and_gst_rates(owner, alpha):
     sheets = {
-        "Items": [ITEMS, ["Ghee 500 ml", "Goods", "pkt", "0405"]],
+        "Items": [ITEMS, ["Ghee 500 ml", "Goods", "Dairy", "pkt", "0405"]],
         "Units of measure": [
             UNITS,
             ["Ghee 500 ml", "Packet", "", "", "8901234500011", "Sales, Stock"],
@@ -313,6 +313,12 @@ def test_items_with_units_and_gst_rates(owner, alpha):
             ["Ghee 500 ml", "22-09-2025", "5"],
         ],
     }
+    owner.post(
+        "/api/v1/item-groups/",
+        data='{"name": "Dairy"}',
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
     out = send(owner, "items", sheets).json()
     assert out["errors"] == [
         {

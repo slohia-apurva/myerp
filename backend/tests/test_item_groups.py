@@ -197,3 +197,14 @@ def test_items_sit_only_in_groups_without_sub_groups(accountant, company):
     sub = call(accountant, "post", "item-groups/", {"name": "Fine powder", "parent": whole["id"]})
     assert sub.status_code == 400
     assert "already has items" in str(sub.json())
+
+
+def test_an_item_must_have_a_group(accountant):
+    body = {"name": "Loose tea", "stock_unit": kg(accountant), "hsn": "0902", "item_group": None}
+    refused = call(accountant, "post", "items/", body)
+    assert refused.status_code == 400 and "item_group" in refused.json()
+    group = add(accountant, "Beverages").json()
+    made = call(accountant, "post", "items/", {**body, "item_group": group["id"]})
+    assert made.status_code == 201
+    cleared = call(accountant, "patch", f"items/{made.json()['id']}/", {"item_group": None})
+    assert cleared.status_code == 400 and "item_group" in cleared.json()
