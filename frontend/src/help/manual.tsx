@@ -1356,7 +1356,7 @@ export const MANUAL: Chapter[] = [
           its GST certificate, PAN card, FSSAI licence, MSME / Udyam
           registration, agreements and a cancelled cheque. The tab opens once
           the party has been saved. Click "Add document", pick the "Document
-          type", give the "Number", and if the paper lapses, the "Renewal date".
+          Type", give the "Number", and if the paper lapses, the "Renewal Date".
           Under "Attachments", click "Choose files" or drag files in (PDF,
           images, Word or Excel, up to 10 MB each, as many as you need); they
           are saved with the document. Click a file name in the list to open
