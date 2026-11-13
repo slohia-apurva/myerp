@@ -1796,7 +1796,22 @@ fieldset.item-checks {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 20px;
 }
+.item-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  align-content: start;
+}
+.item-general > .item-fields {
+  display: grid;
+}
+.item-fields .wide {
+  grid-column: 1 / -1;
+}
 @media (max-width: 720px) {
+  .item-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .item-edit .item-general > div:first-child {
     grid-template-columns: minmax(0, 1fr);
   }
