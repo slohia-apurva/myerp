@@ -201,7 +201,7 @@ export const MANUAL: Chapter[] = [
           how many ledgers, customers, suppliers and branches it has, and a list
           headed "Needs your attention" for things to fix, such as opening
           balances that do not balance or a licence or certificate that is
-          expired or due for renewal within 90 days. The buttons under "Go to"
+          expired or due for renewal within 90 days, or a customer's or supplier's document that has lapsed or soon will. The buttons under "Go to"
           open the company's ledgers, ledger groups, the credit terms, and the
           list of all companies. Change the company at the top right to see
           another one.
@@ -1277,7 +1277,7 @@ export const MANUAL: Chapter[] = [
         </ul>
         <p>
           A customer or supplier form has tabs along the top: "General", "GST
-          and credit", "Addresses", "Contacts" and "Opening balance". "Save" and
+          and credit", "Addresses", "Contacts", "Documents" and "Opening balance". "Save" and
           "Cancel" are at the bottom of every tab. On the "General" tab, "Under
           group" is followed by the "Customer number" (or "Vendor number") and
           then the "GSTIN". The number is given automatically when you Save
@@ -1350,6 +1350,22 @@ export const MANUAL: Chapter[] = [
           tab names show how many addresses and contacts the party has. If you
           click "Save" while a required field on another tab is empty, MyERP
           opens that tab and points to the field.
+        </p>
+        <p>
+          On the "Documents" tab, keep the papers of the customer or supplier:
+          its GST certificate, PAN card, FSSAI licence, MSME / Udyam
+          registration, agreements and a cancelled cheque. The tab opens once
+          the party has been saved. Click "Add document", pick the "Document
+          Type", give the "Number", and if the paper lapses, the "Renewal Date".
+          Under "Attachments", click "Choose files" or drag files in (PDF,
+          images, Word or Excel, up to 10 MB each, as many as you need); they
+          are saved with the document. Click a file name in the list to open
+          it. To take a wrong file off, open the document, click "Remove" beside
+          it and then "Save". A document is never deleted: click "Disable" to hide it, and tick
+          "Show disabled documents" to see it again. When a paper is renewed, add
+          the new one; the old one stays on record. Documents that have lapsed or lapse
+          within 90 days are listed under "Needs your attention" on the
+          Dashboard.
         </p>
         <p>
           Clicking a party shows its details, addresses and contacts in the side

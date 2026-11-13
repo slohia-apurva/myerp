@@ -1022,6 +1022,77 @@ class PartyContact(models.Model):
         return self.name
 
 
+class PartyDocument(models.Model):
+    """A paper kept for a customer or supplier: its GST registration, FSSAI
+    licence, agreement, cancelled cheque. Like a company's licences it has a
+    renewal date (`valid_until`), is never deleted (disable it; a renewal is a
+    new row) and may carry attached files (PartyDocumentFile)."""
+
+    KINDS = [
+        ("gst", "GST registration certificate"),
+        ("pan", "PAN card"),
+        ("fssai", "FSSAI licence"),
+        ("udyam", "MSME / Udyam registration"),
+        ("agreement", "Agreement or contract"),
+        ("bank", "Cancelled cheque or bank proof"),
+        ("other", "Other"),
+    ]
+
+    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="documents")
+    kind = models.CharField(max_length=20, choices=KINDS)
+    name = models.CharField(max_length=100, blank=True)  # for "Other", or a note such as "Form B"
+    number = models.CharField(max_length=60, blank=True)
+    issued_by = models.CharField(max_length=100, blank=True)
+    # One of the party's addresses, for papers issued per premises; blank = the whole party.
+    address_label = models.CharField(max_length=60, blank=True)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)  # renewal date; blank = never lapses
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["kind", "-valid_until", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} {self.number}".strip()
+
+    def clean(self):
+        self.number = self.number.strip()
+        self.name = " ".join(self.name.split())
+        if self.kind == "other" and not self.name:
+            raise ValidationError({"name": ["Give a name for this document."]})
+        if self.kind == "pan":
+            self.number = self.number.upper()
+            if self.number and not india.PAN_RE.fullmatch(self.number):
+                raise ValidationError({"number": ["That is not a valid PAN."]})
+        if self.valid_from and self.valid_until and self.valid_until < self.valid_from:
+            raise ValidationError(
+                {"valid_until": ["The renewal date cannot be before the start date."]}
+            )
+
+
+class PartyDocumentFile(models.Model):
+    """A file attached to a party document, kept in the tenant's own database
+    (so it is backed up, and isolated, with the rest of the books)."""
+
+    MAX_SIZE = 10 * 1024 * 1024
+    document = models.ForeignKey(PartyDocument, on_delete=models.CASCADE, related_name="files")
+    filename = models.CharField(max_length=200)
+    content_type = models.CharField(max_length=100, blank=True)
+    size = models.PositiveIntegerField()
+    data = models.BinaryField()
+    uploaded_by = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return self.filename
+
+
 class NumberSeries(models.Model):
     """A running number handed out as PREFIX + zero-padded count, e.g.
     CUST-00012. One row per kind of record (`customer`, `vendor`), shared by

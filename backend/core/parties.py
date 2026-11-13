@@ -94,6 +94,7 @@ class PartySerializer(serializers.ModelSerializer):
     validate_customer_number = validate_vendor_number = staticmethod(_upper)
     addresses = PartyAddressSerializer(many=True, required=False)
     contacts = PartyContactSerializer(many=True, required=False)
+    document_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Party
@@ -114,7 +115,11 @@ class PartySerializer(serializers.ModelSerializer):
             "salesman",
             "addresses",
             "contacts",
+            "document_count",
         ]
+
+    def get_document_count(self, party) -> int:
+        return party.documents.filter(is_active=True).count() if party.pk else 0
 
     def get_companies(self, party) -> list[dict]:
         """The companies that have a ledger for this party."""
