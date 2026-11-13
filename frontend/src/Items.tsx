@@ -10,7 +10,7 @@ import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
-import { useUnits, type Unit } from "./Units";
+import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -179,6 +179,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
 
 function ItemList({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
+  const { units } = useUnits();
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -290,7 +291,7 @@ function ItemList({ session }: { session: SignedIn }) {
                     </td>
                     <td>{i.item_group_name ?? ""}</td>
                     <td>{i.hsn}</td>
-                    <td>{i.stock_unit_name}</td>
+                    <td>{labelFor(units, i.stock_unit, i.stock_unit_name)}</td>
                     <td className="num">{rate ? `${plain(rate.rate)}%` : ""}</td>
                   </tr>
                 );
@@ -310,7 +311,7 @@ function ItemList({ session }: { session: SignedIn }) {
                     ["Brand", selected.brand_name ?? ""],
                     ["HSN code", selected.hsn],
                     ...(selected.delivery_hsn ? ([["Delivery HSN", selected.delivery_hsn]] as [string, string][]) : []),
-                    ["Default unit", selected.stock_unit_name],
+                    ["Default unit", labelFor(units, selected.stock_unit, selected.stock_unit_name)],
                     ["GST rate today", rateToday(selected.gst_rates) ? `${plain(rateToday(selected.gst_rates)!.rate)}%` : ""],
                   ]}
                 />
@@ -406,6 +407,8 @@ function Fold(props: { title: string; summary?: string; open?: boolean; children
 /** The item's own page: every section, read only; Edit opens the form in a new tab. */
 function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
+  const { units } = useUnits();
+  const unit = (id: number | null, name: string | null) => labelFor(units, id, name);
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -455,7 +458,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                   ["Item group", i.item_group_name ?? ""],
                   ["HSN code", i.hsn],
                   ...(i.delivery_hsn ? ([["Delivery HSN code", i.delivery_hsn]] as [string, string][]) : []),
-                  ["Default unit of measure", i.stock_unit_name],
+                  ["Default unit of measure", unit(i.stock_unit, i.stock_unit_name)],
                   ["Brand", i.brand_name ?? ""],
                   ["Notes", i.notes],
                 ]}
@@ -469,7 +472,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
             >
               <Facts
                 rows={[
-                  ["Default sales unit", i.sales_unit_name ?? ""],
+                  ["Default sales unit", unit(i.sales_unit, i.sales_unit_name)],
                   ["MRP", i.mrp === null ? "" : `₹ ${plain(i.mrp)}`],
                   ["USP", i.usp],
                   ["Best before", i.best_before_value === null ? "" : `${i.best_before_value} ${i.best_before_unit}`],
@@ -486,7 +489,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
             >
               <Facts
                 rows={[
-                  ["Default purchase unit", i.purchase_unit_name ?? ""],
+                  ["Default purchase unit", unit(i.purchase_unit, i.purchase_unit_name)],
                   ["Lead time", i.lead_time_days === null ? "" : `${i.lead_time_days} days`],
                   ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
                   ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
@@ -532,7 +535,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
             </Fold>
             <Fold
               title="Units Of Measure"
-              summary={`${i.units.length} ${i.units.length === 1 ? "unit" : "units"}${i.units.length ? `: ${i.units.map((u) => u.unit_name).join(", ")}` : ""}`}
+              summary={`${i.units.length} ${i.units.length === 1 ? "unit" : "units"}${i.units.length ? `: ${i.units.map((u) => unit(u.unit, u.unit_name)).join(", ")}` : ""}`}
             >
               <ul className="address-list cards-2">
                 {i.units.map((u) => {
@@ -546,12 +549,12 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                   return (
                     <li key={u.unit} className="address-card">
                       <div>
-                        <strong>{u.unit_name}</strong>
+                        <strong>{unit(u.unit, u.unit_name)}</strong>
                       </div>
                       <div>
                         {u.contains_unit_name
-                          ? `${plain(u.contains_qty)} ${u.contains_unit_name}${
-                              u.contains_unit_name === i.stock_unit_name ? "" : ` = ${plain(u.factor)} ${i.stock_unit_name}`
+                          ? `${plain(u.contains_qty)} ${unit(u.contains_unit, u.contains_unit_name)}${
+                              u.contains_unit_name === i.stock_unit_name ? "" : ` = ${plain(u.factor)} ${unit(i.stock_unit, i.stock_unit_name)}`
                             }`
                           : "Stock unit"}
                       </div>
@@ -710,7 +713,7 @@ function ItemForm(props: {
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
     units.filter((u) => (u.is_active || String(u.id) === current) && (!used.has(String(u.id)) || String(u.id) === current));
-  const unitName = (id: string) => units.find((u) => String(u.id) === id)?.name ?? "";
+  const unitName = (id: string) => labelFor(units, id);
   const fac = factors(stock, rows);
   const stockName = unitName(stock);
   const listed = [stock, ...rows.map((r) => r.unit)].filter((id, k, all) => id && all.indexOf(id) === k);
@@ -899,7 +902,7 @@ function ItemForm(props: {
                   placeholder="Type to search units…"
                   options={units
                     .filter((u: Unit) => u.is_active || String(u.id) === stock)
-                    .map((u) => ({ value: String(u.id), label: u.name }))}
+                    .map((u) => ({ value: String(u.id), label: unitLabel(u) }))}
                   onChange={setStock}
                   create={newUnit}
                 />
@@ -1119,7 +1122,7 @@ function ItemForm(props: {
                         required
                         value={r.unit}
                         placeholder="Type to search units…"
-                        options={offered(r.unit).map((u) => ({ value: String(u.id), label: u.name }))}
+                        options={offered(r.unit).map((u) => ({ value: String(u.id), label: unitLabel(u) }))}
                         create={newUnit}
                         onChange={(v) => {
                           const picked = units.find((u) => String(u.id) === v);

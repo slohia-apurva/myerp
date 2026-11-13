@@ -842,6 +842,9 @@ export const MANUAL: Chapter[] = [
           still be corrected.
         </p>
         <p>
+          Wherever a unit is picked or shown in the masters, such as on an item,
+          it reads with its short name in brackets, for example "Kilogram (Kg)".
+          Entry screens and reports will show the short name alone ("Kg").
           Names and short names must be different from each other, whatever the
           capital letters. Units are never deleted: click "Edit" and then the
           "Disable" button to stop offering a unit ("Enable" brings it back).
