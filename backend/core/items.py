@@ -299,6 +299,8 @@ def _save_item(item: Item, data: dict) -> Item:
         raise ValidationError({"hsn": ["The HSN code is digits only."]})
     if not item.hsn:
         raise ValidationError({"hsn": ["Give the HSN code."]})
+    if item.item_group_id is None:
+        raise ValidationError({"item_group": ["Pick the item group."]})
     if (not item.pk or item.hsn != _saved_hsn(item)) and not HsnCode.objects.filter(
         hsn_code=item.hsn, is_active=True
     ).exists():

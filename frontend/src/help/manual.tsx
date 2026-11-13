@@ -463,14 +463,15 @@ export const MANUAL: Chapter[] = [
           <li>
             Click "Masters" in the top menu, then "Items", then "Add item". The
             form has tabs: "General", "Sales", "Purchase", "GST rates", "Stock
-            and quality" and "Units of measure".
+            and quality", "Units of measure" and "Connections" (empty for now: it
+            will list the documents that use the item).
           </li>
           <li>
             The large "Item name" at the top is a box you can click and change at
             any time; the "Item number" beside it is given when you save. Fields
             marked with a red * must be filled in. Under "General", choose
             "Goods or service", pick the "Item group"
-            (see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it),
+            (it must be filled in; see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it),
             the "Default unit of measure" (the unit stock is counted in, such as
             Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" box, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold.
@@ -746,8 +747,8 @@ export const MANUAL: Chapter[] = [
         <p>
           Item groups are one tree shared by every company in the group, built
           the same way as ledger groups. Each item sits in one group, which you
-          pick in the "Item group" box on the item form (click the box and type
-          a few letters). Only a group with no sub-groups is offered there, so
+          pick in the "Item group" box on the item form (it must be filled in; click
+          the box and type a few letters). Only a group with no sub-groups is offered there, so
           an item always sits in the lowest group, such as "Whole spices" and
           not "Spices". A group that already has items cannot be given a
           sub-group until its items are moved to another group.
