@@ -10,6 +10,7 @@ import { useBrands } from "./Brands";
 import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
+import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
@@ -71,6 +72,7 @@ export type Item = {
   units: ItemUnit[];
   gst_rates: GstRate[];
   warnings: string[];
+  lock?: LockInfo;
 };
 export type GstRate = { valid_from: string; rate: string };
 
@@ -106,6 +108,13 @@ const rateToday = (rates: GstRate[]) => {
 function formParam(): string | null {
   const query = window.location.hash.split("?")[1] ?? "";
   return new URLSearchParams(query).get("form");
+}
+
+/** The name of the top-level group a group sits under. */
+function groupTop(groups: { id: number; name: string; parent: number | null }[], id: number): string {
+  let g = groups.find((x) => x.id === id);
+  while (g && g.parent !== null) g = groups.find((x) => x.id === g!.parent);
+  return g?.name ?? "";
 }
 
 /** `?view=<id>` on #/items: the item's own page (all its sections, read only). */
@@ -663,6 +672,7 @@ function ItemForm(props: {
   onCancel: () => void;
 }) {
   const it = props.item;
+  const locked = (field: string) => isLocked(it?.lock, field);
   const from = it ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
   const { units, refresh: refreshUnits } = useUnits();
   const newUnit = creatable("unit", "units", refreshUnits);
@@ -678,6 +688,11 @@ function ItemForm(props: {
   const newGroup = creatable("item_group", "item-groups", refreshGroups);
   const groupNames = groupPaths(itemGroups);
   const parents = new Set(itemGroups.map((g) => g.parent)); // groups with sub-groups are not offered
+  const topGroup = (() => {
+    let g = itemGroups.find((x) => String(x.id) === (it?.item_group ? String(it.item_group) : ""));
+    while (g && g.parent !== null) g = itemGroups.find((x) => x.id === g!.parent);
+    return g?.name ?? "";
+  })();
   const [group, setGroup] = useState(from?.item_group == null ? "" : String(from.item_group));
   const { brands, refresh: refreshBrands } = useBrands();
   const newBrand = creatable("brand", "brands", refreshBrands);
@@ -855,6 +870,7 @@ function ItemForm(props: {
         </p>
       </div>
 
+        <InUseNote lock={it?.lock} />
         <div className={"fold" + (tab === "general" ? " open" : "")}>
           <button type="button" className="fold-head" aria-expanded={tab === "general"} onClick={() => setTab("general")}>
             <span className="fold-title">{folds[0][1]}</span>
@@ -868,7 +884,9 @@ function ItemForm(props: {
             <div>
               <label>
                 <span className="req">Goods or service</span>
-                <Combobox value={type} onChange={setType} options={TYPES.map(([value, label]) => ({ value, label }))} />
+                <Locked on={locked("item_type")}>
+                  <Combobox value={type} onChange={setType} options={TYPES.map(([value, label]) => ({ value, label }))} />
+                </Locked>
               </label>
               <label>
                 <span className="req">Item group</span>
@@ -878,15 +896,21 @@ function ItemForm(props: {
                   placeholder="Type to search groups…"
                   options={itemGroups
                     .filter((g) => (g.is_active && !parents.has(g.id)) || String(g.id) === group)
+                    .filter((g) => !(it?.lock?.in_use.length) || !topGroup || groupTop(itemGroups, g.id) === topGroup)
                     .map((g) => ({ value: String(g.id), label: groupNames.get(g.id) ?? g.name }))}
                   onChange={setGroup}
                   create={newGroup}
                 />
+                {it && it.lock && it.lock.in_use.length > 0 && topGroup && (
+                  <span className="small">In use: can move only to another group under {topGroup}.</span>
+                )}
               </label>
               <label>
                 <span className="req">HSN code</span>
                 {jobWork && <span className="small"> (the service code, used on the invoice)</span>}
-                <HsnPicker value={hsn} onChange={setHsn} />
+                <Locked on={locked("hsn")}>
+                  <HsnPicker value={hsn} onChange={setHsn} />
+                </Locked>
               </label>
               <label>
                 HSN description
@@ -897,7 +921,9 @@ function ItemForm(props: {
                   <label>
                     <span className="req">Delivery HSN code</span>
                     <span className="small"> (the goods code, used on the delivery challan and e-way bill)</span>
-                    <HsnPicker value={deliveryHsn} onChange={setDeliveryHsn} />
+                    <Locked on={locked("delivery_hsn")}>
+                      <HsnPicker value={deliveryHsn} onChange={setDeliveryHsn} />
+                    </Locked>
                   </label>
                   <label>
                     Delivery HSN description
@@ -907,6 +933,7 @@ function ItemForm(props: {
               )}
               <label>
                 <span className="req">Default unit of measure</span>
+                <Locked on={locked("stock_unit")}>
                 <Combobox
                   required
                   value={stock}
@@ -917,12 +944,13 @@ function ItemForm(props: {
                   onChange={setStock}
                   create={newUnit}
                 />
+                </Locked>
               </label>
                 <label>
-                  Brand
+                  <span className="req">Brand</span>
                   <Combobox
+                    required
                     value={brand}
-                    empty="No brand"
                     placeholder="Type to search brands…"
                     options={brands
                       .filter((b) => b.is_active || String(b.id) === brand)
@@ -1109,8 +1137,10 @@ function ItemForm(props: {
             <fieldset className="item-checks">
               <legend>Switches</legend>
               <label className="check">
-                <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
-                Track batches
+                <Locked on={locked("batch_tracked")}>
+                  <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
+                  Track batches
+                </Locked>
               </label>
               <label className="check">
                 <input type="checkbox" checked={qc} onChange={(e) => setQc(e.target.checked)} />
@@ -1130,6 +1160,7 @@ function ItemForm(props: {
           </button>
           {tab === "units" && <div className="fold-body">
         {true && (
+        <Locked on={locked("units")}>
         <Section>
           <p className="small">
             The stock unit is added for you. For every other unit say how many of which unit it contains; "= {stockName || "stock unit"}" is
@@ -1239,6 +1270,7 @@ function ItemForm(props: {
             </button>
           </div>
         </Section>
+        </Locked>
         )}
           </div>}
         </div>
@@ -1280,8 +1312,10 @@ function ItemForm(props: {
                 Offer to all
               </label>
               <label className="check">
-                <input type="checkbox" checked={stocked} onChange={(e) => setStocked(e.target.checked)} />
-                Maintain stock
+                <Locked on={locked("maintain_stock")}>
+                  <input type="checkbox" checked={stocked} onChange={(e) => setStocked(e.target.checked)} />
+                  Maintain stock
+                </Locked>
               </label>
               <p className="small">"Maintain stock" says whether stock of this item is kept, goods or service.</p>
             </div>

@@ -488,7 +488,7 @@ export const MANUAL: Chapter[] = [
             "Goods or service", pick the "Item group"
             (it must be filled in; see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it; for a service use its SAC code),
             the "Default unit of measure" (the unit stock is counted in, such as
-            Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" panel on the right, tick "Disabled" to stop using the item, and untick "Allow
+            Packet) and the "Brand" (it must be filled in; see the chapter "Brands"). In the "Switches" panel on the right, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold. Tick "Offer to all" to offer the item to every customer and supplier even when theirs has a Products list.
             "Maintain stock" is separate from goods or service: untick it for an
             item whose stock is not to be kept, and tick it for a service whose
@@ -557,6 +557,18 @@ export const MANUAL: Chapter[] = [
           Items are never deleted: click "Edit", tick "Disabled" and "Save" to
           stop using one (untick it to bring it back). Use "Duplicate" to start
           a new item from an existing one; barcodes are not copied.
+        </p>
+        <p>
+          Once an item is in use (entries such as stock or orders are against
+          it), a line at the top of its form says what uses it, and its key
+          fields are greyed with a "Locked" tag and cannot be changed: "Goods or
+          service", "HSN code", "Delivery HSN code", "Default unit of measure",
+          "Maintain stock", "Track batches" and the units of measure. Its
+          "Item group" can still be changed, but only to another group under
+          the same top-level group. The name, notes and everything else stay
+          open, and you can still tick "Disabled". Items made before the brand
+          became required are counted under "Needs your attention" on the
+          Dashboard; the next time one is saved, pick its brand.
         </p>
         <p>
           To change many at once, use "Actions" at the top of the screen. See

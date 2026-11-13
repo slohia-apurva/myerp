@@ -25,6 +25,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
   const [overview, setOverview] = useState<Overview | null>(null);
   const [ledgers, setLedgers] = useState<LedgerRow[]>([]);
   const [partyRenewals, setPartyRenewals] = useState<PartyRenewal[]>([]);
+  const [noBrand, setNoBrand] = useState(0);
   const id = company?.id;
   useEffect(() => {
     if (!id) return;
@@ -33,6 +34,13 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
     api<LedgerRow[]>(`v1/companies/${id}/ledgers/`).then(setLedgers);
     api<PartyRenewal[]>("v1/party-documents/renewals/").then(setPartyRenewals, () => setPartyRenewals([]));
   }, [id]);
+  useEffect(() => {
+    // Items from before the brand became required: counted until a brand is picked.
+    api<{ brand: number | null; is_active: boolean }[]>("v1/items/").then(
+      (rows) => setNoBrand(rows.filter((r) => r.is_active && r.brand === null).length),
+      () => setNoBrand(0),
+    );
+  }, []);
 
   const hello = `Welcome, ${session.user.name}`;
   if (!canSeeMasters || !company)
@@ -90,12 +98,20 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
         </div>
 
         <h3>Needs your attention</h3>
-        {overview && diff === 0 && renewals.length === 0 && partyDue.length === 0 && <p className="small">Nothing needs attention.</p>}
+        {overview && diff === 0 && renewals.length === 0 && partyDue.length === 0 && noBrand === 0 && <p className="small">Nothing needs attention.</p>}
         <ul className="attention">
           {diff !== 0 && (
             <li>
               <span className="error">Opening balances do not balance:</span> {money(Math.abs(diff))} {diff > 0 ? "Dr" : "Cr"}{" "}
               more. <a href={`${base}/ledgers`}>Fix in ledgers</a>
+            </li>
+          )}
+          {noBrand > 0 && (
+            <li>
+              <span className="warn">
+                {noBrand} item{noBrand === 1 ? " has" : "s have"} no brand.
+              </span>{" "}
+              A brand is now required: <a href="#/items">pick one in Items</a>.
             </li>
           )}
           {renewals.map(({ x, note }) => (

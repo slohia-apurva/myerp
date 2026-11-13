@@ -81,7 +81,7 @@ def test_a_unit_nobody_uses_can_change(accountant, company):
     assert call(accountant, "patch", f"units/{carton}/", {"gst_code": "BOX"}).status_code == 200
 
 
-def test_credit_terms_in_use_keep_their_parts(accountant, company, alpha):
+def test_credit_term_parts_stay_editable_when_in_use(accountant, company, alpha):
     made = call(
         accountant,
         "post",
@@ -102,8 +102,9 @@ def test_credit_terms_in_use_keep_their_parts(accountant, company, alpha):
     with use_tenant(alpha):
         Party.objects.create(name="Buyer", credit_term=CreditTerm.objects.get(pk=term["id"]))
     again = [{"event": "bill", "days": 60, "percent": "100"}]
-    refused = call(accountant, "patch", f"credit-terms/{term['id']}/", {"parts": again})
-    assert refused.status_code == 400 and "parts" in refused.json()
+    # Parts stay editable even when used (Sidharth, 2026-11-13).
+    changed = call(accountant, "patch", f"credit-terms/{term['id']}/", {"parts": again})
+    assert changed.status_code == 200, changed.json()
     same = call(accountant, "patch", f"credit-terms/{term['id']}/", {"parts": parts, "notes": "x"})
     assert same.status_code == 200, same.json()
 
@@ -124,6 +125,70 @@ def test_a_registered_use_locks_an_item(accountant, company):
         assert call(accountant, "patch", url, {"is_active": False}).status_code == 200
     finally:
         locks._USES["item"].remove(fn)
+
+
+def test_an_item_in_use_moves_only_within_its_top_level_group(accountant, company):
+    def group(name, parent=None):
+        made = call(accountant, "post", "item-groups/", {"name": name, "parent": parent})
+        assert made.status_code == 201, made.json()
+        return made.json()["id"]
+
+    tea, spice = group("Tea"), group("Spice")
+    green, black, whole = group("Green tea", tea), group("Black tea", tea), group("Whole", spice)
+    ids = unit_ids(accountant)
+    made = call(
+        accountant,
+        "post",
+        "items/",
+        {"name": "Darjeeling", "stock_unit": ids["Packet"], "hsn": "0902", "item_group": green},
+    )
+    assert made.status_code == 201, made.json()
+    item = made.json()
+    url = f"items/{item['id']}/"
+    assert item["lock"] == {"in_use": [], "locked": []}
+    # Not used yet: any group.
+    assert call(accountant, "patch", url, {"item_group": whole}).status_code == 200
+    assert call(accountant, "patch", url, {"item_group": green}).status_code == 200
+
+    fn = lambda record: "2 stock entries"  # noqa: E731
+    locks.register("item", fn)
+    try:
+        assert call(accountant, "patch", url, {"item_group": black}).status_code == 200
+        refused = call(accountant, "patch", url, {"item_group": whole})
+        assert refused.status_code == 400 and "Tea" in refused.json()["item_group"][0]
+        listed = call(accountant, "get", "items/").json()
+        lock = next(i for i in listed if i["id"] == item["id"])["lock"]
+        assert lock["in_use"] == ["2 stock entries"] and "stock_unit" in lock["locked"]
+    finally:
+        locks._USES["item"].remove(fn)
+
+
+def test_a_group_in_use_moves_only_within_its_top_level_group(accountant, company):
+    def group(name, parent=None):
+        return call(accountant, "post", "item-groups/", {"name": name, "parent": parent}).json()
+
+    tea, spice = group("Tea"), group("Spice")
+    green, black = group("Green tea", tea["id"]), group("Black tea", tea["id"])
+    ids = unit_ids(accountant)
+    leaf = group("Leaf", green["id"])
+    call(
+        accountant,
+        "post",
+        "items/",
+        {
+            "name": "Darjeeling",
+            "stock_unit": ids["Packet"],
+            "hsn": "0902",
+            "item_group": leaf["id"],
+        },
+    )
+    # "Green tea" is in use (an item sits below it): it may move under "Black tea" but not "Spice".
+    ok = call(accountant, "patch", f"item-groups/{green['id']}/", {"parent": black["id"]})
+    assert ok.status_code == 200, ok.json()
+    out = call(accountant, "patch", f"item-groups/{green['id']}/", {"parent": spice["id"]})
+    assert out.status_code == 400 and "Tea" in out.json()["parent"][0]
+    top = call(accountant, "patch", f"item-groups/{green['id']}/", {"parent": None})
+    assert top.status_code == 400
 
 
 def test_a_posted_ledger_keeps_its_group_but_opening_balances_stay_editable(accountant, company):

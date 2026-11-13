@@ -83,7 +83,8 @@ def test_an_item_has_a_brand_and_counts_show(accountant, company):
     rows = call(accountant, "get", "brands/").json()
     assert rows[0]["item_count"] == 1
     cleared = call(accountant, "patch", f"items/{made.json()['id']}/", {"brand": None})
-    assert cleared.json()["brand"] is None
+    # Brand is required (Sidharth, 2026-11-13).
+    assert cleared.status_code == 400 and "brand" in cleared.json()
 
 
 def test_a_disabled_brand_takes_no_new_items(accountant, company):
