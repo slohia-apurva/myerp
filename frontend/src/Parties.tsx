@@ -111,6 +111,8 @@ export function PartyTabBar(props: {
   onTab: (t: PartyTab) => void;
   party: Party;
   extraLabel: string;
+  /** Suppliers do not get the "Labels" tab. */
+  supplier?: boolean;
 }) {
   const tabs: [PartyTab, string][] = [
     ["general", "General"],
@@ -118,7 +120,7 @@ export function PartyTabBar(props: {
     ["addresses", `Addresses (${props.party.addresses.length})`],
     ["contacts", `Contacts (${props.party.contacts.length})`],
     ["documents", `Documents (${props.party.document_count ?? 0})`],
-    ["labels", "Labels"],
+    ...(props.supplier ? [] : ([["labels", "Labels"]] as [PartyTab, string][])),
     ["extra", props.extraLabel],
   ];
   return (
@@ -417,10 +419,10 @@ export function PartyFields({
       </button>
       </div>
 
-      <div data-tab="labels" hidden={tab !== "labels"}>
+      <div data-tab="labels" hidden={tab !== "labels" || supplier}>
         <Section>
           <p className="small">
-            The label format for each item this {supplier ? "supplier" : "customer"} buys will be set here: one format for
+            The label format for each item this customer buys will be set here: one format for
             a customer and one item, another for the same customer and another item. When labels are printed for a
             despatch, MyERP will use the format set here, otherwise the customer's default format, otherwise the item's
             default format. This tab is a placeholder until the sales and despatch screens are built.

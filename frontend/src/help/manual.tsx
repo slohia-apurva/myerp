@@ -1277,7 +1277,7 @@ export const MANUAL: Chapter[] = [
         </ul>
         <p>
           A customer or supplier form has tabs along the top: "General", "GST
-          and credit", "Addresses", "Contacts", "Documents", "Labels" and "Opening balance". "Save" and
+          and credit", "Addresses", "Contacts", "Documents", "Labels" (customers only) and "Opening balance". "Save" and
           "Cancel" are at the bottom of every tab. On the "General" tab, "Under
           group" is followed by the "Customer number" (or "Vendor number") and
           then the "GSTIN". The number is given automatically when you Save
@@ -1368,7 +1368,7 @@ export const MANUAL: Chapter[] = [
           Dashboard.
         </p>
         <p>
-          The "Labels" tab is empty for now. It will hold the label format for
+          The "Labels" tab, which only customers have, is empty for now. It will hold the label format for
           each item the customer buys (one format for this customer and item A,
           another for item B), used when labels are printed for a despatch.
         </p>

@@ -547,6 +547,10 @@ function LedgerForm(props: {
     Math.round((Number(fc) || 0) * (Number(r) || 0) * 100) / 100;
   const [error, setError] = useState<unknown>("");
   const chosen = groupOf(group);
+  // Only customers have the "Labels" tab: leave it if the group is changed to suppliers.
+  useEffect(() => {
+    if (chosen?.nature === "liability" && tab === "labels") setTab("general");
+  }, [chosen?.nature, tab]);
   const isBank = chosen?.is_bank ?? false;
   // Ledgers under Sundry Debtors or Creditors are customers and suppliers.
   const isParty = chosen?.bill_wise_default ?? false;
@@ -771,7 +775,7 @@ function LedgerForm(props: {
   return (
     <form className="card" onSubmit={save} ref={formRef}>
       <h3>{l ? `Edit ${l.name}` : c ? `Duplicate ${c.name}` : "Add ledger"}</h3>
-      {isParty && <PartyTabBar tab={tab} onTab={setTab} party={party} extraLabel="Opening balance" />}
+      {isParty && <PartyTabBar tab={tab} onTab={setTab} party={party} extraLabel="Opening balance" supplier={chosen?.nature === "liability"} />}
       <div className="tab-general" data-tab="general" hidden={isParty && tab !== "general"}>
       <Section title="Ledger">
       <div className="row">
