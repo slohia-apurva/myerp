@@ -11,6 +11,7 @@ import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
+import { Fold, SidePanel, SideRows } from "./Master";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
@@ -361,53 +362,11 @@ function Facts({ rows }: { rows: [string, string][] }) {
   );
 }
 
-/** A side panel: a light green title strip over a white body (the one box look of the app). */
-function SidePanel(props: { title: string; tag?: string; children: React.ReactNode }) {
-  return (
-    <section className="side-panel">
-      <h3>
-        {props.title}
-        {props.tag && <em>{props.tag}</em>}
-      </h3>
-      <div className="side-body">{props.children}</div>
-    </section>
-  );
-}
-
-/** Label on the left, value against the right edge; empty values are left out. */
-function SideRows({ rows }: { rows: [string, string][] }) {
-  return (
-    <>
-      {rows
-        .filter(([, v]) => v)
-        .map(([k, v]) => (
-          <div key={k} className="side-row">
-            <span>{k}</span>
-            <span>{v}</span>
-          </div>
-        ))}
-    </>
-  );
-}
-
 function ItemActivity({ item }: { item: Item }) {
   return (
     <SidePanel title="Activity">
       <ChangeLog type="item" id={item.id} stamp={JSON.stringify(item)} />
     </SidePanel>
-  );
-}
-
-/** A folding section: the title strip always shows a one-line summary of what is inside. */
-function Fold(props: { title: string; summary?: string; open?: boolean; children?: React.ReactNode }) {
-  return (
-    <details className="fold" open={props.open}>
-      <summary>
-        <span className="fold-title">{props.title}</span>
-        {props.summary && <span className="fold-summary">{props.summary}</span>}
-      </summary>
-      {props.children && <div className="fold-body">{props.children}</div>}
-    </details>
   );
 }
 

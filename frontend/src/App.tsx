@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, Session, SignedIn } from "./api";
-import { CompaniesPage, CompanyPage, LedgerGroupsPage } from "./Companies";
+import { CompaniesPage, CompanyPage } from "./Companies";
+import { LedgerGroupsPage } from "./LedgerGroups";
 import { CreditTermsPage } from "./CreditTerms";
 import { Dashboard } from "./Dashboard";
 import { ItemsPage } from "./Items";
