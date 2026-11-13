@@ -657,7 +657,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       </div>
       <FormBody>
         {tab === "general" && (
-        <Section title="Item">
+        <Section>
           <p className="small"><span className="req-star">*</span> Required</p>
           <div className="item-general">
             <div>

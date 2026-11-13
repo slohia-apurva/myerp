@@ -105,10 +105,10 @@ export function LevelPicker(props: { levels: number; value: number | null; onPic
 }
 
 /** A titled box inside a form: the one way every screen groups its fields. */
-export function Section(props: { title: string; children: React.ReactNode }) {
+export function Section(props: { title?: string; children: React.ReactNode }) {
   return (
     <div className="panel-card">
-      <h4>{props.title}</h4>
+      {props.title && <h4>{props.title}</h4>}
       {props.children}
     </div>
   );
