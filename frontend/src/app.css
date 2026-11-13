@@ -1796,7 +1796,22 @@ fieldset.item-checks {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 20px;
 }
+.item-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  align-content: start;
+}
+.item-general > .item-fields {
+  display: grid;
+}
+.item-fields .wide {
+  grid-column: 1 / -1;
+}
 @media (max-width: 720px) {
+  .item-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .item-edit .item-general > div:first-child {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2034,8 +2049,49 @@ fieldset.item-checks {
 .rich {
   margin: 4px 0 0;
 }
+/* Formatted text: the editor on the item form and the text as shown */
+.rte {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rte-label {
+  color: var(--green);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.rte-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.rte-pick {
+  width: 160px;
+}
+.rte-box {
+  min-height: 96px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line, #c5d6cc);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 400;
+  text-transform: none;
+}
+.rte-box:focus {
+  outline: 2px solid var(--leaf);
+  outline-offset: -1px;
+}
+.rte-box ul,
+.rte-box ol,
 .rich ul,
 .rich ol {
   margin: 4px 0;
   padding-left: 22px;
+}
+.rich {
+  margin: 8px 0 0;
 }

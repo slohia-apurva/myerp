@@ -499,7 +499,10 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             On the "Sales" tab, write the "Sales description" customers should
-            see on quotations, orders and bills, and pick the "Default sales
+            see on quotations, orders and bills (both descriptions have a bar
+            above the text box: "B", "I" and "U" for bold, italic and underline,
+            "Bullets", "Numbers", "Font" and "Size"; select the words first, and
+            "Clear formatting" takes the formatting off), and pick the "Default sales
             unit" (for example Carton). Fill in the "MRP (₹)", the "USP" and the
             "Batch No" printed on the pack. "Best before" is a number with
             "Days" or "Months": a manufacturing order adds it to the
@@ -524,9 +527,10 @@ export const MANUAL: Chapter[] = [
             type": "Manufacture" if the item is made in-house, "Purchase" if it
             is bought, or "Customer Provided" if the customer supplies it (it is
             what a material request for the item starts as, and can be left
-            "Not set"). Tick "Track batches" if you must
-            follow batch numbers, and tick "Quality check on receipt" if goods
-            must be checked when they arrive.
+            "Not set"). In the "Switches" box tick "Track batches"
+            if you must follow batch numbers, and tick "Quality check on
+            receipt" if goods must be checked when they arrive. On every tab a
+            red * marks a field that must be filled in.
           </li>
           <li>
             On the "Units of measure" tab, click "Add unit" for each other unit
