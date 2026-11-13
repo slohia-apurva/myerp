@@ -23,7 +23,7 @@ from core import duplicates, exchange
 from core.api import CONTACT_FIELDS, EDIT, VIEW, Signed, _check
 from core.api import _company as _visible_company
 from core.companies import visible_companies
-from core.locks import refuse_key_changes
+from core.locks import lock_status, refuse_key_changes
 from shipping.models import (
     CLOSED,
     CourierAccount,
@@ -87,6 +87,10 @@ class CourierAccountSerializer(serializers.ModelSerializer):
     gstin = serializers.CharField(max_length=15, allow_blank=True, required=False)
     # For a transporter that is not in the courier list: a word for the MyERP team.
     note_for_central = serializers.CharField(write_only=True, allow_blank=True, required=False)
+    lock = serializers.SerializerMethodField()
+
+    def get_lock(self, account) -> dict:
+        return lock_status("courier_account", account)
 
     class Meta:
         model = CourierAccount
@@ -102,6 +106,7 @@ class CourierAccountSerializer(serializers.ModelSerializer):
             "notes",
             "note_for_central",
             "is_active",
+            "lock",
         ]
         read_only_fields = ["state_code"]
 

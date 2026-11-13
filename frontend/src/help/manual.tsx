@@ -1495,9 +1495,20 @@ export const MANUAL: Chapter[] = [
             Pick the company at the top right, then click "Masters" in the top
             menu, then "Transporters".
           </li>
-          <li>Click "Add transporter".</li>
-          <li>Fill in the form (see below) and click "Save".</li>
+          <li>
+            Click "Add transporter". The form opens in a new browser tab.
+          </li>
+          <li>
+            Fill in the form (see below) and click "Save"; the tab closes and
+            the new transporter is selected in the list.
+          </li>
         </ol>
+        <p>
+          Click a row in the list to see that transporter's details on the
+          right, with its activity below. To change one, click "Edit" on its
+          row (or double-click the row); "Duplicate" starts a new one as a copy.
+          Each opens in a new tab.
+        </p>
         <Fields
           rows={[
             [
@@ -1533,9 +1544,11 @@ export const MANUAL: Chapter[] = [
           here either; they are set up separately when a courier is connected.
           Once a shipment has been entered against a transporter, its "Courier
           in MyERP's list" and "Service" cannot be changed. The name, GSTIN and
-          notes can still be corrected. Transporters are never deleted: click
-          "Edit" and then "Disable" to stop offering one ("Enable" brings it
-          back).
+          notes can still be corrected. A transporter in use shows a line "In
+          use: ..." at the top of its form and those two fields are greyed with
+          a "Locked" tag. Transporters are never deleted: on the form, tick
+          "Disabled" under "Switches" to stop offering one, and untick it to
+          bring it back.
         </p>
         <p>
           To add or change many transporters at once, use "Actions" at the top
