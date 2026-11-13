@@ -27,7 +27,7 @@ def parse_excel(data: bytes) -> list[tuple[str, str]]:
             return ""
         if isinstance(v, float) and v.is_integer():
             v = int(v)
-        return str(v)
+        return str(v).replace("_x000D_", " ")
 
     book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     cells = [[cell(v) for v in row] for sheet in book for row in sheet.iter_rows(values_only=True)]
@@ -50,9 +50,15 @@ def _rows(lines: list[list[str]]) -> list[tuple[str, str]]:
 
 def load(rows: list[tuple[str, str]]) -> dict:
     """Add new codes and refresh descriptions of ones already there. A bad
-    row stops the whole load, so the list is never half loaded."""
+    row stops the whole load, so the list is never half loaded. A code of 3,
+    5 or 7 digits (a leading zero lost in the source file) is not a valid HSN
+    code: it is left out and named in the result."""
     wanted: dict[str, str] = {}
+    skipped: list[str] = []
     for n, (code, description) in enumerate(rows, 1):
+        if code.isdigit() and len(code) not in (2, 4, 6, 8):
+            skipped.append(code)
+            continue
         try:
             HsnCode(hsn_code=code, description=description).clean()
         except ValidationError as exc:
@@ -75,4 +81,5 @@ def load(rows: list[tuple[str, str]]) -> dict:
         "added": len(new),
         "updated": len(changed),
         "unchanged": len(wanted) - len(new) - len(changed),
+        "skipped": skipped,
     }

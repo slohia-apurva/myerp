@@ -177,7 +177,7 @@ def test_platform_admin_loads_hsn_from_a_file(alpha, settings):
     assert first.json()["added"] == 2
     assert HsnCode.objects.get(hsn_code="0902").description == "Tea"
     again = _upload(client, "/api/v1/central/import/hsn/", csv)
-    assert again.json() == {"added": 0, "updated": 0, "unchanged": 2}
+    assert again.json() == {"added": 0, "updated": 0, "unchanged": 2, "skipped": []}
     empty = _upload(client, "/api/v1/central/import/hsn/", "nothing here\n")
     assert empty.status_code == 400
 
