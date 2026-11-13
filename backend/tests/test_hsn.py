@@ -63,9 +63,9 @@ def results(client, query=""):
 
 
 def test_import_adds_updates_and_searches(accountant, company):
-    assert hsn_import.load(ROWS) == {"added": 4, "updated": 0, "unchanged": 0}
+    assert hsn_import.load(ROWS) == {"added": 4, "updated": 0, "unchanged": 0, "skipped": []}
     again = hsn_import.load([*ROWS[:2], (ROWS[2][0], "Turmeric and spices")])
-    assert again == {"added": 0, "updated": 1, "unchanged": 2}
+    assert again == {"added": 0, "updated": 1, "unchanged": 2, "skipped": []}
 
     assert [r["hsn_code"] for r in results(accountant, "q=17")] == ["1701", "170199"]
     assert [r["hsn_code"] for r in results(accountant, "q=turmeric")] == ["0910"]
@@ -92,8 +92,14 @@ def test_a_bad_row_stops_the_whole_load():
     with pytest.raises(ValueError, match="Row 2"):
         hsn_import.load([ROWS[0], ("17x", "Oops")])
     assert HsnCode.objects.count() == 0
-    with pytest.raises(ValueError, match="description"):
-        hsn_import.load([("1701", "")])
+    done = hsn_import.load([("1701", "")])
+    assert done["skipped"] == ["1701"] and done["added"] == 0
+
+
+def test_codes_of_the_wrong_length_are_left_out_and_named():
+    done = hsn_import.load([ROWS[0], ("30559", "Fish, dried"), ("3074330", "Molluscs")])
+    assert done == {"added": 1, "updated": 0, "unchanged": 0, "skipped": ["30559", "3074330"]}
+    assert not HsnCode.objects.filter(hsn_code="30559").exists()
 
 
 def test_the_command_reads_a_csv_and_skips_headings(tmp_path):

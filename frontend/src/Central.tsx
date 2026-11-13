@@ -459,12 +459,13 @@ function LoadLists() {
     form.append("file", file);
     if (what === "pins") form.append("carrier", carrier);
     try {
-      const done = await upload<Loaded>(`v1/central/import/${what}/`, form);
+      const done = await upload<Loaded & { skipped?: string[] }>(`v1/central/import/${what}/`, form);
+      const skipped = done.skipped ?? [];
       setResult({
         what,
         text:
           what === "hsn"
-            ? `${done.added} HSN codes added, ${done.updated} updated, ${done.unchanged} unchanged.`
+            ? `${done.added} HSN codes added, ${done.updated} updated, ${done.unchanged} unchanged.${skipped.length ? ` Left out (not 2, 4, 6 or 8 digits, or no description): ${skipped.join(", ")}.` : ""}`
             : `${done.pins_added} PIN codes added, ${done.state_filled} given a state; the courier now covers ${done.coverage} (replaced ${done.replaced}).`,
       });
     } catch (err) {

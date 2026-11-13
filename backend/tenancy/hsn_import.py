@@ -19,7 +19,9 @@ def parse(text: str) -> list[tuple[str, str]]:
 
 def parse_excel(data: bytes) -> list[tuple[str, str]]:
     """The same rows from every sheet of an Excel file (code in the first
-    column, description in the second); heading rows are skipped."""
+    column, description in the second); heading rows are skipped. A
+    description Excel took for a formula (text starting with "=") is read as
+    the text that was typed."""
     from openpyxl import load_workbook
 
     def cell(v) -> str:
@@ -27,11 +29,32 @@ def parse_excel(data: bytes) -> list[tuple[str, str]]:
             return ""
         if isinstance(v, float) and v.is_integer():
             v = int(v)
-        return str(v)
+        return str(v).replace("_x000D_", " ")
 
     book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-    cells = [[cell(v) for v in row] for sheet in book for row in sheet.iter_rows(values_only=True)]
-    return _rows(cells)
+    sheets = [
+        [[cell(v) for v in row] for row in sheet.iter_rows(values_only=True)] for sheet in book
+    ]
+    broken = [
+        (s, r)
+        for s, lines in enumerate(sheets)
+        for r, cells in enumerate(lines)
+        if len(cells) > 1
+        and cells[0].strip()
+        and (not cells[1].strip() or cells[1].startswith("#"))
+    ]
+    if broken:
+        typed = load_workbook(io.BytesIO(data), read_only=True)
+        for s, sheet in enumerate(typed):
+            wanted = {r for i, r in broken if i == s}
+            if not wanted:
+                continue
+            for r, row in enumerate(sheet.iter_rows(values_only=True)):
+                if r in wanted and len(row) > 1 and row[1] is not None:
+                    text = str(getattr(row[1], "text", row[1])).lstrip("=").strip()
+                    if text:
+                        sheets[s][r][1] = text
+    return _rows([cells for lines in sheets for cells in lines])
 
 
 def _rows(lines: list[list[str]]) -> list[tuple[str, str]]:
@@ -50,15 +73,22 @@ def _rows(lines: list[list[str]]) -> list[tuple[str, str]]:
 
 def load(rows: list[tuple[str, str]]) -> dict:
     """Add new codes and refresh descriptions of ones already there. A bad
-    row stops the whole load, so the list is never half loaded."""
+    row stops the whole load, so the list is never half loaded. A code of 3,
+    5 or 7 digits is not a valid HSN code, and a row with no description cannot
+    be shown: such rows are left out and named in the result."""
     wanted: dict[str, str] = {}
+    skipped: list[str] = []
     for n, (code, description) in enumerate(rows, 1):
+        if code.isdigit() and len(code) not in (2, 4, 6, 8):
+            skipped.append(code)
+            continue
         try:
             HsnCode(hsn_code=code, description=description).clean()
         except ValidationError as exc:
             raise ValueError(f"Row {n} ({code or 'blank'}): {exc.messages[0]}") from exc
         if not description:
-            raise ValueError(f"Row {n} ({code}): the description is blank.")
+            skipped.append(code)
+            continue
         wanted[code] = description[:MAX_LEN]
     have = {h.hsn_code: h for h in HsnCode.objects.filter(hsn_code__in=wanted)}
     new, changed = [], []
@@ -75,4 +105,5 @@ def load(rows: list[tuple[str, str]]) -> dict:
         "added": len(new),
         "updated": len(changed),
         "unchanged": len(wanted) - len(new) - len(changed),
+        "skipped": skipped,
     }

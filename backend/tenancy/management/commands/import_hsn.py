@@ -29,6 +29,12 @@ class Command(BaseCommand):
                 done = hsn_import.load(rows)
         except ValueError as exc:
             raise CommandError(str(exc)) from exc
+        left_out = (
+            f" Left out (not 2, 4, 6 or 8 digits): {', '.join(done['skipped'])}."
+            if done["skipped"]
+            else ""
+        )
         self.stdout.write(
-            f"{done['added']} added, {done['updated']} updated, {done['unchanged']} unchanged."
+            f"{done['added']} added, {done['updated']} updated, "
+            f"{done['unchanged']} unchanged.{left_out}"
         )
