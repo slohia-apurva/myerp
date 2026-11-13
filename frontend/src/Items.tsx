@@ -10,7 +10,7 @@ import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
 import { creatable } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
-import { useUnits, type Unit } from "./Units";
+import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -102,6 +102,7 @@ const rateToday = (rates: GstRate[]) => {
 
 export function ItemsPage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
+  const { units } = useUnits();
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
   const [editing, setEditingNow] = useState<Item | "new" | null>(null);
@@ -208,7 +209,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
                     {!i.is_active && <span className="small"> · inactive</span>}
                     <div className="small">{i.item_number}</div>
                   </td>
-                  <td>{i.stock_unit_name}</td>
+                  <td>{labelFor(units, i.stock_unit, i.stock_unit_name)}</td>
                 </tr>
               ))}
             </tbody>
@@ -231,6 +232,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
           ) : selected ? (
             <ItemPanel
               item={selected}
+              units={units}
               canEdit={canEdit}
               onEdit={() => setEditing(selected)}
               onDuplicate={() => {
@@ -264,8 +266,9 @@ function Facts({ rows }: { rows: [string, string][] }) {
   );
 }
 
-function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; onDuplicate: () => void }) {
-  const { item: i, canEdit } = props;
+function ItemPanel(props: { item: Item; units: Unit[]; canEdit: boolean; onEdit: () => void; onDuplicate: () => void }) {
+  const { item: i, canEdit, units } = props;
+  const unit = (id: number | null, name: string | null) => labelFor(units, id, name);
   return (
     <div className="card panel">
       <div className="panel-head">
@@ -293,7 +296,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
             ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
             ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
             ["Allow sales", i.allow_sales ? "Yes" : "No"],
-            ["Default unit (stock unit)", i.stock_unit_name],
+            ["Default unit (stock unit)", unit(i.stock_unit, i.stock_unit_name)],
             ["Item group", i.item_group_name ?? ""],
             ["Brand", i.brand_name ?? ""],
             ["HSN", i.hsn],
@@ -305,7 +308,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
         <Section title="Sales">
           <Facts
             rows={[
-              ["Default sales unit", i.sales_unit_name ?? ""],
+              ["Default sales unit", unit(i.sales_unit, i.sales_unit_name)],
               ["MRP", i.mrp === null ? "" : `₹ ${plain(i.mrp)}`],
               ["USP", i.usp],
               ["Best before", i.best_before_value === null ? "" : `${i.best_before_value} ${i.best_before_unit}`],
@@ -324,7 +327,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
         <Section title="Purchase">
           <Facts
             rows={[
-              ["Default purchase unit", i.purchase_unit_name ?? ""],
+              ["Default purchase unit", unit(i.purchase_unit, i.purchase_unit_name)],
               ["Lead time", i.lead_time_days === null ? "" : `${i.lead_time_days} days`],
               ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
               ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
@@ -380,12 +383,14 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
               return (
                 <li key={u.unit} className="address-card">
                   <div>
-                    <strong>{u.unit_name}</strong>
+                    <strong>{unit(u.unit, u.unit_name)}</strong>
                   </div>
                   <div>
                     {u.contains_unit_name
-                      ? `${plain(u.contains_qty)} ${u.contains_unit_name}${
-                          u.contains_unit_name === i.stock_unit_name ? "" : ` = ${plain(u.factor)} ${i.stock_unit_name}`
+                      ? `${plain(u.contains_qty)} ${unit(u.contains_unit, u.contains_unit_name)}${
+                          u.contains_unit_name === i.stock_unit_name
+                            ? ""
+                            : ` = ${plain(u.factor)} ${unit(i.stock_unit, i.stock_unit_name)}`
                         }`
                       : "Stock unit"}
                   </div>
@@ -532,7 +537,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
     units.filter((u) => (u.is_active || String(u.id) === current) && (!used.has(String(u.id)) || String(u.id) === current));
-  const unitName = (id: string) => units.find((u) => String(u.id) === id)?.name ?? "";
+  const unitName = (id: string) => labelFor(units, id);
   const fac = factors(stock, rows);
   const stockName = unitName(stock);
   const listed = [stock, ...rows.map((r) => r.unit)].filter((id, k, all) => id && all.indexOf(id) === k);
@@ -721,7 +726,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                   placeholder="Type to search units…"
                   options={units
                     .filter((u: Unit) => u.is_active || String(u.id) === stock)
-                    .map((u) => ({ value: String(u.id), label: u.name }))}
+                    .map((u) => ({ value: String(u.id), label: unitLabel(u) }))}
                   onChange={setStock}
                   create={newUnit}
                 />
@@ -941,7 +946,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
                         required
                         value={r.unit}
                         placeholder="Type to search units…"
-                        options={offered(r.unit).map((u) => ({ value: String(u.id), label: u.name }))}
+                        options={offered(r.unit).map((u) => ({ value: String(u.id), label: unitLabel(u) }))}
                         create={newUnit}
                         onChange={(v) => {
                           const picked = units.find((u) => String(u.id) === v);
