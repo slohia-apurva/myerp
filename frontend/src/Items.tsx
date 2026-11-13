@@ -8,7 +8,7 @@ import { Combobox } from "./Combobox";
 import { HsnDescription, HsnPicker } from "./Hsn";
 import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
-import { creatable } from "./Create";
+import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 
@@ -100,32 +100,93 @@ const rateToday = (rates: GstRate[]) => {
   return [...rates].filter((r) => r.valid_from <= today).pop();
 };
 
+/** `?form=new`, `?form=<id>` or `?form=copy-<id>` on #/items: this tab was opened to
+ * add, change or duplicate one item (Sidharth, 2026-11-13), and shows only that form. */
+function formParam(): string | null {
+  const query = window.location.hash.split("?")[1] ?? "";
+  return new URLSearchParams(query).get("form");
+}
+
+/** Open the add / change form of an item in a new tab, beside the list. */
+function openItemForm(form: string) {
+  window.open(`${window.location.pathname}${window.location.search}#/items?form=${form}`, "_blank");
+}
+
+/** The form alone, in its own tab: Save and Cancel close the tab and the list refreshes. */
+function ItemFormTab({ form }: { form: string }) {
+  const [items, setItems] = useState<Item[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (form === "new") {
+      setItems([]);
+      return;
+    }
+    api<Item[]>("v1/items/")
+      .then(setItems)
+      .catch((err: Error) => setError(err.message));
+  }, [form]);
+  const copy = form.startsWith("copy-");
+  const target = form === "new" ? null : (items?.find((i) => i.id === Number(form.replace("copy-", ""))) ?? null);
+  const toList = () => {
+    window.location.hash = "#/items";
+  };
+  const finish = (saved?: { id: number; name: string }) => {
+    if (saved) announceSaved("item_saved", saved);
+    closeThisTab(toList);
+  };
+  const missing = form !== "new" && items !== null && target === null;
+  return (
+    <section className="page">
+      <PageHeader title={form === "new" ? "Add item" : copy ? "Duplicate item" : "Change item"} />
+      {error && <p className="error">{error}</p>}
+      {missing && <p className="error">That item was not found.</p>}
+      <div className="split editing item-edit">
+        <div className="split-list" />
+        <aside className="split-panel" aria-label="Item form">
+          {items !== null && !missing && (
+            <ItemForm
+              item={copy ? null : target}
+              copyOf={copy ? target : null}
+              onDone={(id, name) => finish(id ? { id, name: name ?? "" } : undefined)}
+              onCancel={() => finish()}
+            />
+          )}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
 export function ItemsPage({ session }: { session: SignedIn }) {
+  const form = formParam();
+  return form && session.permissions.includes("masters.edit") ? <ItemFormTab form={form} /> : <ItemList session={session} />;
+}
+
+function ItemList({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
   const { units } = useUnits();
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
-  const [editing, setEditingNow] = useState<Item | "new" | null>(null);
-  const [copyOf, setCopyOf] = useState<Item | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const setEditing = (value: Item | "new" | null) => {
-    setCopyOf(null); // only the Duplicate button sets it again
-    setEditingNow(value);
-  };
   const reload = useCallback(() => {
     api<Item[]>("v1/items/")
       .then(setItems)
       .catch((err: Error) => setError(err.message));
   }, []);
   useEffect(reload, [reload]);
+  // The add / change form is its own tab: when it saves, refresh and select the item.
+  useCreated("item_saved", (c) => {
+    reload();
+    setQuery("");
+    setSelectedId(c.id);
+  });
   const io = useExchange({ master: "items", noun: "items", session, onImported: reload });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (openId && items.some((i) => i.id === openId)) {
       setQuery("");
       setSelectedId(openId);
-      setEditing(null);
       opened();
     }
   }, [openId, items, opened]);
@@ -138,10 +199,7 @@ export function ItemsPage({ session }: { session: SignedIn }) {
     });
   }, [items, query]);
   const selected = items.find((i) => i.id === selectedId) ?? shown[0] ?? null;
-  const pick = (i: Item) => {
-    setSelectedId(i.id);
-    setEditing(null);
-  };
+  const pick = (i: Item) => setSelectedId(i.id);
   const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
@@ -161,13 +219,13 @@ export function ItemsPage({ session }: { session: SignedIn }) {
         actions={
           <>
             {io.buttons}
-            {canEdit && <button onClick={() => setEditing("new")}>Add item</button>}
+            {canEdit && <button onClick={() => openItemForm("new")}>Add item</button>}
           </>
         }
       />
       {error && <p className="error">{error}</p>}
       {io.panel}
-      <div className={`split${editing ? " editing item-edit" : ""}`}>
+      <div className="split">
         <div className="split-list">
           <div className="row filters">
             <input
@@ -217,28 +275,13 @@ export function ItemsPage({ session }: { session: SignedIn }) {
           {shown.length > 1 && <p className="small">Tip: click an item, then use ↑ and ↓ to move through the list.</p>}
         </div>
         <aside className="split-panel" aria-label="Item details">
-          {editing ? (
-            <ItemForm
-              key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
-              item={editing === "new" ? null : editing}
-              copyOf={copyOf}
-              onDone={(saved) => {
-                setEditing(null);
-                if (saved) setSelectedId(saved);
-                reload();
-              }}
-              onCancel={() => setEditing(null)}
-            />
-          ) : selected ? (
+          {selected ? (
             <ItemPanel
               item={selected}
               units={units}
               canEdit={canEdit}
-              onEdit={() => setEditing(selected)}
-              onDuplicate={() => {
-                setEditingNow("new");
-                setCopyOf(selected);
-              }}
+              onEdit={() => openItemForm(String(selected.id))}
+              onDuplicate={() => openItemForm(`copy-${selected.id}`)}
             />
           ) : (
             <div className="card">
@@ -483,7 +526,12 @@ function factors(stock: string, rows: Row[]): Map<string, number> {
   return f;
 }
 
-function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (savedId?: number) => void; onCancel: () => void }) {
+function ItemForm(props: {
+  item: Item | null;
+  copyOf: Item | null;
+  onDone: (savedId?: number, savedName?: string) => void;
+  onCancel: () => void;
+}) {
   const it = props.item;
   const from = it ?? props.copyOf; // a duplicate starts as a copy but is saved as a new record
   const { units, refresh: refreshUnits } = useUnits();
@@ -620,7 +668,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
     };
     try {
       const saved = it ? await api<Item>(`v1/items/${it.id}/`, body, "PATCH") : await api<Item>("v1/items/", body);
-      props.onDone(saved.id);
+      props.onDone(saved.id, saved.name);
     } catch (err) {
       setError(err);
       setBusy(false);
