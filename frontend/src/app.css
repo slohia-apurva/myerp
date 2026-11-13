@@ -2140,6 +2140,7 @@ form.card .panel-card,
 form.card .panel-card > h4 {
   margin: -12px -14px 0;
   padding: 9px 14px;
+}
 /* Formatted text: the editor on the item form and the text as shown */
 .rte {
   display: flex;
@@ -2185,4 +2186,68 @@ form.card .panel-card > h4 {
 }
 .rich {
   margin: 8px 0 0;
+}
+
+/* Item edit page: folding sections (one open at a time), side panels at the right */
+#item-form .fold-head {
+  width: 100%;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  padding: 9px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--strip, #d6ebdd);
+  color: var(--deep-green);
+  font-weight: 700;
+  font-size: 15px;
+  text-align: left;
+  white-space: normal;
+}
+#item-form .fold-head:hover:not(:disabled) {
+  background: #cbe5d4;
+}
+#item-form .fold-head .fold-title::before {
+  content: "▸";
+  display: inline-block;
+  width: 18px;
+}
+#item-form .fold.open > .fold-head .fold-title::before {
+  content: "▾";
+}
+#item-form .fold-head .fold-summary {
+  font-weight: 400;
+}
+#item-form .fold-body .panel-card {
+  border: 0;
+  padding: 0;
+  background: none;
+  gap: 12px;
+}
+#item-form .item-general.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+#item-form .item-head {
+  background: #fff;
+  border: 1px solid var(--mint-line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0;
+}
+#item-form .item-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.item-edit #item-form label:not(.check):not(.item-title) {
+  color: var(--green);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.item-edit #item-form label:not(.check):not(.item-title) :is(input, textarea, select, .combo, .combo *, span.small, .small) {
+  color: var(--ink);
+  font-weight: 400;
+  text-transform: none;
 }
