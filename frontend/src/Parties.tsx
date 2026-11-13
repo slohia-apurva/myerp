@@ -3,6 +3,7 @@ import { Section } from "./Brand";
 import { PartyDocuments } from "./PartyDocuments";
 import { PartyProducts, type PartyProduct } from "./PartyProducts";
 import { Combobox } from "./Combobox";
+import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { creatable } from "./Create";
@@ -61,6 +62,7 @@ export type Party = {
   addresses: PartyAddress[];
   contacts: PartyContact[];
   products: PartyProduct[];
+  lock?: LockInfo;
   /** Documents kept for the party (read only; the Documents tab saves its own). */
   document_count?: number;
 };
@@ -208,6 +210,7 @@ export function PartyFields({
   return (
     <div hidden={tab === "general"}>
       <div data-tab="details" hidden={tab !== "details"}>
+      <InUseNote lock={p.lock}>The locked fields cannot be changed. Everything else stays open.</InUseNote>
       <p className="note">
         Shared by all companies in the group: GST details, addresses, contacts and credit terms changed here change for
         every company. The {supplier ? "purchaser" : "salesman"}, credit limit, balance and bills belong to this
@@ -234,6 +237,7 @@ export function PartyFields({
       <div className="row">
         <label>
           GST type
+          <Locked on={isLocked(p.lock, "gst_type")}>
           <Combobox
             value={p.gst_type}
             options={GST_TYPES.map(([value, label]) => ({ value, label }))}
@@ -246,6 +250,7 @@ export function PartyFields({
               });
             }}
           />
+          </Locked>
         </label>
       </div>
       <div className="row">
@@ -257,13 +262,17 @@ export function PartyFields({
         ) : (
           <label>
             State (decides the place of supply)
-            <StateSelect states={states} value={p.state_code} onChange={(code) => set({ state_code: code })} />
+            <Locked on={isLocked(p.lock, "state_code")}>
+              <StateSelect states={states} value={p.state_code} onChange={(code) => set({ state_code: code })} />
+            </Locked>
           </label>
         )}
         {!overseas && (
           <label>
             PAN
-            <input value={p.pan} maxLength={10} onChange={(e) => set({ pan: e.target.value.toUpperCase() })} />
+            <Locked on={isLocked(p.lock, "pan")}>
+              <input value={p.pan} maxLength={10} onChange={(e) => set({ pan: e.target.value.toUpperCase() })} />
+            </Locked>
           </label>
         )}
       </div>
@@ -753,7 +762,9 @@ export function GstinField(props: {
       <label>
         GSTIN
         <span className="inline">
-          <input required={registered} value={p.gstin} maxLength={15} onChange={(e) => onGstin(e.target.value)} />
+          <Locked on={isLocked(p.lock, "gstin")}>
+            <input required={registered} value={p.gstin} maxLength={15} onChange={(e) => onGstin(e.target.value)} />
+          </Locked>
           <button type="button" className="secondary" disabled={!valid || busy} onClick={fetchDetails}>
             Fetch details
           </button>
