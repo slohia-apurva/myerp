@@ -259,3 +259,34 @@ def test_creating_a_customer_needs_the_basics_and_an_admin(alpha, settings):
         HTTP_HOST=HOST,
     )
     assert r.status_code == 403
+
+
+def test_hsn_can_be_loaded_from_an_excel_file(alpha, settings):
+    import io
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from openpyxl import Workbook
+
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    book = Workbook()
+    goods = book.active
+    goods.title = "HSN_MSTR"
+    goods.append(["HSN_CD", "HSN_Description"])
+    goods.append(["0902", "TEA"])
+    goods.append(["01011010", "LIVE HORSES"])
+    services = book.create_sheet("SAC_MSTR")
+    services.append(["SAC_CD", "SAC_Description"])
+    services.append([9954, "Construction services"])
+    out = io.BytesIO()
+    book.save(out)
+    file = SimpleUploadedFile("hsn.xlsx", out.getvalue())
+    done = client.post("/api/v1/central/import/hsn/", {"file": file}, HTTP_HOST=HOST)
+    assert done.status_code == 200, done.json()
+    assert done.json()["added"] == 3
+    assert HsnCode.objects.get(hsn_code="9954").description == "Construction services"
+    assert HsnCode.objects.get(hsn_code="0902").description == "TEA"
+    bad = SimpleUploadedFile("hsn.xlsx", b"not an excel file")
+    assert (
+        client.post("/api/v1/central/import/hsn/", {"file": bad}, HTTP_HOST=HOST).status_code == 400
+    )

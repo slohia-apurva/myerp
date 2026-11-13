@@ -14,8 +14,29 @@ def parse(text: str) -> list[tuple[str, str]]:
     """(code, description) rows. Lines whose first cell is not a 2-8 digit
     code (headings, blanks) are skipped."""
     dialect = "excel-tab" if "\t" in text.splitlines()[0] else "excel"
+    return _rows(list(csv.reader(io.StringIO(text), dialect=dialect)))
+
+
+def parse_excel(data: bytes) -> list[tuple[str, str]]:
+    """The same rows from every sheet of an Excel file (code in the first
+    column, description in the second); heading rows are skipped."""
+    from openpyxl import load_workbook
+
+    def cell(v) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, float) and v.is_integer():
+            v = int(v)
+        return str(v)
+
+    book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    cells = [[cell(v) for v in row] for sheet in book for row in sheet.iter_rows(values_only=True)]
+    return _rows(cells)
+
+
+def _rows(lines: list[list[str]]) -> list[tuple[str, str]]:
     rows = []
-    for cells in csv.reader(io.StringIO(text), dialect=dialect):
+    for cells in lines:
         if not cells:
             continue
         code = cells[0].strip().replace(" ", "")

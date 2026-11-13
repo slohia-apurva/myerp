@@ -480,7 +480,7 @@ function LoadLists() {
           HSN and SAC codes
           <input
             type="file"
-            accept=".csv,.tsv,.txt"
+            accept=".csv,.tsv,.txt,.xlsx"
             disabled={busy !== ""}
             onChange={(e) => {
               send("hsn", e.target.files?.[0]);
@@ -488,8 +488,8 @@ function LoadLists() {
             }}
           />
           <span className="small">
-            A CSV or tab-separated file with the code in the first column and the description in the second. New codes are
-            added and descriptions of existing ones refreshed.
+            An Excel, CSV or tab-separated file with the code in the first column and the description in the second (every sheet
+            of an Excel file is read). New codes are added and descriptions of existing ones refreshed.
           </span>
         </label>
         <label>
