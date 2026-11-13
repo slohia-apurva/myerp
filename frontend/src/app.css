@@ -1876,3 +1876,19 @@ fieldset.item-checks {
     transform: rotate(360deg);
   }
 }
+
+/* Attachments: a click or drop area for files */
+.drop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  padding: 14px;
+  border: 2px dashed var(--line, #cfd8d3);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+}
+.drop input[type="file"] {
+  max-width: 100%;
+}

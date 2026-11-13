@@ -15,6 +15,7 @@ from core import (
     items,
     ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
     numbering_api,
+    party_documents,
     places,
     printout,
     units,
@@ -121,6 +122,31 @@ urlpatterns = [
         "companies/<int:pk>/certificates/", api.CertificateListView.as_view(), name="certificates"
     ),
     path("certificates/<int:pk>/", api.CertificateDetailView.as_view(), name="certificate"),
+    path(
+        "parties/<int:pk>/documents/",
+        party_documents.DocumentListView.as_view(),
+        name="party-documents",
+    ),
+    path(
+        "party-documents/renewals/",
+        party_documents.RenewalsView.as_view(),
+        name="party-document-renewals",
+    ),
+    path(
+        "party-documents/<int:pk>/",
+        party_documents.DocumentDetailView.as_view(),
+        name="party-document",
+    ),
+    path(
+        "party-documents/<int:pk>/files/",
+        party_documents.FileUploadView.as_view(),
+        name="party-document-files",
+    ),
+    path(
+        "party-document-files/<int:pk>/",
+        party_documents.FileView.as_view(),
+        name="party-document-file",
+    ),
     path(
         "companies/<int:pk>/ledger-groups/",
         api.LedgerGroupListView.as_view(),

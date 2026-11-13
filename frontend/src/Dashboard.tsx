@@ -10,6 +10,13 @@ type Overview = {
   certificates: { id: number; kind_label: string; name: string; valid_until: string | null }[];
   opening: { dr: string; cr: string; difference: string };
 };
+type PartyRenewal = {
+  id: number;
+  party: string;
+  kind_label: string;
+  name: string;
+  valid_until: string;
+};
 type LedgerRow = { id: number; nature: string; party: { id?: number } | null; is_active: boolean };
 
 /** The first screen after signing in: the company being worked in, at a glance. */
@@ -17,12 +24,14 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
   const canSeeMasters = session.permissions.includes("masters.view");
   const [overview, setOverview] = useState<Overview | null>(null);
   const [ledgers, setLedgers] = useState<LedgerRow[]>([]);
+  const [partyRenewals, setPartyRenewals] = useState<PartyRenewal[]>([]);
   const id = company?.id;
   useEffect(() => {
     if (!id) return;
     setOverview(null);
     api<Overview>(`v1/companies/${id}/`).then(setOverview);
     api<LedgerRow[]>(`v1/companies/${id}/ledgers/`).then(setLedgers);
+    api<PartyRenewal[]>("v1/party-documents/renewals/").then(setPartyRenewals, () => setPartyRenewals([]));
   }, [id]);
 
   const hello = `Welcome, ${session.user.name}`;
@@ -46,6 +55,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
     .map((x) => ({ x, note: renewalNote(x.valid_until) }))
     .filter(({ note }) => note.cls === "warn" || note.cls === "error")
     .sort((a, b) => (a.x.valid_until! < b.x.valid_until! ? -1 : 1));
+  const partyDue = partyRenewals.map((x) => ({ x, note: renewalNote(x.valid_until) }));
   const base = `#/companies/${company.id}`;
 
   return (
@@ -80,7 +90,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
         </div>
 
         <h3>Needs your attention</h3>
-        {overview && diff === 0 && renewals.length === 0 && <p className="small">Nothing needs attention.</p>}
+        {overview && diff === 0 && renewals.length === 0 && partyDue.length === 0 && <p className="small">Nothing needs attention.</p>}
         <ul className="attention">
           {diff !== 0 && (
             <li>
@@ -92,6 +102,12 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
             <li key={x.id}>
               <span className={note.cls}>{x.kind_label}</span>
               {x.name ? ` (${x.name})` : ""}: {note.text}. <a href={`${base}/certificates`}>Licences and certificates</a>
+            </li>
+          ))}
+          {partyDue.map(({ x, note }) => (
+            <li key={`party-${x.id}`}>
+              <span className={note.cls}>{x.kind_label}</span>
+              {x.name ? ` (${x.name})` : ""} of {x.party}: {note.text}. <a href={`${base}/ledgers`}>Ledgers</a>
             </li>
           ))}
         </ul>

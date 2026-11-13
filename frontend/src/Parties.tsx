@@ -1,5 +1,6 @@
 import { CountryPicker, PinInput } from "./Pin";
 import { Section } from "./Brand";
+import { PartyDocuments } from "./PartyDocuments";
 import { Combobox } from "./Combobox";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
@@ -58,6 +59,8 @@ export type Party = {
   salesman_name?: string;
   addresses: PartyAddress[];
   contacts: PartyContact[];
+  /** Documents kept for the party (read only; the Documents tab saves its own). */
+  document_count?: number;
 };
 
 export const GST_TYPES: [string, string][] = [
@@ -100,7 +103,7 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false, kinds: [] });
 
 type Person = { id: number; name: string };
-export type PartyTab = "general" | "details" | "addresses" | "contacts" | "extra";
+export type PartyTab = "general" | "details" | "addresses" | "contacts" | "documents" | "extra";
 
 /** The tab strip at the top of a customer/supplier ledger form. */
 export function PartyTabBar(props: {
@@ -114,6 +117,7 @@ export function PartyTabBar(props: {
     ["details", "GST and credit"],
     ["addresses", `Addresses (${props.party.addresses.length})`],
     ["contacts", `Contacts (${props.party.contacts.length})`],
+    ["documents", `Documents (${props.party.document_count ?? 0})`],
     ["extra", props.extraLabel],
   ];
   return (
@@ -141,6 +145,7 @@ export function PartyFields({
   supplier,
   extraTab,
   tab,
+  canEdit,
   companyId,
   alsoIn,
   onAlsoIn,
@@ -155,6 +160,8 @@ export function PartyFields({
   onChange: (p: Party) => void;
   /** The tab being shown; the strip itself is PartyTabBar, at the top of the form. */
   tab: PartyTab;
+  /** Whether the person may add and change documents. */
+  canEdit?: boolean;
   /** The content of the "Opening balance" tab, from the ledger form. */
   extraTab?: { label: string; content: ReactNode };
 }) {
@@ -407,6 +414,16 @@ export function PartyFields({
       >
         + Add address
       </button>
+      </div>
+
+      <div data-tab="documents" hidden={tab !== "documents"}>
+        <PartyDocuments
+          partyId={p.id}
+          canEdit={canEdit ?? true}
+          onCount={(n) => {
+            if (n !== (p.document_count ?? 0)) set({ document_count: n });
+          }}
+        />
       </div>
 
       <div data-tab="contacts" hidden={tab !== "contacts"}>
