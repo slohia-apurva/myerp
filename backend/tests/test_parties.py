@@ -390,3 +390,71 @@ def test_one_firm_both_customer_and_supplier_in_one_company(accountant, company,
     assert [(x["name"], x["group_name"]) for x in other if x["party"]] == [
         ("ABC Foods", "Sundry Creditors")
     ]
+
+
+def _items(alpha):
+    from core.models import Item, Unit
+
+    with use_tenant(alpha):
+        unit = Unit.objects.get(name="Packet")
+        names = ["Tea A", "Tea B", "Tea C", "Tea D"]
+        return [
+            Item.objects.create(item_number=f"ITEM-9{i}", name=n, stock_unit=unit).pk
+            for i, n in enumerate(names)
+        ]
+
+
+def test_products_list_limits_what_a_party_is_offered(accountant, company, alpha):
+    from core.models import Item, Party
+    from core.parties import items_for_party
+
+    a, b, c, d = _items(alpha)
+    party = {"gst_type": "unregistered", "state_code": "27"}
+    made = add_ledger(accountant, company, "Sundry Debtors", party=party)
+    assert made.status_code == 201, made.json()
+    ledger_url = f"ledgers/{made.json()['id']}/"
+
+    def names(side="customer"):
+        with use_tenant(alpha):
+            p = Party.objects.get(pk=made.json()["party"]["id"])
+            return sorted(items_for_party(p, side).values_list("name", flat=True))
+
+    # No list: any item.
+    assert names() == ["Tea A", "Tea B", "Tea C", "Tea D"]
+
+    products = [{"item": a}, {"item": b}]
+    saved = call(accountant, "patch", ledger_url, {"party": {"products": products}})
+    assert saved.status_code == 200, saved.json()
+    rows = saved.json()["party"]["products"]
+    assert [r["item_name"] for r in rows] == ["Tea A", "Tea B"]
+    assert names() == ["Tea A", "Tea B"]
+
+    # Items ticked "Offer to all" stay on offer; disabled or not-for-sale ones stay off.
+    with use_tenant(alpha):
+        Item.objects.filter(pk=c).update(offer_to_all=True)
+        Item.objects.filter(pk=b).update(allow_sales=False)
+    assert names() == ["Tea A", "Tea C"]
+    assert names("supplier") == ["Tea A", "Tea B", "Tea C"]
+    with use_tenant(alpha):
+        Item.objects.filter(pk=a).update(is_active=False)
+    assert names() == ["Tea C"]
+
+    # The same item twice, or a disabled item newly added, is refused.
+    twice = call(accountant, "patch", ledger_url, {"party": {"products": [{"item": d}] * 2}})
+    assert twice.status_code == 400
+    # (Tea A is already listed, so it may stay; a new disabled item may not be added.)
+    kept = call(accountant, "patch", ledger_url, {"party": {"products": [{"item": a}]}})
+    assert kept.status_code == 200, kept.json()
+    off = call(accountant, "patch", ledger_url, {"party": {"products": [{"item": a}, {"item": b}]}})
+    assert off.status_code == 200
+    with use_tenant(alpha):
+        Item.objects.filter(pk=d).update(is_active=False)
+    added = call(
+        accountant, "patch", ledger_url, {"party": {"products": [{"item": a}, {"item": d}]}}
+    )
+    assert added.status_code == 400
+
+    # An empty list sent clears it: any item again.
+    cleared = call(accountant, "patch", ledger_url, {"party": {"products": []}})
+    assert cleared.status_code == 200, cleared.json()
+    assert names() == ["Tea C"]

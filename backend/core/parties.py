@@ -23,10 +23,12 @@ from core.models import (
     BILL_WISE_GROUP_CODES,
     CONTACT_KINDS,
     CreditTerm,
+    Item,
     Ledger,
     Party,
     PartyAddress,
     PartyContact,
+    PartyProduct,
 )
 from core.numbering import next_number
 
@@ -65,6 +67,17 @@ class PartyContactSerializer(serializers.ModelSerializer):
         fields = ["name", "designation", "phone", "email", "is_primary", "kinds"]
 
 
+class PartyProductSerializer(serializers.ModelSerializer):
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
+    item_number = serializers.CharField(source="item.item_number", read_only=True)
+    item_name = serializers.CharField(source="item.name", read_only=True)
+    item_active = serializers.BooleanField(source="item.is_active", read_only=True)
+
+    class Meta:
+        model = PartyProduct
+        fields = ["item", "item_number", "item_name", "item_active"]
+
+
 class PartySerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(read_only=True)
@@ -94,6 +107,7 @@ class PartySerializer(serializers.ModelSerializer):
     validate_customer_number = validate_vendor_number = staticmethod(_upper)
     addresses = PartyAddressSerializer(many=True, required=False)
     contacts = PartyContactSerializer(many=True, required=False)
+    products = PartyProductSerializer(many=True, required=False)
     document_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -115,6 +129,7 @@ class PartySerializer(serializers.ModelSerializer):
             "salesman",
             "addresses",
             "contacts",
+            "products",
             "document_count",
         ]
 
@@ -145,6 +160,7 @@ _NOT_PARTY_FIELDS = (
     "credit_term_name",
     "addresses",
     "contacts",
+    "products",
 )
 PARTY_FIELDS = [f for f in PartySerializer.Meta.fields if f not in _NOT_PARTY_FIELDS]
 
@@ -233,6 +249,7 @@ def save_party(
         party.name = ledger.name
     addresses = data.pop("addresses", None)
     contacts = data.pop("contacts", None)
+    products = data.pop("products", None)
     for field in ("customer_number", "vendor_number"):
         if not data.get(field):
             data.pop(field, None)  # blank keeps the number it has
@@ -267,6 +284,8 @@ def save_party(
         _save_addresses(party, addresses)
     if contacts is not None:
         _save_contacts(party, contacts)
+    if products is not None:
+        _save_products(party, products)
     if ledger.party_id != party.pk or ledger.party_side != side:
         ledger.party = party
         ledger.party_side = side
@@ -398,6 +417,36 @@ def _save_contacts(party: Party, contacts: list[dict]) -> None:
         contact.save()
 
 
+def _save_products(party: Party, products: list[dict]) -> None:
+    items = [p["item"] for p in products]
+    if len({i.pk for i in items}) != len(items):
+        raise ValidationError({"party": {"products": ["Each item can be listed only once."]}})
+    kept = {p.item_id for p in party.products.all()}
+    for item in items:
+        if item.pk not in kept and not item.is_active:
+            raise ValidationError(
+                {"party": {"products": [f"{item.name} is disabled and cannot be added."]}}
+            )
+    party.products.all().delete()
+    PartyProduct.objects.bulk_create([PartyProduct(party=party, item=i) for i in items])
+
+
+def items_for_party(party: Party | None, side: str):
+    """The items that may be sold to a customer (side "customer") or bought
+    from a supplier ("supplier"): active items that allow sales or purchase;
+    when the party lists products, only those plus items ticked "Offer to
+    all". Every quotation, order and bill screen picks items through this."""
+    items = Item.objects.filter(is_active=True)
+    items = (
+        items.filter(allow_sales=True) if side == "customer" else items.filter(allow_purchase=True)
+    )
+    if party is None or not party.products.exists():
+        return items
+    from django.db.models import Q
+
+    return items.filter(Q(offer_to_all=True) | Q(party_products__party=party)).distinct()
+
+
 def party_extras() -> dict:
     """What the audit log shows of a ledger's party details, folded into
     the ledger's own entries (see audit.recorder.TRACKED)."""
@@ -433,6 +482,12 @@ def party_extras() -> dict:
             rows.append(text + (f" ({', '.join(types)})" if types else ""))
         return "; ".join(rows) or None
 
+    def product_text(party):
+        names = [
+            f"{p.item.item_number} {p.item.name}" for p in party.products.select_related("item")
+        ]
+        return "; ".join(names) or None
+
     def blank(value):
         return value if value not in ("", None) else None
 
@@ -458,4 +513,5 @@ def party_extras() -> dict:
         ),
         "party_addresses": ("Addresses", read(address_text)),
         "party_contacts": ("Contacts", read(contact_text)),
+        "party_products": ("Products", read(product_text)),
     }

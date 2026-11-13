@@ -35,7 +35,11 @@ def _ledgers(ctx):
     return (
         ctx.company.ledgers.select_related("group", "party", "salesman")
         .prefetch_related(
-            "opening_bills", "party__addresses", "party__contacts", "party__ledgers__company"
+            "opening_bills",
+            "party__addresses",
+            "party__contacts",
+            "party__products__item",
+            "party__ledgers__company",
         )
         .order_by("group__name", "name")
     )
@@ -103,6 +107,7 @@ exchange.register(
             "party.contacts": "Contacts",
             "party.contacts.is_primary": "Main",
             "party.contacts.kinds": "Types",
+            "party.products": "Products",
         },
         hints={
             "group": "The group's name in this company",

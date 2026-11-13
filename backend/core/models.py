@@ -739,6 +739,8 @@ class Item(models.Model):
     maintain_stock = models.BooleanField(default=True)
     allow_purchase = models.BooleanField(default=True)
     allow_sales = models.BooleanField(default=True)
+    # Offered to every customer and supplier even when theirs has a Products list.
+    offer_to_all = models.BooleanField(default=False)
     notes = models.CharField(max_length=200, blank=True)
     is_active = models.BooleanField(default=True)
 
@@ -1024,6 +1026,24 @@ class PartyContact(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class PartyProduct(models.Model):
+    """An item a customer may be sold, or a supplier may be bought from. A
+    party with no rows can deal in any item; with rows, only these (plus
+    items ticked "Offer to all"). Prices are not kept here."""
+
+    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="products")
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="party_products")
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(fields=["party", "item"], name="party_product_once"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.party} / {self.item}"
 
 
 class PartyDocument(models.Model):
