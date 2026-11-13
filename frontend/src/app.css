@@ -1306,6 +1306,10 @@ ul.address-list {
   border-bottom: 1px solid var(--line);
   margin-bottom: 12px;
   overflow-x: auto;
+  scrollbar-width: none; /* no scroll bar beside the tabs; narrow screens still scroll */
+}
+.form-tabs::-webkit-scrollbar {
+  display: none;
 }
 .form-tabs button {
   background: none;
