@@ -447,11 +447,21 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Items are one catalogue shared by every company in the group. Each
-          item gets a number such as ITEM-00001. Click an item in the list and
-          its details show on the right in boxes: "Item", "Sales", "Purchase",
-          "GST rates", "Stock and quality" and "Units of measure", with the
-          change log, "Activity", below. Type in the search box to find an item
-          by name, number, HSN or barcode.
+          item gets a number such as ITEM-00001. The list shows the item
+          number, name, group, HSN, stock unit and today's GST rate. Click an
+          item and its "Item Details" and "Activity" (the change log) show in
+          the panels on the right. Type in the search box to find an item by
+          name, number, HSN or barcode.
+        </p>
+        <p>
+          Double-click an item, press Enter, or click "Open" to see its own
+          page. It has folding sections: "General", "Sales", "Purchase", "GST
+          Rates", "Stock And Quality", "Units Of Measure" and "Connections".
+          Click a section's title bar to open or close it; a closed section
+          still shows a line of its main values. "Switches" and "Activity" are
+          in the panels on the right. People who may change items also see
+          "Edit" and "Duplicate" in the green bar; "Close" goes back to the
+          list.
         </p>
         <p>
           "Add item", "Edit" and "Duplicate" open the form in a new browser tab
