@@ -1935,6 +1935,93 @@ fieldset.item-checks {
   text-transform: capitalize;
 }
 
+/* Colour scheme (Sidharth, 2026-11-13): deep green header band, grey page,
+   white boxes with a light green title strip. */
+:root {
+  --page-grey: #eceff1;
+  --strip: #d6ebdd;
+}
+html,
+body {
+  background: var(--page-grey);
+}
+.band {
+  background: var(--deep-green);
+  border-bottom: 0;
+}
+.band h1 {
+  color: #fff;
+}
+.crumbs,
+.band-sub,
+.crumbs a {
+  color: rgba(255, 255, 255, 0.85);
+}
+.crumbs a:hover {
+  color: #fff;
+}
+.band button,
+.band a.button {
+  background: #fff;
+  color: var(--deep-green);
+  border-color: #fff;
+  font-weight: 600;
+}
+.band button:hover:not(:disabled),
+.band a.button:hover {
+  background: var(--mint);
+  color: var(--deep-green);
+}
+.band button.link,
+.band button.secondary {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+}
+.band button.link:hover:not(:disabled),
+.band button.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.tabs {
+  margin-bottom: -12px;
+}
+.tabs a {
+  color: rgba(255, 255, 255, 0.85);
+}
+.tabs a:hover {
+  color: #fff;
+}
+.tabs a.active {
+  background: var(--page-grey);
+  border-color: transparent;
+  color: var(--deep-green);
+}
+.band .stat-label,
+.band .stat-note,
+.band .stat-value,
+.band .stat a {
+  color: #fff;
+}
+.band .stat {
+  border-left-color: rgba(255, 255, 255, 0.4);
+}
+.panel-card,
+form.card .panel-card,
+.panel .panel-card {
+  background: #fff;
+  border-color: var(--mint-line);
+}
+.panel-card > h4 {
+  margin: -10px -12px 4px;
+  padding: 9px 12px;
+  background: var(--strip);
+  border-radius: 7px 7px 0 0;
+}
+form.card .panel-card > h4 {
+  margin: -12px -14px 0;
+  padding: 9px 14px;
 /* Formatted text: the editor on the item form and the text as shown */
 .rte {
   display: flex;
