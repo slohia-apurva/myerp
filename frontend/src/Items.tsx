@@ -817,23 +817,21 @@ function ItemForm(props: {
         </Section>
         )}
         {tab === "general" && (
-        <Section title="Notes">
-          <div className="row">
-            <label>
-              Notes
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
-          </div>
+        <Section>
+          <label>
+            Notes
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
         </Section>
         )}
         {tab === "sales" && (
-          <Section title="Sales">
-            <label>
-              Sales description
-              <textarea rows={3} maxLength={500} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
-            </label>
-            <p className="small">The wording customers see for this item on quotations, orders and sales bills.</p>
-            <div className="row">
+          <Section>
+            <div className="item-fields">
+              <label className="wide">
+                Sales description
+                <textarea rows={3} maxLength={500} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
+                <span className="small">The wording customers see for this item on quotations, orders and sales bills.</span>
+              </label>
               <label>
                 Default sales unit
                 <Combobox value={salesUnit} onChange={setSalesUnit} empty="Same as the stock unit" options={unitChoices} />
@@ -842,12 +840,14 @@ function ItemForm(props: {
                 MRP (₹)
                 <input className="num" inputMode="decimal" value={mrp} onChange={(e) => setMrp(e.target.value)} />
               </label>
-            </div>
-            <label>
-              USP
-              <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
-            </label>
-            <div className="row">
+              <label>
+                USP
+                <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
+              </label>
+              <label>
+                Batch No
+                <input maxLength={60} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
+              </label>
               <label>
                 Best before (counted from the manufacturing date)
                 <input className="num" inputMode="numeric" value={bestBefore} onChange={(e) => setBestBefore(e.target.value)} />
@@ -863,21 +863,17 @@ function ItemForm(props: {
                   ]}
                 />
               </label>
-              <label>
-                Batch No
-                <input maxLength={60} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
-              </label>
             </div>
           </Section>
         )}
         {tab === "purchase" && (
-          <Section title="Purchase">
-            <label>
-              Purchase description
-              <textarea rows={3} maxLength={500} value={buyText} onChange={(e) => setBuyText(e.target.value)} />
-            </label>
-            <p className="small">The wording suppliers see for this item on purchase orders.</p>
-            <div className="row">
+          <Section>
+            <div className="item-fields">
+              <label className="wide">
+                Purchase description
+                <textarea rows={3} maxLength={500} value={buyText} onChange={(e) => setBuyText(e.target.value)} />
+                <span className="small">The wording suppliers see for this item on purchase orders.</span>
+              </label>
               <label>
                 Default purchase unit
                 <Combobox value={buyUnit} onChange={setBuyUnit} empty="Same as the stock unit" options={unitChoices} />
@@ -886,8 +882,6 @@ function ItemForm(props: {
                 Lead time in days
                 <input className="num" inputMode="numeric" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
               </label>
-            </div>
-            <div className="row">
               <label>
                 Safety stock qty
                 <input className="num" inputMode="decimal" value={safety} onChange={(e) => setSafety(e.target.value)} />
@@ -900,12 +894,12 @@ function ItemForm(props: {
                 Max stock qty
                 <input className="num" inputMode="decimal" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
               </label>
+              <p className="small wide">The quantities are in the item's default unit.</p>
             </div>
-            <p className="small">The quantities are in the item's default unit.</p>
           </Section>
         )}
         {tab === "gst" && (
-          <Section title="GST rates">
+          <Section>
             <p className="small">
               When the law changes, click "Add rate" and give the new rate and the date it starts. Keep the old rows: bills
               take the rate in force on the bill date.
@@ -914,8 +908,8 @@ function ItemForm(props: {
               <table className="grid">
                 <thead>
                   <tr>
-                    <th>From</th>
-                    <th className="num">GST rate (%)</th>
+                    <th><span className="req">From</span></th>
+                    <th className="num"><span className="req">GST rate (%)</span></th>
                     <th />
                   </tr>
                 </thead>
@@ -946,26 +940,32 @@ function ItemForm(props: {
           </Section>
         )}
         {tab === "stock" && (
-        <Section title="Stock and quality">
-          <div className="row">
-            <label>
-              Default material request type
-              <Combobox
-                value={requestType}
-                onChange={setRequestType}
-                empty="Not set"
-                options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
-              />
-            </label>
+        <Section>
+          <div className="item-general">
+            <div className="item-fields">
+              <label>
+                Default material request type
+                <Combobox
+                  value={requestType}
+                  onChange={setRequestType}
+                  empty="Not set"
+                  options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
+                />
+              </label>
+            </div>
+            <fieldset className="item-checks">
+              <legend>Switches</legend>
+              <label className="check">
+                <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
+                Track batches
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={qc} onChange={(e) => setQc(e.target.checked)} />
+                Quality check on receipt
+              </label>
+              <p className="small">"Track batches" asks for the batch number and expiry on every receipt and issue.</p>
+            </fieldset>
           </div>
-          <label className="check">
-            <input type="checkbox" checked={batches} onChange={(e) => setBatches(e.target.checked)} />
-            Track batches (batch number and expiry on every receipt and issue)
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={qc} onChange={(e) => setQc(e.target.checked)} />
-            Quality check on receipt
-          </label>
         </Section>
         )}
         {tab === "connections" && (
@@ -977,7 +977,7 @@ function ItemForm(props: {
           </Section>
         )}
         {tab === "units" && (
-        <Section title="Units of measure">
+        <Section>
           <p className="small">
             The stock unit is added for you. For every other unit say how many of which unit it contains; "= {stockName || "stock unit"}" is
             worked out from that.
@@ -989,7 +989,7 @@ function ItemForm(props: {
                 <li key={i} className="address-card">
                   <div className="row">
                     <label>
-                      Unit
+                      <span className="req">Unit</span>
                       <Combobox
                         required
                         value={r.unit}
@@ -1004,13 +1004,13 @@ function ItemForm(props: {
                     </label>
                     {!isStock && (
                       <label>
-                        Contains how many
+                        <span className="req">Contains how many</span>
                         <input required inputMode="decimal" value={r.contains_qty} onChange={(e) => setRow(i, { contains_qty: e.target.value })} />
                       </label>
                     )}
                     {!isStock && (
                       <label>
-                        Of
+                        <span className="req">Of</span>
                         <Combobox
                           required
                           value={r.contains_unit}
