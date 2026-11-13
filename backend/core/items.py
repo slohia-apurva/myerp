@@ -160,6 +160,7 @@ class ItemSerializer(serializers.ModelSerializer):
             "maintain_stock",
             "allow_purchase",
             "allow_sales",
+            "offer_to_all",
             "notes",
             "is_active",
             "units",
@@ -292,6 +293,7 @@ def _save_item(item: Item, data: dict) -> Item:
         "maintain_stock",
         "allow_purchase",
         "allow_sales",
+        "offer_to_all",
         "notes",
         "is_active",
     ):
@@ -490,6 +492,7 @@ exchange.register(
             "maintain_stock": "Maintain stock",
             "allow_purchase": "Allow purchase",
             "allow_sales": "Allow sales",
+            "offer_to_all": "Offer to all",
             "units": "Units of measure",
             "units.contains_qty": "Contains how many",
             "units.contains_unit": "Of",

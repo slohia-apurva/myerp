@@ -1,6 +1,7 @@
 import { CountryPicker, PinInput } from "./Pin";
 import { Section } from "./Brand";
 import { PartyDocuments } from "./PartyDocuments";
+import { PartyProducts, type PartyProduct } from "./PartyProducts";
 import { Combobox } from "./Combobox";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
@@ -59,6 +60,7 @@ export type Party = {
   salesman_name?: string;
   addresses: PartyAddress[];
   contacts: PartyContact[];
+  products: PartyProduct[];
   /** Documents kept for the party (read only; the Documents tab saves its own). */
   document_count?: number;
 };
@@ -86,6 +88,7 @@ export const blankParty = (stateCode: string): Party => ({
   salesman: null,
   addresses: [],
   contacts: [],
+  products: [],
 });
 
 const blankAddress = (stateCode: string): PartyAddress => ({
@@ -103,7 +106,7 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false, kinds: [] });
 
 type Person = { id: number; name: string };
-export type PartyTab = "general" | "details" | "addresses" | "contacts" | "documents" | "labels" | "extra";
+export type PartyTab = "general" | "details" | "addresses" | "contacts" | "documents" | "products" | "labels" | "extra";
 
 /** The tab strip at the top of a customer/supplier ledger form. */
 export function PartyTabBar(props: {
@@ -120,6 +123,7 @@ export function PartyTabBar(props: {
     ["addresses", `Addresses (${props.party.addresses.length})`],
     ["contacts", `Contacts (${props.party.contacts.length})`],
     ["documents", `Documents (${props.party.document_count ?? 0})`],
+    ["products", `Products (${(props.party.products ?? []).length})`],
     ...(props.supplier ? [] : ([["labels", "Labels"]] as [PartyTab, string][])),
     ["extra", props.extraLabel],
   ];
@@ -437,6 +441,15 @@ export function PartyFields({
           onCount={(n) => {
             if (n !== (p.document_count ?? 0)) set({ document_count: n });
           }}
+        />
+      </div>
+
+      <div data-tab="products" hidden={tab !== "products"}>
+        <PartyProducts
+          value={p.products ?? []}
+          onChange={(products) => set({ products })}
+          supplier={supplier}
+          canEdit={canEdit ?? true}
         />
       </div>
 

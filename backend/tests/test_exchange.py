@@ -441,7 +441,14 @@ def test_ledgers_with_customers_contacts_and_opening_bills(owner, company, alpha
     # The export goes back in with no change.
     res = owner.get(f"/api/v1/exchange/ledgers/?as=xlsx&company={company}", HTTP_HOST=HOST)
     wb = load_workbook(io.BytesIO(res.content))
-    assert wb.sheetnames == ["Ledgers", "Opening bills", "Addresses", "Contacts", "How to fill"]
+    assert wb.sheetnames == [
+        "Ledgers",
+        "Opening bills",
+        "Addresses",
+        "Contacts",
+        "Products",
+        "How to fill",
+    ]
     again = {
         ws.title: [[("" if v is None else str(v)) for v in r] for r in ws.values]
         for ws in wb.worksheets

@@ -490,7 +490,7 @@ export const MANUAL: Chapter[] = [
             (it must be filled in; see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it; for a service use its SAC code),
             the "Default unit of measure" (the unit stock is counted in, such as
             Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" panel on the right, tick "Disabled" to stop using the item, and untick "Allow
-            purchase" or "Allow sales" where the item is not bought or sold.
+            purchase" or "Allow sales" where the item is not bought or sold. Tick "Offer to all" to offer the item to every customer and supplier even when theirs has a Products list.
             "Maintain stock" is separate from goods or service: untick it for an
             item whose stock is not to be kept, and tick it for a service whose
             stock is. For a service that keeps stock (job work, where the
@@ -1306,7 +1306,7 @@ export const MANUAL: Chapter[] = [
         </ul>
         <p>
           A customer or supplier form has tabs along the top: "General", "GST
-          and credit", "Addresses", "Contacts", "Documents", "Labels" (customers only) and "Opening balance". "Save" and
+          and credit", "Addresses", "Contacts", "Documents", "Products", "Labels" (customers only) and "Opening balance". "Save" and
           "Cancel" are at the bottom of every tab. On the "General" tab, "Under
           group" is followed by the "Customer number" (or "Vendor number") and
           then the "GSTIN". The number is given automatically when you Save
@@ -1395,6 +1395,17 @@ export const MANUAL: Chapter[] = [
           the new one; the old one stays on record. Documents that have lapsed or lapse
           within 90 days are listed under "Needs your attention" on the
           Dashboard.
+        </p>
+        <p>
+          On the "Products" tab, say which items may be sold to this customer
+          or bought from this supplier. While the list is empty, any item can
+          be. Once you add products (type in "Add Product" and pick the item),
+          only those items are offered on quotations, orders and bills, plus
+          any item with "Offer to all" ticked. Click "Remove" on a row to take
+          an item off; remove every row to allow any item again. A disabled
+          item, or one with "Allow sales" (customers) or "Allow purchase"
+          (suppliers) unticked, stays off even when it is listed. Prices are
+          not kept here.
         </p>
         <p>
           The "Labels" tab, which only customers have, is empty for now. It will hold the label format for

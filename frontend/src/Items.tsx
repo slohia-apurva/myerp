@@ -65,6 +65,7 @@ export type Item = {
   maintain_stock: boolean;
   allow_purchase: boolean;
   allow_sales: boolean;
+  offer_to_all: boolean;
   notes: string;
   is_active: boolean;
   units: ItemUnit[];
@@ -586,6 +587,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                   ["Disabled", i.is_active ? "No" : "Yes"],
                   ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
                   ["Allow sales", i.allow_sales ? "Yes" : "No"],
+                  ["Offer to all", i.offer_to_all ? "Yes" : "No"],
                   ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
                 ]}
               />
@@ -668,6 +670,7 @@ function ItemForm(props: {
   const [disabled, setDisabled] = useState(it ? !it.is_active : false);
   const [allowPurchase, setAllowPurchase] = useState(from?.allow_purchase ?? true);
   const [allowSales, setAllowSales] = useState(from?.allow_sales ?? true);
+  const [offerAll, setOfferAll] = useState(from?.offer_to_all ?? false);
   const [stock, setStock] = useState(from ? String(from.stock_unit) : "");
   const { groups: itemGroups, refresh: refreshGroups } = useItemGroups();
   const newGroup = creatable("item_group", "item-groups", refreshGroups);
@@ -752,6 +755,7 @@ function ItemForm(props: {
       maintain_stock: stocked,
       allow_purchase: allowPurchase,
       allow_sales: allowSales,
+      offer_to_all: offerAll,
       is_active: !disabled,
       stock_unit: Number(stock),
       hsn,
@@ -1268,6 +1272,10 @@ function ItemForm(props: {
               <label className="check">
                 <input type="checkbox" checked={allowSales} onChange={(e) => setAllowSales(e.target.checked)} />
                 Allow sales
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={offerAll} onChange={(e) => setOfferAll(e.target.checked)} />
+                Offer to all
               </label>
               <label className="check">
                 <input type="checkbox" checked={stocked} onChange={(e) => setStocked(e.target.checked)} />
