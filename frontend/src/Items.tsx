@@ -38,6 +38,8 @@ export type Item = {
   stock_unit: number;
   stock_unit_name: string;
   hsn: string;
+  /** Goods code for the challan and e-way bill, on a service that keeps stock (job work). */
+  delivery_hsn?: string;
   item_group: number | null;
   item_group_name: string | null;
   brand: number | null;
@@ -295,6 +297,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
             ["Item group", i.item_group_name ?? ""],
             ["Brand", i.brand_name ?? ""],
             ["HSN", i.hsn],
+            ...(i.delivery_hsn ? ([["Delivery HSN", i.delivery_hsn]] as [string, string][]) : []),
           ]}
         />
       </Section>
@@ -496,6 +499,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const newBrand = creatable("brand", "brands", refreshBrands);
   const [brand, setBrand] = useState(from?.brand == null ? "" : String(from.brand));
   const [hsn, setHsn] = useState(from?.hsn ?? "");
+  const [deliveryHsn, setDeliveryHsn] = useState(from?.delivery_hsn ?? "");
   const [mrp, setMrp] = useState(from?.mrp == null ? "" : plain(from.mrp));
   const [usp, setUsp] = useState(from?.usp ?? "");
   const [bestBefore, setBestBefore] = useState(from?.best_before_value == null ? "" : String(from.best_before_value));
@@ -538,13 +542,16 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
   const toggleUsed = (i: number, code: string, on: boolean) =>
     setRow(i, { used_for: on ? [...rows[i].used_for, code] : rows[i].used_for.filter((c) => c !== code) });
 
+  // A service that keeps stock (job work): the invoice uses the service code (HSN code),
+  // the delivery challan and e-way bill use the goods code (Delivery HSN code).
+  const jobWork = type === "service" && stocked;
   const num = (v: string) => (v.trim() === "" ? null : v.trim());
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
     // The General tab's boxes are not on screen while another tab is open, so
     // the browser cannot check them: check here and take the person there.
-    if (!name.trim() || !stock || !hsn || !group) {
+    if (!name.trim() || !stock || !hsn || !group || (jobWork && !deliveryHsn)) {
       setTab("general");
       setError(
         !name.trim()
@@ -553,7 +560,9 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
             ? "Pick the default unit of measure on the General tab."
             : !hsn
               ? "Pick the HSN code on the General tab."
-              : "Pick the item group on the General tab.",
+              : !group
+                ? "Pick the item group on the General tab."
+                : "Pick the delivery HSN code on the General tab.",
       );
       return;
     }
@@ -567,6 +576,7 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
       is_active: !disabled,
       stock_unit: Number(stock),
       hsn,
+      delivery_hsn: jobWork ? deliveryHsn : "",
       item_group: group === "" ? null : Number(group),
       brand: brand === "" ? null : Number(brand),
       mrp: num(mrp),
@@ -683,12 +693,26 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
               </label>
               <label>
                 <span className="req">HSN code</span>
+                {jobWork && <span className="small"> (the service code, used on the invoice)</span>}
                 <HsnPicker value={hsn} onChange={setHsn} />
               </label>
               <label>
                 HSN description
                 <HsnDescription code={hsn} />
               </label>
+              {jobWork && (
+                <>
+                  <label>
+                    <span className="req">Delivery HSN code</span>
+                    <span className="small"> (the goods code, used on the delivery challan and e-way bill)</span>
+                    <HsnPicker value={deliveryHsn} onChange={setDeliveryHsn} />
+                  </label>
+                  <label>
+                    Delivery HSN description
+                    <HsnDescription code={deliveryHsn} />
+                  </label>
+                </>
+              )}
               <label>
                 <span className="req">Default unit of measure</span>
                 <Combobox

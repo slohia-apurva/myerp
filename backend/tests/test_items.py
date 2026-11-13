@@ -320,7 +320,9 @@ def test_item_ticks_allow_purchase_sales_and_stock(accountant, unit):
 def test_maintain_stock_is_separate_from_goods_or_service(accountant, unit):
     plain = make(accountant, unit).json()
     assert plain["item_type"] == "goods" and plain["maintain_stock"] is True
-    service = make(accountant, unit, name="Freight", item_type="service", units=[]).json()
+    service = make(
+        accountant, unit, name="Freight", item_type="service", units=[], delivery_hsn="0910"
+    ).json()
     assert service["item_type"] == "service" and service["maintain_stock"] is True
     goods = call(accountant, "patch", f"items/{plain['id']}/", {"maintain_stock": False}).json()
     assert goods["item_type"] == "goods" and goods["maintain_stock"] is False
@@ -390,3 +392,38 @@ def test_hsn_code_must_be_in_the_central_list(accountant, unit):
     assert made.status_code == 201
     other = call(accountant, "patch", f"items/{made.json()['id']}/", {"hsn": "8888"})
     assert other.status_code == 400
+
+
+def test_a_service_that_keeps_stock_needs_a_delivery_hsn(accountant, unit):
+    """Job work: the service code (SAC) goes on the invoice, the goods code on the challan."""
+    from tenancy.models import HsnCode
+
+    HsnCode.objects.get_or_create(hsn_code="998818", defaults={"description": "Job work, food"})
+    body = {
+        "name": "Private label tea, packed",
+        "item_type": "service",
+        "maintain_stock": True,
+        "stock_unit": unit("Packet"),
+        "units": [],
+        "hsn": "998818",
+    }
+    refused = call(accountant, "post", "items/", body)
+    assert refused.status_code == 400 and "delivery_hsn" in refused.json()
+    digits = call(accountant, "post", "items/", {**body, "delivery_hsn": "09A2"})
+    assert digits.status_code == 400 and "digits only" in str(digits.json()["delivery_hsn"])
+    odd = call(accountant, "post", "items/", {**body, "delivery_hsn": "99999999"})
+    assert odd.status_code == 400 and "not in the list" in str(odd.json()["delivery_hsn"])
+    made = call(accountant, "post", "items/", {**body, "delivery_hsn": "0902"})
+    assert made.status_code == 201, made.json()
+    assert made.json()["hsn"] == "998818" and made.json()["delivery_hsn"] == "0902"
+    blank = call(accountant, "patch", f"items/{made.json()['id']}/", {"delivery_hsn": ""})
+    assert blank.status_code == 400
+
+
+def test_the_delivery_hsn_is_cleared_when_it_does_not_apply(accountant, unit):
+    plain = {"name": "Loose tea", "stock_unit": unit("Packet"), "units": [], "hsn": "0902"}
+    made = call(accountant, "post", "items/", {**plain, "delivery_hsn": "0910"})
+    assert made.status_code == 201 and made.json()["delivery_hsn"] == ""  # goods: not used
+    service = {**plain, "name": "Blending charges", "item_type": "service", "maintain_stock": False}
+    free = call(accountant, "post", "items/", {**service, "delivery_hsn": "0910"})
+    assert free.status_code == 201 and free.json()["delivery_hsn"] == ""  # no stock: not used
