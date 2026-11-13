@@ -601,8 +601,8 @@ export const MANUAL: Chapter[] = [
         <p>
           The "Load lists from a file" box fills the central lists from a file.
           For HSN and SAC codes, click "Choose file" under "HSN and SAC codes"
-          and pick a CSV with the code in the first column and the description
-          in the second: new codes are added and descriptions of existing ones
+          and pick an Excel or CSV file with the code in the first column and the
+          description in the second (every sheet of an Excel file is read): new codes are added and descriptions of existing ones
           are refreshed. For a courier's PIN codes, first pick the courier in the
           box under "PIN codes and a courier's coverage", then choose its
           serviceability CSV: PIN codes we lack are added and that courier's

@@ -229,8 +229,17 @@ class HsnImportView(APIView):
 
     def post(self, request):
         _platform_admin(request)
-        text = _uploaded_text(request)
-        rows = hsn_import.parse(text) if text.strip() else []
+        upload = request.FILES.get("file")
+        if upload is not None and upload.name.lower().endswith((".xlsx", ".xlsm")):
+            if upload.size > MAX_UPLOAD:
+                raise ValidationError({"file": ["The file is too big (most is 15 MB)."]})
+            try:
+                rows = hsn_import.parse_excel(upload.read())
+            except Exception as exc:
+                raise ValidationError({"file": ["That Excel file could not be read."]}) from exc
+        else:
+            text = _uploaded_text(request)
+            rows = hsn_import.parse(text) if text.strip() else []
         if not rows:
             raise ValidationError({"file": ["No HSN rows found in the file."]})
         try:

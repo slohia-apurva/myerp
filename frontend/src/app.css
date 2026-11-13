@@ -1801,3 +1801,17 @@ fieldset.item-checks {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Item form: field headings are bold green; what is typed stays plain */
+.item-edit .split-panel form label:not(.check):not(.item-title) {
+  color: var(--green);
+  font-weight: 700;
+}
+.item-edit .split-panel form label:not(.check):not(.item-title) :is(input, textarea, select, .combo, .combo *, span.small, .small) {
+  color: var(--ink);
+  font-weight: 400;
+}
+.item-title .req {
+  color: var(--green);
+  font-weight: 700;
+}
