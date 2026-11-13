@@ -1186,7 +1186,12 @@ export const MANUAL: Chapter[] = [
           Open them from "Masters" › "Ledger groups". The table shows each
           group's nature (asset, liability, income or expense), its Schedule III
           head and how many ledgers it holds. Click a group's ledger count to
-          see those ledgers.
+          see those ledgers. Click a group's row to see its details (name, the
+          group it sits under, nature, Schedule III head, ledgers and whether it
+          is disabled) and its activity in the panels on the right. "Add group",
+          "+ Sub-group", "Edit" and "Duplicate" open the form in a new browser
+          tab, so the tree stays open in the first tab; "Save" or "Cancel"
+          closes that tab and the tree refreshes and selects the group.
         </p>
         <h3>Add your own group</h3>
         <ol>
@@ -1205,8 +1210,9 @@ export const MANUAL: Chapter[] = [
         <h3>Change, move or disable a group you added</h3>
         <p>
           Click "Edit" on its row. You can rename it or choose a different group
-          in "Under". Groups are never deleted: click "Disable" to stop using
-          one ("Enable" brings it back). A group can be disabled only when the
+          in "Under". Groups are never deleted: tick "Disabled" in the
+          "Switches" panel and "Save" to stop using one (untick it to bring it
+          back). A group can be disabled only when the
           groups under it and the ledgers in it are disabled or moved first.
           Nothing new can be added under a disabled group.
         </p>
