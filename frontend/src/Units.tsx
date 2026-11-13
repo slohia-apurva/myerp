@@ -18,6 +18,16 @@ export type Unit = {
   is_active: boolean;
 };
 
+/** How a unit reads in the masters: "Kilogram (Kg)". Entry screens and reports use
+ * the short name alone (Sidharth, 2026-11-13). */
+export const unitLabel = (u: { name: string; short_name: string }) => `${u.name} (${u.short_name})`;
+
+/** The master label of unit `id`, or `fallback` (its plain name) while the list loads. */
+export const labelFor = (units: Unit[], id: number | string | null, fallback: string | null = "") => {
+  const u = id === null ? undefined : units.find((x) => String(x.id) === String(id));
+  return u ? unitLabel(u) : (fallback ?? "");
+};
+
 export function useUnits() {
   const [units, setUnits] = useState<Unit[]>([]);
   // refresh returns the request, so "Create …" can wait for the new record.
