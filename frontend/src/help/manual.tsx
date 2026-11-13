@@ -474,9 +474,13 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>
             Click "Masters" in the top menu, then "Items", then "Add item". The
-            form has tabs: "General", "Sales", "Purchase", "GST rates", "Stock
-            and quality", "Units of measure" and "Connections" (empty for now: it
-            will list the documents that use the item).
+            page is titled "Add item" ("Edit item" when you change one) and has
+            "Cancel" and "Save" in the green bar. Below the item name are
+            folding sections: "General", "Sales", "Purchase", "GST rates",
+            "Stock and quality", "Units of measure" and "Connections" (empty for
+            now: it will list the documents that use the item). Click a
+            section's title bar to open it; one section is open at a time and a
+            closed one still shows a line of its main values.
           </li>
           <li>
             The large "Item name" at the top is a box you can click and change at
@@ -485,7 +489,7 @@ export const MANUAL: Chapter[] = [
             "Goods or service", pick the "Item group"
             (it must be filled in; see the chapter "Item groups"), pick the "HSN code" from the list (it must be filled in, and a code that is not in the list is refused; its "HSN description" shows beside it; for a service use its SAC code),
             the "Default unit of measure" (the unit stock is counted in, such as
-            Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" box, tick "Disabled" to stop using the item, and untick "Allow
+            Packet) and the "Brand" (see the chapter "Brands"). In the "Switches" panel on the right, tick "Disabled" to stop using the item, and untick "Allow
             purchase" or "Allow sales" where the item is not bought or sold.
             "Maintain stock" is separate from goods or service: untick it for an
             item whose stock is not to be kept, and tick it for a service whose
