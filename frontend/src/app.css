@@ -209,12 +209,10 @@ main.narrow {
 .band {
   background: var(--mint);
   border-bottom: 1px solid var(--mint-line);
-  margin-bottom: 12px;
+  margin-bottom: -14px; /* cancels the page gap so the first block touches the band */
 }
 .band-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px 24px 22px;
+  padding: 14px 24px 12px;
   box-sizing: border-box;
 }
 .band-row {
@@ -227,11 +225,11 @@ main.narrow {
 .band-title {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 .band h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 700;
 }
 .crumbs,
@@ -241,7 +239,7 @@ main.narrow {
   color: var(--mint-text);
 }
 .band-sub {
-  font-size: 14px;
+  font-size: 13px;
 }
 .crumbs a {
   color: var(--mint-text);
@@ -258,7 +256,7 @@ main.narrow {
     display: none;
   }
   .band-inner {
-    padding: 18px 16px;
+    padding: 12px 16px;
   }
 }
 .page {
@@ -268,7 +266,6 @@ main.narrow {
 }
 .page > :not(.band) {
   width: calc(100% - 48px);
-  max-width: 1152px;
   margin-left: auto;
   margin-right: auto;
   box-sizing: border-box;
@@ -1783,9 +1780,7 @@ fieldset.item-checks {
 .split.item-edit {
   grid-template-columns: minmax(0, 1fr);
 }
-.item-edit .split-list .filters,
-.item-edit .split-list table.pick,
-.item-edit .split-list > p {
+.item-edit .split-list {
   display: none;
 }
 .item-edit .split-panel {
