@@ -455,16 +455,15 @@ export const MANUAL: Chapter[] = [
         </p>
         <p>
           Double-click an item, press Enter, or click "Open" to see its own
-          page. It has folding sections: "General", "Sales", "Purchase", "GST
+          page, which opens in a new browser tab so the list stays open. It has folding sections: "General", "Sales", "Purchase", "GST
           Rates", "Stock And Quality", "Units Of Measure" and "Connections".
           Click a section's title bar to open or close it; a closed section
           still shows a line of its main values. "Switches" and "Activity" are
           in the panels on the right. People who may change items also see
-          "Edit" and "Duplicate" in the green bar; "Close" goes back to the
-          list.
+          "Edit" and "Duplicate" in the green bar; "Close" shuts the tab.
         </p>
         <p>
-          "Add item", "Edit" and "Duplicate" open the form in a new browser tab
+          "Add item", "Edit" and "Duplicate" also open the form in a new browser tab
           with the whole width, so the list stays open in the first tab.
           "Save" or "Cancel" closes the new tab and the list refreshes and
           selects the item. If you opened the form link by hand, the tab cannot
