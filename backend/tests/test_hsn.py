@@ -92,8 +92,8 @@ def test_a_bad_row_stops_the_whole_load():
     with pytest.raises(ValueError, match="Row 2"):
         hsn_import.load([ROWS[0], ("17x", "Oops")])
     assert HsnCode.objects.count() == 0
-    with pytest.raises(ValueError, match="description"):
-        hsn_import.load([("1701", "")])
+    done = hsn_import.load([("1701", "")])
+    assert done["skipped"] == ["1701"] and done["added"] == 0
 
 
 def test_codes_of_the_wrong_length_are_left_out_and_named():

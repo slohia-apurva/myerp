@@ -286,6 +286,20 @@ def test_hsn_can_be_loaded_from_an_excel_file(alpha, settings):
     assert done.json()["added"] == 3
     assert HsnCode.objects.get(hsn_code="9954").description == "Construction services"
     assert HsnCode.objects.get(hsn_code="0902").description == "TEA"
+    # A description Excel took for a formula is read as the text that was typed.
+    sheet = Workbook()
+    ws = sheet.active
+    ws.append(["HSN_CD", "HSN_Description"])
+    ws.append(["52083110", "=--- LUNGI"])
+    out2 = io.BytesIO()
+    sheet.save(out2)
+    lungi = client.post(
+        "/api/v1/central/import/hsn/",
+        {"file": SimpleUploadedFile("lungi.xlsx", out2.getvalue())},
+        HTTP_HOST=HOST,
+    )
+    assert lungi.status_code == 200, lungi.json()
+    assert HsnCode.objects.get(hsn_code="52083110").description == "--- LUNGI"
     bad = SimpleUploadedFile("hsn.xlsx", b"not an excel file")
     assert (
         client.post("/api/v1/central/import/hsn/", {"file": bad}, HTTP_HOST=HOST).status_code == 400

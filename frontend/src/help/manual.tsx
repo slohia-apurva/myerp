@@ -608,7 +608,7 @@ export const MANUAL: Chapter[] = [
           serviceability CSV: PIN codes we lack are added and that courier's
           earlier coverage is replaced by the file's. A message under the box
           says how many were added, and names any code that was left out because
-          it is not 2, 4, 6 or 8 digits. If a row is wrong, nothing is loaded and
+          it is not 2, 4, 6 or 8 digits or has no description. If a row is wrong, nothing is loaded and
           the message says which.
         </p>
         <h3>Add a courier</h3>

@@ -465,7 +465,7 @@ function LoadLists() {
         what,
         text:
           what === "hsn"
-            ? `${done.added} HSN codes added, ${done.updated} updated, ${done.unchanged} unchanged.${skipped.length ? ` Left out because they are not 2, 4, 6 or 8 digits: ${skipped.join(", ")}.` : ""}`
+            ? `${done.added} HSN codes added, ${done.updated} updated, ${done.unchanged} unchanged.${skipped.length ? ` Left out (not 2, 4, 6 or 8 digits, or no description): ${skipped.join(", ")}.` : ""}`
             : `${done.pins_added} PIN codes added, ${done.state_filled} given a state; the courier now covers ${done.coverage} (replaced ${done.replaced}).`,
       });
     } catch (err) {
