@@ -5,7 +5,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
 import { Combobox } from "./Combobox";
-import { HsnPicker } from "./Hsn";
+import { HsnDescription, HsnPicker } from "./Hsn";
 import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
 import { creatable } from "./Create";
@@ -681,6 +681,10 @@ function ItemForm(props: { item: Item | null; copyOf: Item | null; onDone: (save
               <label>
                 <span className="req">HSN code</span>
                 <HsnPicker value={hsn} onChange={setHsn} />
+              </label>
+              <label>
+                HSN description
+                <HsnDescription code={hsn} />
               </label>
               <label>
                 <span className="req">Default unit of measure</span>

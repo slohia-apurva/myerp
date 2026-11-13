@@ -94,10 +94,11 @@ def test_picker_shows_only_active_codes(accountant, company):
     assert "1701" in [r["hsn_code"] for r in results(accountant, "q=17")]
 
 
-def test_a_bad_row_stops_the_whole_load():
-    with pytest.raises(ValueError, match="Row 2"):
-        hsn_import.load([ROWS[0], ("17x", "Oops")])
-    assert HsnCode.objects.count() == 0
+def test_a_bad_row_is_left_out_and_the_rest_load():
+    done = hsn_import.load([ROWS[0], ("17x", "Oops")])
+    assert done["added"] == 1 and done["skipped"] == ["17x"]
+    assert done["problems"][0].startswith("Row 2 (17x)")
+    assert done["rejected"][0][0] == "17x"
     done = hsn_import.load([("1701", "")])
     assert done["skipped"] == ["1701"] and done["added"] == 0
 

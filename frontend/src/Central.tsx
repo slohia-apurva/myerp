@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, upload } from "./api";
+import { api, upload, uploadForFile } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
@@ -495,6 +495,21 @@ function LoadDialog(props: { picked: Picked; onClose: () => void }) {
     }
   };
   const problems = report?.problems ?? [];
+  const leftOut = async () => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("download", "1");
+    if (what === "pins") form.append("carrier", carrier);
+    try {
+      await uploadForFile(
+        `v1/central/import/${what}/`,
+        form,
+        what === "hsn" ? "hsn-left-out.xlsx" : "pins-left-out.xlsx",
+      );
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+    }
+  };
   const summary = report
     ? what === "hsn"
       ? `${report.added} new, ${report.updated} changed and ${report.unchanged} already in the list.`
@@ -540,10 +555,16 @@ function LoadDialog(props: { picked: Picked; onClose: () => void }) {
             ) : (
               <p className="note">No problems found.</p>
             )}
+            {error && <p className="error">{error}</p>}
             <div className="buttons">
               <button type="button" onClick={load}>
                 {problems.length > 0 ? "Load the rest" : "Load"}
               </button>
+              {problems.length > 0 && (
+                <button type="button" className="secondary" onClick={leftOut}>
+                  Download the left-out rows (Excel)
+                </button>
+              )}
               <button type="button" className="secondary" onClick={props.onClose}>
                 Cancel
               </button>
@@ -555,11 +576,21 @@ function LoadDialog(props: { picked: Picked; onClose: () => void }) {
             <p className="note">
               <b>Loaded.</b> {summary}
             </p>
-            {problems.length > 0 && <p className="small">{problems.length} rows were left out (listed in the check).</p>}
+            {problems.length > 0 && (
+              <p className="small">
+                {problems.length} rows were left out. Download them, correct them and load the file again.
+              </p>
+            )}
+            {error && <p className="error">{error}</p>}
             <div className="buttons">
               <button type="button" onClick={props.onClose}>
                 Close
               </button>
+              {problems.length > 0 && (
+                <button type="button" className="secondary" onClick={leftOut}>
+                  Download the left-out rows (Excel)
+                </button>
+              )}
             </div>
           </>
         )}

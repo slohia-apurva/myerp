@@ -205,7 +205,35 @@ def test_platform_admin_loads_pins_for_a_courier(alpha, settings):
     assert PinCode.objects.filter(pin="591111").exists()
     assert CourierPin.objects.filter(carrier=carrier).count() == 1
     bad = _upload(client, path, csv.replace("Karnataka,", "Nowhere,"), carrier=carrier.pk)
-    assert bad.status_code == 400
+    assert bad.status_code == 200 and bad.json()["problems"] == [
+        "591111: Unknown state name: Nowhere"
+    ]
+    assert bad.json()["coverage"] == 0
+    sheet = _upload(
+        client, path, csv.replace("Karnataka,", "Nowhere,"), carrier=carrier.pk, download="1"
+    )
+    assert "spreadsheetml" in sheet["Content-Type"]
+
+
+def test_left_out_hsn_rows_come_back_as_an_excel_file(alpha, settings):
+    import io
+
+    from openpyxl import load_workbook
+
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    client = _client(alpha, "boss@x.in")
+    csv = "HSN,Description\n0902,Tea\n30559,Fish dried\n17x,Oops\n0910,\n"
+    path = "/api/v1/central/import/hsn/"
+    done = _upload(client, path, csv)
+    assert done.json()["added"] == 1 and len(done.json()["problems"]) == 2
+    assert "rejected" not in done.json()
+    assert HsnCode.objects.filter(hsn_code="0902").exists()
+    HsnCode.objects.all().delete()
+    sheet = _upload(client, path, csv, download="1")  # downloading saves nothing
+    assert HsnCode.objects.count() == 0
+    rows = list(load_workbook(io.BytesIO(sheet.content)).active.values)
+    assert rows[0] == ("HSN code", "Description", "Why it was left out")
+    assert [r[0] for r in rows[1:]] == ["30559", "0910"]
 
 
 def test_only_platform_admins_may_import(alpha, settings):

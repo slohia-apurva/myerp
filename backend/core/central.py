@@ -8,6 +8,7 @@ import re
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.http import HttpResponse
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.parsers import MultiPartParser
@@ -221,6 +222,28 @@ def _uploaded_text(request) -> str:
         raise ValidationError({"file": ["Save the file as CSV (UTF-8) and try again."]}) from exc
 
 
+def _rejected_sheet(headers: list[str], rows: list[list], name: str) -> HttpResponse:
+    """The left-out rows as an Excel file, each with the reason, to correct and load again."""
+    import io
+
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Left out"
+    sheet.append(headers)
+    for row in rows:
+        sheet.append([str(c) for c in row])  # text, so codes keep their leading zeros
+    out = io.BytesIO()
+    book.save(out)
+    response = HttpResponse(
+        out.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{name}"'
+    return response
+
+
 class HsnImportView(APIView):
     """Load the central HSN / SAC list from a CSV or tab-separated file."""
 
@@ -242,7 +265,8 @@ class HsnImportView(APIView):
             rows = hsn_import.parse(text) if text.strip() else []
         if not rows:
             raise ValidationError({"file": ["No HSN rows found in the file."]})
-        commit = str(request.data.get("commit", "1")) == "1"
+        download = str(request.data.get("download", "0")) == "1"
+        commit = str(request.data.get("commit", "1")) == "1" and not download
         try:
             with transaction.atomic():
                 done = hsn_import.load(rows)
@@ -250,6 +274,11 @@ class HsnImportView(APIView):
                     transaction.set_rollback(True)  # only checking: show the result, save nothing
         except ValueError as exc:
             raise ValidationError({"file": [str(exc)]}) from exc
+        rejected = done.pop("rejected")
+        if download:
+            return _rejected_sheet(
+                ["HSN code", "Description", "Why it was left out"], rejected, "hsn-left-out.xlsx"
+            )
         return Response({**done, "saved": commit})
 
 
@@ -267,7 +296,8 @@ class PinImportView(APIView):
         rows = pin_import.parse(_uploaded_text(request))
         if not rows:
             raise ValidationError({"file": ["No PIN rows found in the file."]})
-        commit = str(request.data.get("commit", "1")) == "1"
+        download = str(request.data.get("download", "0")) == "1"
+        commit = str(request.data.get("commit", "1")) == "1" and not download
         try:
             with transaction.atomic():
                 done = pin_import.load(rows, carrier.name)
@@ -275,6 +305,13 @@ class PinImportView(APIView):
                     transaction.set_rollback(True)  # only checking: show the result, save nothing
         except ValueError as exc:
             raise ValidationError({"file": [str(exc)]}) from exc
+        rejected = done.pop("rejected")
+        if download:
+            return _rejected_sheet(
+                ["Pin", "Facility City", "Facility State", "Why it was left out"],
+                [[r["pin"], r["city"], r["state"], r["reason"]] for r in rejected],
+                "pins-left-out.xlsx",
+            )
         return Response({**done, "saved": commit, "courier": carrier.name})
 
 
