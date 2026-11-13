@@ -8,6 +8,7 @@ import { Combobox } from "./Combobox";
 import { HsnDescription, HsnPicker } from "./Hsn";
 import { FormBody } from "./RowActions";
 import { useBrands } from "./Brands";
+import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { useUnits, type Unit } from "./Units";
@@ -355,7 +356,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
               ["Batch No", i.batch_no],
             ]}
           />
-          {i.sales_description && <p className="pre">{i.sales_description}</p>}
+          {i.sales_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.sales_description }} />}
         </Section>
       )}
       {(i.purchase_description ||
@@ -374,7 +375,7 @@ function ItemPanel(props: { item: Item; canEdit: boolean; onEdit: () => void; on
               ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
             ]}
           />
-          {i.purchase_description && <p className="pre">{i.purchase_description}</p>}
+          {i.purchase_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.purchase_description }} />}
         </Section>
       )}
       {i.gst_rates.length > 0 && (
@@ -823,11 +824,12 @@ function ItemForm(props: {
         )}
         {tab === "sales" && (
           <Section title="Sales">
-            <label>
-              Sales description
-              <textarea rows={3} maxLength={500} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
-            </label>
-            <p className="small">The wording customers see for this item on quotations, orders and sales bills.</p>
+            <RichText
+              label="Sales description"
+              value={salesText}
+              onChange={setSalesText}
+              hint="The wording customers see for this item on quotations, orders and sales bills."
+            />
             <div className="row">
               <label>
                 Default sales unit
@@ -867,11 +869,12 @@ function ItemForm(props: {
         )}
         {tab === "purchase" && (
           <Section title="Purchase">
-            <label>
-              Purchase description
-              <textarea rows={3} maxLength={500} value={buyText} onChange={(e) => setBuyText(e.target.value)} />
-            </label>
-            <p className="small">The wording suppliers see for this item on purchase orders.</p>
+            <RichText
+              label="Purchase description"
+              value={buyText}
+              onChange={setBuyText}
+              hint="The wording suppliers see for this item on purchase orders."
+            />
             <div className="row">
               <label>
                 Default purchase unit
