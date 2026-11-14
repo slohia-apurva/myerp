@@ -1,12 +1,13 @@
 import { Combobox } from "./Combobox";
-import { creatable, type Creatable } from "./Create";
-import { ErrorNote, useOpenParam } from "./ErrorNote";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
+import { useOpenParam } from "./ErrorNote";
+import { FormEvent, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
-import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, PartyTabBar, type Party, type PartyTab } from "./Parties";
+import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, type Party, type PartyTab } from "./Parties";
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
-import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
+import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Chevron, LevelPicker, PageHeader } from "./Brand";
 import { useExchange } from "./Exchange";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 
@@ -88,21 +89,30 @@ function GroupSelect(props: {
   );
 }
 
+
+/** `#/companies/<id>/ledgers?form=new`, `new-in-<group id>`, `<ledger id>` or `copy-<ledger id>`: this tab
+ * was opened to add, change, view or duplicate one ledger (Sidharth, 2026-11-14). */
+const formParam = () => hashParam("form");
+const ledgersHash = (company: number, query = "") => `#/companies/${company}/ledgers${query}`;
+
+/** Masters > Ledgers: the group tree on the left, the selected ledger's panels on the right.
+ * Add, Edit, View and Duplicate each open in a new tab. */
 export function LedgersPage(props: { companyId: number; groupId?: number; session: SignedIn }) {
+  const form = formParam();
+  if (form) return <LedgerFormTab companyId={props.companyId} form={form} session={props.session} />;
+  return <LedgerList {...props} />;
+}
+
+function LedgerList(props: { companyId: number; groupId?: number; session: SignedIn }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState(props.groupId ? String(props.groupId) : "");
-  const [editing, setEditingNow] = useState<Ledger | "new" | null>(null);
-  const [copyOf, setCopyOf] = useState<Ledger | null>(null);
-  const setEditing = (value: Ledger | "new" | null) => {
-    setCopyOf(null); // only the Duplicate button below sets it again
-    setEditingNow(value);
-  };
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const canEdit = props.session.permissions.includes("masters.edit");
   const ordered = useMemo(() => treeOrder(detail?.ledger_groups ?? []), [detail]);
+  const edit = (what: number | string) => openTab(ledgersHash(props.companyId, `?form=${what}`));
 
   const loadDetail = useCallback(
     () =>
@@ -127,6 +137,11 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
     const timer = window.setTimeout(reload, 200);
     return () => window.clearTimeout(timer);
   }, [reload]);
+  // A ledger saved in the tab that Add, Edit or Duplicate opened: refresh and select it.
+  useCreated("ledger_saved", (c) => {
+    reload();
+    setSelectedId(c.id);
+  });
   const io = useExchange({
     master: "ledgers",
     noun: "ledgers",
@@ -139,7 +154,6 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
     if (!openId) return;
     if (ledgers.some((l) => l.id === openId)) {
       setSelectedId(openId);
-      setEditing(null);
       opened();
     } else if (query || groupFilter) {
       // Show the whole list so the ledger asked for is in it.
@@ -149,7 +163,8 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   }, [openId, ledgers, query, groupFilter, opened]);
 
   // The list follows the group tree: each group with ledgers (directly or below it)
-  // gets a heading row, its own ledgers come next, then its sub-groups.
+  // gets a heading row, its own ledgers come next, then its sub-groups. With a group chosen
+  // in the filter, that group and the ones under it show even when empty, so a ledger can be added.
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
   const tree = useMemo(() => {
@@ -172,12 +187,20 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
       return [c, n];
     };
     groups.filter((g) => g.parent === null).forEach(fill);
+    const byId = new Map(groups.map((g) => [g.id, g]));
+    const inFilter = (g: Group): boolean => {
+      if (!groupFilter) return false;
+      for (let x: Group | undefined = g; x; x = x.parent === null ? undefined : byId.get(x.parent)) {
+        if (String(x.id) === groupFilter) return true;
+      }
+      return false;
+    };
     const rows: ({ kind: "group"; group: Group; depth: number } | { kind: "ledger"; ledger: Ledger; depth: number })[] = [];
     let hideBelow: number | null = null;
     for (const { group, depth } of ordered) {
       if (hideBelow !== null && depth > hideBelow) continue;
       hideBelow = null;
-      if (!count.get(group.id)) continue;
+      if (!count.get(group.id) && !(inFilter(group) && group.is_active)) continue;
       rows.push({ kind: "group", group, depth });
       if (folded.has(group.id)) {
         hideBelow = depth;
@@ -186,7 +209,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
       for (const l of own.get(group.id) ?? []) rows.push({ kind: "ledger", ledger: l, depth: depth + 1 });
     }
     return { rows, count, net };
-  }, [ledgers, detail, ordered, folded]);
+  }, [ledgers, detail, ordered, folded, groupFilter]);
   const visible = tree.rows.flatMap((r) => (r.kind === "ledger" ? [r.ledger] : []));
   const deepest = Math.max(0, ...ordered.map((o) => o.depth));
   const showLevels = (n: number) => {
@@ -204,10 +227,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
 
   // Keep a ledger selected: the first in the list until the person picks one.
   const selected = ledgers.find((l) => l.id === selectedId) ?? visible[0] ?? null;
-  const pick = (l: Ledger) => {
-    setSelectedId(l.id);
-    setEditing(null);
-  };
+  const pick = (l: Ledger) => setSelectedId(l.id);
   const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
@@ -219,6 +239,10 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
     }
   };
   const dc = (n: number) => (n === 0 ? "" : `${money(Math.abs(n))} ${n > 0 ? "Dr" : "Cr"}`);
+  const stop = (fn: () => void) => (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    fn();
+  };
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
@@ -230,17 +254,12 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
           { label: detail.company.name, href: `#/companies/${props.companyId}` },
         ]}
         sub={`${ledgers.length} ${ledgers.length === 1 ? "ledger" : "ledgers"}${query || groupFilter ? " match" : ""}`}
-        actions={
-          <>
-            {io.buttons}
-            {canEdit && <button onClick={() => setEditing("new")}>Add ledger</button>}
-          </>
-        }
+        actions={io.buttons}
       />
       {error && <p className="error">{error}</p>}
       {io.panel}
-      <div className={`split${editing ? " editing" : ""}`}>
-        <div className="split-list">
+      <div className="side-layout">
+        <div className="side-main">
           <div className="row filters">
             <input
               type="search"
@@ -258,12 +277,13 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
               <tr>
                 <th>Group / ledger</th>
                 <th className="num">Opening</th>
+                <th />
               </tr>
             </thead>
             <tbody onKeyDown={onListKey}>
               {tree.rows.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="small">
+                  <td colSpan={3} className="small">
                     No ledgers match.
                   </td>
                 </tr>
@@ -293,6 +313,13 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
                       </span>
                     </td>
                     <td className="num">{dc(tree.net.get(r.group.id) ?? 0)}</td>
+                    <td className="row-actions">
+                      {canEdit && r.group.is_active && (
+                        <button className="link" onClick={stop(() => edit(`new-in-${r.group.id}`))}>
+                          + Ledger
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ) : (
                   <tr
@@ -302,6 +329,7 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
                     aria-selected={selected?.id === r.ledger.id}
                     className={["ledger-row", r.ledger.is_active ? "" : "inactive", selected?.id === r.ledger.id ? "selected" : ""].join(" ")}
                     onClick={() => pick(r.ledger)}
+                    onDoubleClick={() => edit(r.ledger.id)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") pick(r.ledger);
                     }}
@@ -309,11 +337,21 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
                     <td>
                       <span style={{ paddingLeft: r.depth * 18 + 26, display: "inline-block" }}>
                         {r.ledger.name}
-                        {!r.ledger.is_active && <span className="small"> · inactive</span>}
+                        {!r.ledger.is_active && <span className="pill">Disabled</span>}
                       </span>
                     </td>
                     <td className="num">
                       {Number(r.ledger.opening_amount) === 0 ? <span className="small">—</span> : dc(Number(r.ledger.opening_amount) * (r.ledger.opening_side === "dr" ? 1 : -1))}
+                    </td>
+                    <td className="row-actions">
+                      <button className="link" onClick={stop(() => edit(r.ledger.id))}>
+                        {canEdit ? "Edit" : "View"}
+                      </button>
+                      {canEdit && (
+                        <button className="link quiet" onClick={stop(() => edit(`copy-${r.ledger.id}`))}>
+                          Duplicate
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ),
@@ -322,116 +360,120 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
           </table>
           {visible.length > 1 && <p className="small">Tip: click a ledger, then use ↑ and ↓ to move through the list.</p>}
         </div>
-        <aside className="split-panel" aria-label="Ledger details">
-          {editing ? (
-            <LedgerForm
-              key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
-              companyId={props.companyId}
-              ledger={editing === "new" ? null : editing}
-              copyOf={copyOf}
-              groups={ordered}
-              createGroup={creatable("ledger_group", `companies/${props.companyId}/groups`, loadDetail)}
-              defaultGroup={groupFilter}
-              booksStart={detail.company.books_start}
-              multiCurrency={detail.company.multi_currency}
-              companyState={detail.company.state_code}
-              onDone={(saved) => {
-                setEditing(null);
-                if (saved) setSelectedId(saved);
-                reload();
-              }}
-              onCancel={() => setEditing(null)}
-            />
-          ) : selected ? (
-            <LedgerPanel
-              ledger={selected}
-              companyId={props.companyId}
-              canEdit={canEdit}
-              onEdit={() => setEditing(selected)}
-              onDuplicate={() => {
-                setEditingNow("new");
-                setCopyOf(selected);
-              }}
-            />
+        <div className="side-col">
+          {selected ? (
+            <LedgerPanels ledger={selected} companyId={props.companyId} />
           ) : (
-            <div className="card">
-              <p className="small">Pick a ledger to see its details here.</p>
-            </div>
+            <SidePanel title="Ledger Details">
+              <p className="small">Click a ledger to see its details here.</p>
+            </SidePanel>
           )}
-        </aside>
+        </div>
       </div>
     </section>
   );
 }
 
-function LedgerPanel(props: {
-  ledger: Ledger;
-  companyId: number;
-  canEdit: boolean;
-  onEdit: () => void;
-  onDuplicate: () => void;
-}) {
-  const { ledger: l, canEdit, onEdit, onDuplicate } = props;
+/** The form of one ledger, alone in its own tab: Save and Cancel close the tab. */
+function LedgerFormTab(props: { companyId: number; form: string; session: SignedIn }) {
+  const copy = props.form.startsWith("copy-");
+  const inGroup = props.form.startsWith("new-in-");
+  const key = Number(props.form.replace(/^(copy-|new-in-)/, ""));
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [ledgers, setLedgers] = useState<Ledger[] | null>(null);
+  const loadDetail = useCallback(() => api<Detail>(`v1/companies/${props.companyId}/`).then(setDetail), [props.companyId]);
+  useEffect(() => {
+    loadDetail();
+    api<Ledger[]>(`v1/companies/${props.companyId}/ledgers/`).then(setLedgers);
+  }, [loadDetail, props.companyId]);
+  const canEdit = props.session.permissions.includes("masters.edit");
+  const adding = props.form === "new" || inGroup;
+  const editing = !adding && !copy;
+  const target = adding ? null : (ledgers?.find((l) => l.id === key) ?? null);
+  const ordered = useMemo(() => treeOrder(detail?.ledger_groups ?? []), [detail]);
+  const toList = () => {
+    window.location.hash = ledgersHash(props.companyId);
+  };
+  const title = editing ? (canEdit ? "Edit ledger" : "View ledger") : copy ? "Duplicate ledger" : "Add ledger";
+  if (!detail || ledgers === null)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+      </section>
+    );
+  if (!adding && target === null)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+        <p className="error">That ledger was not found.</p>
+      </section>
+    );
+  if (!canEdit && !editing)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+        <p className="error">You may only view ledgers.</p>
+      </section>
+    );
+  return (
+    <LedgerForm
+      title={title}
+      companyId={props.companyId}
+      ledger={editing ? target : null}
+      copyOf={copy ? target : null}
+      groups={ordered}
+      createGroup={creatable("ledger_group", `companies/${props.companyId}/groups`, loadDetail)}
+      defaultGroup={inGroup ? String(key) : ""}
+      booksStart={detail.company.books_start}
+      multiCurrency={detail.company.multi_currency}
+      companyState={detail.company.state_code}
+      readOnly={!canEdit}
+      onDone={(saved) => {
+        if (saved) announceSaved("ledger_saved", saved);
+        closeThisTab(toList);
+      }}
+      onCancel={() => closeThisTab(toList)}
+    />
+  );
+}
+
+
+/** The selected ledger's panels at the right of the list: details, party details, opening bills, activity. */
+function LedgerPanels(props: { ledger: Ledger; companyId: number }) {
+  const { ledger: l } = props;
   const states = useStates();
   const opening = Number(l.opening_amount);
-  const bank = [
-    ["Bank", l.bank_name],
-    ["Account number", l.account_number],
-    ["IFSC", l.ifsc],
-    ["Branch", l.bank_branch],
-  ].filter(([, v]) => v);
+  const openingText = opening === 0 ? "Nil" : `${money(l.opening_amount)} ${l.opening_side === "dr" ? "Dr" : "Cr"}`;
   return (
-    <div className="card panel">
-      <div className="panel-head">
-        <div>
-          <h2>{l.name}</h2>
-          <p className="small">
-            {l.group_name} · {NATURE[l.nature]}
-            {!l.is_active && " · inactive"}
-          </p>
-        </div>
-        {canEdit && (
-          <div className="buttons">
-            <button onClick={onEdit}>Edit</button>
-            <button type="button" className="link" onClick={onDuplicate}>
-              Duplicate
-            </button>
-          </div>
-        )}
-      </div>
-      <Section title="Balance">
-      <div className="stat">
-        <span className="stat-label">Opening balance</span>
-        <span className="stat-value">
-          {opening === 0 ? "Nil" : `${money(l.opening_amount)} ${l.opening_side === "dr" ? "Dr" : "Cr"}`}
-        </span>
-        {l.currency && opening !== 0 && (
-          <span className="stat-note">
-            {l.currency} {money(l.opening_fc_amount)}
-            {l.opening_rate && ` at ${Number(l.opening_rate)}`}
-          </span>
-        )}
-      </div>
-      <dl className="kv">
-        <div>
-          <dt>Currency</dt>
-          <dd>{l.currency || "INR"}</dd>
-        </div>
-        <div>
-          <dt>Bill-wise</dt>
-          <dd>{l.bill_wise ? "Yes" : "No"}</dd>
-        </div>
-        {bank.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-      </Section>
+    <>
+      <SidePanel title="Ledger Details">
+        <SideRows
+          rows={[
+            ["Name", l.name],
+            ["Group", l.group_name],
+            ["Nature", NATURE[l.nature] ?? ""],
+            ["Opening Balance", openingText],
+            [
+              "In Foreign Currency",
+              l.currency && opening !== 0
+                ? `${l.currency} ${money(l.opening_fc_amount)}${l.opening_rate ? ` at ${Number(l.opening_rate)}` : ""}`
+                : "",
+            ],
+            ["Currency", l.currency || "INR"],
+            ["Bill-Wise", l.bill_wise ? "Yes" : "No"],
+            ["Bank", l.bank_name],
+            ["Account Number", l.account_number],
+            ["IFSC", l.ifsc],
+            ["Branch", l.bank_branch],
+            ["In Use", l.lock?.in_use.join(", ") ?? ""],
+            ["Disabled", l.is_active ? "No" : "Yes"],
+            ["Notes", l.notes],
+          ]}
+        />
+      </SidePanel>
       {l.party && <PartySummary party={l.party} states={states} supplier={l.nature === "liability"} />}
       {l.bill_wise && l.opening_bills.length > 0 && (
-        <Section title="Opening bills">
+        <SidePanel title="Opening Bills">
           <table>
             <thead>
               <tr>
@@ -462,18 +504,12 @@ function LedgerPanel(props: {
               ))}
             </tbody>
           </table>
-        </Section>
+        </SidePanel>
       )}
-      {l.notes && (
-        <Section title="Notes">
-          <p className="pre">{l.notes}</p>
-        </Section>
-      )}
-      <div className="panel-activity">
-        <h3>Activity</h3>
+      <SidePanel title="Activity">
         <ChangeLog company={props.companyId} type="ledger" id={l.id} stamp={JSON.stringify(l)} />
-      </div>
-    </div>
+      </SidePanel>
+    </>
   );
 }
 
@@ -482,13 +518,15 @@ function LedgerForm(props: {
   ledger: Ledger | null;
   /** Duplicate: start as a copy of this ledger, saved as a new one. */
   copyOf?: Ledger | null;
+  title: string;
+  readOnly?: boolean;
   groups: { group: Group; depth: number }[];
   createGroup?: Creatable;
   defaultGroup: string;
   booksStart: string;
   multiCurrency: boolean;
   companyState: string;
-  onDone: (savedId?: number) => void;
+  onDone: (saved?: { id: number; name: string }) => void;
   onCancel: () => void;
 }) {
   const l = props.ledger;
@@ -501,16 +539,15 @@ function LedgerForm(props: {
   const [disabled, setDisabled] = useState(l ? !l.is_active : false);
   const locked = (field: string) => isLocked(l?.lock, field);
   const [tab, setTab] = useState<PartyTab>("general");
-  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     // A required field left empty on a hidden tab: open that tab and point at it.
-    const el = formRef.current;
+    const el = document.getElementById("ledger-form");
     if (!el) return;
     const onInvalid = (e: Event) => {
       const target = e.target as HTMLInputElement;
-      const panel = target.closest<HTMLElement>("[data-tab]");
+      const panel = target.closest<HTMLElement>("[data-fold]");
       if (panel?.hidden) {
-        setTab(panel.dataset.tab as PartyTab);
+        setTab(panel.dataset.fold as PartyTab);
         requestAnimationFrame(() => target.reportValidity());
       }
     };
@@ -618,19 +655,13 @@ function LedgerForm(props: {
       const saved = l
         ? await api<Ledger>(`v1/ledgers/${l.id}/`, body, "PATCH")
         : await api<Ledger>(`v1/companies/${props.companyId}/ledgers/`, body);
-      props.onDone(saved?.id);
+      props.onDone(saved ? { id: saved.id, name: saved.name } : undefined);
     } catch (err) {
       setError(err);
     }
   };
   const openingFields = (
     <>
-        <label className="check">
-          <Locked on={locked("bill_wise")}>
-            <input type="checkbox" checked={billWise} onChange={(e) => setBillWise(e.target.checked)} />
-            Maintain balances bill by bill (customers, suppliers)
-          </Locked>
-        </label>
         {billWise ? (
           <>
             <table className="grid">
@@ -742,7 +773,7 @@ function LedgerForm(props: {
             </p>
           </>
         ) : (
-          <div className="row">
+          <div className="item-fields">
             {foreign ? (
               <>
                 <label>
@@ -778,104 +809,166 @@ function LedgerForm(props: {
         )}
     </>
   );
+  const dis = props.readOnly;
+  // Folding sections, one open at a time, in the order shown (Sidharth, 2026-11-14).
+  const ORDER: Record<string, number> = { general: 1, bank: 2, extra: 3, details: 4, addresses: 5, contacts: 6, documents: 7, products: 8, labels: 9 };
+  const TITLE: Record<string, string> = {
+    general: "Ledger",
+    bank: "Bank Details",
+    extra: "Opening Balance",
+    details: "GST And Credit",
+    addresses: "Addresses",
+    contacts: "Contacts",
+    documents: "Documents",
+    products: "Products",
+    labels: "Labels",
+  };
+  const openingText = billWise
+    ? Math.abs(billsTotal) === 0
+      ? "Nil"
+      : `${money(Math.abs(billsTotal))} ${billsTotal < 0 ? "Cr" : "Dr"}`
+    : foreign
+      ? `${currency} ${money(fcAmount || 0)}`
+      : Number(openingAmount) === 0
+        ? "Nil"
+        : `${money(openingAmount)} ${openingSide === "dr" ? "Dr" : "Cr"}`;
+  const SUMMARY: Record<string, string> = {
+    general: [name, chosen?.name].filter(Boolean).join(" · "),
+    bank: bankName,
+    extra: openingText,
+    details: party.gstin || "",
+    addresses: `${party.addresses.length} ${party.addresses.length === 1 ? "address" : "addresses"}`,
+    contacts: `${party.contacts.length} ${party.contacts.length === 1 ? "contact" : "contacts"}`,
+    documents: `${party.document_count ?? 0} documents`,
+    products: (party.products ?? []).length ? `${(party.products ?? []).length} items` : "Any item",
+    labels: "",
+  };
+  const fold = (code: string, body: ReactNode) => (
+    <div key={code} className={"fold" + (tab === code ? " open" : "")} style={{ order: ORDER[code] }}>
+      <button type="button" className="fold-head" aria-expanded={tab === code} onClick={() => setTab(code as PartyTab)}>
+        <span className="fold-title">{TITLE[code]}</span>
+        {tab !== code && <span className="fold-summary">{SUMMARY[code]}</span>}
+      </button>
+      <div className="fold-body" data-fold={code} hidden={tab !== code}>
+        {body}
+      </div>
+    </div>
+  );
+  const openingBody = (
+    <>
+      <p className="small">As at {longDate(props.booksStart)}, the day the books begin.</p>
+      {openingFields}
+    </>
+  );
   return (
-    <form className="card" onSubmit={save} ref={formRef}>
-      <h3>{l ? `Edit ${l.name}` : c ? `Duplicate ${c.name}` : "Add ledger"}</h3>
+    <FormPage
+      title={props.title}
+      sub={l ? l.name : undefined}
+      formId="ledger-form"
+      onSubmit={save}
+      onCancel={props.onCancel}
+      error={error}
+      readOnly={dis}
+      disabled={l ? { value: disabled, set: setDisabled } : undefined}
+      switches={
+        <label className="check">
+          <Locked on={locked("bill_wise")}>
+            <input type="checkbox" disabled={dis} checked={billWise} onChange={(e) => setBillWise(e.target.checked)} />
+            Bill-Wise
+          </Locked>
+        </label>
+      }
+      activity={l ? <ChangeLog company={props.companyId} type="ledger" id={l.id} stamp={JSON.stringify(l)} /> : undefined}
+    >
       <InUseNote lock={l?.lock} />
-      {isParty && <PartyTabBar tab={tab} onTab={setTab} party={party} extraLabel="Opening balance" supplier={chosen?.nature === "liability"} />}
-      <div className="tab-general" data-tab="general" hidden={isParty && tab !== "general"}>
-      <Section title="Ledger">
-      <div className="row">
-        <label>
-          Under group
-          <Locked on={locked("group")}>
-            <GroupSelect groups={props.groups} value={group} onChange={pickGroup} create={props.createGroup} />
-          </Locked>
-        </label>
-        {isParty && <PartyNumber party={party} supplier={chosen?.nature === "liability"} onChange={setParty} />}
-      </div>
-      {isParty && (
-        <GstinField party={party} onChange={setParty} onName={(found) => name.trim() === "" && setName(found)} />
+      {fold(
+        "general",
+        <div className="item-fields">
+          <label>
+            <span className="req">Under Group</span>
+            <Locked on={locked("group")}>
+              <GroupSelect groups={props.groups} value={group} onChange={pickGroup} create={props.createGroup} />
+            </Locked>
+          </label>
+          {isParty && <PartyNumber party={party} supplier={chosen?.nature === "liability"} onChange={setParty} />}
+          {isParty && (
+            <GstinField party={party} onChange={setParty} onName={(found) => name.trim() === "" && setName(found)} />
+          )}
+          <label>
+            <span className="req">Name</span>
+            <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          {props.multiCurrency && (
+            <label>
+              Currency
+              <Locked on={locked("currency")}>
+                <Combobox
+                  required
+                  value={currency || "INR"}
+                  placeholder="Type a currency code or name…"
+                  options={currencies.map((c) => ({ value: c.code, label: `${c.code} · ${c.name}${c.code === "INR" ? " (base)" : ""}` }))}
+                  onChange={(v) => setCurrency(v === "INR" ? "" : v)}
+                />
+              </Locked>
+            </label>
+          )}
+          {isParty && !l && existing.length > 0 && (
+            <label>
+              Existing Customer Or Supplier
+              <Combobox
+                value={partyId === null ? "" : String(partyId)}
+                empty="None: a new customer or supplier"
+                placeholder="Type a name, number or GSTIN…"
+                options={existing.map((x) => ({
+                  value: String(x.id),
+                  label: `${[x.customer_number, x.vendor_number].filter(Boolean).join(" ")} ${x.name}`.trim(),
+                  hint: `${x.gstin ? `· ${x.gstin}` : ""}${x.companies?.length ? ` (in ${x.companies.map((c) => c.name).join(", ")})` : ""}`,
+                }))}
+                onChange={(v) => {
+                  const picked = existing.find((x) => x.id === Number(v));
+                  setPartyId(picked?.id ?? null);
+                  if (picked) {
+                    // Its ledger on the other side here already has the plain name.
+                    const here = picked.companies?.some((c) => c.id === props.companyId);
+                    setName(here ? `${picked.name} (${side === "supplier" ? "Supplier" : "Customer"})` : (picked.name ?? ""));
+                    setParty({ ...picked, credit_limit: "", salesman: null });
+                  } else setParty(blankParty(props.companyState));
+                }}
+              />
+            </label>
+          )}
+          <label>
+            Notes
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
+        </div>,
       )}
-      <label>
-        Name
-        <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      {props.multiCurrency && (
-        <label>
-          Currency
-          <Locked on={locked("currency")}>
-          <Combobox
-            required
-            value={currency || "INR"}
-            placeholder="Type a currency code or name…"
-            options={currencies.map((c) => ({ value: c.code, label: `${c.code} · ${c.name}${c.code === "INR" ? " (base)" : ""}` }))}
-            onChange={(v) => setCurrency(v === "INR" ? "" : v)}
-          />
-          </Locked>
-        </label>
-      )}
-      {isParty && !l && existing.length > 0 && (
-        <label>
-          Existing customer or supplier (another company's, or this one's on the other side)
-          <Combobox
-            value={partyId === null ? "" : String(partyId)}
-            empty="None: a new customer or supplier"
-            placeholder="Type a name, number or GSTIN…"
-            options={existing.map((x) => ({
-              value: String(x.id),
-              label: `${[x.customer_number, x.vendor_number].filter(Boolean).join(" ")} ${x.name}`.trim(),
-              hint: `${x.gstin ? `· ${x.gstin}` : ""}${x.companies?.length ? ` (in ${x.companies.map((c) => c.name).join(", ")})` : ""}`,
-            }))}
-            onChange={(v) => {
-              const picked = existing.find((x) => x.id === Number(v));
-              setPartyId(picked?.id ?? null);
-              if (picked) {
-                // Its ledger on the other side here already has the plain name.
-                const here = picked.companies?.some((c) => c.id === props.companyId);
-                setName(here ? `${picked.name} (${side === "supplier" ? "Supplier" : "Customer"})` : (picked.name ?? ""));
-                setParty({ ...picked, credit_limit: "", salesman: null });
-              } else setParty(blankParty(props.companyState));
-            }}
-          />
-        </label>
-      )}
-      </Section>
-      </div>
       {isParty && (
         <PartyFields
           tab={tab}
+          fold={fold}
           supplier={chosen?.nature === "liability"}
           alsoIn={alsoIn}
           onAlsoIn={setAlsoIn}
           value={party}
           onChange={setParty}
           companyId={props.companyId}
-          extraTab={{
-            label: "Opening balance",
-            content: (
-              <>
-                <p className="small">As at {longDate(props.booksStart)}, the day the books begin.</p>
-                {openingFields}
-              </>
-            ),
-          }}
+          canEdit={!dis}
+          extraTab={{ label: "Opening Balance", content: openingBody }}
         />
       )}
-      {isBank && (
-        <fieldset>
-          <legend>Bank details</legend>
-          <div className="row">
+      {isBank &&
+        fold(
+          "bank",
+          <div className="item-fields">
             <label>
               Bank
               <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
             </label>
             <label>
-              Account number
+              Account Number
               <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
             </label>
-          </div>
-          <div className="row">
             <label>
               IFSC
               <input value={ifsc} maxLength={11} onChange={(e) => setIfsc(e.target.value.toUpperCase())} />
@@ -884,32 +977,9 @@ function LedgerForm(props: {
               Branch
               <input value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} />
             </label>
-          </div>
-        </fieldset>
-      )}
-      {!isParty && (
-        <fieldset>
-          <legend>Opening balance as at {longDate(props.booksStart)}</legend>
-          {openingFields}
-        </fieldset>
-      )}
-      <label hidden={isParty && tab !== "general"}>
-        Notes
-        <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </label>
-      {l && (
-        <label className="check" hidden={isParty && tab !== "general"}>
-          <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
-          Disabled
-        </label>
-      )}
-      <ErrorNote error={error} />
-      <div className="buttons">
-        <button>Save</button>
-        <button type="button" className="link" onClick={props.onCancel}>
-          Cancel
-        </button>
-      </div>
-    </form>
+          </div>,
+        )}
+      {!isParty && fold("extra", openingBody)}
+    </FormPage>
   );
 }

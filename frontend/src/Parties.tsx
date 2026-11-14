@@ -1,5 +1,6 @@
 import { CountryPicker, PinInput } from "./Pin";
 import { Section } from "./Brand";
+import { SidePanel, SideRows } from "./Master";
 import { PartyDocuments } from "./PartyDocuments";
 import { PartyProducts, type PartyProduct } from "./PartyProducts";
 import { Combobox } from "./Combobox";
@@ -147,6 +148,23 @@ export function PartyTabBar(props: {
   );
 }
 
+/** One section of the party details: a tab panel (hidden unless its tab shows) or, when the form
+ * uses folding sections, the body of its fold. */
+function PanelBox(props: {
+  ctx: { tab: PartyTab; fold?: (code: PartyTab, body: ReactNode) => ReactNode };
+  code: PartyTab;
+  off?: boolean;
+  children: ReactNode;
+}) {
+  const { tab, fold } = props.ctx;
+  if (fold) return props.off ? null : <>{fold(props.code, <div data-tab={props.code}>{props.children}</div>)}</>;
+  return (
+    <div data-tab={props.code} hidden={tab !== props.code || props.off}>
+      {props.children}
+    </div>
+  );
+}
+
 /** The "Party details" part of the ledger form. */
 export function PartyFields({
   value: p,
@@ -154,6 +172,7 @@ export function PartyFields({
   supplier,
   extraTab,
   tab,
+  fold,
   canEdit,
   companyId,
   alsoIn,
@@ -169,6 +188,8 @@ export function PartyFields({
   onChange: (p: Party) => void;
   /** The tab being shown; the strip itself is PartyTabBar, at the top of the form. */
   tab: PartyTab;
+  /** Folding sections instead of tabs (Sidharth, 2026-11-14): wraps each section in its fold. */
+  fold?: (code: PartyTab, body: ReactNode) => ReactNode;
   /** Whether the person may add and change documents. */
   canEdit?: boolean;
   /** The content of the "Opening balance" tab, from the ledger form. */
@@ -188,6 +209,7 @@ export function PartyFields({
     api<Person[]>("v1/people/").then(setPeople);
   }, []);
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
+  const ctx = { tab, fold };
   const overseas = p.gst_type === "overseas";
   const registered = REGISTERED.includes(p.gst_type);
   const setAddress = (i: number, change: Partial<PartyAddress>) =>
@@ -208,8 +230,8 @@ export function PartyFields({
       ),
     });
   return (
-    <div hidden={tab === "general"}>
-      <div data-tab="details" hidden={tab !== "details"}>
+    <div hidden={fold ? false : tab === "general"} style={fold ? { display: "contents" } : undefined}>
+      <PanelBox ctx={ctx} code="details">
       <InUseNote lock={p.lock}>The locked fields cannot be changed. Everything else stays open.</InUseNote>
       <p className="note">
         Shared by all companies in the group: GST details, addresses, contacts and credit terms changed here change for
@@ -313,9 +335,9 @@ export function PartyFields({
         </label>
       </div>
       </div>
-      </div>
+      </PanelBox>
 
-      <div data-tab="addresses" hidden={tab !== "addresses"}>
+      <PanelBox ctx={ctx} code="addresses">
       {p.addresses.length === 0 && <p className="small">No addresses yet.</p>}
       {p.addresses.length > 0 && (
         <div className="addresses">
@@ -430,9 +452,9 @@ export function PartyFields({
       >
         + Add address
       </button>
-      </div>
+      </PanelBox>
 
-      <div data-tab="labels" hidden={tab !== "labels" || supplier}>
+      <PanelBox ctx={ctx} code="labels" off={supplier}>
         <Section>
           <p className="small">
             The label format for each item this customer buys will be set here: one format for
@@ -441,9 +463,9 @@ export function PartyFields({
             default format. This tab is a placeholder until the sales and despatch screens are built.
           </p>
         </Section>
-      </div>
+      </PanelBox>
 
-      <div data-tab="documents" hidden={tab !== "documents"}>
+      <PanelBox ctx={ctx} code="documents">
         <PartyDocuments
           partyId={p.id}
           canEdit={canEdit ?? true}
@@ -451,9 +473,9 @@ export function PartyFields({
             if (n !== (p.document_count ?? 0)) set({ document_count: n });
           }}
         />
-      </div>
+      </PanelBox>
 
-      <div data-tab="products" hidden={tab !== "products"}>
+      <PanelBox ctx={ctx} code="products">
         <PartyProducts
           value={p.products ?? []}
           onChange={(products) => set({ products })}
@@ -461,9 +483,9 @@ export function PartyFields({
           canEdit={canEdit ?? true}
           partyName={p.name}
         />
-      </div>
+      </PanelBox>
 
-      <div data-tab="contacts" hidden={tab !== "contacts"}>
+      <PanelBox ctx={ctx} code="contacts">
       {p.contacts.length === 0 && <p className="small">No contacts yet.</p>}
       {p.contacts.length > 0 && (
         <div className="addresses">
@@ -538,11 +560,11 @@ export function PartyFields({
       >
         + Add contact
       </button>
-      </div>
+      </PanelBox>
       {extraTab && (
-        <div data-tab="extra" hidden={tab !== "extra"}>
+        <PanelBox ctx={ctx} code="extra">
           {extraTab.content}
-        </div>
+        </PanelBox>
       )}
     </div>
   );
@@ -554,34 +576,23 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
   const stateName = (code: string) => states?.find((s) => s.code === code)?.name ?? code;
   const place = p.gst_type === "overseas" ? p.country : stateName(p.state_code);
   const gstRows: [string, string][] = [
-    supplier ? ["Vendor number", p.vendor_number] : ["Customer number", p.customer_number],
+    supplier ? ["Vendor Number", p.vendor_number] : ["Customer Number", p.customer_number],
     ["GST", p.gstin ? `${gstType} · ${p.gstin}` : gstType],
-    ["State / country", place],
+    ["State / Country", place],
     ["PAN", p.pan],
   ];
   const creditRows: [string, string][] = [
-    ["Credit limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
-    ["Credit terms", p.credit_term_name ?? ""],
+    ["Credit Limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
+    ["Credit Terms", p.credit_term_name ?? ""],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
   ];
-  const facts = (rows: [string, string][]) => (
-    <dl className="kv">
-      {rows
-        .filter(([, v]) => v)
-        .map(([k, v]) => (
-          <div key={k}>
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-    </dl>
-  );
   return (
     <>
-      <Section title="GST">{facts(gstRows)}</Section>
-      <Section title="Credit">{facts(creditRows)}</Section>
+      <SidePanel title="GST And Credit">
+        <SideRows rows={[...gstRows, ...creditRows]} />
+      </SidePanel>
       {p.addresses.length > 0 && (
-        <Section title="Addresses">
+        <SidePanel title="Addresses">
           <ul className="address-list cards-2">
             {p.addresses.map((a) => (
               <li key={a.label} className="address-card">
@@ -603,10 +614,10 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
               </li>
             ))}
           </ul>
-        </Section>
+        </SidePanel>
       )}
       {p.contacts.length > 0 && (
-        <Section title="Contacts">
+        <SidePanel title="Contacts">
           <ul className="address-list cards-2">
             {p.contacts.map((c, i) => (
               <li key={i} className="address-card">
@@ -626,7 +637,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
               </li>
             ))}
           </ul>
-        </Section>
+        </SidePanel>
       )}
     </>
   );

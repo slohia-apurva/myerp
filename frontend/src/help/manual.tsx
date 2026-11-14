@@ -1309,25 +1309,30 @@ export const MANUAL: Chapter[] = [
             <strong>The list on the left</strong> follows the group tree, with
             the number of ledgers and the net opening balance of each group.
             Fold groups with the arrows or "Show levels". Type in the search box
-            to find a ledger by name or bank account number.
+            to find a ledger by name or bank account number. Beside each group
+            is "+ Ledger", and beside each ledger "Edit" (or "View" if you may
+            only look) and "Duplicate"; each opens in a new browser tab. When
+            you choose a group in "All groups", that group and the ones under
+            it show even when empty, so you can add the first ledger to them.
           </li>
           <li>
-            <strong>The side panel on the right</strong> shows the ledger you
-            click: its group and nature, opening balance (with the foreign
-            currency amount and rate if it has one), currency, whether it is
-            kept bill by bill, bank details, opening bills and notes. After
-            clicking a ledger, the ↑ and ↓ keys move through the list. On a
-            phone the panel shows above the list.
+            <strong>The panels on the right</strong> show the ledger you click:
+            "Ledger Details" (group, nature, opening balance with the foreign
+            currency amount and rate if it has one, currency, "Bill-Wise", bank
+            details, whether it is in use and disabled, notes), for a customer
+            or supplier "GST And Credit", "Addresses" and "Contacts", and
+            "Opening Bills". After clicking a ledger, the ↑ and ↓ keys move
+            through the list. The panels stay in view while the list scrolls.
           </li>
           <li>
-            <strong>Activity</strong> at the bottom of the side panel shows
+            <strong>Activity</strong> at the bottom of the panels shows
             every change made to that ledger: who, when, and the old and new
             values (see "Change log").
           </li>
         </ul>
         <h3>Add a ledger</h3>
         <ol>
-          <li>Click "Add ledger". The form opens in the side panel.</li>
+          <li>Click "+ Ledger" beside the group it goes under. The form opens in a new browser tab, with the group filled in.</li>
           <li>Type the name and choose the group it goes under.</li>
           <li>
             If the company uses foreign currencies, choose the ledger's
@@ -1337,7 +1342,10 @@ export const MANUAL: Chapter[] = [
             For a bank ledger, fill in the bank, account number, IFSC and
             branch.
           </li>
-          <li>Enter the opening balance (see below) and click "Save".</li>
+          <li>
+            Open "Opening Balance", enter the opening balance (see below) and
+            click "Save"; the tab closes and the ledger is selected in the list.
+          </li>
         </ol>
         <h3>Customers and suppliers</h3>
         <p>
@@ -1351,22 +1359,23 @@ export const MANUAL: Chapter[] = [
           looking after the same party.
         </p>
         <p>
-          Click a ledger in the list and its details show on the right in boxes:
-          "Balance", "GST", "Credit", "Addresses" and "Contacts" (for a customer
-          or supplier), with the change log, "Activity", below.
+          Click a ledger in the list and its details show on the right in
+          panels: "Ledger Details", then "GST And Credit", "Addresses" and
+          "Contacts" (for a customer or supplier), with the change log,
+          "Activity", below.
         </p>
         <ul>
           <li>
-            To add a party another company already deals with, click "Add
-            ledger", choose Sundry Debtors or Sundry Creditors, and pick it
-            under "Existing customer or supplier". Its details fill in; enter
+            To add a party another company already deals with, click "+ Ledger"
+            beside Sundry Debtors or Sundry Creditors, and pick it
+            under "Existing Customer Or Supplier". Its details fill in; enter
             this company's credit limit and opening balance, and click "Save".
           </li>
           <li>
             A firm that both buys from and sells to this company can have two
             ledgers here: one under Sundry Debtors and one under Sundry
-            Creditors. Add the second one with "Add ledger", choose the other
-            group, and pick the firm under "Existing customer or supplier".
+            Creditors. Add the second one with "+ Ledger" beside the other
+            group, and pick the firm under "Existing Customer Or Supplier".
             MyERP names it, for example, "ABC Foods (Supplier)", because two
             ledgers cannot share a name. Both ledgers share the firm's GSTIN,
             addresses and contacts, and keep their own balances. A firm cannot
@@ -1383,11 +1392,14 @@ export const MANUAL: Chapter[] = [
           </li>
         </ul>
         <p>
-          A customer or supplier form has tabs along the top: "General", "GST
-          and credit", "Addresses", "Contacts", "Documents", "Products", "Labels" (customers only) and "Opening balance". "Save" and
-          "Cancel" are at the bottom of every tab. On the "General" tab, "Under
-          group" is followed by the "Customer number" (or "Vendor number") and
-          then the "GSTIN". The number is given automatically when you Save
+          A customer or supplier form has folding sections, one open at a time:
+          "Ledger", "Opening Balance", "GST And Credit", "Addresses",
+          "Contacts", "Documents", "Products" and "Labels" (customers only).
+          Click a section's title to open it; the closed ones show a short
+          summary. "Save" and "Cancel" are in the green band at the top, "Disabled" and
+          "Bill-Wise" under "Switches" at the right. In the "Ledger" section,
+          "Under Group" is followed by the "Customer Number" (or "Vendor
+          Number") and then the "GSTIN". The number is given automatically when you Save
           (CUST-00001, VEND-00001 and so on, running on across the group); a
           party that is a customer and a vendor (in one company or in different
           ones) has both. You may type your own number over it, but no two
@@ -1395,7 +1407,7 @@ export const MANUAL: Chapter[] = [
           Ledgers list. Typing the GSTIN makes the party a registered one and
           fills in the state and PAN; the state decides the place of supply on
           invoices. "Fetch details" asks the GST portal for the name and address
-          and fills them in. The registered address goes on the "Addresses" tab,
+          and fills them in. The registered address goes in the "Addresses" section,
           named after the party; you can rename it, for example "Head office".
           It also warns if the GSTIN is not "Active" (cancelled or suspended).
           If the lookup is not available (the key is not set, the credits are
@@ -1403,7 +1415,7 @@ export const MANUAL: Chapter[] = [
           details by hand.
         </p>
         <p>
-          The "GST and credit" tab has two boxes, "GST" and "Credit". Together
+          The "GST And Credit" section has two boxes, "GST" and "Credit". Together
           they hold:
         </p>
         <Fields
@@ -1428,7 +1440,7 @@ export const MANUAL: Chapter[] = [
           ]}
         />
         <p>
-          On the "Addresses" tab, click "+ Add address" for each place the party
+          In the "Addresses" section, click "+ Add address" for each place the party
           has: office, godown, shop. Give each a name, and tick which one is the
           default billing address and which the default shipping address;
           documents pick these first. If the party is registered in another
@@ -1447,21 +1459,21 @@ export const MANUAL: Chapter[] = [
           the "Country" box is a type-to-search list of countries.
         </p>
         <p>
-          On the "Contacts" tab, click "+ Add contact" for each person you deal
+          In the "Contacts" section, click "+ Add contact" for each person you deal
           with: the owner, the purchase manager, accounts. Give each a name, and
           add their designation, phone and email. Under "Contact type", tick
           what each person is for: "Main" (the one to call first; only one per
           party), "Accounting", "Shipping", "Purchase" or "Sales". One person
           can have several types. When MyERP sends automated emails during
           transactions, it will send each to the contacts of the right type. The
-          tab names show how many addresses and contacts the party has. If you
-          click "Save" while a required field on another tab is empty, MyERP
-          opens that tab and points to the field.
+          section titles show how many addresses and contacts the party has. If you
+          click "Save" while a required field in a closed section is empty, MyERP
+          opens that section and points to the field.
         </p>
         <p>
-          On the "Documents" tab, keep the papers of the customer or supplier:
+          In the "Documents" section, keep the papers of the customer or supplier:
           its GST certificate, PAN card, FSSAI licence, MSME / Udyam
-          registration, agreements and a cancelled cheque. The tab opens once
+          registration, agreements and a cancelled cheque. The section works once
           the party has been saved. Click "Add document", pick the "Document
           Type", give the "Number", and if the paper lapses, the "Renewal Date".
           Under "Attachments", click "Choose files" or drag files in (PDF,
@@ -1475,7 +1487,7 @@ export const MANUAL: Chapter[] = [
           Dashboard.
         </p>
         <p>
-          On the "Products" tab, say which items may be sold to this customer
+          In the "Products" section, say which items may be sold to this customer
           or bought from this supplier. While the list is empty, any item can
           be. Once you add products (type in "Add Product" and pick the item),
           only those items are offered on quotations, orders and bills, plus
@@ -1483,20 +1495,20 @@ export const MANUAL: Chapter[] = [
           an item off; remove every row to allow any item again. A disabled
           item, or one with "Allow sales" (customers) or "Allow purchase"
           (suppliers) unticked, stays off even when it is listed. Prices are
-          not kept here. The tab also shows "Their Item Name" and "Their Item
+          not kept here. The section also shows "Their Item Name" and "Their Item
           Code" for each listed item, as set on the item under "Customer And
           Supplier Names"; they are read only here. Click "Actions" above the
           table, then "Print" or "Download PDF", for this party's item list
           with their names and codes.
         </p>
         <p>
-          The "Labels" tab, which only customers have, is empty for now. It will hold the label format for
+          The "Labels" section, which only customers have, is empty for now. It will hold the label format for
           each item the customer buys (one format for this customer and item A,
           another for item B), used when labels are printed for a despatch.
         </p>
         <p>
-          Clicking a party shows its details, addresses and contacts in the side
-          panel.
+          Clicking a party shows its details, addresses and contacts in the panels
+          on the right.
         </p>
         <h3>Opening balances</h3>
         <p>
@@ -1506,8 +1518,9 @@ export const MANUAL: Chapter[] = [
           amount is worked out for you.
         </p>
         <p>
-          For customers and suppliers, the opening balance is on the "Opening
-          balance" tab. Tick "Maintain balances bill by bill" there and enter
+          For every ledger, the opening balance is in the "Opening Balance"
+          section. Tick "Bill-Wise" under "Switches" at the right (customers and
+          suppliers have it ticked from the start) and enter
           each unpaid bill with its reference, date, due date and amount. The
           opening balance is then the total of the bills. Bills must be dated
           before the books begin.
@@ -1515,13 +1528,13 @@ export const MANUAL: Chapter[] = [
         <Note>
           Ledgers are never deleted, so past entries always have their account.
           When a ledger (or a customer or supplier) is no longer needed, click
-          "Edit", tick "Disabled" and "Save"; it then cannot be used in new
+          "Edit", tick "Disabled" under "Switches" and "Save"; it then cannot be used in new
           entries. Untick it to bring it back.
         </Note>
         <Note>
           Once a ledger, customer or supplier is in use, a line at the top of
           its form says what uses it, and its key fields are greyed with a
-          "Locked" tag: "Under group", "Currency" and the bill-by-bill tick on
+          "Locked" tag: "Under Group", "Currency" and the "Bill-Wise" tick on
           a ledger, and "GST type", "GSTIN", "PAN" and "State" on a customer or
           supplier. Everything else stays open, including the name, credit
           terms and "Disabled".
