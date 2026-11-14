@@ -532,6 +532,14 @@ class Ledger(models.Model):
     salesman = models.ForeignKey(
         "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # The transporter this company usually sends a customer's goods with (customers only).
+    preferred_transporter = models.ForeignKey(
+        "shipping.CourierAccount",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="preferred_by",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

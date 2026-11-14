@@ -141,6 +141,7 @@ def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
         for f in (carrier.credential_fields if carrier else [])
     ]
     data["integration"] = carrier.integration if carrier else "none"
+    data["preferred_by"] = a.preferred_by.count()
     return data
 
 

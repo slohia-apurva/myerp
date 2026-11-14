@@ -5,8 +5,9 @@ import { PartyDocuments } from "./PartyDocuments";
 import { PartyProducts, type PartyProduct } from "./PartyProducts";
 import { Combobox } from "./Combobox";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
+import type { CourierAccount } from "./Shipments";
 import { creatable } from "./Create";
 import { useCreditTerms } from "./CreditTerms";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
@@ -60,6 +61,8 @@ export type Party = {
   credit_term_name?: string;
   salesman: number | null;
   salesman_name?: string;
+  preferred_transporter?: number | null;
+  preferred_transporter_name?: string;
   addresses: PartyAddress[];
   contacts: PartyContact[];
   products: PartyProduct[];
@@ -89,6 +92,7 @@ export const blankParty = (stateCode: string): Party => ({
   credit_limit: "",
   credit_term: null,
   salesman: null,
+  preferred_transporter: null,
   addresses: [],
   contacts: [],
   products: [],
@@ -208,6 +212,17 @@ export function PartyFields({
   useEffect(() => {
     api<Person[]>("v1/people/").then(setPeople);
   }, []);
+  // A customer's usual transporter, one of this company's own (only when it has Sales).
+  const hasSales = companies.find((c) => c.id === companyId)?.modules.includes("sales") ?? false;
+  const [transporters, setTransporters] = useState<CourierAccount[]>([]);
+  const refreshTransporters = useCallback(
+    () => api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setTransporters),
+    [companyId],
+  );
+  useEffect(() => {
+    if (hasSales && !supplier) refreshTransporters();
+  }, [hasSales, supplier, refreshTransporters]);
+  const newTransporter = creatable("courier_account", `companies/${companyId}/couriers`, refreshTransporters);
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
   const ctx = { tab, fold };
   const overseas = p.gst_type === "overseas";
@@ -333,6 +348,20 @@ export function PartyFields({
             onChange={(v) => set({ salesman: v ? Number(v) : null })}
           />
         </label>
+        {hasSales && !supplier && (
+          <label>
+            Preferred Transporter
+            <Combobox
+              value={p.preferred_transporter == null ? "" : String(p.preferred_transporter)}
+              empty="None"
+              options={transporters
+                .filter((t) => t.is_active || t.id === p.preferred_transporter)
+                .map((t) => ({ value: String(t.id), label: t.is_active ? t.name : `${t.name} (disabled)` }))}
+              onChange={(v) => set({ preferred_transporter: v ? Number(v) : null })}
+              create={newTransporter}
+            />
+          </label>
+        )}
       </div>
       </div>
       </PanelBox>
@@ -598,6 +627,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
     ["Credit Limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit Terms", p.credit_term_name ?? ""],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
+    ...(!supplier && p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
   ];
   return (
     <>

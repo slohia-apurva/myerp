@@ -12,7 +12,7 @@ import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { type Carrier, type CourierAccount, NoSales, SERVICES, useCarriers, useCompany, useCourierAccounts } from "./Shipments";
 
-type Account = CourierAccount & { lock?: LockInfo };
+type Account = CourierAccount & { lock?: LockInfo; preferred_by?: number };
 
 /** `?form=new`, `?form=<id>` or `?form=copy-<id>`: this tab was opened to add, change,
  * view or duplicate one transporter (Sidharth, 2026-11-13). */
@@ -127,6 +127,7 @@ function AccountList(props: { companyId: number; canEdit: boolean; session: Sign
                   ["Contact Person", selected.contact_person],
                   ["Phone", selected.phone],
                   ["Email", selected.email],
+                  ["Preferred By", selected.preferred_by ? `${selected.preferred_by} customer${selected.preferred_by === 1 ? "" : "s"}` : ""],
                   ["In Use", selected.lock?.in_use.join(", ") ?? ""],
                   ["Disabled", selected.is_active ? "No" : "Yes"],
                   ["Notes", selected.notes],
