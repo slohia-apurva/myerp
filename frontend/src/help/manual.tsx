@@ -1249,8 +1249,8 @@ export const MANUAL: Chapter[] = [
           head and how many ledgers it holds. Click a group's ledger count to
           see those ledgers. Click a group's row to see its details (name, the
           group it sits under, nature, Schedule III head, ledgers and whether it
-          is disabled) and its activity in the panels on the right. "Add group",
-          "+ Sub-group", "Edit" and "Duplicate" open the form in a new browser
+          is disabled) and its activity in the panels on the right. "+ Sub-group",
+          "Edit" and "Duplicate" open the form in a new browser
           tab, so the tree stays open in the first tab; "Save" or "Cancel"
           closes that tab and the tree refreshes and selects the group.
         </p>

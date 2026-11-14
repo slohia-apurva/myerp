@@ -71,15 +71,7 @@ function GroupList(props: {
           { label: "Companies", href: "#/companies" },
           { label: detail.company.name, href: `#/companies/${id}` },
         ]}
-        actions={
-          <>
-            {printing.buttons}
-            <a className="button" href={`#/companies/${id}/ledgers`}>
-              Ledgers
-            </a>
-            {canEdit && <button onClick={() => openTab(groupsHash(id, "?form=new"))}>Add group</button>}
-          </>
-        }
+        actions={printing.buttons}
       />
       {printing.panel}
       <div className="side-layout">
