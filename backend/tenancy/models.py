@@ -184,6 +184,44 @@ class Carrier(models.Model):
         return self.name
 
 
+class CentralRequest(models.Model):
+    """A customer's request to add an entry to a central list (an HSN or SAC code,
+    a GST rate...), sent to the MyERP team from a "Request Addition" screen. The
+    team adds the entry on the Central screen and marks the request Added."""
+
+    HSN, GST_RATE = "hsn", "gst_rate"
+    KINDS = [(HSN, "HSN or SAC code"), (GST_RATE, "GST rate")]
+    OPEN, ADDED, DECLINED = "open", "added", "declined"
+    STATUSES = [(OPEN, "Open"), (ADDED, "Added to the list"), (DECLINED, "Not needed")]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="central_requests")
+    kind = models.CharField(max_length=12, choices=KINDS)
+    entry = models.CharField(max_length=40)  # the code or rate asked for
+    description = models.CharField(max_length=500, blank=True)
+    note = models.TextField(blank=True)
+    requested_by = models.CharField(max_length=254, blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=OPEN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    # The requester has read the decision (the notice on their Home screen is dismissed).
+    seen = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["status", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("entry"),
+                "kind",
+                "tenant",
+                condition=models.Q(status="open"),
+                name="one_open_central_request_per_entry",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} {self.entry}"
+
+
 class CarrierRequest(models.Model):
     """A customer's transporter that is not in the central list of couriers.
     Saving such a transporter leaves a request here, with an optional note, so

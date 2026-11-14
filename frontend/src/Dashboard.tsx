@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { PageHeader } from "./Brand";
+import type { AdditionRequest } from "./RequestAddition";
 import { money, renewalNote, type Company } from "./Companies";
 
 /** What the dashboard reads of a company and its ledgers. */
@@ -26,6 +27,15 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
   const [ledgers, setLedgers] = useState<LedgerRow[]>([]);
   const [partyRenewals, setPartyRenewals] = useState<PartyRenewal[]>([]);
   const [noBrand, setNoBrand] = useState(0);
+  const [decided, setDecided] = useState<AdditionRequest[]>([]);
+  const loadDecided = () =>
+    api<AdditionRequest[]>("v1/central-requests/").then(
+      (rows) => setDecided(rows.filter((r) => r.status !== "open" && !r.seen)),
+      () => setDecided([]),
+    );
+  useEffect(() => {
+    if (canSeeMasters) loadDecided();
+  }, [canSeeMasters]);
   const id = company?.id;
   useEffect(() => {
     if (!id) return;
@@ -98,7 +108,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
         </div>
 
         <h3>Needs your attention</h3>
-        {overview && diff === 0 && renewals.length === 0 && partyDue.length === 0 && noBrand === 0 && <p className="small">Nothing needs attention.</p>}
+        {overview && diff === 0 && renewals.length === 0 && partyDue.length === 0 && noBrand === 0 && decided.length === 0 && <p className="small">Nothing needs attention.</p>}
         <ul className="attention">
           {diff !== 0 && (
             <li>
@@ -106,6 +116,22 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
               more. <a href={`${base}/ledgers`}>Fix in ledgers</a>
             </li>
           )}
+          {decided.map((r) => (
+            <li key={r.id}>
+              <span className={r.status === "added" ? "" : "warn"}>
+                {r.status === "added"
+                  ? `${r.kind_label} ${r.entry} was added to the list.`
+                  : `${r.kind_label} ${r.entry} was not added (the MyERP team says it is not needed).`}
+              </span>{" "}
+              <button
+                type="button"
+                className="link"
+                onClick={() => api(`v1/central-requests/${r.id}/seen/`, {}).then(loadDecided)}
+              >
+                OK
+              </button>
+            </li>
+          ))}
           {noBrand > 0 && (
             <li>
               <span className="warn">

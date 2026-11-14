@@ -4,6 +4,7 @@ from core import (
     api,
     brands,
     central,
+    central_requests,
     company_exchange,  # noqa: F401  (registers ledger groups, branches, certificates)
     credit_terms,
     data_reset,
@@ -37,6 +38,11 @@ urlpatterns = [
     ),
     path("credit-terms/<int:pk>/", credit_terms.CreditTermDetailView.as_view(), name="credit_term"),
     path("admin/reset/", data_reset.DataResetView.as_view(), name="data-reset"),
+    path(
+        "central-requests/<int:pk>/seen/",
+        central_requests.CentralRequestSeenView.as_view(),
+        name="central-request-seen",
+    ),
     path("central/", central.CentralView.as_view(), name="central"),
     path("central/tenants/", central.TenantCreateView.as_view(), name="central-tenant-create"),
     path("central/import/hsn/", central.HsnImportView.as_view(), name="central-import-hsn"),
@@ -46,6 +52,21 @@ urlpatterns = [
         "central/carriers/<int:pk>/",
         central.CarrierAdminDetailView.as_view(),
         name="central-carrier",
+    ),
+    path(
+        "central-requests/",
+        central_requests.CentralRequestListView.as_view(),
+        name="central-requests",
+    ),
+    path(
+        "central/requests/",
+        central.CentralRequestAdminListView.as_view(),
+        name="central-requests-admin",
+    ),
+    path(
+        "central/requests/<int:pk>/",
+        central.CentralRequestAdminDetailView.as_view(),
+        name="central-request-admin",
     ),
     path("central/gst-rates/", central.GstRateAdminListView.as_view(), name="central-gst-rates"),
     path(

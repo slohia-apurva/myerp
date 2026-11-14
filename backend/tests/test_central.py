@@ -5,7 +5,7 @@ from django.test import Client
 
 from accounts.models import User
 from tenancy.context import use_tenant
-from tenancy.models import HsnCode
+from tenancy.models import GstRate, HsnCode
 
 pytestmark = pytest.mark.django_db(databases="__all__")
 
@@ -397,3 +397,65 @@ def test_gst_rates_are_a_central_list_items_pick_from(alpha, settings):
         "/api/v1/central/gst-rates/", {"rate": "9"}, content_type="application/json", HTTP_HOST=HOST
     )
     assert r.status_code == 403
+
+
+def test_customers_request_additions_to_central_lists(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    boss = _client(alpha, "boss@x.in")
+    owner = _client(alpha, "owner@x.in", owner=True)
+
+    def ask(data):
+        return owner.post(
+            "/api/v1/central-requests/", data, content_type="application/json", HTTP_HOST=HOST
+        )
+
+    made = ask(
+        {"kind": "hsn", "entry": "0902 40 40", "description": "Black tea", "note": "For blends"}
+    )
+    assert made.status_code == 201, made.json()
+    assert made.json()["entry"] == "09024040" and made.json()["status"] == "open"
+    assert made.json()["requested_by"] == "owner@x.in"
+
+    # The same entry cannot be asked twice while open; bad entries and listed ones are refused.
+    assert "already an open request" in str(ask({"kind": "hsn", "entry": "09024040"}).json())
+    assert "2 to 8 digits" in str(ask({"kind": "hsn", "entry": "tea"}).json())
+    assert "already in the GST rates" in str(ask({"kind": "gst_rate", "entry": "18"}).json())
+    assert ask({"kind": "gst_rate", "entry": "40"}).status_code == 201
+    assert ask({"kind": "gst_rate", "entry": "x"}).status_code == 400
+
+    mine = owner.get("/api/v1/central-requests/", HTTP_HOST=HOST).json()
+    assert {r["entry"] for r in mine} == {"09024040", "40"}
+
+    # The platform admin sees them with the customer and closes them; a customer cannot.
+    seen = boss.get("/api/v1/central/requests/", HTTP_HOST=HOST).json()
+    assert {r["entry"] for r in seen} == {"09024040", "40"}
+    assert all(r["customer"] for r in seen)
+    assert owner.get("/api/v1/central/requests/", HTTP_HOST=HOST).status_code == 403
+    pk = made.json()["id"]
+    done = boss.patch(
+        f"/api/v1/central/requests/{pk}/",
+        {"status": "added"},
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert done.status_code == 200 and done.json()["status"] == "added"
+    # Once closed, the customer sees the new status, and may ask again if it is still missing.
+    again = owner.get("/api/v1/central-requests/", HTTP_HOST=HOST).json()
+    by_entry = {r["entry"]: r for r in again}
+    assert by_entry["09024040"]["status"] == "added" and not by_entry["09024040"]["seen"]
+    # Approving put the code in the HSN list itself, so it cannot be asked for again.
+    assert HsnCode.objects.get(hsn_code="09024040").description == "Black tea"
+    assert "already in the HSN list" in str(ask({"kind": "hsn", "entry": "09024040"}).json())
+    # The customer dismisses the notice.
+    assert owner.post(f"/api/v1/central-requests/{pk}/seen/", HTTP_HOST=HOST).status_code == 200
+    again = owner.get("/api/v1/central-requests/", HTTP_HOST=HOST).json()
+    assert {r["entry"]: r["seen"] for r in again}["09024040"] is True
+    # Approving a GST rate adds it to the rates.
+    rate = by_entry["40"]["id"]
+    ok = boss.patch(
+        f"/api/v1/central/requests/{rate}/",
+        {"status": "added"},
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert ok.status_code == 200 and GstRate.objects.filter(rate=40).exists()

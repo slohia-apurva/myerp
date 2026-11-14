@@ -6,6 +6,7 @@ import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { HsnDescription, HsnPicker } from "./Hsn";
+import { RequestAdditionLink } from "./RequestAddition";
 import { useBrands } from "./Brands";
 import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
@@ -992,6 +993,7 @@ function ItemForm(props: {
                 <Locked on={locked("hsn")}>
                   <HsnPicker value={hsn} onChange={setHsn} />
                 </Locked>
+                <RequestAdditionLink kind="hsn" />
               </label>
               <label>
                 HSN description
@@ -1005,6 +1007,7 @@ function ItemForm(props: {
                     <Locked on={locked("delivery_hsn")}>
                       <HsnPicker value={deliveryHsn} onChange={setDeliveryHsn} />
                     </Locked>
+                    <RequestAdditionLink kind="hsn" />
                   </label>
                   <label>
                     Delivery HSN description
@@ -1201,7 +1204,8 @@ function ItemForm(props: {
             <div>
               <button type="button" className="link" onClick={() => setRates([...rates, { valid_from: "", rate: "" }])}>
                 Add rate
-              </button>
+              </button>{" "}
+              <RequestAdditionLink kind="gst_rate" label="Rate not in the list? Request Addition" />
             </div>
           </Section>
         )}
