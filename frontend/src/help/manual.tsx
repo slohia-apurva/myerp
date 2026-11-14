@@ -847,13 +847,12 @@ export const MANUAL: Chapter[] = [
           The accounts that the items of a group post to are set once, on the
           main group, and every group and item under it uses them. Open a
           main group and fill the "Accounts" box: there is one row for each
-          company, with three ledgers to pick (click the box and type a few
+          company, with two ledgers to pick (click the box and type a few
           letters). "Stock Ledger" holds the value of the stock on hand and
-          lists the ledgers under Stock-in-Hand. "Cost Of Goods Sold Ledger"
-          takes the cost of stock goods when they are sold. "Expense Ledger
-          (Non-Stock Purchases And Own Use)" takes the cost of items that keep
-          no stock, such as stationery or a service, and of stock used inside
-          the company; the last two list expense ledgers. Leave a company empty
+          lists the ledgers under Stock-in-Hand. "COGS/Expense Ledger" takes
+          the cost of stock goods when they are sold, of stock used inside the
+          company or written off, and of items that keep no stock, such as
+          stationery or a service; it lists expense ledgers. Leave a company empty
           if it does not use the group. A group under a main group shows the
           same accounts read only, with a link to open the main group. The
           "Accounts" panel on the right of the list shows them too.

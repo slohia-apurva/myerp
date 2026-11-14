@@ -42,9 +42,6 @@ def books(alpha):
             "other": other.pk,
             "stock": Ledger.objects.create(company=company, group=stock_group, name="Raw Stock").pk,
             "cogs": Ledger.objects.create(company=company, group=expense_group, name="Raw COGS").pk,
-            "expense": Ledger.objects.create(
-                company=company, group=expense_group, name="Raw Expense"
-            ).pk,
             "other_stock": ledger(other, "Other Stock", "stock_in_hand").pk,
             "cash": Ledger.objects.get(company=company, name="Cash").pk,
         }
@@ -62,7 +59,6 @@ def row(books, **extra):
         "company": books["company"],
         "stock_ledger": books["stock"],
         "cogs_ledger": books["cogs"],
-        "expense_ledger": books["expense"],
     }
     return {**base, **extra}
 
@@ -75,7 +71,7 @@ def test_main_group_keeps_accounts_and_sub_group_inherits(accountant, books):
     assert main.json()["accounts"][0]["stock_ledger_name"] == "Raw Stock"
     sub = call(accountant, "post", "item-groups/", {"name": "Spices", "parent": main.json()["id"]})
     body = sub.json()
-    assert body["accounts"][0]["expense_ledger_name"] == "Raw Expense"
+    assert body["accounts"][0]["cogs_ledger_name"] == "Raw COGS"
     assert body["accounts_from"]["name"] == "Raw material"
 
 
@@ -125,7 +121,7 @@ def test_locked_row_cannot_change_but_other_company_can_be_added(accountant, boo
         accountant,
         "patch",
         f"item-groups/{main['id']}/",
-        {"accounts_in": [row(books, expense_ledger=None)]},
+        {"accounts_in": [row(books, cogs_ledger=None)]},
     )
     assert changed.status_code == 400
     assert "in use" in str(changed.json())
@@ -143,9 +139,9 @@ def test_accounts_can_change_while_unused(accountant, books, alpha):
         accountant,
         "patch",
         f"item-groups/{main['id']}/",
-        {"accounts_in": [row(books, expense_ledger=None)]},
+        {"accounts_in": [row(books, cogs_ledger=None)]},
     )
     assert res.status_code == 200
-    assert res.json()["accounts"][0]["expense_ledger"] is None
+    assert res.json()["accounts"][0]["cogs_ledger"] is None
     with use_tenant(alpha):
         assert ItemGroup.objects.get(pk=main["id"]).accounts.count() == 1

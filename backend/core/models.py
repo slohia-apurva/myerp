@@ -672,10 +672,9 @@ class ItemGroupAccount(models.Model):
     stock_ledger = models.ForeignKey(
         "Ledger", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # Cost of goods sold and expense are one ledger: stock sold, used inside the company,
+    # written off, and non-stock purchases all post here (Sidharth, 2026-11-14).
     cogs_ledger = models.ForeignKey(
-        "Ledger", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
-    )
-    expense_ledger = models.ForeignKey(
         "Ledger", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
 

@@ -34,12 +34,10 @@ export type AccountRow = {
   stock_ledger_name: string;
   cogs_ledger: number | null;
   cogs_ledger_name: string;
-  expense_ledger: number | null;
-  expense_ledger_name: string;
   locked: string[];
 };
 
-type Picks = { stock: string; cogs: string; expense: string };
+type Picks = { stock: string; cogs: string };
 
 export function useItemGroups() {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
@@ -250,8 +248,7 @@ function GroupList(props: { session: SignedIn; canEdit: boolean; groups: ItemGro
                     rows={[
                       ["Company", a.company_name],
                       ["Stock Ledger", a.stock_ledger_name],
-                      ["Cost Of Goods Sold Ledger", a.cogs_ledger_name],
-                      ["Expense Ledger", a.expense_ledger_name],
+                      ["COGS/Expense Ledger", a.cogs_ledger_name],
                     ]}
                   />
                 ))}
@@ -350,7 +347,7 @@ function GroupForm(props: {
     Object.fromEntries(
       startRows.map((a) => [
         a.company,
-        { stock: String(a.stock_ledger ?? ""), cogs: String(a.cogs_ledger ?? ""), expense: String(a.expense_ledger ?? "") },
+        { stock: String(a.stock_ledger ?? ""), cogs: String(a.cogs_ledger ?? "") },
       ]),
     ),
   );
@@ -381,12 +378,11 @@ function GroupForm(props: {
     const body: Record<string, unknown> = { name, parent: num(parent), notes };
     if (parent === "")
       body.accounts_in = Object.entries(picks)
-        .filter(([, p]) => p.stock || p.cogs || p.expense)
+        .filter(([, p]) => p.stock || p.cogs)
         .map(([company, p]) => ({
           company: Number(company),
           stock_ledger: num(p.stock),
           cogs_ledger: num(p.cogs),
-          expense_ledger: num(p.expense),
         }));
     try {
       if (g) {
@@ -494,8 +490,7 @@ function InheritedAccounts(props: { main?: ItemGroup; sourceName: string }) {
             <tr>
               <th>Company</th>
               <th>Stock Ledger</th>
-              <th>Cost Of Goods Sold Ledger</th>
-              <th>Expense Ledger (Non-Stock Purchases And Own Use)</th>
+              <th>COGS/Expense Ledger</th>
             </tr>
           </thead>
           <tbody>
@@ -504,7 +499,6 @@ function InheritedAccounts(props: { main?: ItemGroup; sourceName: string }) {
                 <td>{a.company_name}</td>
                 <td>{a.stock_ledger_name || "—"}</td>
                 <td>{a.cogs_ledger_name || "—"}</td>
-                <td>{a.expense_ledger_name || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -544,7 +538,7 @@ function AccountGrid(props: {
       );
     });
   }, []);
-  const empty: Picks = { stock: "", cogs: "", expense: "" };
+  const empty: Picks = { stock: "", cogs: "" };
   if (companies.length === 0) return <p className="small">Loading companies…</p>;
   return (
     <>
@@ -557,8 +551,7 @@ function AccountGrid(props: {
           <tr>
             <th>Company</th>
             <th>Stock Ledger</th>
-            <th>Cost Of Goods Sold Ledger</th>
-            <th>Expense Ledger (Non-Stock Purchases And Own Use)</th>
+            <th>COGS/Expense Ledger</th>
           </tr>
         </thead>
         <tbody>
@@ -596,16 +589,14 @@ function AccountGrid(props: {
                 </td>
                 <td>{wrap(pick("stock", "stock"))}</td>
                 <td>{wrap(pick("cogs", "expense"))}</td>
-                <td>{wrap(pick("expense", "expense"))}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
       <p className="small">
-        Stock Ledger holds the value of stock on hand. Cost Of Goods Sold takes the cost of stock goods when they are
-        sold. Expense takes the cost of items that keep no stock (stationery, services) and of stock used inside the
-        company.
+        Stock Ledger holds the value of stock on hand. COGS/Expense takes the cost of stock goods when they are sold,
+        stock used inside the company or written off, and the cost of items that keep no stock (stationery, services).
       </p>
     </>
   );

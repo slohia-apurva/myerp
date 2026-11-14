@@ -37,8 +37,7 @@ def descendant_ids(group: ItemGroup) -> set[int]:
 
 ACCOUNT_FIELDS = {
     "stock_ledger": "Stock Ledger",
-    "cogs_ledger": "Cost Of Goods Sold Ledger",
-    "expense_ledger": "Expense Ledger",
+    "cogs_ledger": "COGS/Expense Ledger",
 }
 
 
@@ -52,9 +51,6 @@ class AccountRowSerializer(serializers.Serializer):
     cogs_ledger = serializers.PrimaryKeyRelatedField(
         queryset=Ledger.objects.all(), allow_null=True, required=False
     )
-    expense_ledger = serializers.PrimaryKeyRelatedField(
-        queryset=Ledger.objects.all(), allow_null=True, required=False
-    )
 
 
 def _account_rows(group: ItemGroup) -> list[dict]:
@@ -62,7 +58,7 @@ def _account_rows(group: ItemGroup) -> list[dict]:
     group, else its main group's (read only, inherited)."""
     top = root_group(group)
     rows = ItemGroupAccount.objects.filter(group=top).select_related(
-        "company", "stock_ledger", "cogs_ledger", "expense_ledger"
+        "company", "stock_ledger", "cogs_ledger"
     )
     out = []
     for r in rows.order_by("company__name"):
@@ -74,8 +70,6 @@ def _account_rows(group: ItemGroup) -> list[dict]:
                 "stock_ledger_name": r.stock_ledger.name if r.stock_ledger_id else "",
                 "cogs_ledger": r.cogs_ledger_id,
                 "cogs_ledger_name": r.cogs_ledger.name if r.cogs_ledger_id else "",
-                "expense_ledger": r.expense_ledger_id,
-                "expense_ledger_name": r.expense_ledger.name if r.expense_ledger_id else "",
                 "locked": account_uses(top, r.company),
             }
         )
