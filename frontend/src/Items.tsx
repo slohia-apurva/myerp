@@ -729,7 +729,7 @@ function ItemForm(props: {
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "connections">("general");
+  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "connections">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -877,7 +877,7 @@ function ItemForm(props: {
 
         <InUseNote lock={it?.lock} />
         <div className={"fold" + (tab === "general" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "general"} onClick={() => setTab("general")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "general"} onClick={() => setTab(tab === "general" ? "none" : "general")}>
             <span className="fold-title">{folds[0][1]}</span>
             {tab !== "general" && <span className="fold-summary">{folds[0][2]}</span>}
           </button>
@@ -979,7 +979,7 @@ function ItemForm(props: {
           </div>}
         </div>
         <div className={"fold" + (tab === "sales" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "sales"} onClick={() => setTab("sales")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "sales"} onClick={() => setTab(tab === "sales" ? "none" : "sales")}>
             <span className="fold-title">{folds[1][1]}</span>
             {tab !== "sales" && <span className="fold-summary">{folds[1][2]}</span>}
           </button>
@@ -1030,7 +1030,7 @@ function ItemForm(props: {
           </div>}
         </div>
         <div className={"fold" + (tab === "purchase" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "purchase"} onClick={() => setTab("purchase")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "purchase"} onClick={() => setTab(tab === "purchase" ? "none" : "purchase")}>
             <span className="fold-title">{folds[2][1]}</span>
             {tab !== "purchase" && <span className="fold-summary">{folds[2][2]}</span>}
           </button>
@@ -1071,7 +1071,7 @@ function ItemForm(props: {
           </div>}
         </div>
         <div className={"fold" + (tab === "gst" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "gst"} onClick={() => setTab("gst")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "gst"} onClick={() => setTab(tab === "gst" ? "none" : "gst")}>
             <span className="fold-title">{folds[3][1]}</span>
             {tab !== "gst" && <span className="fold-summary">{folds[3][2]}</span>}
           </button>
@@ -1120,7 +1120,7 @@ function ItemForm(props: {
           </div>}
         </div>
         <div className={"fold" + (tab === "stock" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "stock"} onClick={() => setTab("stock")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "stock"} onClick={() => setTab(tab === "stock" ? "none" : "stock")}>
             <span className="fold-title">{folds[4][1]}</span>
             {tab !== "stock" && <span className="fold-summary">{folds[4][2]}</span>}
           </button>
@@ -1159,7 +1159,7 @@ function ItemForm(props: {
           </div>}
         </div>
         <div className={"fold" + (tab === "units" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "units"} onClick={() => setTab("units")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "units"} onClick={() => setTab(tab === "units" ? "none" : "units")}>
             <span className="fold-title">{folds[5][1]}</span>
             {tab !== "units" && <span className="fold-summary">{folds[5][2]}</span>}
           </button>
@@ -1280,7 +1280,7 @@ function ItemForm(props: {
           </div>}
         </div>
         <div className={"fold" + (tab === "names" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "names"} onClick={() => setTab("names")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "names"} onClick={() => setTab(tab === "names" ? "none" : "names")}>
             <span className="fold-title">{folds[6][1]}</span>
             {tab !== "names" && <span className="fold-summary">{folds[6][2]}</span>}
           </button>
@@ -1352,7 +1352,7 @@ function ItemForm(props: {
           </div>}
         </div>
         <div className={"fold" + (tab === "connections" ? " open" : "")}>
-          <button type="button" className="fold-head" aria-expanded={tab === "connections"} onClick={() => setTab("connections")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "connections"} onClick={() => setTab(tab === "connections" ? "none" : "connections")}>
             <span className="fold-title">{folds[7][1]}</span>
             {tab !== "connections" && <span className="fold-summary">{folds[7][2]}</span>}
           </button>

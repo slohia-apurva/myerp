@@ -109,7 +109,7 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false, kinds: [] });
 
 type Person = { id: number; name: string };
-export type PartyTab = "general" | "details" | "addresses" | "contacts" | "documents" | "products" | "labels" | "extra";
+export type PartyTab = "none" | "general" | "details" | "addresses" | "contacts" | "documents" | "products" | "labels" | "extra";
 
 /** The tab strip at the top of a customer/supplier ledger form. */
 export function PartyTabBar(props: {

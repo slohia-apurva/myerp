@@ -845,7 +845,7 @@ function LedgerForm(props: {
   };
   const fold = (code: string, body: ReactNode) => (
     <div key={code} className={"fold" + (tab === code ? " open" : "")} style={{ order: ORDER[code] }}>
-      <button type="button" className="fold-head" aria-expanded={tab === code} onClick={() => setTab(code as PartyTab)}>
+      <button type="button" className="fold-head" aria-expanded={tab === code} onClick={() => setTab(tab === code ? "none" : (code as PartyTab))}>
         <span className="fold-title">{TITLE[code]}</span>
         {tab !== code && <span className="fold-summary">{SUMMARY[code]}</span>}
       </button>
