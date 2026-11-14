@@ -135,6 +135,10 @@ class PartySerializer(serializers.ModelSerializer):
         queryset=PriceList.objects.all(), allow_null=True, required=False
     )
     price_list_name = serializers.CharField(source="price_list.name", read_only=True)
+    buying_price_list = serializers.PrimaryKeyRelatedField(
+        queryset=PriceList.objects.all(), allow_null=True, required=False
+    )
+    buying_price_list_name = serializers.CharField(source="buying_price_list.name", read_only=True)
     # Given on Save when blank; may be typed over, but stay unique.
     customer_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
     vendor_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
@@ -166,6 +170,8 @@ class PartySerializer(serializers.ModelSerializer):
             "credit_term_name",
             "price_list",
             "price_list_name",
+            "buying_price_list",
+            "buying_price_list_name",
             "salesman",
             "preferred_transporter",
             "addresses",
@@ -202,6 +208,7 @@ _NOT_PARTY_FIELDS = (
     "preferred_transporter",
     "credit_term_name",
     "price_list_name",
+    "buying_price_list_name",
     "addresses",
     "contacts",
     "products",
@@ -303,11 +310,16 @@ def save_party(
     for field in ("customer_number", "vendor_number"):
         if not data.get(field):
             data.pop(field, None)  # blank keeps the number it has
-    plist = data.get("price_list")
-    if plist is not None and (
-        plist.kind != PriceList.SELLING or (not plist.is_active and plist.pk != party.price_list_id)
+    for field, kind, word in (
+        ("price_list", PriceList.SELLING, "Selling"),
+        ("buying_price_list", PriceList.BUYING, "Buying"),
     ):
-        raise ValidationError({"party": {"price_list": ["Pick an active Selling price list."]}})
+        plist = data.get(field)
+        if plist is not None and (
+            plist.kind != kind
+            or (not plist.is_active and plist.pk != getattr(party, field + "_id"))
+        ):
+            raise ValidationError({"party": {field: [f"Pick an active {word} price list."]}})
     if party.pk:
         try:
             refuse_key_changes("party", party, data)
@@ -316,7 +328,7 @@ def save_party(
     for field in PARTY_FIELDS:
         if field in data:
             value = data[field]
-            if value is None and field not in ("credit_term", "price_list"):
+            if value is None and field not in ("credit_term", "price_list", "buying_price_list"):
                 value = ""
             setattr(party, field, value)
     try:

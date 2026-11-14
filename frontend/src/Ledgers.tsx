@@ -658,8 +658,9 @@ function LedgerForm(props: {
         : await api<Ledger>(`v1/companies/${props.companyId}/ledgers/`, body);
       // A customer's own item prices are one set of data kept apart from the party.
       const partyIdNow = saved?.party?.id ?? party.id;
-      if (isParty && party.item_prices !== undefined && partyIdNow && chosen?.nature !== "liability") {
-        await api(`v1/parties/${partyIdNow}/item-prices/`, priceBody(party.item_prices), "PUT");
+      if (isParty && party.item_prices !== undefined && partyIdNow) {
+        const side = chosen?.nature === "liability" ? "buying" : "selling";
+        await api(`v1/parties/${partyIdNow}/item-prices/?side=${side}`, priceBody(party.item_prices), "PUT");
       }
       props.onDone(saved ? { id: saved.id, name: saved.name } : undefined);
     } catch (err) {

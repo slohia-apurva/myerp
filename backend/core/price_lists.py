@@ -91,7 +91,7 @@ class PriceListSerializer(serializers.ModelSerializer):
         slug_field="code", queryset=Currency.objects.all(), allow_null=True, required=False
     )
     price_count = serializers.SerializerMethodField()
-    party_count = serializers.IntegerField(read_only=True, default=0)
+    party_count = serializers.IntegerField(read_only=True, default=0)  # customers and suppliers
     kind_label = serializers.CharField(source="get_kind_display", read_only=True)
     lock = serializers.SerializerMethodField()
 
@@ -153,7 +153,9 @@ def _save_list(plist: PriceList, data: dict) -> PriceList:
 
 
 def _count_parties(request=None):
-    return PriceList.objects.annotate(party_count=Count("parties", distinct=True))
+    return PriceList.objects.annotate(
+        party_count=Count("parties", distinct=True) + Count("suppliers", distinct=True)
+    )
 
 
 exchange.register(
@@ -221,22 +223,24 @@ class PriceListDetailView(APIView):
 
 class PartyPriceSerializer(LineSerializer):
     party = serializers.PrimaryKeyRelatedField(queryset=Party.objects.all())
+    side = serializers.ChoiceField(choices=PriceList.KINDS, required=False)
     party_name = serializers.CharField(source="party.name", read_only=True)
 
     class Meta:
         model = PartyItemPrice
-        fields = [*LINE_FIELDS, "party", "party_name"]
+        fields = [*LINE_FIELDS, "party", "party_name", "side"]
         validators = []  # a set is replaced as a whole; clean_lines refuses repeats
         read_only_fields = ["id"]
         extra_kwargs = {"min_qty": {"required": False}}
 
 
-def _replace_party_prices(qs, rows: list[dict], who: str) -> None:
+def _replace_party_prices(qs, rows: list[dict], who: str, side: str) -> None:
     rows = clean_lines(rows, who)
-    qs.delete()
+    qs.filter(side=side).delete()
     PartyItemPrice.objects.bulk_create(
         [
             PartyItemPrice(
+                side=side,
                 party=r["party"],
                 item=r["item"],
                 unit=r["unit"],
@@ -249,15 +253,26 @@ def _replace_party_prices(qs, rows: list[dict], who: str) -> None:
     )
 
 
+def _side(request) -> str:
+    """ "selling" (customers) unless ?side=buying (suppliers)."""
+    side = request.query_params.get("side", PriceList.SELLING)
+    if side not in (PriceList.SELLING, PriceList.BUYING):
+        raise ValidationError({"side": ["Use selling or buying."]})
+    return side
+
+
 class PartyPricesView(APIView):
-    """GET or PUT all of one customer's own prices; PUT replaces the set."""
+    """GET or PUT one customer's (or, with ?side=buying, supplier's) own prices; PUT
+    replaces the set."""
 
     permission_classes = [Signed]
 
     def get(self, request, pk: int):
         _check(request, VIEW)
-        qs = PartyItemPrice.objects.filter(party_id=pk).select_related("item", "unit", "party")
-        return Response(PartyPriceSerializer(qs, many=True).data)
+        qs = PartyItemPrice.objects.filter(party_id=pk, side=_side(request))
+        return Response(
+            PartyPriceSerializer(qs.select_related("item", "unit", "party"), many=True).data
+        )
 
     @tenant_atomic()
     def put(self, request, pk: int):
@@ -268,21 +283,27 @@ class PartyPricesView(APIView):
         rows = [{**r, "party": party.pk} for r in (request.data or [])]
         serializer = PartyPriceSerializer(data=rows, many=True)
         serializer.is_valid(raise_exception=True)
+        side = _side(request)
         _replace_party_prices(
-            PartyItemPrice.objects.filter(party=party), serializer.validated_data, "prices"
+            PartyItemPrice.objects.filter(party=party), serializer.validated_data, "prices", side
         )
-        qs = PartyItemPrice.objects.filter(party=party).select_related("item", "unit", "party")
-        return Response(PartyPriceSerializer(qs, many=True).data)
+        qs = PartyItemPrice.objects.filter(party=party, side=side)
+        return Response(
+            PartyPriceSerializer(qs.select_related("item", "unit", "party"), many=True).data
+        )
 
 
 class ItemPricesView(APIView):
-    """GET or PUT the prices customers have for one item."""
+    """GET or PUT the prices customers (side=selling) or suppliers (side=buying) have for
+    one item."""
 
     permission_classes = [Signed]
+    side = PriceList.SELLING
 
     def get(self, request, pk: int):
         _check(request, VIEW)
-        qs = PartyItemPrice.objects.filter(item_id=pk).select_related("item", "unit", "party")
+        qs = PartyItemPrice.objects.filter(item_id=pk, side=self.side)
+        qs = qs.select_related("item", "unit", "party")
         return Response(PartyPriceSerializer(qs.order_by("party__name"), many=True).data)
 
     @tenant_atomic()
@@ -295,10 +316,17 @@ class ItemPricesView(APIView):
         serializer = PartyPriceSerializer(data=rows, many=True)
         serializer.is_valid(raise_exception=True)
         _replace_party_prices(
-            PartyItemPrice.objects.filter(item=item), serializer.validated_data, "prices"
+            PartyItemPrice.objects.filter(item=item), serializer.validated_data, "prices", self.side
         )
-        qs = PartyItemPrice.objects.filter(item=item).select_related("item", "unit", "party")
+        qs = PartyItemPrice.objects.filter(item=item, side=self.side)
+        qs = qs.select_related("item", "unit", "party")
         return Response(PartyPriceSerializer(qs.order_by("party__name"), many=True).data)
+
+
+class ItemSupplierPricesView(ItemPricesView):
+    """The same for suppliers' prices of one item."""
+
+    side = PriceList.BUYING
 
 
 # Finding a rate (used by sales and purchase documents when they are built) ---
@@ -313,23 +341,31 @@ def _in_force(lines, qty: Decimal, on: datetime.date):
     return max((ln for ln in started if ln.min_qty == biggest), key=lambda ln: ln.from_date)
 
 
-def rate_for(party: Party | None, item: Item, unit: Unit, qty, on: datetime.date) -> Decimal | None:
-    """The rate for `qty` of `item` in `unit` on a date: the customer's own
-    prices for the item once one has started (if none fits the
-    quantity, no rate), otherwise its price list, otherwise None."""
+def rate_for(
+    party: Party | None,
+    item: Item,
+    unit: Unit,
+    qty,
+    on: datetime.date,
+    side: str = PriceList.SELLING,
+) -> Decimal | None:
+    """The rate for `qty` of `item` in `unit` on a date: the customer's (side
+    "selling") or supplier's (side "buying") own prices for the item once one
+    has started (if none fits the quantity, no rate), otherwise its price list,
+    otherwise None."""
     qty = Decimal(qty)
+    list_id = None
     if party is not None:
-        own = list(PartyItemPrice.objects.filter(party=party, item=item, unit=unit))
+        list_id = party.price_list_id if side == PriceList.SELLING else party.buying_price_list_id
+        own = list(PartyItemPrice.objects.filter(party=party, side=side, item=item, unit=unit))
         if own:
             line = _in_force(own, qty, on)
             if line is not None:
                 return line.rate
             if any(ln.from_date <= on for ln in own):
                 return None
-    if party is not None and party.price_list_id:
-        theirs = PriceListLine.objects.filter(
-            price_list_id=party.price_list_id, item=item, unit=unit
-        )
+    if list_id:
+        theirs = PriceListLine.objects.filter(price_list_id=list_id, item=item, unit=unit)
         line = _in_force(list(theirs), qty, on)
         if line is not None:
             return line.rate

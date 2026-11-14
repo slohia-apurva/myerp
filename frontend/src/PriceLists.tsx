@@ -106,7 +106,7 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList
                 <th>Type</th>
                 <th>Currency</th>
                 <th className="num">Prices</th>
-                <th className="num">Customers</th>
+                <th className="num">Used By</th>
                 <ActionHeads />
               </tr>
             </thead>
@@ -145,7 +145,7 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList
                   ["Type", selected.kind_label],
                   ["Currency", currencyLabel(selected.currency, currencies)],
                   ["Prices", String(selected.price_count)],
-                  ["Customers", String(selected.party_count)],
+                  ["Used By", String(selected.party_count)],
                   ["Disabled", selected.is_active ? "No" : "Yes"],
                   ["Notes", selected.notes],
                 ]}

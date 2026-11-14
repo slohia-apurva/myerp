@@ -700,13 +700,16 @@ class PartyItemPrice(PriceLine):
 
     party = models.ForeignKey("Party", on_delete=models.CASCADE, related_name="item_prices")
     item = models.ForeignKey("Item", on_delete=models.CASCADE, related_name="party_prices")
+    # What a customer pays us (selling) or a supplier charges us (buying): kept
+    # apart, so a firm that is both has separate sale and purchase rates.
+    side = models.CharField(max_length=7, choices=PriceList.KINDS, default=PriceList.SELLING)
 
     class Meta:
         ordering = ["item__name", "unit_id", "min_qty", "from_date"]
         constraints = [
             models.UniqueConstraint(
-                fields=["party", "item", "unit", "min_qty", "from_date"],
-                name="party_item_price_once",
+                fields=["party", "side", "item", "unit", "min_qty", "from_date"],
+                name="party_item_price_side_once",
             )
         ]
 
@@ -1022,6 +1025,10 @@ class Party(models.Model):
     # The rates a customer is sold at (a Selling list); its own item prices win.
     price_list = models.ForeignKey(
         PriceList, null=True, blank=True, on_delete=models.PROTECT, related_name="parties"
+    )
+    # The rates a supplier sells to us at (a Buying list); its own item prices win.
+    buying_price_list = models.ForeignKey(
+        PriceList, null=True, blank=True, on_delete=models.PROTECT, related_name="suppliers"
     )
     # Given automatically the first time a company deals with the party as a
     # customer (Sundry Debtors) or a supplier (Sundry Creditors); one party

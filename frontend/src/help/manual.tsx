@@ -510,9 +510,22 @@ export const MANUAL: Chapter[] = [
             seen from both sides.
           </li>
         </ul>
+        <h3>Suppliers' prices</h3>
+        <p>
+          Purchase prices work the same way. Make a price list with the type
+          "Buying". On a supplier's ledger, the "Price list" box offers only
+          "Buying" lists, and its "Item Prices" section holds that supplier's own
+          rates (item, unit, "From Qty", "Rate", "From Date"). The item shows
+          them under "Supplier Prices", listed by supplier, where they can also
+          be changed. Customer and supplier prices are kept apart, so a firm
+          that is both has separate sale and purchase rates. When you
+          "Duplicate" an item, "Copy supplier prices" under "Supplier Prices"
+          is ticked: it copies every line with its quantity slabs and dates
+          (untick it to start with none). Customer prices are not copied.
+        </p>
         <p>
           The list shows the type, currency, how many prices it has and how
-          many customers use it. Click a row to see its details and activity on
+          many customers and suppliers use it. Click a row to see its details and activity on
           the right; "Edit" and "Duplicate" open in a new browser tab. A price
           list is never deleted: tick "Disabled" in the "Switches" panel and
           "Save" to stop offering it. Once customers use a list, its "Type" and
@@ -657,7 +670,9 @@ export const MANUAL: Chapter[] = [
         <p>
           Items are never deleted: click "Edit", tick "Disabled" and "Save" to
           stop using one (untick it to bring it back). Use "Duplicate" to start
-          a new item from an existing one; barcodes are not copied.
+          a new item from an existing one; barcodes are not copied, and under
+          "Supplier Prices" the box "Copy supplier prices" is ticked to copy the
+          supplier prices as well (see "Price lists").
         </p>
         <p>
           Once an item is in use (entries such as stock or orders are against
@@ -1608,7 +1623,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Price list",
-              'For a customer: the "Selling" price list its sales use. Its own prices, in the "Item Prices" section, win over the list. See the chapter "Price lists".',
+              'For a customer, the "Selling" price list its sales use; for a supplier, the "Buying" list. Its own prices, in the "Item Prices" section, win over the list. See the chapter "Price lists".',
             ],
             [
               "Salesman or Purchaser",

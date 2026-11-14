@@ -408,20 +408,20 @@ function ItemActivity({ item }: { item: Item }) {
 
 /** The item's own page: every section, read only; Edit opens the form in a new tab. */
 /** The view page's "Customer Prices": what each customer pays for the item (read only). */
-function CustomerPricesView({ item }: { item: Item }) {
+function PricesView({ item, side }: { item: Item; side: "customer" | "supplier" }) {
   const [rows, setRows] = useState<(PriceRow & { id: number })[]>([]);
   useEffect(() => {
-    api<(PriceRow & { id: number })[]>(`v1/items/${item.id}/customer-prices/`).then(setRows);
+    api<(PriceRow & { id: number })[]>(`v1/items/${item.id}/${side}-prices/`).then(setRows);
   }, [item.id]);
   return (
-    <Fold title="Customer Prices" summary={`${rows.length} ${rows.length === 1 ? "price" : "prices"}`}>
+    <Fold title={side === "supplier" ? "Supplier Prices" : "Customer Prices"} summary={`${rows.length} ${rows.length === 1 ? "price" : "prices"}`}>
       {rows.length === 0 ? (
-        <p className="small">No customer has its own price for this item.</p>
+        <p className="small">No {side} has its own price for this item.</p>
       ) : (
         <table className="grid">
           <thead>
             <tr>
-              <th>Customer</th>
+              <th>{side === "supplier" ? "Supplier" : "Customer"}</th>
               <th>Unit</th>
               <th className="num">From Qty</th>
               <th className="num">Rate</th>
@@ -658,7 +658,8 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 </table>
               )}
             </Fold>
-            <CustomerPricesView item={i} />
+            <PricesView item={i} side="customer" />
+            <PricesView item={i} side="supplier" />
             <Fold title="Connections" summary="No documents yet" />
           </div>
           <div className="side-col">
@@ -802,6 +803,19 @@ function ItemForm(props: {
       setCustPrices(r.map(rowFromServer)),
     );
   }, [it, props.copyOf]);
+  // What suppliers charge for this item. A duplicate can start with the original's lines.
+  const [suppPrices, setSuppPrices] = useState<PriceRow[] | null>(null);
+  const [copyPrices, setCopyPrices] = useState(true);
+  const [copySource, setCopySource] = useState<PriceRow[]>([]);
+  useEffect(() => {
+    const source = it ?? props.copyOf;
+    if (!source) return;
+    api<(PriceRow & { min_qty: string; rate: string })[]>(`v1/items/${source.id}/supplier-prices/`).then((r) => {
+      const rows = r.map(rowFromServer);
+      if (it) setSuppPrices(rows);
+      else setCopySource(rows);
+    });
+  }, [it, props.copyOf]);
   const [rows, setRows] = useState<Row[]>(
     (from?.units ?? []).map((u) => {
       const r = rowOf(u);
@@ -810,7 +824,7 @@ function ItemForm(props: {
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "prices" | "connections">("general");
+  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "prices" | "supplier-prices" | "connections">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -946,6 +960,12 @@ function ItemForm(props: {
     try {
       const saved = it ? await api<Item>(`v1/items/${it.id}/`, body, "PATCH") : await api<Item>("v1/items/", body);
       if (it && custPrices !== null) await api(`v1/items/${saved.id}/customer-prices/`, priceBody(custPrices), "PUT");
+      if (it && suppPrices !== null) await api(`v1/items/${saved.id}/supplier-prices/`, priceBody(suppPrices), "PUT");
+      if (!it && props.copyOf && copyPrices && copySource.length > 0) {
+        // The copy keeps every supplier line whose unit the new item also has.
+        const has = new Set(saved.units.map((u) => u.unit));
+        await api(`v1/items/${saved.id}/supplier-prices/`, priceBody(copySource.filter((r) => r.unit && has.has(r.unit))), "PUT");
+      }
       props.onDone(saved.id, saved.name);
     } catch (err) {
       setError(err);
@@ -962,6 +982,7 @@ function ItemForm(props: {
     ["units", "Units Of Measure", `${rows.length} ${rows.length === 1 ? "unit" : "units"}`],
     ["names", "Customer And Supplier Names", `${names.length} ${names.length === 1 ? "name" : "names"}`],
     ["prices", "Customer Prices", `${(custPrices ?? []).length} ${(custPrices ?? []).length === 1 ? "price" : "prices"}`],
+    ["supplier-prices", "Supplier Prices", `${(suppPrices ?? []).length} ${(suppPrices ?? []).length === 1 ? "price" : "prices"}`],
     ["connections", "Connections", "No documents yet"],
   ] as const;
   return (
@@ -1578,10 +1599,37 @@ function ItemForm(props: {
             </Section>
           </div>}
         </div>
+        <div className={"fold" + (tab === "supplier-prices" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "supplier-prices"} onClick={() => setTab(tab === "supplier-prices" ? "none" : "supplier-prices")}>
+            <span className="fold-title">{folds[8][1]}</span>
+            {tab !== "supplier-prices" && <span className="fold-summary">{folds[8][2]}</span>}
+          </button>
+          {tab === "supplier-prices" && <div className="fold-body">
+            <Section>
+              {props.copyOf ? (
+                <label className="tick">
+                  <input type="checkbox" checked={copyPrices} onChange={(e) => setCopyPrices(e.target.checked)} />
+                  Copy supplier prices ({copySource.length} {copySource.length === 1 ? "line" : "lines"} from {props.copyOf.name})
+                </label>
+              ) : !it || suppPrices === null ? (
+                <p className="small">Save the item first; then add the rates a supplier charges for it here.</p>
+              ) : (
+                <>
+                  <p className="small">
+                    What a supplier charges for this item, from a date and a quantity. Where a supplier has any price for this
+                    item, only those are used for it; its price list covers the other items. The same lines show under that
+                    supplier's "Item Prices". Rates are before GST.
+                  </p>
+                  <PriceTable rows={suppPrices} onChange={setSuppPrices} by="supplier" item={it} />
+                </>
+              )}
+            </Section>
+          </div>}
+        </div>
         <div className={"fold" + (tab === "connections" ? " open" : "")}>
           <button type="button" className="fold-head" aria-expanded={tab === "connections"} onClick={() => setTab(tab === "connections" ? "none" : "connections")}>
-            <span className="fold-title">{folds[8][1]}</span>
-            {tab !== "connections" && <span className="fold-summary">{folds[8][2]}</span>}
+            <span className="fold-title">{folds[9][1]}</span>
+            {tab !== "connections" && <span className="fold-summary">{folds[9][2]}</span>}
           </button>
           {tab === "connections" && <div className="fold-body">
         {true && (
