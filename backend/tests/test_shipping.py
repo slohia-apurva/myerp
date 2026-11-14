@@ -262,7 +262,9 @@ def test_awb_format_checks():
 
 
 def test_typed_statuses_move_the_shipment_and_delivery_is_recorded(store, company, b2b):
-    sid = ship(store, company, b2b).json()["id"]
+    # Booked yesterday: just after midnight, "50 minutes ago" is before today's Booked event.
+    yesterday = timezone.localdate() - datetime.timedelta(days=1)
+    sid = ship(store, company, b2b, booked_on=str(yesterday)).json()["id"]
     now = timezone.now().replace(microsecond=0)
     for minutes, st in ((50, "picked_up"), (30, "in_transit"), (10, "out_for_delivery")):
         r = call(
