@@ -13,6 +13,7 @@ import { UnitsPage } from "./Units";
 import { RolesPage, UsersPage } from "./Users";
 import { ShipmentsPage } from "./Shipments";
 import { TransportersPage } from "./Transporters";
+import { WarehousesPage } from "./Warehouses";
 import "./app.css";
 import { Logo } from "./Brand";
 import { BrandsPage } from "./Brands";
@@ -95,7 +96,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {link("home", "Dashboard")}
           {canSeeMasters && (
             <MastersMenu
-              active={page === "credit-terms" || page === "units" || page === "item-groups" || page === "brands" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers"))}
+              active={page === "credit-terms" || page === "units" || page === "item-groups" || page === "brands" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers" || sub === "warehouses"))}
               company={current.company}
               canSeeMasters={canSeeMasters}
             />
@@ -105,7 +106,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "shipments"].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments"].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -138,6 +139,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             <ShipmentsPage key={id} companyId={id} session={session} />
           ) : id && sub === "couriers" ? (
             <TransportersPage key={id} companyId={id} session={session} />
+          ) : id && sub === "warehouses" ? (
+            <WarehousesPage key={id} companyId={id} session={session} />
           ) : id && sub === "ledgers" ? (
             <LedgersPage key={`${id}-${subId}`} companyId={id} groupId={subId} session={session} />
           ) : id && sub === "groups" ? (

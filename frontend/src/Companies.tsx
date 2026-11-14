@@ -1,6 +1,5 @@
 import { FiscalYears, type FiscalYear } from "./FiscalYears";
 import { Numbering } from "./Numbering";
-import { Warehouses, type Warehouse } from "./Warehouses";
 import { PinInput } from "./Pin";
 import {
   announceCreated,
@@ -786,11 +785,6 @@ export function CompanyPage(props: {
     api<FiscalYear[]>(`v1/companies/${id}/fiscal-years/`).then(setYears);
   }, [id]);
   useEffect(loadYears, [loadYears]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const loadWarehouses = useCallback(() => {
-    api<Warehouse[]>(`v1/companies/${id}/warehouses/`).then(setWarehouses);
-  }, [id]);
-  useEffect(loadWarehouses, [loadWarehouses, detail]); // a branch ticked or unticked as a warehouse
   const tab = TABS.some(([code]) => code === props.tab) ? props.tab : "";
   const branchIo = useExchange({
     master: "branches",
@@ -806,13 +800,6 @@ export function CompanyPage(props: {
     company: id,
     onImported: reload,
   });
-  const locationIo = useExchange({
-    master: "warehouse-locations",
-    noun: "racks, bins and areas",
-    session,
-    company: id,
-    onImported: loadWarehouses,
-  });
   const numberIo = useExchange({
     master: "number-formats",
     noun: "document series",
@@ -823,11 +810,9 @@ export function CompanyPage(props: {
   const printing =
     tab === "certificates"
       ? certificateIo
-      : tab === "warehouses"
-        ? locationIo
-        : tab === "numbering"
-          ? numberIo
-          : branchIo;
+      : tab === "numbering"
+        ? numberIo
+        : branchIo;
 
   if (!detail)
     return (
@@ -855,7 +840,6 @@ export function CompanyPage(props: {
             {(tab === "branches" ||
               tab === "certificates" ||
               tab === "years" ||
-              tab === "warehouses" ||
               tab === "numbering") &&
               printing.buttons}
             {canEdit && !editing && (
@@ -939,14 +923,6 @@ export function CompanyPage(props: {
             }}
           />
         )}
-        {tab === "warehouses" && (
-          <Warehouses
-            warehouses={warehouses}
-            companyId={c.id}
-            canEdit={canEdit}
-            reload={loadWarehouses}
-          />
-        )}
         {tab === "numbering" && (
           <Numbering
             companyId={c.id}
@@ -972,7 +948,6 @@ const TABS: [string, string][] = [
   ["", "Overview"],
   ["branches", "Branches"],
   ["certificates", "Licences and certificates"],
-  ["warehouses", "Warehouses"],
   ["years", "Fiscal years"],
   ["numbering", "Numbering"],
   ["modules", "Modules"],
@@ -1354,7 +1329,7 @@ function BranchForm(props: {
               onChange={(e) => setIsWarehouse(e.target.checked)}
             />
             This branch is a warehouse (goods are stored here; add its racks,
-            bins and areas on the "Warehouses" tab)
+            bins and areas under "Masters", "Warehouses")
           </label>
         </fieldset>
       </FormBody>

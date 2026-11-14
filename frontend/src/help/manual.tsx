@@ -334,7 +334,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Warehouse",
-              'Tick "This branch is a warehouse" when goods are stored here. It then gets a section on the "Warehouses" tab for its racks, bins and areas.',
+              'Tick "This branch is a warehouse" when goods are stored here. It then appears under "Masters", "Warehouses", where you add its racks, bins and areas.',
             ],
           ]}
         />
@@ -1025,10 +1025,14 @@ export const MANUAL: Chapter[] = [
         </ol>
         <h3>Add racks, bins and areas</h3>
         <ol>
-          <li>Click the "Warehouses" tab. Each warehouse has its own box.</li>
           <li>
-            Click "Add rack" and give the rack a name, for example R1, then
-            click "Save".
+            Pick the company at the top right, then click "Masters" in the top
+            menu, then "Warehouses". Each warehouse has its own box.
+          </li>
+          <li>
+            Click "Add rack". The form opens in a new browser tab. Give the rack
+            a name, for example R1, then click "Save"; the tab closes and the
+            rack is selected in the list.
           </li>
           <li>
             Click "Add bin" beside the rack and give the bin a name, for example
@@ -1044,11 +1048,14 @@ export const MANUAL: Chapter[] = [
         <p>
           Names cannot repeat: a warehouse has one rack of each name, a rack has
           one bin of each name, and a warehouse has one area of each name. Use
-          the arrow beside a rack to fold or show its bins. Racks, bins and
-          areas are never deleted: click "Edit" and then "Disable". A rack can
-          be disabled only after its bins are disabled. A branch that has racks,
+          the arrow beside a rack to fold or show its bins. Click a rack, bin or
+          area to see its details on the right, with its activity below; "Edit"
+          (or a double-click) opens it in a new tab. Racks, bins and areas are
+          never deleted: on the form, tick "Disabled" under "Switches", and
+          untick it to bring one back. A rack can be disabled only after its
+          bins are disabled. A branch that has racks,
           bins or areas stays a warehouse. To add many at once, use "Actions" at
-          the top of the Warehouses tab (see "Import, export and print"); in the
+          the top of the "Warehouses" screen (see "Import, export and print"); in the
           file a bin names its rack in "On rack", and a rack must come before
           the bins on it.
         </p>
