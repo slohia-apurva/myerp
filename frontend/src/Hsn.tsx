@@ -3,6 +3,7 @@ import { api, type SignedIn } from "./api";
 import { PageHeader } from "./Brand";
 import { usePrintMenu } from "./Exchange";
 import { SidePanel, SideRows } from "./Master";
+import { openRequestAddition } from "./RequestAddition";
 
 /** HSN / SAC codes: one central list kept by MyERP, the same for every customer. */
 export type Hsn = { id: number; hsn_code: string; description: string; is_active: boolean };
@@ -13,7 +14,7 @@ const search = (q: string, pick: boolean) =>
 
 /** Masters > HSN codes: the central list, to look up and search. The details of the
  * clicked row are on the right. Nobody adds or changes a code here: MyERP keeps the list. */
-export function HsnPage(_props: { session: SignedIn }) {
+export function HsnPage({ session }: { session: SignedIn }) {
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Found>({ total: 0, results: [] });
   const [selectedId, setSelected] = useState<number | null>(null);
@@ -27,7 +28,16 @@ export function HsnPage(_props: { session: SignedIn }) {
     <section className="page">
       <PageHeader
         title="HSN codes"
-        actions={printing.buttons}
+        actions={
+          <>
+            {session.permissions.includes("masters.edit") && (
+              <button type="button" onClick={() => openRequestAddition("hsn", q.replace(/\D/g, ""))}>
+                Request Addition
+              </button>
+            )}
+            {printing.buttons}
+          </>
+        }
         sub={`${found.total} code${found.total === 1 ? "" : "s"} · kept centrally by MyERP, the same for every company. Searched when you enter an item's HSN.`}
       />
       {printing.panel}

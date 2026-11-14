@@ -5,6 +5,7 @@ import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
 import { ActiveButton } from "./RowActions";
+import type { AdditionRequest } from "./RequestAddition";
 
 type Info = {
   tables: {
@@ -21,7 +22,7 @@ type Info = {
 export function CentralPage() {
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"customers" | "lists" | "gst" | "couriers">("customers");
+  const [tab, setTab] = useState<"customers" | "lists" | "gst" | "couriers" | "requests">("customers");
   const printing = usePrintMenu({ title: "Central tables" });
   const reload = useCallback(
     () =>
@@ -50,6 +51,7 @@ export function CentralPage() {
             ["lists", "Shared lists"],
             ["gst", "GST Rates"],
             ["couriers", "Couriers"],
+            ["requests", "Requests"],
           ] as const
         ).map(([code, label]) => (
           <button
@@ -119,6 +121,7 @@ export function CentralPage() {
         </>
       )}
       {tab === "gst" && <GstRates />}
+      {tab === "requests" && <AdditionRequests />}
       {tab === "couriers" && (
         <>
       <Couriers />
@@ -833,6 +836,90 @@ function NewCustomer(props: { onDone: () => void }) {
           </div>
         </form>
       )}
+    </Section>
+  );
+}
+
+type OwnerRequest = AdditionRequest & { customer: string };
+
+/** Additions customers asked for from a "Request Addition" screen. "Approve & Add" puts the
+ * entry in its list and tells the customer; "Not needed" tells them it was declined. */
+function AdditionRequests() {
+  const [rows, setRows] = useState<OwnerRequest[]>([]);
+  const [error, setError] = useState<unknown>("");
+  const load = useCallback(() => api<OwnerRequest[]>("v1/central/requests/").then(setRows), []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const set = async (r: OwnerRequest, status: string) => {
+    setError("");
+    try {
+      await api(`v1/central/requests/${r.id}/`, { status }, "PATCH");
+      load();
+    } catch (err) {
+      setError(err);
+    }
+  };
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  return (
+    <Section title="Requests">
+      <p className="small">
+        Entries customers asked for in the HSN or GST rate lists. "Approve &amp; Add" puts the entry in the list for every
+        company and shows the customer a notice; "Not needed" shows them that it was declined.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>List</th>
+            <th>Entry</th>
+            <th>Note</th>
+            <th>Status</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className={r.status === "open" ? "" : "off"}>
+              <td>{day(r.created_at)}</td>
+              <td>
+                {r.customer}
+                <div className="small">{r.requested_by}</div>
+              </td>
+              <td>{r.kind_label}</td>
+              <td>
+                {r.entry}
+                {r.description && <div className="small">{r.description}</div>}
+              </td>
+              <td>{r.note}</td>
+              <td>{r.status_label}</td>
+              <td className="row-actions">
+                {r.status === "open" ? (
+                  <>
+                    <button type="button" onClick={() => set(r, "added")}>
+                      Approve &amp; Add
+                    </button>
+                    <button type="button" className="link danger" onClick={() => set(r, "declined")}>
+                      Not needed
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="link" onClick={() => set(r, "open")}>
+                    Reopen
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={7}>No requests yet.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <ErrorNote error={error} />
     </Section>
   );
 }

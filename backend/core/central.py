@@ -16,11 +16,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Role, User
-from core import duplicates
+from core import central_requests, duplicates
 from core.api import Signed
 from tenancy import hsn_import, pin_import
 from tenancy.context import use_tenant
-from tenancy.models import Carrier, CarrierRequest, GstRate, HsnCode, Tenant
+from tenancy.models import Carrier, CarrierRequest, CentralRequest, GstRate, HsnCode, Tenant
 from tenancy.provisioning import create_tenant, drop_tenant_database
 
 # key, label, what it is for, model, screen to open (a hash route) or "".
@@ -214,6 +214,70 @@ class GstRateAdminDetailView(APIView):
             row.is_active = bool(request.data["is_active"])
             row.save(update_fields=["is_active"])
         return Response(GstRateAdminSerializer(row).data)
+
+
+class CentralRequestAdminSerializer(serializers.ModelSerializer):
+    customer = serializers.CharField(source="tenant.name", read_only=True)
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+
+    class Meta:
+        model = CentralRequest
+        fields = [
+            "id",
+            "customer",
+            "kind",
+            "kind_label",
+            "entry",
+            "description",
+            "note",
+            "requested_by",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = [f for f in fields if f != "status"]
+
+
+class CentralRequestAdminListView(APIView):
+    """Requests customers sent from a "Request Addition" screen."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _platform_admin(request)
+        rows = CentralRequest.objects.select_related("tenant")
+        return Response(CentralRequestAdminSerializer(rows, many=True).data)
+
+
+class CentralRequestAdminDetailView(APIView):
+    """Only the status changes: Added once the entry is in the list, or Not needed."""
+
+    permission_classes = [Signed]
+
+    def patch(self, request, pk: int):
+        _platform_admin(request)
+        row = CentralRequest.objects.select_related("tenant").filter(pk=pk).first()
+        if row is None:
+            raise NotFound("No such request.")
+        serializer = CentralRequestAdminSerializer(row, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        new = serializer.validated_data.get("status", row.status)
+        if new == CentralRequest.OPEN and (
+            CentralRequest.objects.filter(
+                tenant=row.tenant,
+                kind=row.kind,
+                status=CentralRequest.OPEN,
+                entry__iexact=row.entry,
+            )
+            .exclude(pk=row.pk)
+            .exists()
+        ):
+            raise ValidationError({"status": ["There is already an open request for this entry."]})
+        with transaction.atomic():
+            if new == CentralRequest.ADDED:
+                central_requests.add_to_list(row)
+            if new != row.status:
+                serializer.save(seen=False)
+        return Response(CentralRequestAdminSerializer(row).data)
 
 
 class CarrierRequestSerializer(serializers.ModelSerializer):

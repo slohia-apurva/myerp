@@ -618,7 +618,25 @@ export const MANUAL: Chapter[] = [
           On the item form, the "HSN" box searches this list as you type. Type a
           few digits, or words such as "turmeric", and click the code you want.
           A code that is not in the list is refused. If a code you
-          need is missing, tell us and it will be added for everyone.
+          need is missing, click "Request Addition" (see below).
+        </p>
+        <h3>Ask for a missing code or GST rate</h3>
+        <p>
+          Click "Request Addition" at the top of the "HSN codes" screen, or the
+          "Not in the list? Request Addition" link under the "HSN code" box on
+          the item form (the "GST Rates" section has one too). A new tab opens:
+          pick the "List" ("HSN or SAC code" or "GST rate"), type the code or
+          rate, the "Description" for a code, and a "Note For The MyERP Team" if
+          you like, then click "Send Request". The same entry cannot be asked for
+          twice while a request for it is open, and an entry that is already in
+          the list is refused.
+        </p>
+        <p>
+          Your requests are listed under "My Requests" on that screen with their
+          status ("Open", "Added to the list" or "Not needed"). When the team
+          decides, a line appears under "Needs your attention" on your Dashboard;
+          click "OK" to dismiss it. An added entry is in the list at once, for
+          every company.
         </p>
       </>
     ),
@@ -705,6 +723,15 @@ export const MANUAL: Chapter[] = [
         <p>
           Couriers are never deleted: click "Edit" and then "Disable" to stop
           offering one; transporters already using it keep it.
+        </p>
+        <h3>Requests for HSN codes and GST rates</h3>
+        <p>
+          Click "Central" in the top menu, then the "Requests" tab. Each line is
+          an HSN or SAC code or a GST rate a customer asked for, with the
+          customer, who asked, and their note. Click "Approve &amp; Add" to put
+          the entry in its list for every company; the customer is shown a
+          notice on their Dashboard. Click "Not needed" to decline it (they are
+          told that too), or "Reopen" to bring a closed request back.
         </p>
         <h3>Courier requests</h3>
         <p>
