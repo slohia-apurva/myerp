@@ -2435,3 +2435,36 @@ table.grid {
 #ledger-form [data-tab] > * {
   flex-shrink: 0;
 }
+
+/* Item units: one line each, the one being edited in a box below */
+.table-scroll {
+  overflow-x: auto;
+}
+table.unit-lines {
+  min-width: 760px;
+  font-size: 14px;
+}
+table.unit-lines th {
+  white-space: nowrap;
+}
+table.unit-lines td {
+  white-space: nowrap;
+}
+table.unit-lines tr.sel td {
+  background: var(--strip);
+}
+.unit-edit {
+  border: 1px solid var(--green);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Edit and Remove stay in view when the table scrolls sideways */
+table.unit-lines td.row-actions {
+  position: sticky;
+  right: 0;
+  background: var(--card);
+}
+table.unit-lines tr.sel td.row-actions {
+  background: var(--strip);
+}
