@@ -451,7 +451,24 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     if (!supplier) return setItems([]);
     api<BuyItem[]>(`v1/companies/${companyId}/purchase-orders/items/?supplier=${supplier}&date=${orderDate}`).then(setItems, () => setItems([]));
   }, [companyId, supplier, orderDate]);
+  // A supplier just made with 'Create "…"' is not in the list until it reloads: its
+  // credit term and contacts are filled in once it is there.
+  const [pending, setPending] = useState("");
+  useEffect(() => {
+    if (pending && setup?.suppliers.some((x) => String(x.id) === pending)) {
+      setPending("");
+      takeSupplier(pending);
+    }
+  });
   const pickSupplier = (value: string) => {
+    if (value && !setup?.suppliers.some((x) => String(x.id) === value)) {
+      setSupplierId(value);
+      setPending(value);
+      return;
+    }
+    takeSupplier(value);
+  };
+  const takeSupplier = (value: string) => {
     setSupplierId(value);
     const s = setup?.suppliers.find((x) => String(x.id) === value);
     // The supplier's credit term comes with it; it can still be changed here.

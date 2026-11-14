@@ -906,7 +906,12 @@ function LedgerForm(props: {
           </label>
           {isParty && <PartyNumber party={party} supplier={chosen?.nature === "liability"} onChange={setParty} />}
           {isParty && (
-            <GstinField party={party} onChange={setParty} onName={(found) => name.trim() === "" && setName(found)} />
+            <GstinField
+              party={party}
+              onChange={setParty}
+              // The name typed in a 'Create "…"' picker gives way to the GST record's.
+              onName={(found) => (name.trim() === "" || name === props.startName) && setName(found)}
+            />
           )}
           <label>
             <span className="req">Name</span>
