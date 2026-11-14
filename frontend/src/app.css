@@ -2468,3 +2468,43 @@ table.unit-lines td.row-actions {
 table.unit-lines tr.sel td.row-actions {
   background: var(--strip);
 }
+
+/* The search box (or the count and "Show levels" row) above a list stays under the title band while
+   the rows scroll (Sidharth, 2026-11-14). */
+@media (min-width: 721px) {
+  .side-main > .filters,
+  .side-main > .page-head,
+  .side-main > input[type="search"] {
+    position: sticky;
+    top: var(--stick-top, 0px);
+    z-index: 30;
+    background: var(--page-grey);
+    padding-block: 8px;
+    margin-block: -4px 0;
+  }
+}
+
+/* ...and so do the column headings, just under that row. */
+@media (min-width: 721px) {
+  .side-main table.pick thead th,
+  .side-main table.groups thead th {
+    position: sticky;
+    top: calc(var(--stick-top, 0px) + 54px);
+    z-index: 25;
+    background: #f4f6f8;
+  }
+}
+@media (min-width: 721px) {
+  .side-main table.pick,
+  .side-main table.groups {
+    overflow: visible;
+  }
+  .side-main table.pick thead th:first-child,
+  .side-main table.groups thead th:first-child {
+    border-top-left-radius: 12px;
+  }
+  .side-main table.pick thead th:last-child,
+  .side-main table.groups thead th:last-child {
+    border-top-right-radius: 12px;
+  }
+}
