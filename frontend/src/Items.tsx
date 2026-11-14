@@ -1081,26 +1081,29 @@ function ItemForm(props: {
                 onChange={setBuyText}
                 hint="The wording suppliers see for this item on purchase orders."
               />
-              <label>
-                Default purchase unit
-                <Combobox value={buyUnit} onChange={setBuyUnit} empty="Same as the stock unit" options={unitChoices} />
-              </label>
-              <label>
-                Lead time in days
-                <input className="num" inputMode="numeric" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
-              </label>
-              <label>
-                Safety stock qty
-                <input className="num" inputMode="decimal" value={safety} onChange={(e) => setSafety(e.target.value)} />
-              </label>
-              <label>
-                Minimum order qty
-                <input className="num" inputMode="decimal" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} />
-              </label>
-              <label>
-                Max stock qty
-                <input className="num" inputMode="decimal" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
-              </label>
+              <div className="item-cols wide">
+                <label>
+                  Default purchase unit
+                  <Combobox value={buyUnit} onChange={setBuyUnit} empty="Same as the stock unit" options={unitChoices} />
+                </label>
+                <label>
+                  Lead time in days
+                  <input className="num" inputMode="numeric" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
+                </label>
+                <div aria-hidden="true" />
+                <label>
+                  Safety stock qty
+                  <input className="num" inputMode="decimal" value={safety} onChange={(e) => setSafety(e.target.value)} />
+                </label>
+                <label>
+                  Minimum order qty
+                  <input className="num" inputMode="decimal" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} />
+                </label>
+                <label>
+                  Max stock qty
+                  <input className="num" inputMode="decimal" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
+                </label>
+              </div>
               <p className="small wide">The quantities are in the item's default unit.</p>
             </div>
           </Section>
