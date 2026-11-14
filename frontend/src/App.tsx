@@ -11,7 +11,8 @@ import { DataResetPage } from "./DataReset";
 import { HsnPage } from "./Hsn";
 import { UnitsPage } from "./Units";
 import { RolesPage, UsersPage } from "./Users";
-import { CourierAccountsPage, ShipmentsPage } from "./Shipments";
+import { ShipmentsPage } from "./Shipments";
+import { TransportersPage } from "./Transporters";
 import "./app.css";
 import { Logo } from "./Brand";
 import { BrandsPage } from "./Brands";
@@ -136,7 +137,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           id && sub === "shipments" && canSeeShipments ? (
             <ShipmentsPage key={id} companyId={id} session={session} />
           ) : id && sub === "couriers" ? (
-            <CourierAccountsPage key={id} companyId={id} session={session} />
+            <TransportersPage key={id} companyId={id} session={session} />
           ) : id && sub === "ledgers" ? (
             <LedgersPage key={`${id}-${subId}`} companyId={id} groupId={subId} session={session} />
           ) : id && sub === "groups" ? (

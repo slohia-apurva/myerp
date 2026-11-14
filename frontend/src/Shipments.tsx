@@ -1,23 +1,11 @@
 import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
-import {
-  announceCreated,
-  creatable,
-  type Creatable,
-  useNewName,
-} from "./Create";
-import { ErrorNote, useOpenParam } from "./ErrorNote";
+import { creatable, type Creatable } from "./Create";
+import { ErrorNote } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
-import { Activity, WithActivity } from "./Audit";
 import { PageHeader, Section } from "./Brand";
-import { useExchange, usePrintMenu } from "./Exchange";
+import { usePrintMenu } from "./Exchange";
 import { Combobox } from "./Combobox";
-import {
-  ContactFields,
-  contactOf,
-  type Company,
-  type Contact,
-} from "./Companies";
-import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
+import { type Company, type Contact } from "./Companies";
 
 /** Couriers, transporters and shipments (spec 06, step 1). Statuses are
  * typed by hand until each courier's tracking API is connected. */
@@ -92,7 +80,7 @@ type Shipment = {
   events?: TrackingEvent[];
 };
 
-const SERVICES: [string, string][] = [
+export const SERVICES: [string, string][] = [
   ["b2c", "B2C (parcel / express)"],
   ["b2b", "B2B (freight)"],
   ["aggregator", "Aggregator"],
@@ -163,7 +151,7 @@ export function useCarriers() {
   return carriers;
 }
 
-function useCourierAccounts(companyId: number) {
+export function useCourierAccounts(companyId: number) {
   const [accounts, setAccounts] = useState<CourierAccount[]>([]);
   const refresh = useCallback(
     () =>
@@ -194,11 +182,11 @@ function useCompanyDetail(companyId: number) {
   return detail;
 }
 
-function useCompany(companyId: number) {
+export function useCompany(companyId: number) {
   return useCompanyDetail(companyId)?.company ?? null;
 }
 
-function NoSales({ company }: { company: Company }) {
+export function NoSales({ company }: { company: Company }) {
   return (
     <section className="page">
       <PageHeader title="Shipments" sub={company.name} />
@@ -207,340 +195,6 @@ function NoSales({ company }: { company: Company }) {
         under "Admin", "Company", "Modules".
       </p>
     </section>
-  );
-}
-
-// Transporters ------------------------------------------------------------
-
-/** Masters > Transporters: the company's couriers, aggregators and road transporters. */
-export function CourierAccountsPage({
-  companyId,
-  session,
-}: {
-  companyId: number;
-  session: SignedIn;
-}) {
-  const canEdit = session.permissions.includes("masters.edit");
-  const company = useCompany(companyId);
-  const carriers = useCarriers();
-  const { accounts, reload } = useCourierAccounts(companyId);
-  const [editing, setEditing] = useState<CourierAccount | "new" | null>(null);
-  const [copyOf, setCopyOf] = useState<CourierAccount | null>(null);
-  const startName = useNewName();
-  useEffect(() => {
-    if (startName && canEdit) setEditing("new"); // opened by "Create …" in a dropdown
-  }, [startName, canEdit]);
-  const [openId, opened] = useOpenParam();
-  useEffect(() => {
-    const found = openId && accounts.find((a) => a.id === openId);
-    if (found) {
-      setCopyOf(null);
-      setEditing(found);
-      opened();
-    }
-  }, [openId, accounts, opened]);
-  const printing = useExchange({
-    master: "courier-accounts",
-    noun: "transporters",
-    session,
-    company: companyId,
-    onImported: reload,
-  });
-  if (company && !company.modules.includes("sales"))
-    return <NoSales company={company} />;
-  const done = () => {
-    setEditing(null);
-    setCopyOf(null);
-    reload();
-  };
-  return (
-    <section className="page">
-      <PageHeader
-        title="Transporters"
-        crumbs={[
-          { label: "Shipments", href: `#/companies/${companyId}/shipments` },
-        ]}
-        sub={`${company?.name ?? ""}: the couriers and transporters you send goods with, such as a B2C and a B2B account with the same courier.`}
-        actions={
-          <>
-            {printing.buttons}
-            {canEdit && (
-              <button
-                onClick={() => {
-                  setCopyOf(null);
-                  setEditing("new");
-                }}
-              >
-                Add transporter
-              </button>
-            )}
-          </>
-        }
-      />
-      {printing.panel}
-      <WithActivity
-        activity={
-          <Activity
-            company={companyId}
-            type="courier_account"
-            stamp={JSON.stringify(accounts)}
-          />
-        }
-      >
-        {editing && (
-          <AccountForm
-            key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
-            companyId={companyId}
-            carriers={carriers}
-            account={editing === "new" ? null : editing}
-            copyOf={copyOf}
-            startName={
-              editing === "new" && !copyOf
-                ? (startName ?? undefined)
-                : undefined
-            }
-            readOnly={!canEdit}
-            onDone={done}
-            onCancel={() => {
-              setEditing(null);
-              setCopyOf(null);
-            }}
-          />
-        )}
-        {accounts.length === 0 ? (
-          <p className="small">
-            No transporters yet. Add one for each you ship with, for example
-            "Delhivery B2C".
-          </p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Transporter</th>
-                <th>GSTIN</th>
-                <th>Courier in MyERP's list</th>
-                <th>Service</th>
-                <th>Account code</th>
-                <ActionHeads />
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((a) => (
-                <tr key={a.id} className={a.is_active ? "" : "off"}>
-                  <td>
-                    {a.name}
-                    {!a.is_active && <span className="pill">Disabled</span>}
-                  </td>
-                  <td>
-                    {a.gstin || (
-                      <span className="small">
-                        Missing: needed for e-way bills
-                      </span>
-                    )}
-                  </td>
-                  <td>{a.carrier_name}</td>
-                  <td>{a.service_label}</td>
-                  <td>{a.account_code}</td>
-                  <ActionCells
-                    canEdit={canEdit}
-                    onOpen={() => {
-                      setCopyOf(null);
-                      setEditing(a);
-                    }}
-                    onDuplicate={() => {
-                      setCopyOf(a);
-                      setEditing("new");
-                    }}
-                  />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </WithActivity>
-    </section>
-  );
-}
-
-function AccountForm(props: {
-  companyId: number;
-  carriers: Carrier[];
-  account: CourierAccount | null;
-  copyOf?: CourierAccount | null;
-  startName?: string;
-  readOnly?: boolean;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const a = props.account;
-  const from = a ?? props.copyOf;
-  const [carrierId, setCarrierId] = useState(
-    from?.carrier_id ? String(from.carrier_id) : "",
-  );
-  const [gstin, setGstin] = useState(props.copyOf ? "" : (a?.gstin ?? ""));
-  const [contact, setContact] = useState(contactOf(from));
-  const [name, setName] = useState(
-    props.startName ??
-      (props.copyOf ? `${props.copyOf.name} (copy)` : (a?.name ?? "")),
-  );
-  const [service, setService] = useState(from?.service ?? "b2c");
-  const [code, setCode] = useState(props.copyOf ? "" : (a?.account_code ?? ""));
-  const [notes, setNotes] = useState(from?.notes ?? "");
-  const [forCentral, setForCentral] = useState("");
-  const [error, setError] = useState<unknown>("");
-
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    setError("");
-    const body = {
-      carrier_id: carrierId ? Number(carrierId) : null,
-      name,
-      gstin,
-      service,
-      account_code: code,
-      notes,
-      ...(carrierId ? {} : { note_for_central: forCentral }),
-      ...contact,
-    };
-    try {
-      if (a) await api(`v1/courier-accounts/${a.id}/`, body, "PATCH");
-      else
-        announceCreated(
-          "courier_account",
-          await api<{ id: number; name: string }>(
-            `v1/companies/${props.companyId}/courier-accounts/`,
-            body,
-          ),
-        );
-      props.onDone();
-    } catch (err) {
-      setError(err);
-    }
-  };
-
-  return (
-    <form className="card" onSubmit={save}>
-      <h4>
-        {a
-          ? `${props.readOnly ? "View" : "Edit"} ${a.name}`
-          : props.copyOf
-            ? `Duplicate ${props.copyOf.name}`
-            : "Add transporter"}
-      </h4>
-      <FormBody readOnly={props.readOnly}>
-        <Section title="Transporter">
-          <div className="row">
-            <label>
-              Name
-              <input
-                required
-                value={name}
-                placeholder="e.g. Delhivery B2B or Shree Roadlines"
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <label>
-              GSTIN (the Transporter ID on an e-way bill)
-              <input
-                required
-                value={gstin}
-                maxLength={15}
-                placeholder="15 characters"
-                onChange={(e) => setGstin(e.target.value.toUpperCase())}
-              />
-            </label>
-          </div>
-          <div className="row">
-            <label>
-              Courier in MyERP's list (leave empty if it is not there)
-              <Combobox
-                value={carrierId}
-                onChange={(v) => {
-                  setCarrierId(v);
-                  const c = props.carriers.find((x) => String(x.id) === v);
-                  if (c && !name) setName(c.name);
-                  if (c?.kind === "aggregator") setService("aggregator");
-                }}
-                empty="Not in the list"
-                options={props.carriers
-                  .filter((c) => c.is_active || String(c.id) === carrierId)
-                  .map((c) => ({
-                    value: String(c.id),
-                    label: c.name,
-                    hint: c.kind_label,
-                  }))}
-              />
-            </label>
-            <label>
-              Service
-              <Combobox
-                value={service}
-                onChange={setService}
-                options={SERVICES.map(([value, label]) => ({ value, label }))}
-              />
-            </label>
-          </div>
-          {!carrierId && (
-            <label>
-              Note for the MyERP team (optional)
-              <textarea
-                rows={2}
-                value={forCentral}
-                placeholder="Anything that helps us add this transporter to the list, such as its website or the routes you use"
-                onChange={(e) => setForCentral(e.target.value)}
-              />
-              <span className="small">
-                The MyERP team sees this transporter and can add it to the list
-                for everyone.
-              </span>
-            </label>
-          )}
-        </Section>
-        <Section title="Contact">
-          <ContactFields value={contact} onChange={setContact} noAddress />
-        </Section>
-        <Section title="Booking and tracking">
-          <div className="row">
-            <label>
-              Account or customer code
-              <input
-                value={code}
-                placeholder="The code the transporter gave you"
-                onChange={(e) => setCode(e.target.value)}
-              />
-            </label>
-          </div>
-          <label>
-            Notes
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </label>
-          <p className="small">
-            API keys and passwords are never kept here; they are set up
-            separately when a courier is connected.
-          </p>
-        </Section>
-      </FormBody>
-      <ErrorNote error={error} />
-      <div className="buttons">
-        {!props.readOnly && <button>Save</button>}
-        <button type="button" className="link" onClick={props.onCancel}>
-          {props.readOnly ? "Close" : "Cancel"}
-        </button>
-        {a && !props.readOnly && (
-          <ActiveButton
-            url={`v1/courier-accounts/${a.id}/`}
-            active={a.is_active}
-            what={`the transporter ${a.name}`}
-            onDone={props.onDone}
-            onError={setError}
-          />
-        )}
-      </div>
-    </form>
   );
 }
 

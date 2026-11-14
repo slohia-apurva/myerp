@@ -195,6 +195,15 @@ def test_courier_of_an_account_in_use_cannot_change(owner, company, b2b, store):
     assert off.status_code == 200 and off.json()["is_active"] is False
 
 
+def test_transporter_says_what_uses_it_and_what_is_locked(owner, company, b2b, store):
+    rows = call(owner, "get", f"companies/{company}/courier-accounts/").json()
+    assert rows[0]["lock"] == {"in_use": [], "locked": []}
+    assert ship(store, company, b2b).status_code == 201
+    rows = call(owner, "get", f"companies/{company}/courier-accounts/").json()
+    assert rows[0]["lock"]["in_use"] == ["1 shipment"]
+    assert set(rows[0]["lock"]["locked"]) == {"carrier_id", "service"}
+
+
 def test_storekeeper_enters_a_shipment_and_it_starts_booked(store, company, b2b, customer):
     resp = ship(
         store,
