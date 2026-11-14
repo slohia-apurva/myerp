@@ -249,6 +249,10 @@ class LedgerSerializer(serializers.ModelSerializer):
             data["party"]["salesman_name"] = (
                 ledger.salesman.display_name if ledger.salesman_id else ""
             )
+            data["party"]["preferred_transporter"] = ledger.preferred_transporter_id
+            data["party"]["preferred_transporter_name"] = (
+                ledger.preferred_transporter.name if ledger.preferred_transporter_id else ""
+            )
         return data
 
     class Meta:
@@ -894,7 +898,9 @@ class LedgerListView(APIView):
     def get(self, request, pk: int):
         _check(request, VIEW)
         company = _company(request, pk)
-        ledgers = company.ledgers.select_related("group", "party", "salesman").prefetch_related(
+        ledgers = company.ledgers.select_related(
+            "group", "party", "salesman", "preferred_transporter"
+        ).prefetch_related(
             "opening_bills", "party__addresses", "party__contacts", "party__ledgers__company"
         )
         if q := request.query_params.get("q", "").strip():

@@ -33,7 +33,7 @@ STATE = exchange.STATE
 
 def _ledgers(ctx):
     return (
-        ctx.company.ledgers.select_related("group", "party", "salesman")
+        ctx.company.ledgers.select_related("group", "party", "salesman", "preferred_transporter")
         .prefetch_related(
             "opening_bills",
             "party__addresses",
@@ -90,6 +90,7 @@ exchange.register(
             "party.country": "Country",
             "party.credit_term": "Credit terms",
             "party.salesman": "Salesman or purchaser",
+            "party.preferred_transporter": "Preferred transporter",
             "opening_bills": "Opening bills",
             "opening_bills.ref": "Bill reference",
             "opening_bills.bill_date": "Bill date",

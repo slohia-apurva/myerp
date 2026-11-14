@@ -117,6 +117,7 @@ def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
     data["carrier_name"] = carrier.name if carrier else ""
     data["service_label"] = a.get_service_display()
     data["company"] = a.company_id
+    data["preferred_by"] = a.preferred_by.count()
     return data
 
 
