@@ -49,6 +49,10 @@ export type PurchaseOrder = {
   credit_term_name: string;
   transporter: number | null;
   transporter_name: string;
+  bill_to: number | null;
+  bill_to_name: string;
+  supplier_address: Partial<Place>;
+  addresses?: { bill_to: Place | null; ship_to: Place; supplier: Place };
   agent: number | null;
   agent_name: string;
   agent_user: number | null;
@@ -71,6 +75,23 @@ export type PurchaseOrder = {
   line_count: number;
   lines?: Line[];
 };
+/** An address as the order shows and prints it. */
+type Place = {
+  name?: string;
+  label: string;
+  address: string;
+  city: string;
+  pincode: string;
+  state_code: string;
+  state: string;
+  country: string;
+  gstin: string;
+  fssai?: string;
+  contact?: string;
+  phone?: string;
+  email?: string;
+  is_billing?: boolean;
+};
 type Contact = { id: number; name: string; designation: string; phone: string; email: string; is_primary: boolean; kinds: string[] };
 /** Who gets the order by mail unless changed: purchase contacts and the main contact, if they have an email. */
 const mailedFirst = (contacts: Contact[]) => contacts.filter((c) => c.email && (c.is_primary || c.kinds.includes("purchase"))).map((c) => c.id);
@@ -86,8 +107,20 @@ type Supplier = {
   transporter: number | null;
   charges_gst: boolean;
   contacts: Contact[];
+  addresses: Place[];
 };
-type BranchRow = { id: number; name: string; state_code: string; is_active: boolean; no_stock: boolean; store: string; receiving: string };
+type BranchRow = {
+  id: number;
+  name: string;
+  state_code: string;
+  is_active: boolean;
+  no_stock: boolean;
+  store: string;
+  receiving: string;
+  default_billing: boolean;
+  is_head_office: boolean;
+  address_block: Place;
+};
 type Employee = { id: number; name: string; email: string };
 type Transporter = { id: number; name: string; is_active: boolean };
 type Setup = {
@@ -429,6 +462,10 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const [orderDate, setOrderDate] = useState(order?.order_date ?? today());
   const [expected, setExpected] = useState(order?.expected_date ?? "");
   const [term, setTerm] = useState(from?.credit_term ? String(from.credit_term) : "");
+  // The company's billing branch ("" until the branches load: then the default one) and
+  // the name of the supplier's address on the order.
+  const [billTo, setBillTo] = useState(from?.bill_to ? String(from.bill_to) : "");
+  const [supAddr, setSupAddr] = useState(from?.supplier_address?.label ?? "");
   // "" is "By Supplier": the supplier sends the goods.
   const [transporter, setTransporter] = useState(from?.transporter ? String(from.transporter) : "");
   const [ref, setRef] = useState(order?.supplier_ref ?? "");
@@ -464,6 +501,14 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       if (first) setBranch(String(first.id));
     }
   }, [setup, branch]);
+  // Bill To starts as the default billing branch (else the head office).
+  useEffect(() => {
+    if (!billTo && setup) {
+      const open = setup.branches.filter((b) => b.is_active);
+      const first = open.find((b) => b.default_billing) ?? open.find((b) => b.is_head_office) ?? open[0];
+      if (first) setBillTo(String(first.id));
+    }
+  }, [setup, billTo]);
   const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
   const br = setup?.branches.find((b) => String(b.id) === branch);
   useEffect(() => {
@@ -492,6 +537,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     const s = setup?.suppliers.find((x) => String(x.id) === value);
     // The supplier's credit term comes with it; it can still be changed here.
     if (s) setTerm(s.credit_term ? String(s.credit_term) : "");
+    // Its billing address is the one on the order unless another is picked.
+    if (s) setSupAddr((s.addresses.find((a) => a.is_billing) ?? s.addresses[0])?.label ?? "");
     // So does its preferred transporter (none: "By Supplier").
     if (s) setTransporter(s.transporter ? String(s.transporter) : "");
     // The new supplier's purchase contacts replace the old one's; the agent's stay.
@@ -567,6 +614,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       expected_date: expected || null,
       credit_term: term ? Number(term) : null,
       transporter: transporter ? Number(transporter) : null,
+      bill_to: billTo ? Number(billTo) : null,
+      supplier_address: supAddr,
       supplier_ref: ref,
       agent: agent.startsWith("l") ? Number(agent.slice(1)) : null,
       agent_user: agent.startsWith("u") ? Number(agent.slice(1)) : null,
@@ -697,6 +746,40 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                 Supplier's Quote Ref
                 <input value={ref} maxLength={80} onChange={(e) => setRef(e.target.value)} />
               </label>
+            </div>
+          </Fold>
+          <Fold title="Addresses" open summary={[br && `Ship to ${br.name}`, supAddr && `supplier's ${supAddr}`].filter(Boolean).join(" · ")}>
+            <div className="address-cols">
+              <div>
+                <label>
+                  Bill To
+                  <Combobox
+                    value={billTo}
+                    onChange={setBillTo}
+                    options={(setup?.branches ?? [])
+                      .filter((b) => b.is_active || String(b.id) === billTo)
+                      .map((b) => ({ value: String(b.id), label: b.name }))}
+                  />
+                </label>
+                <AddressBlock place={setup?.branches.find((b) => String(b.id) === billTo)?.address_block} title={setup?.company_name} />
+              </div>
+              <div>
+                <div className="fact-label">Ship To</div>
+                <div className="small">The "Deliver To" branch: {br?.name ?? "none yet"}</div>
+                <AddressBlock place={br?.address_block} title={br ? `${setup?.company_name} (${br.name})` : undefined} />
+              </div>
+              <div>
+                <label>
+                  Supplier Address
+                  <Combobox
+                    value={supAddr}
+                    onChange={setSupAddr}
+                    empty={sup && sup.addresses.length ? undefined : "No address on the supplier"}
+                    options={(sup?.addresses ?? []).map((a) => ({ value: a.label, label: a.label }))}
+                  />
+                </label>
+                {sup && <AddressBlock place={sup.addresses.find((a) => a.label === supAddr)} title={sup.name} />}
+              </div>
             </div>
           </Fold>
           <Fold title="Supplier Contacts and Agent" open summary={`${mailTo.length + (agUser && mailAgentUser ? 1 : 0)} to mail${ag || agUser ? ` · agent ${ag?.name ?? agUser?.name}` : ""}`}>
@@ -963,6 +1046,42 @@ function TotalsPanel(p: { taxable: number; cgst: number; sgst: number; igst: num
   );
 }
 
+/** An address as lines: name, street, "City - PIN", "State (code) - Country", then
+ * GSTIN, FSSAI, contact, phone and email, each on its own line (as printed). */
+function AddressBlock({ place, title }: { place: Place | null | undefined; title?: string }) {
+  if (!place) return <p className="small">No address.</p>;
+  const india = !place.country || place.country === "India";
+  const cityLine = [place.city, place.pincode].filter(Boolean).join(" - ");
+  const stateLine = india ? [place.state && `${place.state} (${place.state_code})`, "India"].filter(Boolean).join(" - ") : place.country;
+  const facts: [string, string | undefined][] = [
+    ["GSTIN", place.gstin],
+    ["FSSAI", place.fssai],
+    ["Contact", place.contact],
+    ["Phone", place.phone],
+    ["Email", place.email],
+  ];
+  return (
+    <div className="address-block">
+      {title && <b>{title}</b>}
+      {place.address.split("\n").map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
+      {cityLine && <div>{cityLine}</div>}
+      {stateLine && <div>{stateLine}</div>}
+      <dl>
+        {facts
+          .filter(([, v]) => v)
+          .map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+      </dl>
+    </div>
+  );
+}
+
 function PaymentPanel({ term }: { term: CreditTerm | undefined }) {
   const parts = termParts(term);
   return (
@@ -1102,6 +1221,22 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                   </div>
                 ))}
             </dl>
+          </Fold>
+          <Fold title="Addresses" open>
+            <div className="address-cols">
+              <div>
+                <div className="fact-label">Bill To</div>
+                <AddressBlock place={order.addresses?.bill_to} title={order.addresses?.bill_to?.name} />
+              </div>
+              <div>
+                <div className="fact-label">Ship To</div>
+                <AddressBlock place={order.addresses?.ship_to} title={order.addresses ? `${order.addresses.ship_to.name} (${order.addresses.ship_to.label})` : undefined} />
+              </div>
+              <div>
+                <div className="fact-label">Supplier Address</div>
+                <AddressBlock place={order.addresses?.supplier.address ? order.addresses.supplier : null} title={order.addresses?.supplier.name} />
+              </div>
+            </div>
           </Fold>
           <Fold title="Supplier Contacts and Agent" open>
             <dl className="kv">

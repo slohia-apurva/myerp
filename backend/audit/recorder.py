@@ -104,6 +104,7 @@ LABELS = {
     "agent": "Buying agent",
     "agent_user": "Buying agent (employee)",
     "mail_agent_user": "Mail the employee agent",
+    "bill_to": "Bill to",
 }
 
 # Fields that are internal or change by themselves.
@@ -131,6 +132,7 @@ SKIP = {
     "created_by",
     # A purchase order's totals follow from its items; its submit shows as the status.
     "interstate",
+    "supplier_address",  # shown by its name, as an extra
     "taxable_total",
     "cgst_total",
     "sgst_total",
@@ -332,6 +334,10 @@ def _register() -> None:
                 extras={
                     # "status" itself is skipped (a shipment's comes from tracking).
                     "order_status": ("Status", lambda o: o.get_status_display()),
+                    "supplier_address_label": (
+                        "Supplier address",
+                        lambda o: (o.supplier_address or {}).get("label") or None,
+                    ),
                     "mail_contacts": (
                         "Mail to",
                         lambda o: ", ".join(
