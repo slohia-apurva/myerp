@@ -480,7 +480,7 @@ export const MANUAL: Chapter[] = [
             Click "Masters" in the top menu, then "Items", then "Add item". The
             page is titled "Add item" ("Edit item" when you change one) and has
             "Cancel" and "Save" in the green bar. Below the item name are
-            folding sections: "General", "Sales", "Purchase", "GST rates",
+            folding sections: "General", "Sales", "Purchase", "GST Rates",
             "Stock and quality", "Units of measure", "Customer and supplier names" and
             "Connections" (empty for now: it will list the documents that use
             the item). Click a
@@ -525,8 +525,11 @@ export const MANUAL: Chapter[] = [
             first. Left blank, the stock unit is used.
           </li>
           <li>
-            On the "GST rates" tab, click "Add rate" and fill in "From" (the
-            date the rate starts) and "GST rate (%)". When the law changes, do
+            In the "GST Rates" section, click "Add rate", fill in "From" (the
+            date the rate starts) and choose the "GST Rate (%)" from the
+            dropdown. The dropdown lists the rates kept centrally by MyERP (0,
+            0.25, 3, 5, 18 and so on), so a rate cannot be mistyped; a rate
+            that is not in the list cannot be saved. When the law changes, do
             not change the old row: click "Add rate" again and give the new rate
             with its start date. A bill takes the rate in force on the bill
             date, and the item's details mark today's rate "In force".
@@ -631,11 +634,15 @@ export const MANUAL: Chapter[] = [
           about, see "Central" in the top menu. A customer's Owner does not.
         </p>
         <p>
-          The screen has three tabs. "Customers" lists every customer group
+          The screen has four tabs. "Customers" lists every customer group
           (tenant) with its status. "Shared lists" shows each central list with
           the number of rows in it (click "Open" to look inside) and the "Load
-          lists from a file" box. "Couriers" holds the courier list and the
-          requests customers have sent.
+          lists from a file" box. "GST Rates" holds the rates every customer's
+          items choose from: type a rate under "GST Rate (%)" and click "Add
+          rate", or click "Disable" to stop offering a rate for new entries
+          (items that already use it keep it; rates are never deleted).
+          "Couriers" holds the courier list and the requests customers have
+          sent.
         </p>
         <h3>Add a customer</h3>
         <ol>

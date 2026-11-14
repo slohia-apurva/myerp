@@ -131,6 +131,26 @@ class CourierPin(models.Model):
         return f"{self.carrier} {self.pin_id}"
 
 
+class GstRate(models.Model):
+    """A GST rate (0, 5, 18...) offered when setting an item's rate. One central
+    list for every tenant, read-only to them, like HSN codes. Items keep their
+    own dated history of which rate applied from when (core.ItemGstRate); this
+    list only says which rates exist. Never deleted, only disabled."""
+
+    rate = models.DecimalField(max_digits=5, decimal_places=2, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["rate"]
+
+    def __str__(self) -> str:
+        return self.label
+
+    @property
+    def label(self) -> str:
+        return f"GST {self.rate.normalize():f}%"
+
+
 class Carrier(models.Model):
     """A courier, aggregator or transporter (Delhivery, Blue Dart, Shiprocket...).
     One central list for every tenant, read-only to them, like HSN codes; a

@@ -25,6 +25,7 @@ from rest_framework.views import APIView
 from audit import recorder
 from core import duplicates, exchange, richtext
 from core.api import EDIT, VIEW, Signed, _check
+from core.gst_rates import refuse_unlisted_rates
 from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
 from core.models import (
     USED_FOR,
@@ -440,6 +441,8 @@ def _save_item(item: Item, data: dict) -> Item:
             )
     if rates is not None:
         rates = _check_rates([dict(r) for r in rates])
+        kept = {(r.valid_from, r.rate) for r in item.gst_rates.all()} if item.pk else set()
+        refuse_unlisted_rates(rates, kept)
     try:
         item.full_clean(validate_constraints=False, exclude=["item_number"])
     except DjangoValidationError as exc:

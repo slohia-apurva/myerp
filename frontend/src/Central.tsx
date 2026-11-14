@@ -21,7 +21,7 @@ type Info = {
 export function CentralPage() {
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"customers" | "lists" | "couriers">("customers");
+  const [tab, setTab] = useState<"customers" | "lists" | "gst" | "couriers">("customers");
   const printing = usePrintMenu({ title: "Central tables" });
   const reload = useCallback(
     () =>
@@ -48,6 +48,7 @@ export function CentralPage() {
           [
             ["customers", "Customers"],
             ["lists", "Shared lists"],
+            ["gst", "GST Rates"],
             ["couriers", "Couriers"],
           ] as const
         ).map(([code, label]) => (
@@ -117,6 +118,7 @@ export function CentralPage() {
           <LoadLists />
         </>
       )}
+      {tab === "gst" && <GstRates />}
       {tab === "couriers" && (
         <>
       <Couriers />
@@ -220,6 +222,83 @@ function Couriers() {
               </td>
             </tr>
           ))}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
+
+type CentralGstRate = { id: number; rate: string; label: string; is_active: boolean };
+
+/** The GST rates every customer's items pick from: only platform admins add to it. */
+function GstRates() {
+  const [rows, setRows] = useState<CentralGstRate[]>([]);
+  const [rate, setRate] = useState("");
+  const [error, setError] = useState<unknown>("");
+  const load = useCallback(() => api<CentralGstRate[]>("v1/central/gst-rates/").then(setRows), []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    try {
+      await api("v1/central/gst-rates/", { rate: rate.trim() });
+      setRate("");
+      load();
+    } catch (err) {
+      setError(err);
+    }
+  };
+  return (
+    <Section title="GST Rates">
+      <p className="small">
+        The rates an item's GST rate is chosen from. A disabled rate is no longer offered for new entries; items that already
+        use it keep it. Rates are never deleted.
+      </p>
+      <form onSubmit={add} className="row" style={{ alignItems: "flex-end" }}>
+        <label>
+          <span className="req">GST Rate (%)</span>
+          <input required className="num" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} />
+        </label>
+        <button>Add rate</button>
+      </form>
+      <ErrorNote error={error} />
+      <table>
+        <thead>
+          <tr>
+            <th>Rate</th>
+            <th className="num">GST %</th>
+            <th className="num">CGST %</th>
+            <th className="num">SGST %</th>
+            <th className="num">IGST %</th>
+            <th>Status</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const n = Number(r.rate);
+            return (
+              <tr key={r.id} className={r.is_active ? "" : "off"}>
+                <td>{r.label}</td>
+                <td className="num">{n}</td>
+                <td className="num">{n / 2}</td>
+                <td className="num">{n / 2}</td>
+                <td className="num">{n}</td>
+                <td>{r.is_active ? <span className="pill on">Active</span> : <span className="pill">Disabled</span>}</td>
+                <td className="row-actions">
+                  <ActiveButton
+                    url={`v1/central/gst-rates/${r.id}/`}
+                    active={r.is_active}
+                    what={r.label}
+                    onDone={load}
+                    onError={setError}
+                  />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </Section>

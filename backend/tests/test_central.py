@@ -357,3 +357,43 @@ def test_checking_a_file_saves_nothing_and_lists_every_problem(alpha, settings):
     saved = _upload(client, path, csv, commit="1").json()
     assert saved["saved"] is True
     assert HsnCode.objects.get(hsn_code="0902").description == "Tea again"
+
+
+def test_gst_rates_are_a_central_list_items_pick_from(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    boss = _client(alpha, "boss@x.in")
+    owner = _client(alpha, "owner@x.in", owner=True)
+
+    def post(data):
+        return boss.post(
+            "/api/v1/central/gst-rates/", data, content_type="application/json", HTTP_HOST=HOST
+        )
+
+    # The standard slabs are loaded; tenants see only the active ones.
+    seen = [r["rate"] for r in owner.get("/api/v1/gst-rates/", HTTP_HOST=HOST).json()]
+    assert seen == ["0.00", "0.25", "3.00", "5.00", "18.00"]
+
+    made = post({"rate": "40"})
+    assert made.status_code == 201, made.json()
+    assert made.json()["label"] == "GST 40%"
+    assert "already in the list" in str(post({"rate": "40.00"}).json())
+    assert post({"rate": "101"}).status_code == 400
+
+    pk = made.json()["id"]
+    off = boss.patch(
+        f"/api/v1/central/gst-rates/{pk}/",
+        {"is_active": False},
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert off.status_code == 200 and off.json()["is_active"] is False
+    assert boss.delete(f"/api/v1/central/gst-rates/{pk}/", HTTP_HOST=HOST).status_code == 405
+    seen = [r["rate"] for r in owner.get("/api/v1/gst-rates/", HTTP_HOST=HOST).json()]
+    assert "40.00" not in seen
+
+    # Customers read the list but cannot change it.
+    assert owner.get("/api/v1/central/gst-rates/", HTTP_HOST=HOST).status_code == 403
+    r = owner.post(
+        "/api/v1/central/gst-rates/", {"rate": "9"}, content_type="application/json", HTTP_HOST=HOST
+    )
+    assert r.status_code == 403
