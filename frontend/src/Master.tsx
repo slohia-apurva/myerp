@@ -71,6 +71,8 @@ export function FormPage(props: {
   error?: unknown;
   /** Only for a record being changed: the "Disabled" tick. */
   disabled?: { value: boolean; set: (v: boolean) => void };
+  /** More ticks for the Switches box (beside "Disabled"). */
+  switches?: ReactNode;
   /** Only people who may look, not change: no Save, and the fields stay as shown. */
   readOnly?: boolean;
   tips?: ReactNode;
@@ -103,18 +105,21 @@ export function FormPage(props: {
           <ErrorNote error={props.error} />
         </div>
         <div className="side-col">
-          {props.disabled && (
+          {(props.disabled || props.switches) && (
             <SidePanel title="Switches">
               <div className="item-switches">
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    disabled={props.readOnly}
-                    checked={props.disabled.value}
-                    onChange={(e) => props.disabled!.set(e.target.checked)}
-                  />
-                  Disabled
-                </label>
+                {props.disabled && (
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      disabled={props.readOnly}
+                      checked={props.disabled.value}
+                      onChange={(e) => props.disabled!.set(e.target.checked)}
+                    />
+                    Disabled
+                  </label>
+                )}
+                {props.switches}
               </div>
             </SidePanel>
           )}

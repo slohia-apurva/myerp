@@ -2189,7 +2189,7 @@ form.card .panel-card > h4 {
 }
 
 /* Item edit page: folding sections (one open at a time), side panels at the right */
-#item-form .fold-head {
+:is(#item-form, #ledger-form) .fold-head {
   width: 100%;
   height: auto;
   border: 0;
@@ -2206,21 +2206,21 @@ form.card .panel-card > h4 {
   text-align: left;
   white-space: normal;
 }
-#item-form .fold-head:hover:not(:disabled) {
+:is(#item-form, #ledger-form) .fold-head:hover:not(:disabled) {
   background: #cbe5d4;
 }
-#item-form .fold-head .fold-title::before {
+:is(#item-form, #ledger-form) .fold-head .fold-title::before {
   content: "▸";
   display: inline-block;
   width: 18px;
 }
-#item-form .fold.open > .fold-head .fold-title::before {
+:is(#item-form, #ledger-form) .fold.open > .fold-head .fold-title::before {
   content: "▾";
 }
-#item-form .fold-head .fold-summary {
+:is(#item-form, #ledger-form) .fold-head .fold-summary {
   font-weight: 400;
 }
-#item-form .fold-body .panel-card {
+:is(#item-form, #ledger-form) .fold-body .panel-card {
   border: 0;
   padding: 0;
   background: none;
@@ -2326,11 +2326,13 @@ table.groups tr.selected td:first-child {
   overflow: visible;
 }
 .fold > summary,
-#item-form .fold > .fold-head {
+#item-form .fold > .fold-head,
+#ledger-form .fold > .fold-head {
   border-radius: 7px;
 }
 .fold[open] > summary,
-#item-form .fold.open > .fold-head {
+#item-form .fold.open > .fold-head,
+#ledger-form .fold.open > .fold-head {
   border-radius: 7px 7px 0 0;
 }
 table.grid {
@@ -2391,4 +2393,30 @@ table.grid {
 }
 .locked-field:has(.combo)::after {
   right: 34px;
+}
+
+/* Ledger form: its folding sections stack like the item form's. */
+#ledger-form fieldset.plain {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#ledger-form .fold-body[hidden] {
+  display: none;
+}
+
+/* Panels at the right keep their size; the column scrolls instead of squeezing them. */
+.side-col > * {
+  flex-shrink: 0;
+}
+#ledger-form .fold-body > * {
+  flex-shrink: 0;
+}
+#ledger-form [data-tab] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#ledger-form [data-tab] > * {
+  flex-shrink: 0;
 }
