@@ -931,7 +931,7 @@ function LedgerForm(props: {
                     // Its ledger on the other side here already has the plain name.
                     const here = picked.companies?.some((c) => c.id === props.companyId);
                     setName(here ? `${picked.name} (${side === "supplier" ? "Supplier" : "Customer"})` : (picked.name ?? ""));
-                    setParty({ ...picked, credit_limit: "", salesman: null });
+                    setParty({ ...picked, credit_limit: "", salesman: null, preferred_transporter: null });
                   } else setParty(blankParty(props.companyState));
                 }}
               />

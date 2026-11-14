@@ -525,3 +525,51 @@ def test_an_indian_address_takes_its_place_from_the_pin_list(accountant, company
         add_ledger(accountant, company, "Sundry Debtors", party=abroad, name="Gulf").status_code
         == 201
     )
+
+
+def test_a_customer_has_a_preferred_transporter_of_its_own_company(accountant, company, alpha):
+    from shipping.models import CourierAccount
+
+    with use_tenant(alpha):
+        other = create_company(name="Second Co", state_code="27").pk
+        mine = CourierAccount.objects.create(company_id=company, name="Delhivery B2B")
+        theirs = CourierAccount.objects.create(company_id=other, name="Blue Dart")
+
+    def party(transporter, group="Sundry Debtors", **extra):
+        body = {
+            "gst_type": "unregistered",
+            "state_code": "27",
+            "preferred_transporter": transporter,
+        }
+        return add_ledger(accountant, company, group, party=body, **extra)
+
+    ok = party(mine.pk)
+    assert ok.status_code == 201, ok.json()
+    saved = ok.json()["party"]
+    assert saved["preferred_transporter"] == mine.pk
+    assert saved["preferred_transporter_name"] == "Delhivery B2B"
+
+    # Another company's transporter, and a supplier's, are refused.
+    assert "of this company" in str(party(theirs.pk, name="Other Mart").json())
+    refused = party(mine.pk, group="Sundry Creditors", name="Supplier Ltd")
+    assert "Only a customer" in str(refused.json())
+
+    # The transporter says who prefers it, and counts as in use.
+    with use_tenant(alpha):
+        assert mine.preferred_by.count() == 1
+    listed = call(accountant, "get", f"companies/{company}/courier-accounts/").json()
+    row = next(a for a in listed if a["id"] == mine.pk)
+    assert row["preferred_by"] == 1 and row["lock"]["in_use"] == ["1 customer"]
+
+    # A disabled transporter stays on the customer that has it but is not offered to others.
+    with use_tenant(alpha):
+        CourierAccount.objects.filter(pk=mine.pk).update(is_active=False)
+    ledger = ok.json()["id"]
+    keep = call(
+        accountant,
+        "patch",
+        f"ledgers/{ledger}/",
+        {"party": {"preferred_transporter": mine.pk, "gst_type": "unregistered"}},
+    )
+    assert keep.status_code == 200, keep.json()
+    assert "disabled" in str(party(mine.pk, name="Another Mart").json())

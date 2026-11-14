@@ -1524,6 +1524,10 @@ export const MANUAL: Chapter[] = [
               "Salesman or Purchaser",
               "The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser). Other companies can choose someone else for the same party.",
             ],
+            [
+              "Preferred Transporter",
+              'Customers only, and only when the company has the Sales module: the transporter this company usually sends the customer\'s goods with, picked from the company\'s own "Transporters" (or "Create" a new one). Other companies can choose their own. It can be left empty.',
+            ],
           ]}
         />
         <p>
@@ -1653,6 +1657,13 @@ export const MANUAL: Chapter[] = [
           more than one transporter, for example "Delhivery B2C" for parcels and
           "Delhivery B2B" for heavier freight, because each has its own rates.
           This screen shows only for a company that uses the Sales module.
+        </p>
+        <p>
+          On a transporter's line, "Preferred By" on the right shows how many
+          customers have it as their "Preferred Transporter" (see the chapter
+          "Ledgers"). Such a transporter counts as in use, so its courier and
+          service stay locked, but you can still disable it: customers keep it
+          and it is no longer offered to others.
         </p>
         <h3>Add a transporter</h3>
         <ol>

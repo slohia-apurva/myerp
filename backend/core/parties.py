@@ -32,6 +32,7 @@ from core.models import (
     PartyProduct,
 )
 from core.numbering import next_number
+from shipping.models import CourierAccount
 from tenancy.models import PinCode
 
 
@@ -118,6 +119,13 @@ class PartySerializer(serializers.ModelSerializer):
         required=False,
         write_only=True,
     )
+    # The company's usual transporter for a customer, kept on its ledger too.
+    preferred_transporter = serializers.PrimaryKeyRelatedField(
+        queryset=CourierAccount.objects.all(),
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
     credit_term = serializers.PrimaryKeyRelatedField(
         queryset=CreditTerm.objects.all(), allow_null=True, required=False
     )
@@ -152,6 +160,7 @@ class PartySerializer(serializers.ModelSerializer):
             "credit_term",
             "credit_term_name",
             "salesman",
+            "preferred_transporter",
             "addresses",
             "contacts",
             "products",
@@ -183,6 +192,7 @@ _NOT_PARTY_FIELDS = (
     "companies",
     "credit_limit",
     "salesman",
+    "preferred_transporter",
     "credit_term_name",
     "addresses",
     "contacts",
@@ -232,6 +242,11 @@ def save_party(
     if "salesman" in data:
         ledger.salesman = data.pop("salesman")
         own.append("salesman")
+    if "preferred_transporter" in data:
+        transporter = data.pop("preferred_transporter")
+        _check_preferred_transporter(ledger, side, transporter)
+        ledger.preferred_transporter = transporter
+        own.append("preferred_transporter")
     if own:
         ledger.save(update_fields=own)
     party = ledger.party
@@ -398,6 +413,22 @@ def _add_to_companies(ledger: Ledger, party: Party, companies) -> None:
         other.save()
 
 
+def _check_preferred_transporter(ledger: Ledger, side: str, transporter) -> None:
+    """A customer's usual transporter is one of this company's own, and still active
+    unless the customer already had it."""
+    if transporter is None:
+        return
+    error = None
+    if side != "customer":
+        error = "Only a customer has a preferred transporter."
+    elif transporter.company_id != ledger.company_id:
+        error = "Pick a transporter of this company."
+    elif not transporter.is_active and transporter.pk != ledger.preferred_transporter_id:
+        error = f"{transporter.name} is disabled."
+    if error:
+        raise ValidationError({"party": {"preferred_transporter": [error]}})
+
+
 def _take_place_from_pin(address: PartyAddress, i: int, unchanged: bool) -> None:
     if address.country.strip().lower() not in ("", "india"):
         return
@@ -555,6 +586,12 @@ def party_extras() -> dict:
         "party_salesman": (
             "Salesman or purchaser",
             lambda ledger: ledger.salesman.display_name if ledger.salesman_id else None,
+        ),
+        "party_preferred_transporter": (
+            "Preferred transporter",
+            lambda ledger: (
+                ledger.preferred_transporter.name if ledger.preferred_transporter_id else None
+            ),
         ),
         "party_customer_number": ("Customer number", read(lambda p: blank(p.customer_number))),
         "party_vendor_number": ("Vendor number", read(lambda p: blank(p.vendor_number))),
