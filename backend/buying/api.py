@@ -86,6 +86,7 @@ def _line_out(ln: PurchaseOrderLine) -> dict:
         "item_name": ln.item.name,
         "item_number": ln.item.item_number,
         "hsn": ln.item.hsn,
+        "description": ln.description,
         "unit": ln.unit_id,
         "unit_name": ln.unit.short_name or ln.unit.name,
         "qty": _plain(ln.qty),
@@ -202,6 +203,10 @@ def _orders(company):
 
 class LineSerializer(serializers.Serializer):
     item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
+    # Left out: the item's purchase description.
+    description = serializers.CharField(
+        required=False, allow_blank=True, max_length=5000, trim_whitespace=False
+    )
     unit = serializers.IntegerField()
     qty = serializers.DecimalField(max_digits=18, decimal_places=6)
     rate = serializers.DecimalField(max_digits=18, decimal_places=6)
@@ -235,6 +240,12 @@ class OrderSerializer(serializers.Serializer):
     lines = LineSerializer(many=True)
     # true: submit straight after saving (the "Submit" button on a new order).
     submit = serializers.BooleanField(required=False, default=False)
+
+
+def _description(typed: str | None, item: Item) -> str:
+    """The line's description as plain lines; the item's own when none is sent."""
+    text = item.purchase_description if typed is None else typed
+    return "\n".join(line.rstrip() for line in text.splitlines()).strip()
 
 
 def _save_order(o: PurchaseOrder, data: dict) -> None:
@@ -340,6 +351,7 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
             PurchaseOrderLine(
                 position=n,
                 item=item,
+                description=_description(line.get("description"), item),
                 unit_id=line["unit"],
                 qty=line["qty"],
                 rate=line["rate"],
@@ -649,6 +661,7 @@ class OrderItemsView(APIView):
                     "name": i.name,
                     "item_number": i.item_number,
                     "hsn": i.hsn,
+                    "description": i.purchase_description,
                     "item_type": i.item_type,
                     "maintain_stock": i.maintain_stock,
                     "customer_provided": i.default_request_type == Item.CUSTOMER_PROVIDED,

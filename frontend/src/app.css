@@ -2156,51 +2156,9 @@ form.card .panel-card > h4 {
   margin: -12px -14px 0;
   padding: 9px 14px;
 }
-/* Formatted text: the editor on the item form and the text as shown */
-.rte {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.rte-label {
-  color: var(--green);
-  font-weight: 700;
-  text-transform: capitalize;
-}
-.rte-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.rte-pick {
-  width: 160px;
-}
-.rte-box {
-  min-height: 96px;
-  max-height: 260px;
-  overflow: auto;
-  padding: 8px 10px;
-  border: 1px solid var(--line, #c5d6cc);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--ink);
-  font-weight: 400;
-  text-transform: none;
-}
-.rte-box:focus {
-  outline: 2px solid var(--leaf);
-  outline-offset: -1px;
-}
-.rte-box ul,
-.rte-box ol,
-.rich ul,
-.rich ol {
-  margin: 4px 0;
-  padding-left: 22px;
-}
 .rich {
   margin: 8px 0 0;
+  white-space: pre-line;
 }
 
 /* Item edit page: folding sections (one open at a time), side panels at the right */
@@ -2652,4 +2610,19 @@ td.nowrap {
 .po-lines th,
 .po-lines td.num .small {
   white-space: nowrap;
+}
+/* A purchase order line's description: plain text under the item, a little smaller. */
+.po-lines textarea.po-desc {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  font-size: 13px;
+  resize: vertical;
+}
+.line-desc {
+  font-size: 12.5px;
+  color: var(--graphite);
+  white-space: pre-line;
+  margin-top: 2px;
 }

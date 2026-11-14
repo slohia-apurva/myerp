@@ -8,7 +8,6 @@ import { Combobox } from "./Combobox";
 import { HsnDescription, HsnPicker } from "./Hsn";
 import { RequestAdditionLink } from "./RequestAddition";
 import { useBrands } from "./Brands";
-import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
@@ -521,7 +520,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                   ["Batch No", i.batch_no],
                 ]}
               />
-              {i.sales_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.sales_description }} />}
+              {i.sales_description && <div className="rich">{i.sales_description}</div>}
             </Fold>
             <Fold
               title="Purchase"
@@ -538,7 +537,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                   ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
                 ]}
               />
-              {i.purchase_description && <div className="rich" dangerouslySetInnerHTML={{ __html: i.purchase_description }} />}
+              {i.purchase_description && <div className="rich">{i.purchase_description}</div>}
             </Fold>
             <Fold title="GST Rates" summary={rate ? `${plain(rate.rate)}% from ${showDate(rate.valid_from)} (in force)` : "No rate set"}>
               {i.gst_rates.length > 0 && (
@@ -1138,12 +1137,11 @@ function ItemForm(props: {
         {true && (
           <Section>
             <div className="item-fields">
-              <RichText
-                label="Sales description"
-                value={salesText}
-                onChange={setSalesText}
-                hint="The wording customers see for this item on quotations, orders and sales bills."
-              />
+              <label>
+                Sales description
+                <textarea rows={4} maxLength={5000} value={salesText} onChange={(e) => setSalesText(e.target.value)} />
+                <span className="small">The wording customers see for this item on quotations, orders and sales bills. Plain text: on print it shows smaller, under the item name.</span>
+              </label>
               <div className="item-cols wide">
                 <label>
                   Default sales unit
@@ -1191,12 +1189,11 @@ function ItemForm(props: {
         {true && (
           <Section>
             <div className="item-fields">
-              <RichText
-                label="Purchase description"
-                value={buyText}
-                onChange={setBuyText}
-                hint="The wording suppliers see for this item on purchase orders."
-              />
+              <label>
+                Purchase description
+                <textarea rows={4} maxLength={5000} value={buyText} onChange={(e) => setBuyText(e.target.value)} />
+                <span className="small">The wording suppliers see for this item on purchase orders. Plain text: on print it shows smaller, under the item name.</span>
+              </label>
               <div className="item-cols wide">
                 <label>
                   Default purchase unit

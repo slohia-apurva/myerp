@@ -109,6 +109,8 @@ class PurchaseOrderLine(models.Model):
     order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="lines")
     position = models.PositiveSmallIntegerField()
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    # Printed under the item name: the item's purchase description unless changed here.
+    description = models.TextField(blank=True)
     unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
     qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
     rate = models.DecimalField(**QTY, validators=[MinValueValidator(0)])

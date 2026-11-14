@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import duplicates, exchange, richtext
+from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.gst_rates import refuse_unlisted_rates
 from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
@@ -41,6 +41,8 @@ from core.models import (
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
 from tenancy.models import HsnCode
+
+DESCRIPTION_MAX = 5000
 
 CM3_PER_M3 = Decimal(1_000_000)
 
@@ -407,11 +409,13 @@ def _save_item(item: Item, data: dict) -> Item:
             for r in item.units.all()
         ]
         _resolve_chain(item.stock_unit, existing)
+    # Plain text (Sidharth, 2026-11-15): no formatting; prints smaller under the item name.
     for field in ("sales_description", "purchase_description"):
-        cleaned = richtext.clean(getattr(item, field))
-        if len(cleaned) > richtext.MAX_LENGTH:
+        lines = [line.rstrip() for line in (getattr(item, field) or "").splitlines()]
+        text = "\n".join(lines).strip()
+        if len(text) > DESCRIPTION_MAX:
             raise ValidationError({field: ["That description is too long; shorten it."]})
-        setattr(item, field, cleaned)
+        setattr(item, field, text)
     item.usp = " ".join(item.usp.split())
     item.batch_no = item.batch_no.strip()
     if (
@@ -558,14 +562,6 @@ exchange.register(
         queryset=lambda ctx: _queryset().order_by("name"),
         save=lambda ctx, item, data: _save_item(item or Item(), data),
         show=("item_number",),
-        codecs={
-            field: exchange.Codec(
-                richtext.to_text,
-                richtext.from_text,
-                hint="Plain text here; formatting is added on the item screen",
-            )
-            for field in ("sales_description", "purchase_description")
-        },
         labels={
             "stock_unit": "Default unit (stock unit)",
             "mrp": "MRP (₹)",
