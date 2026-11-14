@@ -247,6 +247,7 @@ def test_the_form_gets_suppliers_branches_and_items(buyer, world):
         "Darjeeling Tea Traders", "Assam Leaf Estates", "Village Farmer",
     }  # fmt: skip
     assert setup["branches"][0]["store"]
+    assert setup["supplier_group"]
     url = f"companies/{world['company']}/purchase-orders/items/?supplier={world['local']}"
     items = {i["name"]: i for i in call(buyer, "get", url).json()}
     assert items["CTC Tea"]["gst_rate"] == "5"
