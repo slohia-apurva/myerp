@@ -1632,7 +1632,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Preferred Transporter",
-              'Customers only, and only when the company has the Sales module: the transporter this company usually sends the customer\'s goods with, picked from the company\'s own "Transporters" (or "Create" a new one). Other companies can choose their own. It can be left empty.',
+              'For a customer (when the company has the Sales module): the transporter this company usually sends the customer\'s goods with. For a supplier (when the company has the Purchase module): the transporter that usually brings the supplier\'s goods; leave it at "By Supplier" if the supplier sends them. Picked from the company\'s own "Transporters" (or "Create" a new one). Other companies can choose their own. A purchase order takes the supplier\'s one, and you can change it there.',
             ],
           ]}
         />
@@ -1766,8 +1766,9 @@ export const MANUAL: Chapter[] = [
         </p>
         <p>
           On a transporter's line, "Preferred By" on the right shows how many
-          customers have it as their "Preferred Transporter" (see the chapter
-          "Ledgers"). Such a transporter counts as in use, so its courier and
+          customers and suppliers have it as their "Preferred Transporter" (see the
+          chapter "Ledgers"). Such a transporter, or one on a submitted purchase
+          order, counts as in use, so its courier and
           service stay locked, but you can still disable it: customers keep it
           and it is no longer offered to others.
         </p>
@@ -1972,8 +1973,10 @@ export const MANUAL: Chapter[] = [
             replaced by the name on the GST record. Fill in its credit terms and
             contacts and click "Save"; the tab closes and the order picks the
             new supplier with its credit term and contacts (only people who may
-            add masters see this). The supplier's "Credit Term"
-            fills in by itself; you can change it for this order. Fill in the
+            add masters see this). The supplier's "Credit Term" and
+            "Transporter" fill in by themselves; you can change them for this
+            order. "Transporter" is "By Supplier" when the supplier sends the
+            goods, or one of the company's transporters. Fill in the
             "Order Date", "Deliver To" (the branch the goods come to; the line
             under it says which store they go to), and if you like the
             "Expected Delivery" date and the "Supplier's Quote Ref".

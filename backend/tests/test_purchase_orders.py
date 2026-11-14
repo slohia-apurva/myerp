@@ -325,3 +325,33 @@ def test_the_agent_can_be_an_employee(buyer, world, alpha):
     ]
     both = call(buyer, "post", url, order(world, agent=world["far"], agent_user=rina)).json()
     assert both["agent_user"] == ["Pick one agent: a supplier firm or an employee."]
+
+
+def test_the_transporter_is_by_supplier_or_one_of_ours(buyer, world, alpha):
+    from shipping.models import CourierAccount
+
+    with use_tenant(alpha):
+        ours = CourierAccount.objects.create(company_id=world["company"], name="VRL Logistics")
+        other = create_company(name="Second Co", state_code="27")
+        theirs = CourierAccount.objects.create(company=other, name="Blue Dart")
+        off = CourierAccount.objects.create(
+            company_id=world["company"], name="Old Lorry", is_active=False
+        )
+        Ledger.objects.filter(pk=world["local"]).update(preferred_transporter=ours)
+    url = f"companies/{world['company']}/purchase-orders/"
+    # The form gets the company's transporters and the supplier's preferred one.
+    setup = call(buyer, "get", f"{url}setup/").json()
+    assert [t["name"] for t in setup["transporters"]] == ["Old Lorry", "VRL Logistics"]
+    local = next(s for s in setup["suppliers"] if s["id"] == world["local"])
+    assert local["transporter"] == ours.pk
+    # None means the supplier sends the goods.
+    plain = call(buyer, "post", url, order(world)).json()
+    assert plain["transporter"] is None and plain["transporter_name"] == "By Supplier"
+    po = call(buyer, "post", url, order(world, transporter=ours.pk, submit=True)).json()
+    assert po["transporter_name"] == "VRL Logistics"
+    for bad, says in ((theirs.pk, "of this company"), (off.pk, "disabled")):
+        refused = call(buyer, "post", url, order(world, transporter=bad))
+        assert says in str(refused.json())
+    # A transporter on a submitted order is in use.
+    with use_tenant(alpha):
+        assert "1 purchase order" in locks.uses("courier_account", ours)

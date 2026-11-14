@@ -46,6 +46,8 @@ export type PurchaseOrder = {
   expected_date: string | null;
   credit_term: number | null;
   credit_term_name: string;
+  transporter: number | null;
+  transporter_name: string;
   agent: number | null;
   agent_name: string;
   agent_user: number | null;
@@ -80,12 +82,21 @@ type Supplier = {
   gst_type_label: string;
   state_code: string;
   credit_term: number | null;
+  transporter: number | null;
   charges_gst: boolean;
   contacts: Contact[];
 };
 type BranchRow = { id: number; name: string; state_code: string; is_active: boolean; no_stock: boolean; store: string; receiving: string };
 type Employee = { id: number; name: string; email: string };
-type Setup = { company_name: string; suppliers: Supplier[]; branches: BranchRow[]; employees: Employee[]; supplier_group: number | null };
+type Transporter = { id: number; name: string; is_active: boolean };
+type Setup = {
+  company_name: string;
+  suppliers: Supplier[];
+  branches: BranchRow[];
+  employees: Employee[];
+  transporters: Transporter[];
+  supplier_group: number | null;
+};
 type BuyItem = {
   id: number;
   name: string;
@@ -313,6 +324,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                   ["Deliver To", selected.branch_name],
                   ["Expected", showDate(selected.expected_date)],
                   ["Credit Term", selected.credit_term_name],
+                  ["Transporter", selected.transporter_name],
                   ["Items", String(selected.line_count)],
                   ["Total", `₹${money(selected.total)}`],
                   ["Made By", selected.created_by_name],
@@ -408,11 +420,14 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const mayAddMasters = props.session.permissions.includes("masters.edit");
   const newTerm = mayAddMasters ? creatable("credit_term", "credit-terms", refreshTerms) : undefined;
   const addSupplier = mayAddMasters ? newSupplier(companyId, setup, refreshSetup) : undefined;
+  const newTransporter = mayAddMasters ? creatable("courier_account", `companies/${companyId}/couriers`, refreshSetup) : undefined;
   const [supplier, setSupplierId] = useState(from ? String(from.supplier) : "");
   const [branch, setBranch] = useState(from ? String(from.branch) : "");
   const [orderDate, setOrderDate] = useState(order?.order_date ?? today());
   const [expected, setExpected] = useState(order?.expected_date ?? "");
   const [term, setTerm] = useState(from?.credit_term ? String(from.credit_term) : "");
+  // "" is "By Supplier": the supplier sends the goods.
+  const [transporter, setTransporter] = useState(from?.transporter ? String(from.transporter) : "");
   const [ref, setRef] = useState(order?.supplier_ref ?? "");
   // The agent picker holds "l<ledger id>" for a supplier firm or "u<user id>" for an employee.
   const [agent, setAgentId] = useState(from?.agent ? `l${from.agent}` : from?.agent_user ? `u${from.agent_user}` : "");
@@ -473,6 +488,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     const s = setup?.suppliers.find((x) => String(x.id) === value);
     // The supplier's credit term comes with it; it can still be changed here.
     if (s) setTerm(s.credit_term ? String(s.credit_term) : "");
+    // So does its preferred transporter (none: "By Supplier").
+    if (s) setTransporter(s.transporter ? String(s.transporter) : "");
     // The new supplier's purchase contacts replace the old one's; the agent's stay.
     const agentIds = setup?.suppliers.find((x) => `l${x.id}` === agent)?.contacts.map((c) => c.id) ?? [];
     setMailTo((m) => [...(s ? mailedFirst(s.contacts) : []), ...m.filter((id) => agentIds.includes(id))]);
@@ -544,6 +561,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       order_date: orderDate,
       expected_date: expected || null,
       credit_term: term ? Number(term) : null,
+      transporter: transporter ? Number(transporter) : null,
       supplier_ref: ref,
       agent: agent.startsWith("l") ? Number(agent.slice(1)) : null,
       agent_user: agent.startsWith("u") ? Number(agent.slice(1)) : null,
@@ -656,6 +674,19 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                   options={terms.filter((t) => t.is_active || String(t.id) === term).map((t) => ({ value: String(t.id), label: t.name }))}
                 />
                 <span className="small">From the supplier; you can change it here</span>
+              </label>
+              <label>
+                Transporter
+                <Combobox
+                  value={transporter}
+                  onChange={setTransporter}
+                  empty="By Supplier"
+                  create={newTransporter}
+                  options={(setup?.transporters ?? [])
+                    .filter((t) => t.is_active || String(t.id) === transporter)
+                    .map((t) => ({ value: String(t.id), label: t.name }))}
+                />
+                <span className="small">From the supplier; "By Supplier" if the supplier sends the goods</span>
               </label>
               <label>
                 Supplier's Quote Ref
@@ -1042,6 +1073,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                   ["Deliver To", order.branch_name],
                   ["Expected Delivery", showDate(order.expected_date)],
                   ["Credit Term", order.credit_term_name],
+                  ["Transporter", order.transporter_name],
                   ["Supplier's Quote Ref", order.supplier_ref],
                   ["Made By", order.created_by_name],
                 ] as [string, string][]
