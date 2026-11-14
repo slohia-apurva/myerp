@@ -545,14 +545,18 @@ export const MANUAL: Chapter[] = [
             red * marks a field that must be filled in.
           </li>
           <li>
-            On the "Units of measure" tab, click "Add unit" for each other unit
-            the item is bought, sold or moved in. The stock unit is added for
-            you. For a Carton, say it contains 4 of "Inner box", and for an
-            Inner box that it contains 6 of "Packet"; the "= Packet" column then
-            shows 24 by itself. Fill in the length, breadth and height in
-            centimetres, the net and gross weight in kilograms, and the barcode.
-            Volume is worked out from the size. Under "Used for", tick where
-            each unit is the usual one.
+            In the "Units Of Measure" section, each unit the item is bought,
+            sold or moved in is one line, with "Edit" (and "Remove") on its
+            right. The stock unit is added for you. Click "Add unit" for each
+            other unit, or "Edit" to change one: a box opens under the lines.
+            For a Carton, say it contains 4 of "Inner box", and for an Inner box
+            that it contains 6 of "Packet"; the "= Packet" column then shows 24
+            by itself. Fill in the length, breadth and height in centimetres,
+            the net and gross weight in kilograms, and the barcode. Volume is
+            worked out from the size. Under "Used for", tick where each unit is
+            the usual one. Click "Done" to put the unit back as a line, or
+            "Cancel" to leave it as it was. Nothing is saved on the item until
+            you click "Save" at the top.
           </li>
           <li>
             If a customer or supplier calls the item by its own name or code,

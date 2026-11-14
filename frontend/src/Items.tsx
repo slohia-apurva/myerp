@@ -538,43 +538,49 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
               title="Units Of Measure"
               summary={`${i.units.length} ${i.units.length === 1 ? "unit" : "units"}${i.units.length ? `: ${i.units.map((u) => unit(u.unit, u.unit_name)).join(", ")}` : ""}`}
             >
-              <ul className="address-list cards-2">
-                {i.units.map((u) => {
-                  const size =
-                    u.length_cm && u.breadth_cm && u.height_cm
-                      ? `${plain(u.length_cm)} × ${plain(u.breadth_cm)} × ${plain(u.height_cm)} cm${u.volume_m3 ? ` · ${u.volume_m3} m³` : ""}`
-                      : "";
-                  const weight = [u.net_kg && `Net ${plain(u.net_kg)} kg`, u.gross_kg && `Gross ${plain(u.gross_kg)} kg`]
-                    .filter(Boolean)
-                    .join(" · ");
-                  return (
-                    <li key={u.unit} className="address-card">
-                      <div>
-                        <strong>{unit(u.unit, u.unit_name)}</strong>
-                      </div>
-                      <div>
-                        {u.contains_unit_name
-                          ? `${plain(u.contains_qty)} ${unit(u.contains_unit, u.contains_unit_name)}${
-                              u.contains_unit_name === i.stock_unit_name ? "" : ` = ${plain(u.factor)} ${unit(i.stock_unit, i.stock_unit_name)}`
-                            }`
-                          : "Stock unit"}
-                      </div>
-                      {size && <div className="small">{size}</div>}
-                      {weight && <div className="small">{weight}</div>}
-                      {u.barcode && <div className="small">Barcode {u.barcode}</div>}
-                      {u.used_for.length > 0 && (
-                        <div>
+              <div className="table-scroll">
+                <table className="grid unit-lines">
+                  <thead>
+                    <tr>
+                      <th>Unit</th>
+                      <th>Contains</th>
+                      <th className="num">= {i.stock_unit_name ? unit(i.stock_unit, i.stock_unit_name) : "Stock unit"}</th>
+                      <th>Size (Cm)</th>
+                      <th className="num">Net Kg</th>
+                      <th className="num">Gross Kg</th>
+                      <th>Barcode</th>
+                      <th>Used For</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {i.units.map((u) => (
+                      <tr key={u.unit}>
+                        <td>
+                          <b>{unit(u.unit, u.unit_name)}</b>
+                          {!u.contains_unit_name && <span className="pill"> Stock unit</span>}
+                        </td>
+                        <td>{u.contains_unit_name ? `${plain(u.contains_qty)} ${unit(u.contains_unit, u.contains_unit_name)}` : "—"}</td>
+                        <td className="num">{plain(u.factor)}</td>
+                        <td>
+                          {u.length_cm && u.breadth_cm && u.height_cm
+                            ? `${plain(u.length_cm)}×${plain(u.breadth_cm)}×${plain(u.height_cm)}`
+                            : "—"}
+                        </td>
+                        <td className="num">{u.net_kg ? plain(u.net_kg) : "—"}</td>
+                        <td className="num">{u.gross_kg ? plain(u.gross_kg) : "—"}</td>
+                        <td>{u.barcode || "—"}</td>
+                        <td>
                           {u.used_for.map((c) => (
                             <span key={c} className="pill on">
                               {usedLabel(c)}
                             </span>
                           ))}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {i.warnings.map((w) => (
                 <p key={w} className="small">
                   {w}
@@ -775,6 +781,41 @@ function ItemForm(props: {
     return list;
   };
   const setRate = (i: number, change: Partial<GstRate>) => setRates(rates.map((r, j) => (j === i ? { ...r, ...change } : r)));
+  // One unit at a time is edited in the box under the list; the others show as one line each.
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editBackup, setEditBackup] = useState<Row | null>(null); // null while adding a new unit
+  const [unitError, setUnitError] = useState("");
+  const startEdit = (i: number) => {
+    setUnitError("");
+    setEditBackup({ ...rows[i], used_for: [...rows[i].used_for] });
+    setEditing(i);
+  };
+  const addUnit = () => {
+    setUnitError("");
+    setEditBackup(null);
+    setRows([...rows, blankRow()]);
+    setEditing(rows.length);
+  };
+  const cancelEdit = () => {
+    if (editing === null) return;
+    setRows(editBackup ? rows.map((r, j) => (j === editing ? editBackup : r)) : rows.filter((_, j) => j !== editing));
+    setEditing(null);
+    setEditBackup(null);
+  };
+  const finishEdit = () => {
+    const r = editing === null ? undefined : rows[editing];
+    if (!r) return;
+    const isStock = r.unit !== "" && r.unit === stock;
+    if (!r.unit) return setUnitError("Pick the unit.");
+    if (!isStock && (!r.contains_qty.trim() || !r.contains_unit)) return setUnitError("Fill in how many of which unit it contains.");
+    setUnitError("");
+    setEditing(null);
+    setEditBackup(null);
+  };
+  const removeUnit = (i: number) => {
+    setRows(rows.filter((_, j) => j !== i));
+    if (editing !== null) setEditing(editing === i ? null : editing > i ? editing - 1 : editing);
+  };
   const setRow = (i: number, change: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const toggleUsed = (i: number, code: string, on: boolean) =>
     setRow(i, { used_for: on ? [...rows[i].used_for, code] : rows[i].used_for.filter((c) => c !== code) });
@@ -1218,11 +1259,68 @@ function ItemForm(props: {
             The stock unit is added for you. For every other unit say how many of which unit it contains; "= {stockName || "stock unit"}" is
             worked out from that.
           </p>
-          <ul className="address-list">
-            {rows.map((r, i) => {
-              const isStock = r.unit !== "" && r.unit === stock;
-              return (
-                <li key={i} className="address-card">
+          {rows.length > 0 && (
+            <div className="table-scroll">
+              <table className="grid unit-lines">
+                <thead>
+                  <tr>
+                    <th>Unit</th>
+                    <th>Contains</th>
+                    <th className="num">= {stockName || "Stock unit"}</th>
+                    <th>Size (Cm)</th>
+                    <th className="num">Net Kg</th>
+                    <th className="num">Gross Kg</th>
+                    <th>Barcode</th>
+                    <th>Used For</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => {
+                    const isStock = r.unit !== "" && r.unit === stock;
+                    return (
+                      <tr key={i} className={editing === i ? "sel" : ""}>
+                        <td>
+                          <b>{r.unit ? unitName(r.unit) : "New unit"}</b>
+                          {isStock && <span className="pill"> Stock unit</span>}
+                        </td>
+                        <td>{isStock || !r.contains_unit ? "—" : `${r.contains_qty} ${unitName(r.contains_unit)}`}</td>
+                        <td className="num">{r.unit && fac.has(r.unit) ? Number(fac.get(r.unit)!.toFixed(6)) : "—"}</td>
+                        <td>{r.length_cm && r.breadth_cm && r.height_cm ? `${r.length_cm}×${r.breadth_cm}×${r.height_cm}` : "—"}</td>
+                        <td className="num">{r.net_kg || "—"}</td>
+                        <td className="num">{r.gross_kg || "—"}</td>
+                        <td>{r.barcode || "—"}</td>
+                        <td>
+                          {r.used_for.map((c) => (
+                            <span key={c} className="pill on">
+                              {usedLabel(c)}
+                            </span>
+                          ))}
+                        </td>
+                        <td className="row-actions">
+                          <button type="button" className="link" onClick={() => startEdit(i)}>
+                            Edit
+                          </button>
+                          {!isStock && (
+                            <button type="button" className="link danger" onClick={() => removeUnit(i)}>
+                              Remove
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {editing !== null && rows[editing] && (() => {
+            const i = editing;
+            const r = rows[i];
+            const isStock = r.unit !== "" && r.unit === stock;
+            return (
+              <div className="address-card unit-edit">
+                <h4>{editBackup ? `Edit Unit${r.unit ? `: ${unitName(r.unit)}` : ""}` : "Add Unit"}</h4>
                   <div className="row">
                     <label>
                       <span className="req">Unit</span>
@@ -1307,20 +1405,25 @@ function ItemForm(props: {
                       </label>
                     ))}
                   </div>
-                  <div>
-                    <button type="button" className="link danger" onClick={() => setRows(rows.filter((_, j) => j !== i))}>
-                      Remove
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          <div>
-            <button type="button" className="link" onClick={() => setRows([...rows, blankRow()])}>
-              Add unit
-            </button>
-          </div>
+                {unitError && <p className="error">{unitError}</p>}
+                <div className="buttons">
+                  <button type="button" onClick={finishEdit}>
+                    Done
+                  </button>
+                  <button type="button" className="link" onClick={cancelEdit}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+          {editing === null && (
+            <div>
+              <button type="button" className="link" onClick={addUnit}>
+                Add unit
+              </button>
+            </div>
+          )}
         </Section>
         </Locked>
         )}
