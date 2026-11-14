@@ -458,8 +458,8 @@ export const MANUAL: Chapter[] = [
         <p>
           Double-click an item, press Enter, or click "Open" to see its own
           page, which opens in a new browser tab so the list stays open. It has folding sections: "General", "Sales", "Purchase", "GST
-          Rates", "Stock And Quality", "Units Of Measure" and "Connections".
-          Click a section's title bar to open or close it; a closed section
+          Rates", "Stock And Quality", "Units Of Measure", "Customer And Supplier
+          Names" and "Connections". Click a section's title bar to open or close it; a closed section
           still shows a line of its main values. "Switches" and "Activity" are
           in the panels on the right. People who may change items also see
           "Edit" and "Duplicate" in the green bar; "Close" shuts the tab.
@@ -478,8 +478,9 @@ export const MANUAL: Chapter[] = [
             page is titled "Add item" ("Edit item" when you change one) and has
             "Cancel" and "Save" in the green bar. Below the item name are
             folding sections: "General", "Sales", "Purchase", "GST rates",
-            "Stock and quality", "Units of measure" and "Connections" (empty for
-            now: it will list the documents that use the item). Click a
+            "Stock and quality", "Units of measure", "Customer and supplier names" and
+            "Connections" (empty for now: it will list the documents that use
+            the item). Click a
             section's title bar to open it; one section is open at a time and a
             closed one still shows a line of its main values.
           </li>
@@ -547,10 +548,19 @@ export const MANUAL: Chapter[] = [
             Volume is worked out from the size. Under "Used for", tick where
             each unit is the usual one.
           </li>
+          <li>
+            If a customer or supplier calls the item by its own name or code,
+            open "Customer And Supplier Names", type the party in "Add Customer
+            Or Supplier", pick it, and fill in "Their Item Name", "Their Item
+            Code" or both. Click "Remove" on a row to take it off.
+          </li>
           <li>Click "Save".</li>
         </ol>
         <Note>
-          A missing size is only a reminder under the table, not an error, so
+          A party's item code can belong to only one item, so a code from a
+          scanned e-invoice always finds one item. A party appears once on an
+          item, and each row needs a name, a code or both. A duplicate starts
+          with no customer or supplier names. A missing size is only a reminder under the table, not an error, so
           you can add an item before it has been measured. "Whole numbers only"
           on a unit (for example cartons) will stop a quantity such as 2.5 on
           documents. A barcode can belong to one item only.
@@ -1450,7 +1460,11 @@ export const MANUAL: Chapter[] = [
           an item off; remove every row to allow any item again. A disabled
           item, or one with "Allow sales" (customers) or "Allow purchase"
           (suppliers) unticked, stays off even when it is listed. Prices are
-          not kept here.
+          not kept here. The tab also shows "Their Item Name" and "Their Item
+          Code" for each listed item, as set on the item under "Customer And
+          Supplier Names"; they are read only here. Click "Actions" above the
+          table, then "Print" or "Download PDF", for this party's item list
+          with their names and codes.
         </p>
         <p>
           The "Labels" tab, which only customers have, is empty for now. It will hold the label format for

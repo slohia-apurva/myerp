@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { Combobox } from "./Combobox";
 import { Section } from "./Brand";
+import { usePrintMenu } from "./Exchange";
 
 export type PartyProduct = {
   item: number;
   item_number?: string;
   item_name?: string;
   item_active?: boolean;
+  /** What this party calls the item; kept on the item and shown here read only. */
+  their_name?: string;
+  their_code?: string;
 };
 
 type ItemRow = { id: number; item_number: string; name: string; is_active: boolean };
@@ -20,11 +24,13 @@ export function PartyProducts({
   onChange,
   supplier,
   canEdit,
+  partyName,
 }: {
   value: PartyProduct[];
   onChange: (rows: PartyProduct[]) => void;
   supplier: boolean;
   canEdit: boolean;
+  partyName?: string;
 }) {
   const [items, setItems] = useState<ItemRow[]>([]);
   useEffect(() => {
@@ -45,6 +51,19 @@ export function PartyProducts({
       active: live ? live.is_active : (r.item_active ?? true),
     };
   });
+  // The table sits inside the party's form, so the print sheet is given directly:
+  // item number, item name and what this party calls it, for a customer-wise or supplier-wise list.
+  const printing = usePrintMenu({
+    title: `Items of ${partyName || (supplier ? "supplier" : "customer")}`,
+    scope: supplier ? "Supplier's item list" : "Customer's item list",
+    read: () => [
+      {
+        title: "Products",
+        columns: ["Item No", "Item Name", "Their Item Name", "Their Item Code"],
+        rows: rows.map((r) => [r.number, r.name, r.their_name ?? "", r.their_code ?? ""]),
+      },
+    ],
+  });
   return (
     <>
       <Section>
@@ -64,6 +83,11 @@ export function PartyProducts({
         )}
       </Section>
       <Section title={`Products (${value.length} listed)`}>
+        <div className="page-head">
+          <span />
+          {printing.buttons}
+        </div>
+        {printing.panel}
         {canEdit && (
           <label>
             Add Product
@@ -84,13 +108,15 @@ export function PartyProducts({
             <tr>
               <th>Item No</th>
               <th>Item Name</th>
+              <th>Their Item Name</th>
+              <th>Their Item Code</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={3} className="small">
+                <td colSpan={5} className="small">
                   Nothing added. Any item is allowed.
                 </td>
               </tr>
@@ -101,6 +127,8 @@ export function PartyProducts({
                 <td>
                   {r.name} {!r.active && <span className="pill">Disabled: stays off</span>}
                 </td>
+                <td>{r.their_name}</td>
+                <td>{r.their_code}</td>
                 <td>
                   {canEdit && (
                     <button
@@ -116,6 +144,13 @@ export function PartyProducts({
             ))}
           </tbody>
         </table>
+        <p className="small">
+          Their item name and code are changed on the item, under "Customer And Supplier Names".{" "}
+          <a href="#/items" target="_blank" rel="noreferrer">
+            Open the items
+          </a>{" "}
+          (new tab).
+        </p>
       </Section>
     </>
   );

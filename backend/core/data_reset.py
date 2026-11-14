@@ -50,6 +50,7 @@ from core.models import (
     PartyContact,
     PartyDocument,
     PartyDocumentFile,
+    PartyItemName,
     PartyProduct,
     Unit,
     WarehouseLocation,
@@ -152,6 +153,7 @@ def _backup(level: str, scope) -> str:
         objects += list(PartyAddress.objects.filter(party__in=parties))
         objects += list(PartyContact.objects.filter(party__in=parties))
         objects += list(PartyProduct.objects.filter(party__in=parties))
+        objects += list(PartyItemName.objects.filter(party__in=parties))
         objects += list(PartyDocument.objects.filter(party__in=parties))
         objects += list(PartyDocumentFile.objects.filter(document__party__in=parties))
     if level == "all":

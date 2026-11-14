@@ -72,10 +72,14 @@ export type Item = {
   is_active: boolean;
   units: ItemUnit[];
   gst_rates: GstRate[];
+  party_names: PartyName[];
   warnings: string[];
   lock?: LockInfo;
 };
 export type GstRate = { valid_from: string; rate: string };
+/** What one customer or supplier calls the item: their own name and/or code. */
+export type PartyName = { party: number; party_name?: string; party_kind?: string; name: string; code: string };
+type PartyRow = { id: number; name: string; customer_number: string; vendor_number: string; is_active?: boolean };
 
 const TYPES: [string, string][] = [
   ["goods", "Goods"],
@@ -126,6 +130,10 @@ function viewParam(): number | null {
 }
 
 /** Open an item's own page in a new tab, beside the list. */
+/** "Customer", "Supplier" or both, from the numbers the party was given. */
+const partyKind = (p?: { customer_number: string; vendor_number: string }) =>
+  [p?.customer_number && "Customer", p?.vendor_number && "Supplier"].filter(Boolean).join(", ");
+
 function openItemView(id: number) {
   window.open(`${window.location.pathname}${window.location.search}#/items?view=${id}`, "_blank");
 }
@@ -548,6 +556,36 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 </p>
               ))}
             </Fold>
+            <Fold
+              title="Customer And Supplier Names"
+              summary={`${i.party_names.length} ${i.party_names.length === 1 ? "name" : "names"}`}
+            >
+              {i.party_names.length === 0 ? (
+                <p className="small">No customer or supplier has its own name or code for this item.</p>
+              ) : (
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>Customer Or Supplier</th>
+                      <th>Their Item Name</th>
+                      <th>Their Item Code</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {i.party_names.map((r) => (
+                      <tr key={r.party}>
+                        <td>
+                          {r.party_name}
+                          {r.party_kind && <span className="small"> · {r.party_kind}</span>}
+                        </td>
+                        <td>{r.name}</td>
+                        <td>{r.code}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Fold>
             <Fold title="Connections" summary="No documents yet" />
           </div>
           <div className="side-col">
@@ -677,6 +715,12 @@ function ItemForm(props: {
   const [buyText, setBuyText] = useState(from?.purchase_description ?? "");
   const [buyUnit, setBuyUnit] = useState(from?.purchase_unit == null ? "" : String(from.purchase_unit));
   const [rates, setRates] = useState<GstRate[]>((from?.gst_rates ?? []).map((r) => ({ ...r, rate: plain(r.rate) })));
+  // A duplicate starts with no customer or supplier names: a party's code belongs to one item only.
+  const [names, setNames] = useState<PartyName[]>(props.copyOf ? [] : (from?.party_names ?? []).map((r) => ({ ...r })));
+  const [parties, setParties] = useState<PartyRow[]>([]);
+  useEffect(() => {
+    api<PartyRow[]>("v1/parties/").then(setParties);
+  }, []);
   const [rows, setRows] = useState<Row[]>(
     (from?.units ?? []).map((u) => {
       const r = rowOf(u);
@@ -685,7 +729,7 @@ function ItemForm(props: {
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"general" | "sales" | "purchase" | "gst" | "stock" | "units" | "connections">("general");
+  const [tab, setTab] = useState<"general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "connections">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -756,6 +800,7 @@ function ItemForm(props: {
       purchase_description: buyText,
       purchase_unit: buyUnit ? Number(buyUnit) : null,
       gst_rates: rates.filter((r) => r.valid_from || r.rate).map((r) => ({ valid_from: r.valid_from, rate: r.rate.trim() })),
+      party_names: names.filter((r) => r.party).map((r) => ({ party: r.party, name: r.name.trim(), code: r.code.trim() })),
       units: rows
         .filter((r) => r.unit)
         .map((r) => ({
@@ -788,6 +833,7 @@ function ItemForm(props: {
     ["gst", "GST Rates", `${rates.length} ${rates.length === 1 ? "rate" : "rates"}`],
     ["stock", "Stock And Quality", [batches ? "Batches tracked" : "", qc ? "Quality check on receipt" : ""].filter(Boolean).join(" · ")],
     ["units", "Units Of Measure", `${rows.length} ${rows.length === 1 ? "unit" : "units"}`],
+    ["names", "Customer And Supplier Names", `${names.length} ${names.length === 1 ? "name" : "names"}`],
     ["connections", "Connections", "No documents yet"],
   ] as const;
   return (
@@ -1233,10 +1279,82 @@ function ItemForm(props: {
         )}
           </div>}
         </div>
+        <div className={"fold" + (tab === "names" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "names"} onClick={() => setTab("names")}>
+            <span className="fold-title">{folds[6][1]}</span>
+            {tab !== "names" && <span className="fold-summary">{folds[6][2]}</span>}
+          </button>
+          {tab === "names" && <div className="fold-body">
+            <Section>
+              <p className="small">
+                The name and code a customer or supplier uses for this item. They show on that party's Products tab and
+                will print on its documents. A party's code can belong to only one item.
+              </p>
+              {names.length > 0 && (
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>Customer Or Supplier</th>
+                      <th>Their Item Name</th>
+                      <th>Their Item Code</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {names.map((r, k) => (
+                      <tr key={r.party}>
+                        <td>
+                          {parties.find((x) => x.id === r.party)?.name ?? r.party_name}
+                          <span className="small"> · {partyKind(parties.find((x) => x.id === r.party)) || r.party_kind}</span>
+                        </td>
+                        <td>
+                          <input
+                            aria-label="Their item name"
+                            maxLength={120}
+                            value={r.name}
+                            onChange={(e) => setNames(names.map((x, j) => (j === k ? { ...x, name: e.target.value } : x)))}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            aria-label="Their item code"
+                            maxLength={40}
+                            value={r.code}
+                            onChange={(e) => setNames(names.map((x, j) => (j === k ? { ...x, code: e.target.value } : x)))}
+                          />
+                        </td>
+                        <td>
+                          <button type="button" className="link danger" onClick={() => setNames(names.filter((_, j) => j !== k))}>
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <label>
+                Add Customer Or Supplier
+                <Combobox
+                  value=""
+                  placeholder="Type to search customers and suppliers…"
+                  ariaLabel="Add customer or supplier"
+                  options={parties
+                    .filter((x) => !names.some((n) => n.party === x.id))
+                    .map((x) => ({ value: String(x.id), label: `${x.name}${partyKind(x) ? ` · ${partyKind(x)}` : ""}` }))}
+                  onChange={(v) => {
+                    const id = Number(v);
+                    if (id) setNames([...names, { party: id, name: "", code: "" }]);
+                  }}
+                />
+              </label>
+            </Section>
+          </div>}
+        </div>
         <div className={"fold" + (tab === "connections" ? " open" : "")}>
           <button type="button" className="fold-head" aria-expanded={tab === "connections"} onClick={() => setTab("connections")}>
-            <span className="fold-title">{folds[6][1]}</span>
-            {tab !== "connections" && <span className="fold-summary">{folds[6][2]}</span>}
+            <span className="fold-title">{folds[7][1]}</span>
+            {tab !== "connections" && <span className="fold-summary">{folds[7][2]}</span>}
           </button>
           {tab === "connections" && <div className="fold-body">
         {true && (

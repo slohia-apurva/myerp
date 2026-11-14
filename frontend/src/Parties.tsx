@@ -459,6 +459,7 @@ export function PartyFields({
           onChange={(products) => set({ products })}
           supplier={supplier}
           canEdit={canEdit ?? true}
+          partyName={p.name}
         />
       </div>
 

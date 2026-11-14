@@ -1046,6 +1046,33 @@ class PartyProduct(models.Model):
         return f"{self.party} / {self.item}"
 
 
+class PartyItemName(models.Model):
+    """What a customer or supplier calls one of our items: their own name and/or
+    code (Sidharth, 2026-11-14). Kept on the item and shown, read only, on the
+    party's Products tab. A party's code belongs to one item only, so a scanned
+    code always finds one item."""
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="party_names")
+    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="item_names")
+    name = models.CharField(max_length=120, blank=True)
+    code = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(fields=["item", "party"], name="party_item_name_once"),
+            models.UniqueConstraint(
+                "party",
+                Lower("code"),
+                condition=~models.Q(code=""),
+                name="party_item_code_once",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.party} / {self.item}"
+
+
 class PartyDocument(models.Model):
     """A paper kept for a customer or supplier: its GST registration, FSSAI
     licence, agreement, cancelled cheque. Like a company's licences it has a
