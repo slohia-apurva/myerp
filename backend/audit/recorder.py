@@ -30,6 +30,7 @@ from django.db.models.signals import m2m_changed, post_delete, post_save, pre_de
 # Field labels as the screens show them, where Django's default
 # (the field name with spaces) would read oddly.
 LABELS = {
+    "credentials_updated_at": "API credentials saved on",
     "abbr": "Short code",
     "gstin": "GSTIN",
     "pan": "PAN",
@@ -100,6 +101,7 @@ LABELS = {
 # Fields that are internal or change by themselves.
 SKIP = {
     "id",
+    "credentials",  # never logged: only the date they were saved shows
     "created_at",
     "base_currency",
     "code",

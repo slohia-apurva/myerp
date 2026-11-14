@@ -109,6 +109,9 @@ ALLOW_DATA_RESET = env_bool("MYERP_ALLOW_DATA_RESET", False)
 # Sign-in emails (comma separated) of MyERP platform admins, who alone may open
 # the central admin screen (core/central.py). Not the same as a customer's Owner.
 MYERP_PLATFORM_ADMINS = env("MYERP_PLATFORM_ADMINS", "")
+# The key that locks customers' API secrets (core/secrets.py): a Fernet key kept
+# outside the database. Blank in production means secrets cannot be saved yet.
+MYERP_SECRETS_KEY = env("MYERP_SECRETS_KEY", "")
 # A sign-in lasts a working day; closing the browser does not end it.
 SESSION_COOKIE_AGE = 60 * 60 * 12
 SESSION_COOKIE_HTTPONLY = True

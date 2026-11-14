@@ -16,6 +16,8 @@ export type Carrier = {
   kind: string;
   kind_label: string;
   awb_hint: string;
+  integration: string;
+  credential_fields: { key: string; label: string; secret: boolean }[];
   is_active: boolean;
 };
 
@@ -30,6 +32,7 @@ export type CourierAccount = Contact & {
   service_label: string;
   account_code: string;
   notes: string;
+  credential_fields?: { key: string; label: string; secret: boolean; saved: boolean; value: string }[];
   is_active: boolean;
 };
 

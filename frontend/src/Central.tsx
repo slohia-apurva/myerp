@@ -139,8 +139,16 @@ type Courier = {
   awb_pattern: string;
   awb_hint: string;
   tracking_url: string;
+  integration: string;
+  credential_fields: { key?: string; label: string; secret: boolean }[];
   is_active: boolean;
 };
+
+const INTEGRATIONS: [string, string][] = [
+  ["none", "None"],
+  ["tracking", "Tracking only"],
+  ["booking", "Booking and tracking"],
+];
 
 const KINDS: [string, string][] = [
   ["courier", "Courier"],
@@ -197,6 +205,7 @@ function Couriers() {
             <th>Kind</th>
             <th>Tracking number</th>
             <th>Tracking page</th>
+            <th>Integration</th>
             <th />
           </tr>
         </thead>
@@ -214,6 +223,7 @@ function Couriers() {
                   <span className="small">{c.tracking_url}</span>
                 )}
               </td>
+              <td>{INTEGRATIONS.find(([k]) => k === c.integration)?.[1]}</td>
               <td className="row-actions">
                 <button
                   type="button"
@@ -427,6 +437,8 @@ function CourierForm(props: {
   const [hint, setHint] = useState(c?.awb_hint ?? "");
   const [pattern, setPattern] = useState(c?.awb_pattern ?? "");
   const [url, setUrl] = useState(c?.tracking_url ?? "");
+  const [integration, setIntegration] = useState(c?.integration ?? "none");
+  const [creds, setCreds] = useState(c?.credential_fields ?? []);
   const [error, setError] = useState<unknown>("");
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -437,6 +449,8 @@ function CourierForm(props: {
       awb_hint: hint,
       awb_pattern: pattern,
       tracking_url: url,
+      integration,
+      credential_fields: integration === "none" ? [] : creds,
     };
     try {
       if (c) await api(`v1/central/carriers/${c.id}/`, body, "PATCH");
@@ -495,6 +509,65 @@ function CourierForm(props: {
             onChange={(e) => setUrl(e.target.value)}
           />
         </label>
+      </Section>
+      <Section title="Integration">
+        <label>
+          Integration
+          <Combobox
+            value={integration}
+            onChange={setIntegration}
+            options={INTEGRATIONS.map(([value, label]) => ({ value, label }))}
+          />
+        </label>
+        {integration !== "none" && (
+          <>
+            <b>Credentials The Customer Supplies</b>
+            {creds.map((f, i) => (
+              <div className="row" key={f.key ?? `new${i}`}>
+                <label>
+                  Label
+                  <input
+                    value={f.label}
+                    placeholder="e.g. API Key"
+                    onChange={(e) =>
+                      setCreds(creds.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
+                    }
+                  />
+                </label>
+                <label className="tick">
+                  <input
+                    type="checkbox"
+                    checked={f.secret}
+                    onChange={(e) =>
+                      setCreds(creds.map((x, j) => (j === i ? { ...x, secret: e.target.checked } : x)))
+                    }
+                  />
+                  Secret
+                </label>
+                <button
+                  type="button"
+                  className="link danger"
+                  onClick={() => setCreds(creds.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <div>
+              <button
+                type="button"
+                className="link"
+                onClick={() => setCreds([...creds, { label: "", secret: false }])}
+              >
+                Add credential
+              </button>
+            </div>
+            <p className="small">
+              Each company enters its own values on its transporter. A secret is stored locked and
+              never shown again.
+            </p>
+          </>
+        )}
       </Section>
       <ErrorNote error={error} />
       <div className="buttons">

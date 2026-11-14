@@ -228,10 +228,22 @@ function AccountForm(props: {
   const [code, setCode] = useState(props.copyOf ? "" : (a?.account_code ?? ""));
   const [notes, setNotes] = useState(from?.notes ?? "");
   const [forCentral, setForCentral] = useState("");
+  // The company's own API login: plain values come back to edit; a secret is
+  // only ever "saved", and is sent again only when someone presses Change.
+  const [creds, setCreds] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (props.copyOf ? [] : (a?.credential_fields ?? [])).filter((f) => !f.secret).map((f) => [f.key, f.value]),
+    ),
+  );
+  const [changing, setChanging] = useState<string[]>([]);
   const [disabled, setDisabled] = useState(a ? !a.is_active : false);
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
   const locked = (field: string) => isLocked(a?.lock, field);
+  const pickedCarrier = props.carriers.find((c) => String(c.id) === carrierId);
+  const credFields = pickedCarrier?.credential_fields ?? [];
+  const savedSecret = (key: string) =>
+    !props.copyOf && Number(carrierId) === a?.carrier_id && !!a?.credential_fields?.find((f) => f.key === key)?.saved;
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -245,6 +257,15 @@ function AccountForm(props: {
       account_code: code,
       notes,
       ...(carrierId ? {} : { note_for_central: forCentral }),
+      ...(credFields.length
+        ? {
+            credentials: Object.fromEntries(
+              credFields
+                .filter((f) => !f.secret || changing.includes(f.key) || !savedSecret(f.key))
+                .map((f) => [f.key, creds[f.key] ?? ""]),
+            ),
+          }
+        : {}),
       ...contact,
     };
     try {
@@ -275,7 +296,7 @@ function AccountForm(props: {
       disabled={a ? { value: disabled, set: setDisabled } : undefined}
       tips={
         <p className="small">
-          API keys and passwords are never kept here; they are set up separately when a courier is connected.
+          API credentials appear when the courier in MyERP's list supports them. Secrets are kept locked and never shown again.
         </p>
       }
       activity={a ? <ChangeLog type="courier_account" id={a.id} stamp={JSON.stringify(a)} /> : undefined}
@@ -352,6 +373,36 @@ function AccountForm(props: {
       <Section title="Contact">
         <ContactFields value={contact} onChange={setContact} noAddress />
       </Section>
+      {credFields.length > 0 && (
+        <Section title="API Credentials">
+          <p className="small">
+            Your own login with {pickedCarrier?.name}. It is kept for this transporter only; a secret is stored
+            locked and never shown again.
+          </p>
+          <div className="item-fields">
+            {credFields.map((f) => (
+              <label key={f.key}>
+                {f.label}
+                {f.secret && savedSecret(f.key) && !changing.includes(f.key) ? (
+                  <span className="saved-secret">
+                    Saved · ●●●●●●●●{" "}
+                    <button type="button" className="link" onClick={() => setChanging([...changing, f.key])}>
+                      Change
+                    </button>
+                  </span>
+                ) : (
+                  <input
+                    type={f.secret ? "password" : "text"}
+                    autoComplete="off"
+                    value={creds[f.key] ?? ""}
+                    onChange={(e) => setCreds({ ...creds, [f.key]: e.target.value })}
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+        </Section>
+      )}
       <Section title="Booking and Tracking">
         <div className="item-fields">
           <label>

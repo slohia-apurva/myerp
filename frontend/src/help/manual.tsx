@@ -750,6 +750,13 @@ export const MANUAL: Chapter[] = [
             shipments get a "Track" link. "Tracking number pattern" is optional:
             a regular expression that a tracking number must match.
           </li>
+          <li>
+            Set "Integration" to "Tracking only" or "Booking and tracking" when
+            customers can connect their own login with the courier. Under
+            "Credentials The Customer Supplies", click "Add credential" for each
+            thing a customer must enter, such as "Client ID" or "API Key", and
+            tick "Secret" for passwords and keys.
+          </li>
           <li>Click "Save".</li>
         </ol>
         <p>
@@ -1705,9 +1712,14 @@ export const MANUAL: Chapter[] = [
         />
         <p>
           The pickup address and other details a booking needs come from the
-          sales invoice, not from this form. API keys and passwords are not kept
-          here either; they are set up separately when a courier is connected.
-          Once a shipment has been entered against a transporter, its "Courier
+          sales invoice, not from this form. When the courier you picked lists
+          credentials, the form shows an "API Credentials" box with one entry
+          for each, where you put your own login with that courier. A secret is
+          stored locked and is never shown again: it appears as "Saved" with a
+          "Change" button, and leaving it alone keeps it. Each company has its
+          own credentials, "Duplicate" does not copy them, they are left out of
+          the Excel file, and the activity log shows only the date they were
+          saved, never the values. Once a shipment has been entered against a transporter, its "Courier
           in MyERP's list" and "Service" cannot be changed. The name, GSTIN and
           notes can still be corrected. A transporter in use shows a line "In
           use: ..." at the top of its form and those two fields are greyed with
