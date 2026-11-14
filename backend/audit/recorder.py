@@ -156,6 +156,7 @@ def _register() -> None:
         Ledger,
         LedgerGroup,
         NumberFormat,
+        PriceList,
         Unit,
         WarehouseLocation,
     )
@@ -248,6 +249,12 @@ def _register() -> None:
                 "Credit terms",
                 lambda r: None,
                 extras={"parts": ("Parts", lambda t: "; ".join(map(str, t.parts.all())) or None)},
+            ),
+            PriceList: Tracked(
+                "price_list",
+                "Price list",
+                lambda r: None,
+                extras={"prices": ("Prices", lambda p: f"{p.lines.count()} lines")},
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),
             ItemGroup: Tracked("item_group", "Item group", lambda r: None),

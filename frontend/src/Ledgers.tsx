@@ -4,6 +4,7 @@ import { useOpenParam } from "./ErrorNote";
 import { FormEvent, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
+import { priceBody } from "./PriceLines";
 import { blankParty, GstinField, PartyFields, PartyNumber, PartySummary, type Party, type PartyTab } from "./Parties";
 import { longDate, money, useStates, type Company, type Group } from "./Companies";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
@@ -632,7 +633,7 @@ function LedgerForm(props: {
       currency: foreign ? currency : null,
       ...(isParty
         ? {
-            party: { ...party, credit_limit: party.credit_limit || "0" },
+            party: { ...party, item_prices: undefined, credit_limit: party.credit_limit || "0" },
             also_in: alsoIn,
             ...(partyId ? { party_id: partyId } : {}),
           }
@@ -655,6 +656,11 @@ function LedgerForm(props: {
       const saved = l
         ? await api<Ledger>(`v1/ledgers/${l.id}/`, body, "PATCH")
         : await api<Ledger>(`v1/companies/${props.companyId}/ledgers/`, body);
+      // A customer's own item prices are one set of data kept apart from the party.
+      const partyIdNow = saved?.party?.id ?? party.id;
+      if (isParty && party.item_prices !== undefined && partyIdNow && chosen?.nature !== "liability") {
+        await api(`v1/parties/${partyIdNow}/item-prices/`, priceBody(party.item_prices), "PUT");
+      }
       props.onDone(saved ? { id: saved.id, name: saved.name } : undefined);
     } catch (err) {
       setError(err);
@@ -811,7 +817,7 @@ function LedgerForm(props: {
   );
   const dis = props.readOnly;
   // Folding sections, one open at a time, in the order shown (Sidharth, 2026-11-14).
-  const ORDER: Record<string, number> = { general: 1, bank: 2, extra: 3, details: 4, addresses: 5, contacts: 6, documents: 7, products: 8, labels: 9 };
+  const ORDER: Record<string, number> = { general: 1, bank: 2, extra: 3, details: 4, addresses: 5, contacts: 6, documents: 7, products: 8, prices: 9, labels: 10 };
   const TITLE: Record<string, string> = {
     general: "Ledger",
     bank: "Bank Details",
@@ -821,6 +827,7 @@ function LedgerForm(props: {
     contacts: "Contacts",
     documents: "Documents",
     products: "Products",
+    prices: "Item Prices",
     labels: "Labels",
   };
   const openingText = billWise
@@ -841,6 +848,7 @@ function LedgerForm(props: {
     contacts: `${party.contacts.length} ${party.contacts.length === 1 ? "contact" : "contacts"}`,
     documents: `${party.document_count ?? 0} documents`,
     products: (party.products ?? []).length ? `${(party.products ?? []).length} items` : "Any item",
+    prices: (party.item_prices ?? []).length ? `${(party.item_prices ?? []).length} prices` : "",
     labels: "",
   };
   const fold = (code: string, body: ReactNode) => (

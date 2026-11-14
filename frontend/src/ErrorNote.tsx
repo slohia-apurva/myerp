@@ -16,6 +16,8 @@ export function existingHref(e: Existing): string | null {
       return `#/item-groups?open=${e.id}`;
     case "credit_term":
       return `#/credit-terms?open=${e.id}`;
+    case "price_list":
+      return `#/price-lists?open=${e.id}`;
     case "role":
       return `#/roles?open=${e.id}`;
     case "user":
