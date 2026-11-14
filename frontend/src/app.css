@@ -2508,3 +2508,148 @@ table.unit-lines tr.sel td.row-actions {
     border-top-right-radius: 12px;
   }
 }
+
+/* Entry menu: Purchase opens its own list to the right on hover (Sidharth, 2026-11-14) */
+.menu-sub {
+  position: relative;
+}
+.topbar .menu-panel .menu-sub > button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.topbar .menu-panel .menu-sub > button:hover,
+.menu-sub.open > button {
+  background: var(--mint) !important;
+  color: var(--deep-green) !important;
+}
+.menu-flyout {
+  position: absolute;
+  left: 100%;
+  top: -6px;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(31, 41, 51, 0.12);
+  padding: 6px 0;
+  display: none;
+  flex-direction: column;
+}
+.menu-sub:hover > .menu-flyout,
+.menu-sub.open > .menu-flyout {
+  display: flex;
+}
+.menu-flyout .soon {
+  padding: 10px 16px;
+  color: var(--slate);
+  font-size: 14px;
+}
+@media (max-width: 720px) {
+  .menu-flyout {
+    position: static;
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
+    padding-left: 12px;
+  }
+}
+
+/* Entry screens (purchase order): full width, totals and activity in boxes below */
+.doc-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.doc-head {
+  background: #fff;
+  border: 1px solid var(--mint-line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0;
+}
+.doc-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+.doc-foot {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .doc-foot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.doc-page .fold-body label .small,
+.po-lines td .small {
+  display: block;
+  margin-top: 3px;
+}
+.po-lines .po-item {
+  min-width: 260px;
+}
+.po-lines .po-unit {
+  min-width: 90px;
+}
+.po-lines td.num input {
+  min-width: 80px;
+  text-align: right;
+}
+.doc-page .fold-body label {
+  color: var(--green);
+  font-weight: 700;
+}
+.doc-page .fold-body label :is(input, textarea, .combo, .combo *, .small) {
+  color: var(--ink);
+  font-weight: 400;
+}
+.doc-page .fold-body label .small {
+  color: var(--slate);
+}
+.fact-label {
+  color: var(--green);
+  font-size: 14px;
+}
+/* A list with a search box over every column */
+tr.col-search th {
+  padding: 4px 4px 6px;
+}
+tr.col-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  font-size: 13px;
+  font-weight: 400;
+}
+.po-view {
+  width: 300px;
+  max-width: 100%;
+}
+td.nowrap {
+  white-space: nowrap;
+}
+.po-lines .po-item {
+  width: 38%;
+}
+.po-lines td.num input {
+  width: 100px;
+  min-width: 0;
+}
+.po-lines th,
+.po-lines td.num .small {
+  white-space: nowrap;
+}

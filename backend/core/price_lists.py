@@ -353,6 +353,19 @@ def rate_for(
     "selling") or supplier's (side "buying") own prices for the item once one
     has started (if none fits the quantity, no rate), otherwise its price list,
     otherwise None."""
+    return find_rate(party, item, unit, qty, on, side)[0]
+
+
+def find_rate(
+    party: Party | None,
+    item: Item,
+    unit: Unit,
+    qty,
+    on: datetime.date,
+    side: str = PriceList.SELLING,
+) -> tuple[Decimal | None, str]:
+    """`rate_for` with where the rate came from, for the screen to say: "own"
+    (the party's own Item Prices), the price list's name, or "" (no rate)."""
     qty = Decimal(qty)
     list_id = None
     if party is not None:
@@ -361,12 +374,12 @@ def rate_for(
         if own:
             line = _in_force(own, qty, on)
             if line is not None:
-                return line.rate
+                return line.rate, "own"
             if any(ln.from_date <= on for ln in own):
-                return None
+                return None, ""
     if list_id:
         theirs = PriceListLine.objects.filter(price_list_id=list_id, item=item, unit=unit)
-        line = _in_force(list(theirs), qty, on)
+        line = _in_force(list(theirs.select_related("price_list")), qty, on)
         if line is not None:
-            return line.rate
-    return None
+            return line.rate, line.price_list.name
+    return None, ""
