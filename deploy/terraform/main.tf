@@ -30,6 +30,7 @@ locals {
     DJANGO_SECRET_KEY     = google_secret_manager_secret.django_secret_key.secret_id
     PLATFORM_DATABASE_URL = google_secret_manager_secret.platform_database_url.secret_id
     GSTINAPI_KEY          = data.google_secret_manager_secret.gstinapi_key.secret_id
+    MYERP_SECRETS_KEY     = google_secret_manager_secret.secrets_key.secret_id
   }
 
   # Cloud Run needs an image to create the service; CI replaces it on deploy.
@@ -156,6 +157,29 @@ resource "google_secret_manager_secret" "django_secret_key" {
 resource "google_secret_manager_secret_version" "django_secret_key" {
   secret      = google_secret_manager_secret.django_secret_key.id
   secret_data = random_password.django_secret_key.result
+}
+
+# The key that locks customers' API secrets (core/secrets.py): a Fernet key,
+# which is 32 random bytes as URL-safe base64 with its "=" padding. It must
+# never change once secrets are saved with it: a new key cannot read them.
+resource "random_id" "secrets_key" {
+  byte_length = 32
+}
+
+resource "google_secret_manager_secret" "secrets_key" {
+  secret_id = "secrets-key"
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret_version" "secrets_key" {
+  secret      = google_secret_manager_secret.secrets_key.id
+  secret_data = "${random_id.secrets_key.b64_url}="
 }
 
 # The gstinapi.in key is created by hand in the console (never in code or
@@ -289,6 +313,7 @@ resource "google_cloud_run_v2_service" "app" {
   depends_on = [
     google_secret_manager_secret_version.django_secret_key,
     google_secret_manager_secret_version.platform_database_url,
+    google_secret_manager_secret_version.secrets_key,
   ]
 }
 
@@ -356,5 +381,6 @@ resource "google_cloud_run_v2_job" "migrate" {
   depends_on = [
     google_secret_manager_secret_version.django_secret_key,
     google_secret_manager_secret_version.platform_database_url,
+    google_secret_manager_secret_version.secrets_key,
   ]
 }
