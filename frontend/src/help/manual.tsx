@@ -797,27 +797,32 @@ export const MANUAL: Chapter[] = [
           <li>Click "Masters" in the top menu, then "Item groups".</li>
           <li>
             Click "Add group" for a main group, or click "+ Sub-group" beside a
-            group to add one under it. Give the "Name" (for example Whole
-            spices) and, if you like, "Notes".
+            group to add one under it. The form opens in a new browser tab.
+            Give the "Name" (for example Whole spices) and, if you like,
+            "Notes".
           </li>
           <li>
             To place a group elsewhere, change the "Under" box. A group cannot
             go under itself or a group below it.
           </li>
-          <li>Click "Save".</li>
+          <li>Click "Save"; the tab closes and the group is selected in the list.</li>
         </ol>
         <p>
           The arrow beside a group folds or opens the groups under it, and "Show
           levels" opens the tree to the depth you pick. The "Items" column
-          counts the items in a group and in the groups below it.
+          counts the items in a group and in the groups below it. Click a group
+          to see its details on the right, with its activity below. "Edit",
+          "Duplicate" and "+ Sub-group" each open in a new tab.
         </p>
         <p>
           Once an item sits in a group, or in a group below it, that group
-          cannot be moved under another group, so reports keep their meaning.
-          Names and notes can still be changed. Names must be different whatever
-          the capital letters. Groups are never deleted: click "Edit" and then
-          the "Disable" button to stop offering a group ("Enable" brings it
-          back); items already in it keep it. To change many groups at once, use
+          can be moved only under another group of the same main group, so
+          reports keep their meaning; the form shows a line "In use: ..." at the
+          top and offers only those groups in "Under". Names and notes can
+          still be changed. Names must be different whatever
+          the capital letters. Groups are never deleted: on the form, tick "Disabled" under
+          "Switches" to stop offering a group, and untick it to bring it back;
+          items already in it keep it. To change many groups at once, use
           "Actions" (see "Import, export and print"); in an import file, list a
           group before the groups under it.
         </p>

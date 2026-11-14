@@ -1,12 +1,13 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Activity, WithActivity } from "./Audit";
+import { ChangeLog } from "./Audit";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
-import { announceCreated, useNewName } from "./Create";
-import { ErrorNote, useOpenParam } from "./ErrorNote";
+import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName } from "./Create";
+import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
-import { ActiveButton, FormBody } from "./RowActions";
+import { InUseNote, type LockInfo } from "./Lock";
+import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 
 /** Item groups: one tree for every company in the group, like ledger groups. */
 export type ItemGroup = {
@@ -16,6 +17,7 @@ export type ItemGroup = {
   notes: string;
   is_active: boolean;
   item_count: number;
+  lock?: LockInfo;
 };
 
 export function useItemGroups() {
@@ -39,27 +41,41 @@ export function groupPaths(groups: ItemGroup[]): Map<number, string> {
   return new Map(groups.map((g) => [g.id, path(g)]));
 }
 
-type Editing = { group: ItemGroup | null; parent: number | null; copyOf?: ItemGroup; name?: string };
+/** `?form=new`, `?form=<id>`, `?form=sub-<parent id>` or `?form=copy-<id>`: this tab was
+ * opened to add, change, view or duplicate one item group (Sidharth, 2026-11-13). */
+const formParam = () => hashParam("form");
 
-/** Masters > Item groups. */
+/** Masters > Item groups: the tree on the left, the selected group's details on the right.
+ * Add, Edit, Sub-group and Duplicate each open in a new tab. */
 export function ItemGroupsPage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
   const { groups, reload } = useItemGroups();
-  const [editing, setEditing] = useState<Editing | null>(null);
+  const form = formParam();
+  if (form) return <GroupFormTab form={form} canEdit={canEdit} />;
+  return <GroupList session={session} canEdit={canEdit} groups={groups} reload={reload} />;
+}
+
+function GroupList(props: { session: SignedIn; canEdit: boolean; groups: ItemGroup[]; reload: () => void }) {
+  const { groups, canEdit, reload } = props;
+  const [selectedId, setSelected] = useState<number | null>(null);
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
-  const io = useExchange({ master: "item-groups", noun: "item groups", session, onImported: reload });
+  useCreated("item_group_saved", (c) => {
+    reload();
+    setSelected(c.id);
+  });
+  const io = useExchange({ master: "item-groups", noun: "item groups", session: props.session, onImported: reload });
   const startName = useNewName();
   useEffect(() => {
-    // Opened by "Create …" in a dropdown.
-    if (startName && canEdit) setEditing({ group: null, parent: null, name: startName });
+    // Opened by "Create …" in a dropdown: go straight to the Add page.
+    if (startName && canEdit) window.location.hash = `#/item-groups?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
   const [openId, opened] = useOpenParam();
   useEffect(() => {
-    const found = openId && groups.find((g) => g.id === openId);
-    if (found) {
+    // Opened from a link (for example a duplicate-name refusal): unfold and select that group.
+    if (openId && groups.some((g) => g.id === openId)) {
       setFolded(new Set());
-      setEditing({ group: found, parent: found.parent });
+      setSelected(openId);
       opened();
     }
   }, [openId, groups, opened]);
@@ -93,16 +109,23 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
       return next;
     });
   const total = (g: ItemGroup): number => g.item_count + (children.get(g.id) ?? []).reduce((t, c) => t + total(c), 0);
-  const done = () => {
-    setEditing(null);
-    reload();
-  };
+  const selected = groups.find((g) => g.id === selectedId) ?? null;
+  const edit = (what: number | string) => openTab(`#/item-groups?form=${what}`);
 
   const rows = (g: ItemGroup, depth: number): JSX.Element[] => {
     const kids = children.get(g.id) ?? [];
     const top = depth === 0;
+    const stop = (fn: () => void) => (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      fn();
+    };
     const out = [
-      <tr key={g.id} className={`${top ? "group-top" : ""}${g.is_active ? "" : " off"}`}>
+      <tr
+        key={g.id}
+        className={`${top ? "group-top" : ""}${selectedId === g.id ? " selected" : ""}${g.is_active ? "" : " off"}`}
+        onClick={() => setSelected(g.id)}
+        onDoubleClick={() => edit(g.id)}
+      >
         <td>
           <span className="group-name" style={{ paddingLeft: depth * 22 }}>
             {kids.length > 0 ? (
@@ -110,7 +133,7 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
                 className="fold"
                 aria-expanded={!folded.has(g.id)}
                 aria-label={`${folded.has(g.id) ? "Show" : "Hide"} groups under ${g.name}`}
-                onClick={() => toggle(g.id)}
+                onClick={stop(() => toggle(g.id))}
               >
                 <Chevron open={!folded.has(g.id)} />
               </button>
@@ -120,22 +143,22 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
               </span>
             )}
             <span className="gname">{g.name}</span>
-            {!g.is_active && <span className="pill">Inactive</span>}
+            {!g.is_active && <span className="pill">Disabled</span>}
           </span>
         </td>
         <td className="small">{g.notes}</td>
         <td className="num">{total(g) > 0 ? total(g) : <span className="small">—</span>}</td>
         <td className="row-actions">
           {canEdit && (
-            <button className="link" onClick={() => setEditing({ group: null, parent: g.id })}>
+            <button className="link" onClick={stop(() => edit(`sub-${g.id}`))}>
               + Sub-group
             </button>
           )}
-          <button className="link" onClick={() => setEditing({ group: g, parent: g.parent })}>
+          <button className="link" onClick={stop(() => edit(g.id))}>
             {canEdit ? "Edit" : "View"}
           </button>
           {canEdit && (
-            <button className="link quiet" onClick={() => setEditing({ group: null, parent: g.parent, copyOf: g })}>
+            <button className="link quiet" onClick={stop(() => edit(`copy-${g.id}`))}>
               Duplicate
             </button>
           )}
@@ -154,55 +177,130 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
         actions={
           <>
             {io.buttons}
-            {canEdit && <button onClick={() => setEditing({ group: null, parent: null })}>Add group</button>}
+            {canEdit && <button onClick={() => edit("new")}>Add group</button>}
           </>
         }
       />
-      <WithActivity activity={<Activity type="item_group" stamp={JSON.stringify(groups)} />}>
-        {io.panel}
-        {editing && (
-          <GroupForm
-            key={editing.group?.id ?? `new-${editing.parent}-${editing.copyOf?.id ?? ""}`}
-            editing={editing}
-            groups={groups}
-            readOnly={!canEdit}
-            onDone={done}
-            onCancel={() => setEditing(null)}
-          />
-        )}
-        <div className="page-head">
-          <p className="small">{groups.length} groups.</p>
-          <LevelPicker levels={deepest} value={level} onPick={showLevels} />
+      {io.panel}
+      <div className="side-layout">
+        <div className="side-main">
+          <div className="page-head">
+            <p className="small">{groups.length} groups.</p>
+            <LevelPicker levels={deepest} value={level} onPick={showLevels} />
+          </div>
+          <table className="groups">
+            <thead>
+              <tr>
+                <th>Group</th>
+                <th>Notes</th>
+                <th className="num">Items</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>{(children.get(null) ?? []).flatMap((g) => rows(g, 0))}</tbody>
+          </table>
         </div>
-        <table className="groups">
-          <thead>
-            <tr>
-              <th>Group</th>
-              <th>Notes</th>
-              <th className="num">Items</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>{(children.get(null) ?? []).flatMap((g) => rows(g, 0))}</tbody>
-        </table>
-      </WithActivity>
+        <div className="side-col">
+          <SidePanel title="Group Details">
+            {selected ? (
+              <SideRows
+                rows={[
+                  ["Name", selected.name],
+                  ["Under", groups.find((g) => g.id === selected.parent)?.name ?? "Top level"],
+                  ["Items", String(selected.item_count)],
+                  ["In Use", selected.lock?.in_use.join(", ") ?? ""],
+                  ["Disabled", selected.is_active ? "No" : "Yes"],
+                  ["Notes", selected.notes],
+                ]}
+              />
+            ) : (
+              <p className="small">Click a group to see its details here.</p>
+            )}
+          </SidePanel>
+          <SidePanel title="Activity">
+            <ChangeLog type="item_group" id={selected?.id} stamp={JSON.stringify(selected ?? groups.length)} />
+          </SidePanel>
+        </div>
+      </div>
     </section>
   );
 }
 
+/** The form of one item group, alone in its own tab: Save and Cancel close the tab. */
+function GroupFormTab(props: { form: string; canEdit: boolean }) {
+  const copy = props.form.startsWith("copy-");
+  const sub = props.form.startsWith("sub-");
+  const key = Number(props.form.replace(/^(copy|sub)-/, ""));
+  const [groups, setGroups] = useState<ItemGroup[] | null>(null);
+  useEffect(() => {
+    api<ItemGroup[]>("v1/item-groups/").then(setGroups);
+  }, []);
+  const startName = useNewName();
+  const target = props.form === "new" ? null : (groups?.find((g) => g.id === key) ?? null);
+  const toList = () => {
+    window.location.hash = "#/item-groups";
+  };
+  const finish = (saved?: { id: number; name: string }) => {
+    if (saved) announceSaved("item_group_saved", saved);
+    closeThisTab(toList);
+  };
+  const editing = props.form !== "new" && !copy && !sub;
+  const readOnly = !props.canEdit;
+  const title = editing ? (readOnly ? "View item group" : "Edit item group") : sub ? "Add sub-group" : copy ? "Duplicate item group" : "Add item group";
+  if (groups === null)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+      </section>
+    );
+  if (props.form !== "new" && target === null)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+        <p className="error">That item group was not found.</p>
+      </section>
+    );
+  if (readOnly && !editing)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+        <p className="error">You may only view item groups.</p>
+      </section>
+    );
+  return (
+    <GroupForm
+      title={title}
+      groups={groups}
+      group={editing ? target : null}
+      copyOf={copy ? target : null}
+      parent={sub ? key : target ? target.parent : null}
+      startName={props.form === "new" ? (startName ?? undefined) : undefined}
+      readOnly={readOnly}
+      onDone={finish}
+      onCancel={() => finish()}
+    />
+  );
+}
+
 function GroupForm(props: {
-  editing: Editing;
+  title: string;
   groups: ItemGroup[];
+  group: ItemGroup | null;
+  copyOf?: ItemGroup | null;
+  parent: number | null;
+  startName?: string;
   readOnly?: boolean;
-  onDone: () => void;
+  onDone: (saved?: { id: number; name: string }) => void;
   onCancel: () => void;
 }) {
-  const g = props.editing.group;
-  const copy = props.editing.copyOf;
-  const [name, setName] = useState(props.editing.name ?? (copy ? `${copy.name} (copy)` : (g?.name ?? "")));
-  const [parent, setParent] = useState(props.editing.parent === null ? "" : String(props.editing.parent));
+  const g = props.group;
+  const copy = props.copyOf;
+  const [name, setName] = useState(props.startName ?? (copy ? `${copy.name} (copy)` : (g?.name ?? "")));
+  const [parent, setParent] = useState(props.parent === null ? "" : String(props.parent));
   const [notes, setNotes] = useState(copy?.notes ?? g?.notes ?? "");
+  const [disabled, setDisabled] = useState(g ? !g.is_active : false);
   const [error, setError] = useState<unknown>("");
+  const [busy, setBusy] = useState(false);
   const paths = useMemo(() => groupPaths(props.groups), [props.groups]);
   const below = useMemo(() => {
     // A group cannot be moved under itself or a group below it.
@@ -214,65 +312,82 @@ function GroupForm(props: {
     walk(g.id);
     return out;
   }, [g, props.groups]);
+  const rootOf = (id: number): number => {
+    const x = props.groups.find((o) => o.id === id);
+    return x && x.parent !== null ? rootOf(x.parent) : id;
+  };
+  // A group in use may move only within its own main group (Sidharth, 2026-11-13).
+  const inUse = !!g?.lock && g.lock.in_use.length > 0;
+  const home = g ? rootOf(g.id) : null;
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    setBusy(true);
     const body = { name, parent: parent === "" ? null : Number(parent), notes };
     try {
-      if (g) await api(`v1/item-groups/${g.id}/`, body, "PATCH");
-      else announceCreated("item_group", await api<{ id: number; name: string }>("v1/item-groups/", body));
-      props.onDone();
+      if (g) {
+        await api(`v1/item-groups/${g.id}/`, { ...body, is_active: !disabled }, "PATCH");
+        props.onDone({ id: g.id, name });
+      } else {
+        const made = await api<{ id: number; name: string }>("v1/item-groups/", body);
+        announceCreated("item_group", made);
+        props.onDone(made);
+      }
     } catch (err) {
       setError(err);
+      setBusy(false);
     }
   };
 
   return (
-    <form className="card" onSubmit={save}>
-      <h4>{g ? `${props.readOnly ? "View" : "Edit"} ${g.name}` : copy ? `Duplicate ${copy.name}` : "Add item group"}</h4>
-      <FormBody readOnly={props.readOnly}>
-        <Section title="Item group">
-          <div className="row">
-            <label>
-              Name
-              <input required autoFocus value={name} placeholder="e.g. Whole spices" onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label>
-              Under
-              <Combobox
-                value={parent}
-                empty="Main group (nothing above it)"
-                placeholder="Type to search groups…"
-                options={props.groups
-                  .filter((o) => !below.has(o.id) && (o.is_active || String(o.id) === parent))
-                  .map((o) => ({ value: String(o.id), label: paths.get(o.id) ?? o.name }))}
-                onChange={setParent}
-              />
-            </label>
-          </div>
+    <FormPage
+      title={props.title}
+      sub={g ? g.name : undefined}
+      formId="item-group-form"
+      onSubmit={save}
+      onCancel={props.onCancel}
+      busy={busy}
+      error={error}
+      readOnly={props.readOnly}
+      disabled={g ? { value: disabled, set: setDisabled } : undefined}
+      activity={g ? <ChangeLog type="item_group" id={g.id} stamp={JSON.stringify(g)} /> : undefined}
+    >
+      <InUseNote lock={g?.lock}>
+        The group can move only within its own main group. Everything else stays open.
+      </InUseNote>
+      <Section title="General">
+        <p className="small">
+          <span className="req-star">*</span> Required
+        </p>
+        <div className="item-fields">
+          <label>
+            <span className="req">Name</span>
+            <input required autoFocus value={name} placeholder="e.g. Whole spices" onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>
+            Under
+            <Combobox
+              value={parent}
+              empty="Main group (nothing above it)"
+              placeholder="Type to search groups…"
+              options={props.groups
+                .filter(
+                  (o) =>
+                    !below.has(o.id) &&
+                    (o.is_active || String(o.id) === parent) &&
+                    (!inUse || rootOf(o.id) === home),
+                )
+                .map((o) => ({ value: String(o.id), label: paths.get(o.id) ?? o.name }))}
+              onChange={setParent}
+            />
+          </label>
           <label>
             Notes
             <input value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
-        </Section>
-      </FormBody>
-      <ErrorNote error={error} />
-      <div className="buttons">
-        {!props.readOnly && <button>Save</button>}
-        <button type="button" className="link" onClick={props.onCancel}>
-          {props.readOnly ? "Close" : "Cancel"}
-        </button>
-        {g && !props.readOnly && (
-          <ActiveButton
-            url={`v1/item-groups/${g.id}/`}
-            active={g.is_active}
-            what={`the item group ${g.name}`}
-            onDone={props.onDone}
-            onError={setError}
-          />
-        )}
-      </div>
-    </form>
+        </div>
+      </Section>
+    </FormPage>
   );
 }
