@@ -26,7 +26,17 @@ from audit import recorder
 from core import duplicates, exchange, richtext
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
-from core.models import USED_FOR, Brand, Item, ItemGroup, ItemGstRate, ItemUnit, Unit
+from core.models import (
+    USED_FOR,
+    Brand,
+    Item,
+    ItemGroup,
+    ItemGstRate,
+    ItemUnit,
+    Party,
+    PartyItemName,
+    Unit,
+)
 from core.numbering import next_number
 from tenancy.context import tenant_atomic
 from tenancy.models import HsnCode
@@ -39,6 +49,28 @@ def volume_m3(row) -> Decimal | None:
     if any(v is None for v in sizes):
         return None
     return (sizes[0] * sizes[1] * sizes[2] / CM3_PER_M3).quantize(Decimal("0.00001"))
+
+
+class PartyItemNameSerializer(serializers.ModelSerializer):
+    """What one customer or supplier calls the item (name and/or code)."""
+
+    party = serializers.PrimaryKeyRelatedField(queryset=Party.objects.all())
+    party_name = serializers.CharField(source="party.name", read_only=True)
+    party_kind = serializers.SerializerMethodField()
+    name = serializers.CharField(max_length=120, allow_blank=True, required=False, default="")
+    code = serializers.CharField(max_length=40, allow_blank=True, required=False, default="")
+
+    def get_party_kind(self, row) -> str:
+        kinds = []
+        if row.party.customer_number:
+            kinds.append("Customer")
+        if row.party.vendor_number:
+            kinds.append("Supplier")
+        return ", ".join(kinds)
+
+    class Meta:
+        model = PartyItemName
+        fields = ["party", "party_name", "party_kind", "name", "code"]
 
 
 class ItemUnitSerializer(serializers.ModelSerializer):
@@ -122,6 +154,7 @@ class ItemSerializer(serializers.ModelSerializer):
     )
     units = ItemUnitSerializer(many=True, required=False)
     gst_rates = ItemGstRateSerializer(many=True, required=False)
+    party_names = PartyItemNameSerializer(many=True, required=False)
     warnings = serializers.SerializerMethodField()
 
     class Meta:
@@ -165,6 +198,7 @@ class ItemSerializer(serializers.ModelSerializer):
             "is_active",
             "units",
             "gst_rates",
+            "party_names",
             "warnings",
             "lock",
         ]
@@ -252,6 +286,7 @@ def _check_rates(rates: list[dict]) -> list[dict]:
 def _save_item(item: Item, data: dict) -> Item:
     rows = data.pop("units", None)
     rates = data.pop("gst_rates", None)
+    party_names = data.pop("party_names", None)
     refuse_key_changes("item", item, data)
     if "item_group" in data:
         refuse_move_outside_top(
@@ -456,15 +491,59 @@ def _save_item(item: Item, data: dict) -> Item:
             item.gst_rates.all().delete()
             for r in rates:
                 ItemGstRate.objects.create(item=item, valid_from=r["valid_from"], rate=r["rate"])
-    if rows is not None or rates is not None:
+    if party_names is not None:
+        _save_party_names(item, party_names)
+    if rows is not None or rates is not None or party_names is not None:
         recorder.touch(item)
     return item
+
+
+def _save_party_names(item: Item, rows: list[dict]) -> None:
+    """Replace the item's list of what each customer or supplier calls it. A party
+    appears once, a row needs a name or a code, and a party's code belongs to one
+    item only (so a scanned code always finds one item)."""
+    seen: set[int] = set()
+    clean = []
+    for r in rows:
+        party, name, code = r["party"], r.get("name", "").strip(), r.get("code", "").strip()
+        if party.pk in seen:
+            raise ValidationError({"party_names": [f"{party.name} is listed twice."]})
+        seen.add(party.pk)
+        if not name and not code:
+            raise ValidationError(
+                {"party_names": [f"{party.name}: give their item name, their item code, or both."]}
+            )
+        if code:
+            clash = (
+                PartyItemName.objects.filter(party=party, code__iexact=code)
+                .exclude(item=item)
+                .select_related("item")
+                .first()
+            )
+            if clash:
+                raise ValidationError(
+                    {
+                        "party_names": [
+                            f"The code {code} of {party.name} is already on the item "
+                            f'"{clash.item.name}".'
+                        ]
+                    }
+                )
+            if any(c[0].pk == party.pk and c[2].lower() == code.lower() for c in clean):
+                raise ValidationError(
+                    {"party_names": [f"{party.name}: that code is listed twice."]}
+                )
+        clean.append((party, name, code))
+    item.party_names.all().delete()
+    PartyItemName.objects.bulk_create(
+        [PartyItemName(item=item, party=p, name=n, code=c) for p, n, c in clean]
+    )
 
 
 def _queryset():
     return Item.objects.select_related(
         "stock_unit", "sales_unit", "purchase_unit"
-    ).prefetch_related("units__unit", "units__contains_unit", "gst_rates")
+    ).prefetch_related("units__unit", "units__contains_unit", "gst_rates", "party_names__party")
 
 
 exchange.register(
@@ -515,6 +594,10 @@ exchange.register(
             "units.gross_kg": "Gross weight (kg)",
             "units.barcode": "Barcode",
             "units.used_for": "Used for",
+            "party_names": "Customer and supplier names",
+            "party_names.party": "Customer or supplier",
+            "party_names.name": "Their item name",
+            "party_names.code": "Their item code",
             "gst_rates": "GST rates",
             "gst_rates.valid_from": "From",
             "gst_rates.rate": "GST rate (%)",

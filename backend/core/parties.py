@@ -28,6 +28,7 @@ from core.models import (
     Party,
     PartyAddress,
     PartyContact,
+    PartyItemName,
     PartyProduct,
 )
 from core.numbering import next_number
@@ -72,10 +73,29 @@ class PartyProductSerializer(serializers.ModelSerializer):
     item_number = serializers.CharField(source="item.item_number", read_only=True)
     item_name = serializers.CharField(source="item.name", read_only=True)
     item_active = serializers.BooleanField(source="item.is_active", read_only=True)
+    # What this party calls the item, kept on the item and shown here read only.
+    their_name = serializers.SerializerMethodField()
+    their_code = serializers.SerializerMethodField()
+
+    def _theirs(self, row) -> PartyItemName | None:
+        cache = self.context.setdefault("_party_item_names", {})
+        if row.party_id not in cache:
+            cache[row.party_id] = {
+                n.item_id: n for n in PartyItemName.objects.filter(party_id=row.party_id)
+            }
+        return cache[row.party_id].get(row.item_id)
+
+    def get_their_name(self, row) -> str:
+        mine = self._theirs(row)
+        return mine.name if mine else ""
+
+    def get_their_code(self, row) -> str:
+        mine = self._theirs(row)
+        return mine.code if mine else ""
 
     class Meta:
         model = PartyProduct
-        fields = ["item", "item_number", "item_name", "item_active"]
+        fields = ["item", "item_number", "item_name", "item_active", "their_name", "their_code"]
 
 
 class PartySerializer(serializers.ModelSerializer):

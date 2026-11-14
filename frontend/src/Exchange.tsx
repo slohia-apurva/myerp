@@ -91,7 +91,12 @@ export function useExchange(props: {
  * Usage: const printing = usePrintMenu({ title: "Users" }); put
  * {printing.buttons} in the PageHeader actions and {printing.panel} below it.
  */
-export function usePrintMenu(props: { title: string; scope?: string }): {
+export function usePrintMenu(props: {
+  title: string;
+  scope?: string;
+  /** For a screen whose table sits inside a form: give the sheets directly instead of reading the page. */
+  read?: () => PrintSheet["sheets"];
+}): {
   buttons: ReactNode;
   panel: ReactNode;
   /** "Print" and "Download PDF", to put in a menu with other actions. */
@@ -104,6 +109,7 @@ export function usePrintMenu(props: { title: string; scope?: string }): {
   const closeSheet = useCallback(() => setSheet(null), []);
   const here = useRef<HTMLSpanElement>(null);
   const read = (): PrintSheet => {
+    if (props.read) return { title: props.title, scope: props.scope ?? "", sheets: props.read() };
     const page = here.current?.closest("section.page") ?? document.querySelector("section.page");
     return { title: props.title, scope: props.scope ?? "", sheets: page ? readTables(page, props.title) : [] };
   };
