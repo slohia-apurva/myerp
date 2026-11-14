@@ -76,6 +76,14 @@ class Company(models.Model):
     # "Books beginning from": opening balances are as at the start of this day.
     books_start = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
+    # The terms and conditions a new purchase order (or, later, sales document)
+    # starts with when its party has no set of its own.
+    purchase_terms = models.ForeignKey(
+        "TermsSet", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    sales_terms = models.ForeignKey(
+        "TermsSet", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
         ordering = ["name"]
@@ -662,6 +670,31 @@ class PriceList(models.Model):
         return self.name
 
 
+class TermsSet(models.Model):
+    """A named set of terms and conditions printed on orders (Sidharth,
+    2026-11-14), for purchase or for sales. A company has a default set of
+    each kind (`Company.purchase_terms`); a supplier or customer may carry its
+    own (`Party.purchase_terms`), which wins. The document copies the text,
+    which can then be changed for that one document. A line ending in ":"
+    prints as a heading. One list for the group; never deleted, only disabled."""
+
+    PURCHASE, SALES = "purchase", "sales"
+    KINDS = [(PURCHASE, "Purchase"), (SALES, "Sales")]
+
+    name = models.CharField(max_length=80)
+    kind = models.CharField(max_length=10, choices=KINDS)
+    text = models.TextField()
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(Lower("name"), name="terms_set_name_unique")]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class PriceLine(models.Model):
     """One rate: an item in one of its units, from a quantity, from a date.
     The rate in force is the latest one started, for the biggest From Qty not
@@ -1030,6 +1063,13 @@ class Party(models.Model):
     # The rates a supplier sells to us at (a Buying list); its own item prices win.
     buying_price_list = models.ForeignKey(
         PriceList, null=True, blank=True, on_delete=models.PROTECT, related_name="suppliers"
+    )
+    # Its own terms and conditions; else the company's default set.
+    purchase_terms = models.ForeignKey(
+        TermsSet, null=True, blank=True, on_delete=models.PROTECT, related_name="suppliers"
+    )
+    sales_terms = models.ForeignKey(
+        TermsSet, null=True, blank=True, on_delete=models.PROTECT, related_name="customers"
     )
     # Given automatically the first time a company deals with the party as a
     # customer (Sundry Debtors) or a supplier (Sundry Creditors); one party

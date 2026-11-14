@@ -38,9 +38,11 @@ from core.models import (
     PartyContact,
     PartyItemName,
     PriceList,
+    TermsSet,
 )
 from core.parties import items_for_party
 from core.price_lists import find_rate
+from core.terms import terms_for
 from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
 
@@ -270,6 +272,8 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "whatsapp_to": o.whatsapp_to,
         "mail_contacts": _with_agent_user(o, _mail_contacts(o)),
         "supplier_ref": o.supplier_ref,
+        "terms_set": o.terms_set_id,
+        "terms_set_name": o.terms_set.name if o.terms_set else "",
         "terms": o.terms,
         "notes": o.notes,
         "interstate": o.interstate,
@@ -302,6 +306,7 @@ def _orders(company):
             "bill_to__company",
             "credit_term",
             "transporter",
+            "terms_set",
             "created_by",
         )
         .prefetch_related("lines__item", "lines__unit")
@@ -354,6 +359,11 @@ class OrderSerializer(serializers.Serializer):
     )
     mail_agent_user = serializers.BooleanField(required=False, default=False)
     supplier_ref = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    # Left out: the supplier's set, else the company's default, with its text
+    # when no text is sent.
+    terms_set = serializers.PrimaryKeyRelatedField(
+        queryset=TermsSet.objects.all(), allow_null=True, required=False
+    )
     terms = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
     lines = LineSerializer(many=True)
@@ -436,6 +446,18 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
         errors["supplier_address"] = ["Pick one of the supplier's addresses."]
     elif place is None:
         place = next((a for a in places if a.is_billing), places[0] if places else None)
+    if "terms_set" in data:
+        terms_set = data["terms_set"]
+        if terms_set is not None and terms_set.kind != TermsSet.PURCHASE:
+            errors["terms_set"] = ["Pick a set of purchase terms."]
+        elif terms_set is not None and not terms_set.is_active and terms_set.pk != o.terms_set_id:
+            errors["terms_set"] = ["These terms and conditions are disabled."]
+    elif o.pk:
+        terms_set = o.terms_set
+    else:
+        terms_set = terms_for(o.company, supplier.party, TermsSet.PURCHASE)
+        if terms_set is not None and "terms" not in data:
+            data["terms"] = terms_set.text
     expected = data.get("expected_date")
     if expected and expected < data["order_date"]:
         errors["expected_date"] = ["The expected delivery date is before the order date."]
@@ -513,6 +535,7 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     o.transporter = transporter
     o.bill_to = bill_to
     o.supplier_address = _party_address(place) if place else {}
+    o.terms_set = terms_set
     o.agent, o.mail_to, o.whatsapp_to = agent, mail_to, whatsapp_to
     o.agent_user = agent_user
     o.mail_agent_user = bool(agent_user and data.get("mail_agent_user"))
@@ -687,7 +710,7 @@ class OrderSetupView(APIView):
         company = _company(request, pk)
         suppliers = (
             Ledger.objects.filter(company=company, party_side="supplier", party__isnull=False)
-            .select_related("party__credit_term")
+            .select_related("party__credit_term", "party__purchase_terms")
             .prefetch_related("party__contacts", "party__addresses")
             .order_by("name")
         )
@@ -712,6 +735,9 @@ class OrderSetupView(APIView):
                         "state_code": s.party.state_code,
                         "credit_term": s.party.credit_term_id,
                         "transporter": s.preferred_transporter_id,
+                        "terms_set": s.party.purchase_terms_id
+                        if s.party.purchase_terms and s.party.purchase_terms.is_active
+                        else None,
                         "charges_gst": charges_gst(s.party),
                         "contacts": [_contact_out(c) for c in s.party.contacts.all()],
                         "addresses": [
@@ -759,6 +785,14 @@ class OrderSetupView(APIView):
                     {"id": t.pk, "name": t.name, "is_active": t.is_active}
                     for t in company.courier_accounts.order_by("name")
                 ],
+                # The sets of purchase terms, and the company's default set.
+                "terms_sets": [
+                    {"id": t.pk, "name": t.name, "is_active": t.is_active, "text": t.text}
+                    for t in TermsSet.objects.filter(kind=TermsSet.PURCHASE)
+                ],
+                "default_terms": company.purchase_terms_id
+                if company.purchase_terms and company.purchase_terms.is_active
+                else None,
             }
         )
 

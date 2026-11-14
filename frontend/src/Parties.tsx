@@ -10,6 +10,7 @@ import { api } from "./api";
 import type { CourierAccount } from "./Shipments";
 import { creatable } from "./Create";
 import { useCreditTerms } from "./CreditTerms";
+import { useTermsSets } from "./Terms";
 import { usePriceLists } from "./PriceLists";
 import { PriceTable, rowFromServer, type PriceRow } from "./PriceLines";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
@@ -67,6 +68,10 @@ export type Party = {
   /** A supplier's Buying price list. */
   buying_price_list?: number | null;
   buying_price_list_name?: string;
+  purchase_terms?: number | null;
+  purchase_terms_name?: string;
+  sales_terms?: number | null;
+  sales_terms_name?: string;
   /** The customer's own rates, loaded and saved apart from the party (item_prices endpoint). */
   item_prices?: PriceRow[];
   salesman: number | null;
@@ -238,6 +243,9 @@ export function PartyFields({
   const newTerm = creatable("credit_term", "credit-terms", refreshTerms);
   const { lists: priceLists, refresh: refreshLists } = usePriceLists();
   const newList = creatable("price_list", "price-lists", refreshLists);
+  const { sets: termsSets, refresh: refreshTermsSets } = useTermsSets();
+  const newTermsSet = creatable("terms", "terms", refreshTermsSets);
+  const ownTerms = (supplier ? p.purchase_terms : p.sales_terms) ?? null;
   const [companies, setCompanies] = useState<Company[]>([]);
   useEffect(() => {
     api<Company[]>("v1/companies/").then(setCompanies);
@@ -395,6 +403,22 @@ export function PartyFields({
           <span className="small">
             {supplier ? "The rates this supplier sells to you at" : "The rates this customer is sold at"}. Its own Item
             Prices win.
+          </span>
+        </label>
+        <label>
+          Terms and Conditions
+          <Combobox
+            value={ownTerms ? String(ownTerms) : ""}
+            empty="Company default"
+            options={termsSets
+              .filter((t) => t.kind === (supplier ? "purchase" : "sales") && (t.is_active || t.id === ownTerms))
+              .map((t) => ({ value: String(t.id), label: t.name }))}
+            onChange={(v) => set(supplier ? { purchase_terms: v ? Number(v) : null } : { sales_terms: v ? Number(v) : null })}
+            create={newTermsSet}
+          />
+          <span className="small">
+            Printed on {supplier ? "purchase orders" : "sales documents"} to this {supplier ? "supplier" : "customer"}; empty
+            uses the company's default.
           </span>
         </label>
         <label>
@@ -689,6 +713,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
     ["Credit Limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit Terms", p.credit_term_name ?? ""],
     ["Price List", (supplier ? p.buying_price_list_name : p.price_list_name) ?? ""],
+    ["Terms and Conditions", (supplier ? p.purchase_terms_name : p.sales_terms_name) || "Company default"],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
     ...(p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
   ];

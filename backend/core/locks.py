@@ -26,6 +26,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
         # item_group is not here: once in use it may move, but only within its top-level group.
     },
     "price_list": {"kind": "type", "currency": "currency"},
+    "terms": {"kind": "type"},
     "credit_term": {},  # the parts stay editable (Sidharth, 2026-11-13)
     "item_group": {},  # the parent may move, but only within the same top-level group
     "fiscal_year": {"start_date": "start date", "end_date": "end date"},
@@ -190,6 +191,21 @@ def _price_list_uses(plist) -> str:
 
 register("credit_term", _term_uses)
 register("price_list", _price_list_uses)
+
+
+def _terms_uses(terms) -> str:
+    from django.db.models import Q
+
+    from core.models import Company
+
+    n = terms.suppliers.count() + terms.customers.count()
+    parties = f"{n} customer or supplier{'' if n == 1 else 's'}" if n else ""
+    m = Company.objects.filter(Q(purchase_terms=terms) | Q(sales_terms=terms)).count()
+    companies = f"the default of {m} compan{'y' if m == 1 else 'ies'}" if m else ""
+    return ", ".join(x for x in (parties, companies) if x)
+
+
+register("terms", _terms_uses)
 
 # Ledgers, groups, parties, companies, branches and items take no `register`
 # here yet: opening balances are set-up data that stay editable, and nothing
