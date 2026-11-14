@@ -64,6 +64,23 @@ def uses(kind: str, record) -> list[str]:
     return [reason for fn in _USES[kind] if (reason := fn(record))]
 
 
+# What makes one company's accounts on a main item group stop changing: functions
+# `fn(group, company)` that return a reason like "36 stock entries", or "". The first
+# stock entry or purchase posting registers its own (Sidharth, 2026-11-14).
+_ACCOUNT_USES: list[Callable] = []
+
+
+def register_account_use(fn: Callable) -> None:
+    _ACCOUNT_USES.append(fn)
+
+
+def account_uses(group, company) -> list[str]:
+    """Why this company's accounts on the item group are locked ([] when free)."""
+    if group is None or not group.pk:
+        return []
+    return [reason for fn in _ACCOUNT_USES if (reason := fn(group, company))]
+
+
 def _count(qs, noun: str) -> str:
     n = qs.count()
     return f"{n} {noun}{'' if n == 1 else 's'}" if n else ""

@@ -662,6 +662,31 @@ class ItemGroup(models.Model):
         return self.name
 
 
+class ItemGroupAccount(models.Model):
+    """The accounts the items of a main (top-level) item group post to, one row
+    per company. Sub-groups and their items use their main group's row (Sidharth,
+    2026-11-14); a perpetual-inventory posting (decision 0017) reads them."""
+
+    group = models.ForeignKey(ItemGroup, on_delete=models.CASCADE, related_name="accounts")
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    stock_ledger = models.ForeignKey(
+        "Ledger", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Cost of goods sold and expense are one ledger: stock sold, used inside the company,
+    # written off, and non-stock purchases all post here (Sidharth, 2026-11-14).
+    cogs_ledger = models.ForeignKey(
+        "Ledger", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["group", "company"], name="item_group_account_once")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.group} / {self.company}"
+
+
 class Brand(models.Model):
     """A brand name items are sold under, picked on the item's General tab.
     One list shared by every company in the group. Never deleted, only made
