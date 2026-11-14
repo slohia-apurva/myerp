@@ -1813,9 +1813,23 @@ fieldset.item-checks {
 .item-fields .wide {
   grid-column: 1 / -1;
 }
+/* Fields that read down the left column, then down the right (Sales: unit, MRP, USP | batch, best before). */
+.item-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, auto);
+  grid-auto-flow: column;
+  gap: 12px 20px;
+}
 @media (max-width: 720px) {
-  .item-fields {
+  .item-fields,
+  .item-cols {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-flow: row;
+  }
+  .item-cols > div:empty {
+    display: none;
   }
   .item-edit .item-general > div:first-child {
     grid-template-columns: minmax(0, 1fr);
