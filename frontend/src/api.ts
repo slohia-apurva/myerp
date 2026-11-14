@@ -44,7 +44,7 @@ function flatten(values: unknown[]): string[] {
   );
 }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export async function api<T>(path: string, body?: unknown, method?: Method): Promise<T> {
   const verb: Method = method ?? (body === undefined ? "GET" : "POST");

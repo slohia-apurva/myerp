@@ -634,6 +634,86 @@ class CreditTerm(models.Model):
         return self.name
 
 
+class PriceList(models.Model):
+    """A named set of rates for items, for selling or for buying (Sidharth,
+    2026-11-14). Each line starts on a date and an item can have a lower rate
+    for bigger quantities. A customer picks one (`Party.price_list`) and may
+    have rates of its own for single items (PartyItemPrice). Never deleted,
+    only disabled. Rates are before GST."""
+
+    SELLING, BUYING = "selling", "buying"
+    KINDS = [(SELLING, "Selling"), (BUYING, "Buying")]
+
+    name = models.CharField(max_length=80)
+    kind = models.CharField(max_length=7, choices=KINDS, default=SELLING)
+    # Blank means the base currency (INR), as on a ledger.
+    currency = models.ForeignKey(
+        Currency, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(Lower("name"), name="price_list_name_unique")]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PriceLine(models.Model):
+    """One rate: an item in one of its units, from a quantity, from a date.
+    The rate in force is the latest one started, for the biggest From Qty not
+    above the quantity ordered. No conversion between units."""
+
+    item = models.ForeignKey("Item", on_delete=models.CASCADE, related_name="+")
+    unit = models.ForeignKey("Unit", on_delete=models.PROTECT, related_name="+")
+    min_qty = models.DecimalField(
+        max_digits=18, decimal_places=6, default=Decimal("1"), validators=[MinValueValidator(0)]
+    )
+    rate = models.DecimalField(max_digits=18, decimal_places=6, validators=[MinValueValidator(0)])
+    from_date = models.DateField()
+
+    class Meta:
+        abstract = True
+
+
+class PriceListLine(PriceLine):
+    price_list = models.ForeignKey(PriceList, on_delete=models.CASCADE, related_name="lines")
+
+    class Meta:
+        ordering = ["item__name", "unit_id", "min_qty", "from_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["price_list", "item", "unit", "min_qty", "from_date"],
+                name="price_list_line_once",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item} {self.rate} from {self.from_date}"
+
+
+class PartyItemPrice(PriceLine):
+    """A customer's own rate for one item. Where a customer has any for an
+    item, only those are used for it; its price list covers the rest."""
+
+    party = models.ForeignKey("Party", on_delete=models.CASCADE, related_name="item_prices")
+    item = models.ForeignKey("Item", on_delete=models.CASCADE, related_name="party_prices")
+
+    class Meta:
+        ordering = ["item__name", "unit_id", "min_qty", "from_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["party", "item", "unit", "min_qty", "from_date"],
+                name="party_item_price_once",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.party} / {self.item} {self.rate}"
+
+
 class Unit(models.Model):
     """A unit of measure (Packet, Carton, Kg ...): one list for the whole
     group of companies, picked by items. Never deleted, only made inactive,
@@ -938,6 +1018,10 @@ class Party(models.Model):
     country = models.CharField(max_length=60, default="India")
     credit_term = models.ForeignKey(
         CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="parties"
+    )
+    # The rates a customer is sold at (a Selling list); its own item prices win.
+    price_list = models.ForeignKey(
+        PriceList, null=True, blank=True, on_delete=models.PROTECT, related_name="parties"
     )
     # Given automatically the first time a company deals with the party as a
     # customer (Sundry Debtors) or a supplier (Sundry Creditors); one party

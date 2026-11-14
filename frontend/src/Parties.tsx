@@ -10,6 +10,8 @@ import { api } from "./api";
 import type { CourierAccount } from "./Shipments";
 import { creatable } from "./Create";
 import { useCreditTerms } from "./CreditTerms";
+import { usePriceLists } from "./PriceLists";
+import { PriceTable, rowFromServer, type PriceRow } from "./PriceLines";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
 
 /** Customer or supplier details kept beside a debtor or creditor ledger. */
@@ -59,6 +61,11 @@ export type Party = {
   credit_limit: string;
   credit_term: number | null;
   credit_term_name?: string;
+  /** A customer's Selling price list; its own item prices (below) win over it. */
+  price_list?: number | null;
+  price_list_name?: string;
+  /** The customer's own rates, loaded and saved apart from the party (item_prices endpoint). */
+  item_prices?: PriceRow[];
   salesman: number | null;
   salesman_name?: string;
   preferred_transporter?: number | null;
@@ -113,7 +120,7 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false, kinds: [] });
 
 type Person = { id: number; name: string };
-export type PartyTab = "none" | "general" | "details" | "addresses" | "contacts" | "documents" | "products" | "labels" | "extra";
+export type PartyTab = "none" | "general" | "details" | "addresses" | "contacts" | "documents" | "products" | "prices" | "labels" | "extra";
 
 /** The tab strip at the top of a customer/supplier ledger form. */
 export function PartyTabBar(props: {
@@ -169,6 +176,30 @@ function PanelBox(props: {
   );
 }
 
+/** A customer's own rates for single items: they win over its price list. The same lines show on
+ * each item, as "Customer Prices" (one set of data seen from both sides). Saved with the ledger. */
+function PartyItemPrices(props: { party: Party; onChange: (p: Party) => void; canEdit: boolean }) {
+  const { party, onChange } = props;
+  useEffect(() => {
+    if (party.item_prices !== undefined || !party.id) return;
+    api<(PriceRow & { min_qty: string; rate: string })[]>(`v1/parties/${party.id}/item-prices/`).then((rows) =>
+      onChange({ ...party, item_prices: rows.map(rowFromServer) }),
+    );
+    // Load once per party; `party` changes as the form is edited.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [party.id]);
+  const rows = party.item_prices ?? [];
+  return (
+    <Section title="Item Prices">
+      <p className="small">
+        This customer's own rate for an item. Where it has any price for an item, only those are used for it; the
+        price list covers the other items. Rates are before GST.
+      </p>
+      <PriceTable rows={rows} onChange={(item_prices) => onChange({ ...party, item_prices })} by="item" readOnly={!props.canEdit} />
+    </Section>
+  );
+}
+
 /** The "Party details" part of the ledger form. */
 export function PartyFields({
   value: p,
@@ -202,6 +233,8 @@ export function PartyFields({
   const states = useStates();
   const { terms, refresh: refreshTerms } = useCreditTerms();
   const newTerm = creatable("credit_term", "credit-terms", refreshTerms);
+  const { lists: priceLists, refresh: refreshLists } = usePriceLists();
+  const newList = creatable("price_list", "price-lists", refreshLists);
   const [companies, setCompanies] = useState<Company[]>([]);
   useEffect(() => {
     api<Company[]>("v1/companies/").then(setCompanies);
@@ -339,6 +372,21 @@ export function PartyFields({
           />
           {term && <span className="small">{term.summary}</span>}
         </label>
+        {!supplier && (
+          <label>
+            Price list
+            <Combobox
+              value={p.price_list ? String(p.price_list) : ""}
+              empty="None"
+              options={priceLists
+                .filter((l) => l.kind === "selling" && (l.is_active || l.id === p.price_list))
+                .map((l) => ({ value: String(l.id), label: l.name }))}
+              onChange={(v) => set({ price_list: v ? Number(v) : null })}
+              create={newList}
+            />
+            <span className="small">The rates this customer is sold at. Its own Item Prices win.</span>
+          </label>
+        )}
         <label>
           {supplier ? "Purchaser" : "Salesman"}
           <Combobox
@@ -527,6 +575,10 @@ export function PartyFields({
         />
       </PanelBox>
 
+      <PanelBox ctx={ctx} code="prices" off={supplier}>
+        <PartyItemPrices party={p} onChange={onChange} canEdit={canEdit ?? true} />
+      </PanelBox>
+
       <PanelBox ctx={ctx} code="contacts">
       {p.contacts.length === 0 && <p className="small">No contacts yet.</p>}
       {p.contacts.length > 0 && (
@@ -626,6 +678,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
   const creditRows: [string, string][] = [
     ["Credit Limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit Terms", p.credit_term_name ?? ""],
+    ["Price List", p.price_list_name ?? ""],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
     ...(!supplier && p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
   ];

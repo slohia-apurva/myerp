@@ -30,6 +30,7 @@ from core.models import (
     PartyContact,
     PartyItemName,
     PartyProduct,
+    PriceList,
 )
 from core.numbering import next_number
 from shipping.models import CourierAccount
@@ -130,6 +131,10 @@ class PartySerializer(serializers.ModelSerializer):
         queryset=CreditTerm.objects.all(), allow_null=True, required=False
     )
     credit_term_name = serializers.CharField(source="credit_term.name", read_only=True)
+    price_list = serializers.PrimaryKeyRelatedField(
+        queryset=PriceList.objects.all(), allow_null=True, required=False
+    )
+    price_list_name = serializers.CharField(source="price_list.name", read_only=True)
     # Given on Save when blank; may be typed over, but stay unique.
     customer_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
     vendor_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
@@ -159,6 +164,8 @@ class PartySerializer(serializers.ModelSerializer):
             "credit_limit",
             "credit_term",
             "credit_term_name",
+            "price_list",
+            "price_list_name",
             "salesman",
             "preferred_transporter",
             "addresses",
@@ -194,6 +201,7 @@ _NOT_PARTY_FIELDS = (
     "salesman",
     "preferred_transporter",
     "credit_term_name",
+    "price_list_name",
     "addresses",
     "contacts",
     "products",
@@ -295,6 +303,11 @@ def save_party(
     for field in ("customer_number", "vendor_number"):
         if not data.get(field):
             data.pop(field, None)  # blank keeps the number it has
+    plist = data.get("price_list")
+    if plist is not None and (
+        plist.kind != PriceList.SELLING or (not plist.is_active and plist.pk != party.price_list_id)
+    ):
+        raise ValidationError({"party": {"price_list": ["Pick an active Selling price list."]}})
     if party.pk:
         try:
             refuse_key_changes("party", party, data)
@@ -303,7 +316,7 @@ def save_party(
     for field in PARTY_FIELDS:
         if field in data:
             value = data[field]
-            if value is None and field != "credit_term":
+            if value is None and field not in ("credit_term", "price_list"):
                 value = ""
             setattr(party, field, value)
     try:

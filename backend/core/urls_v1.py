@@ -19,6 +19,7 @@ from core import (
     numbering_api,
     party_documents,
     places,
+    price_lists,
     printout,
     units,
     warehouses,
@@ -37,6 +38,14 @@ urlpatterns = [
         name="credit_terms",
     ),
     path("credit-terms/<int:pk>/", credit_terms.CreditTermDetailView.as_view(), name="credit_term"),
+    path("price-lists/", price_lists.PriceListListView.as_view(), name="price_lists"),
+    path("price-lists/<int:pk>/", price_lists.PriceListDetailView.as_view(), name="price_list"),
+    path(
+        "parties/<int:pk>/item-prices/", price_lists.PartyPricesView.as_view(), name="party_prices"
+    ),
+    path(
+        "items/<int:pk>/customer-prices/", price_lists.ItemPricesView.as_view(), name="item_prices"
+    ),
     path("admin/reset/", data_reset.DataResetView.as_view(), name="data-reset"),
     path(
         "central-requests/<int:pk>/seen/",

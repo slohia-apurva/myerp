@@ -14,6 +14,8 @@ import { groupPaths, useItemGroups } from "./ItemGroups";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { Fold, hashParam, SidePanel, SideRows } from "./Master";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
+import { longDate } from "./Companies";
+import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -405,6 +407,44 @@ function ItemActivity({ item }: { item: Item }) {
 }
 
 /** The item's own page: every section, read only; Edit opens the form in a new tab. */
+/** The view page's "Customer Prices": what each customer pays for the item (read only). */
+function CustomerPricesView({ item }: { item: Item }) {
+  const [rows, setRows] = useState<(PriceRow & { id: number })[]>([]);
+  useEffect(() => {
+    api<(PriceRow & { id: number })[]>(`v1/items/${item.id}/customer-prices/`).then(setRows);
+  }, [item.id]);
+  return (
+    <Fold title="Customer Prices" summary={`${rows.length} ${rows.length === 1 ? "price" : "prices"}`}>
+      {rows.length === 0 ? (
+        <p className="small">No customer has its own price for this item.</p>
+      ) : (
+        <table className="grid">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Unit</th>
+              <th className="num">From Qty</th>
+              <th className="num">Rate</th>
+              <th>From Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.party_name}</td>
+                <td>{r.unit_label}</td>
+                <td className="num">{Number(r.min_qty)}</td>
+                <td className="num">{Number(r.rate).toFixed(2)}</td>
+                <td>{longDate(r.from_date)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Fold>
+  );
+}
+
 function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
   const { units } = useUnits();
@@ -618,6 +658,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 </table>
               )}
             </Fold>
+            <CustomerPricesView item={i} />
             <Fold title="Connections" summary="No documents yet" />
           </div>
           <div className="side-col">
@@ -753,6 +794,14 @@ function ItemForm(props: {
   useEffect(() => {
     api<PartyRow[]>("v1/parties/").then(setParties);
   }, []);
+  // What customers pay for this item: one set of data with each customer's Item Prices.
+  const [custPrices, setCustPrices] = useState<PriceRow[] | null>(null);
+  useEffect(() => {
+    if (!it || props.copyOf) return;
+    api<(PriceRow & { min_qty: string; rate: string })[]>(`v1/items/${it.id}/customer-prices/`).then((r) =>
+      setCustPrices(r.map(rowFromServer)),
+    );
+  }, [it, props.copyOf]);
   const [rows, setRows] = useState<Row[]>(
     (from?.units ?? []).map((u) => {
       const r = rowOf(u);
@@ -761,7 +810,7 @@ function ItemForm(props: {
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "connections">("general");
+  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "prices" | "connections">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -896,6 +945,7 @@ function ItemForm(props: {
     };
     try {
       const saved = it ? await api<Item>(`v1/items/${it.id}/`, body, "PATCH") : await api<Item>("v1/items/", body);
+      if (it && custPrices !== null) await api(`v1/items/${saved.id}/customer-prices/`, priceBody(custPrices), "PUT");
       props.onDone(saved.id, saved.name);
     } catch (err) {
       setError(err);
@@ -911,6 +961,7 @@ function ItemForm(props: {
     ["stock", "Stock And Quality", [batches ? "Batches tracked" : "", qc ? "Quality check on receipt" : ""].filter(Boolean).join(" · ")],
     ["units", "Units Of Measure", `${rows.length} ${rows.length === 1 ? "unit" : "units"}`],
     ["names", "Customer And Supplier Names", `${names.length} ${names.length === 1 ? "name" : "names"}`],
+    ["prices", "Customer Prices", `${(custPrices ?? []).length} ${(custPrices ?? []).length === 1 ? "price" : "prices"}`],
     ["connections", "Connections", "No documents yet"],
   ] as const;
   return (
@@ -1505,10 +1556,32 @@ function ItemForm(props: {
             </Section>
           </div>}
         </div>
+        <div className={"fold" + (tab === "prices" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "prices"} onClick={() => setTab(tab === "prices" ? "none" : "prices")}>
+            <span className="fold-title">{folds[7][1]}</span>
+            {tab !== "prices" && <span className="fold-summary">{folds[7][2]}</span>}
+          </button>
+          {tab === "prices" && <div className="fold-body">
+            <Section>
+              {!it || custPrices === null ? (
+                <p className="small">Save the item first; then add the rates a customer pays for it here.</p>
+              ) : (
+                <>
+                  <p className="small">
+                    What a customer pays for this item, from a date and a quantity. Where a customer has any price for this
+                    item, only those are used for it; its price list covers the other items. The same lines show under that
+                    customer's "Item Prices". Rates are before GST.
+                  </p>
+                  <PriceTable rows={custPrices} onChange={setCustPrices} by="customer" item={it} />
+                </>
+              )}
+            </Section>
+          </div>}
+        </div>
         <div className={"fold" + (tab === "connections" ? " open" : "")}>
           <button type="button" className="fold-head" aria-expanded={tab === "connections"} onClick={() => setTab(tab === "connections" ? "none" : "connections")}>
-            <span className="fold-title">{folds[7][1]}</span>
-            {tab !== "connections" && <span className="fold-summary">{folds[7][2]}</span>}
+            <span className="fold-title">{folds[8][1]}</span>
+            {tab !== "connections" && <span className="fold-summary">{folds[8][2]}</span>}
           </button>
           {tab === "connections" && <div className="fold-body">
         {true && (

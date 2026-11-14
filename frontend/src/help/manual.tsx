@@ -112,8 +112,8 @@ export const MANUAL: Chapter[] = [
             <strong>Top menu</strong> (white bar): the modules you may use, such
             as Dashboard and Masters. You only see the ones your role allows.
             Click "Masters" to open its list: "Ledger groups", "Ledgers",
-            "Credit terms", "Items" and "Units". Ledger groups and ledgers open
-            for the company you are working in. Owners also see "Admin", which
+            "Credit terms", "Items", "Price lists" and "Units". Ledger groups and
+            ledgers open for the company you are working in. Owners also see "Admin", which
             holds "Company", "Users", "User roles" and "Reset data". "Help"
             opens this manual at the page for the screen you are on.
           </li>
@@ -439,6 +439,85 @@ export const MANUAL: Chapter[] = [
         <p>
           To change many at once, use "Actions" at the top of the screen. See
           the chapter "Import, export and print".
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "price-lists",
+    title: "Price lists",
+    summary:
+      "Rates for selling and buying, with start dates and lower rates for bigger quantities, and a customer's own prices.",
+    body: (
+      <>
+        <p>
+          A price list is a named set of rates for items, for selling or for
+          buying. Each rate starts on a date, and an item can have a lower rate
+          for bigger quantities. This is one list shared by every company in the
+          group. Prices are used for rates on quotations, orders and invoices
+          once Sales and Purchase are built; until then the item's own "MRP" is
+          unchanged.
+        </p>
+        <h3>Add a price list</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Price lists".</li>
+          <li>
+            Click "Add price list" (it opens in a new browser tab). Give it a
+            "Name", such as "Retail 2026", a "Type" ("Selling" or "Buying") and,
+            if it is not rupees, the "Currency".
+          </li>
+          <li>
+            Under "Prices" click "Add price". Pick the "Item" and one of its
+            units, then fill in "From Qty" (it starts at 1), the "Rate" and the
+            "From Date". For a lower rate on bigger orders, add another line for
+            the same item with a bigger "From Qty".
+          </li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          Rates are before GST, as GST is added from the item's own rate on the
+          bill date. A rate is for the unit shown, so a carton has its own line;
+          there is no automatic conversion between units. A new rate is a new
+          line with a later date: old lines stay as history. The rate in force
+          is the latest one that has started, for the biggest "From Qty" not
+          above the quantity ordered. The same item, unit, quantity and date
+          cannot appear twice.
+        </p>
+        <h3>A customer's own prices</h3>
+        <p>
+          When one customer pays a different rate for one item and everything
+          else follows the list, give that customer its own price instead of
+          changing the list:
+        </p>
+        <ul>
+          <li>
+            On the customer's ledger, pick the "Price list" under "GST And
+            Credit". It shows only active "Selling" lists.
+          </li>
+          <li>
+            Open the "Item Prices" section of the same ledger and click "Add
+            price": item, unit, "From Qty", "Rate" and "From Date". Click "Save"
+            on the ledger.
+          </li>
+          <li>
+            Where a customer has any price of its own for an item, only those
+            are used for that item, so add every slab that customer should get;
+            for its other items the price list applies.
+          </li>
+          <li>
+            The same lines show on the item, under "Customer Prices", where
+            they can also be added, changed and removed: it is one set of data
+            seen from both sides.
+          </li>
+        </ul>
+        <p>
+          The list shows the type, currency, how many prices it has and how
+          many customers use it. Click a row to see its details and activity on
+          the right; "Edit" and "Duplicate" open in a new browser tab. A price
+          list is never deleted: tick "Disabled" in the "Switches" panel and
+          "Save" to stop offering it. Once customers use a list, its "Type" and
+          "Currency" cannot change. To add or change many prices at once, use
+          "Actions" at the top of the screen (see "Import, export and print").
         </p>
       </>
     ),
@@ -1519,6 +1598,10 @@ export const MANUAL: Chapter[] = [
             [
               "Credit terms",
               'When payment is due, picked from the "Credit terms" list shared by the group, such as 30 days or 50% advance and 50% on delivery. The words under the box spell out the parts.',
+            ],
+            [
+              "Price list",
+              'For a customer: the "Selling" price list its sales use. Its own prices, in the "Item Prices" section, win over the list. See the chapter "Price lists".',
             ],
             [
               "Salesman or Purchaser",

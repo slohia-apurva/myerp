@@ -25,6 +25,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
         "units": "units of measure",
         # item_group is not here: once in use it may move, but only within its top-level group.
     },
+    "price_list": {"kind": "type", "currency": "currency"},
     "credit_term": {},  # the parts stay editable (Sidharth, 2026-11-13)
     "item_group": {},  # the parent may move, but only within the same top-level group
     "fiscal_year": {"start_date": "start date", "end_date": "end date"},
@@ -180,7 +181,15 @@ def _item_group_uses(group) -> str:
 
 register("unit", _unit_uses)
 register("item_group", _item_group_uses)
+
+
+def _price_list_uses(plist) -> str:
+    n = plist.parties.count()
+    return f"{n} customer{'' if n == 1 else 's'}" if n else ""
+
+
 register("credit_term", _term_uses)
+register("price_list", _price_list_uses)
 
 # Ledgers, groups, parties, companies, branches and items take no `register`
 # here yet: opening balances are set-up data that stay editable, and nothing
