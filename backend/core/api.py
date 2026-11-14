@@ -39,6 +39,7 @@ from core.models import (
     Party,
 )
 from core.parties import PartySerializer, save_party
+from core.stores import sync_default_store
 from tenancy.context import tenant_atomic
 
 VIEW, EDIT = "masters.view", "masters.edit"
@@ -150,7 +151,7 @@ class BranchSerializer(serializers.ModelSerializer):
             "is_head_office",
             "is_active",
             *DEFAULT_FLAGS,
-            "is_warehouse",
+            "no_stock",
         ]
         read_only_fields = ["is_head_office"]
 
@@ -562,7 +563,7 @@ BRANCH_FIELDS = [
     *CONTACT_FIELDS,
     "is_active",
     *DEFAULT_FLAGS,
-    "is_warehouse",
+    "no_stock",
 ]
 
 
@@ -574,12 +575,13 @@ def save_branch(branch: Branch, data: dict) -> Branch:
         _unique_branch_name(branch.company, data["name"], exclude=branch.pk)
     if branch.pk:
         refuse_key_changes("branch", branch, data)
-    if branch.pk and data.get("is_warehouse") is False and branch.locations.exists():
+    if branch.pk and data.get("no_stock") and branch.locations.exclude(is_default=True).exists():
         raise ValidationError(
-            {"is_warehouse": ["This warehouse has racks, bins or areas; disable them instead."]}
+            {"no_stock": ["This branch has racks, bins or areas; disable them instead."]}
         )
     _move_defaults(branch, data)
     _save(branch, data, BRANCH_FIELDS)
+    sync_default_store(branch)
     return branch
 
 

@@ -336,8 +336,8 @@ export const MANUAL: Chapter[] = [
               "Tick Default billing address, Default ship to or Default ship from. Each can be on only one branch; documents pick it first and you can change it on each document. To move a default, tick it on the other branch.",
             ],
             [
-              "Warehouse",
-              'Tick "This branch is a warehouse" when goods are stored here. It then appears under "Masters", "Warehouses", where you add its racks, bins and areas.',
+              "Stock",
+              'Every branch can hold goods, so every branch appears under "Masters", "Warehouses", where you add its racks, bins and areas. Tick "No stock" only for a branch where goods are never stored, such as a sales-only office; it then does not appear there.',
             ],
           ]}
         />
@@ -1136,17 +1136,32 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          A physical warehouse is a branch of the company. Inside it there are
+          A warehouse is a branch of the company: every branch holds goods
+          unless it is ticked "No stock". Inside it there are
           racks, a rack holds bins, and a bin is a physical location where stock
           is kept. Apart from the bins, the warehouse has areas, which are named
           zones such as Receiving, Production and Despatch.
         </p>
-        <h3>Make a branch a warehouse</h3>
+        <h3>The default store</h3>
+        <p>
+          Goods need a place even in a simple office with no racks or bins, so
+          every branch that holds stock has an area called "[Branch name]
+          Store", marked "Default". You can rename it, but not disable it. Goods
+          that come in go to the branch's "Receiving" area if it has one,
+          otherwise to the default store; you can choose another place on the
+          entry.
+        </p>
+        <h3>Say that a branch holds no stock</h3>
         <ol>
           <li>Open the company and click the "Branches" tab.</li>
-          <li>Click "Add branch", or "Edit" on a branch.</li>
-          <li>Tick "This branch is a warehouse" and click "Save".</li>
+          <li>Click "Edit" on the branch.</li>
+          <li>Under "Stock", tick "No stock" and click "Save".</li>
         </ol>
+        <p>
+          The branch then shows "no stock" in the list and leaves the
+          "Warehouses" screen. Untick it to bring it back with its default
+          store.
+        </p>
         <h3>Add racks, bins and areas</h3>
         <ol>
           <li>
@@ -1178,7 +1193,7 @@ export const MANUAL: Chapter[] = [
           never deleted: on the form, tick "Disabled" under "Switches", and
           untick it to bring one back. A rack can be disabled only after its
           bins are disabled. A branch that has racks,
-          bins or areas stays a warehouse. To add many at once, use "Actions" at
+          bins or areas besides its default store cannot be ticked "No stock". To add many at once, use "Actions" at
           the top of the "Warehouses" screen (see "Import, export and print"); in the
           file a bin names its rack in "On rack", and a rack must come before
           the bins on it.

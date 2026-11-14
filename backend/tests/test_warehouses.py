@@ -52,15 +52,15 @@ def call(client, method, path, data=None):
 
 @pytest.fixture
 def warehouse(owner, company):
-    """A branch ticked as a warehouse; returns its id."""
+    """A branch that holds stock (the normal case); returns its id."""
     made = call(
         owner,
         "post",
         f"companies/{company}/branches/",
-        {"name": "Bhiwandi warehouse", "state_code": "27", "is_warehouse": True},
+        {"name": "Bhiwandi warehouse", "state_code": "27"},
     )
     assert made.status_code == 201, made.json()
-    assert made.json()["is_warehouse"] is True
+    assert made.json()["no_stock"] is False
     return made.json()["id"]
 
 
@@ -70,6 +70,10 @@ def add(client, company, **body):
 
 def tree(client, company):
     return call(client, "get", f"companies/{company}/warehouses/").json()
+
+
+def _house(client, company, name="Bhiwandi warehouse"):
+    return next(h for h in tree(client, company) if h["name"] == name)
 
 
 def test_racks_bins_and_areas_build_the_tree(owner, company, warehouse):
@@ -83,11 +87,11 @@ def test_racks_bins_and_areas_build_the_tree(owner, company, warehouse):
     assert area.status_code == 201, area.json()
     assert area.json()["purpose_label"] == "Despatch"
 
-    (house,) = tree(owner, company)
+    house = _house(owner, company)
     assert house["name"] == "Bhiwandi warehouse"
     assert [b["name"] for b in house["racks"][0]["bins"]] == ["A1", "A2"]
     assert house["racks"][0]["bin_count"] == 2
-    assert [a["name"] for a in house["areas"]] == ["Despatch"]
+    assert [a["name"] for a in house["areas"]] == ["Bhiwandi warehouse Store", "Despatch"]
 
 
 def test_a_location_says_what_uses_it_and_what_is_locked(owner, company, warehouse):
@@ -97,18 +101,57 @@ def test_a_location_says_what_uses_it_and_what_is_locked(owner, company, warehou
     assert rack["lock"] == {"in_use": [], "locked": []}
     locks.register("warehouse_location", lambda loc: "2 stock entries")
     try:
-        (house,) = tree(owner, company)
+        house = _house(owner, company)
         assert house["racks"][0]["lock"]["in_use"] == ["2 stock entries"]
         assert set(house["racks"][0]["lock"]["locked"]) == {"kind", "parent"}
     finally:
         locks._USES["warehouse_location"].pop()
 
 
-def test_only_a_warehouse_branch_holds_locations(owner, company):
-    head = call(owner, "get", f"companies/{company}/").json()["branches"][0]["id"]
-    r = add(owner, company, branch=head, kind="rack", name="R1")
-    assert r.status_code == 400 and "not a warehouse" in str(r.json())
-    assert tree(owner, company) == []
+def test_every_branch_holds_stock_unless_ticked_no_stock(owner, company):
+    # The head office holds stock like any branch, with a default store and nothing else.
+    (head,) = tree(owner, company)
+    assert head["name"] == "Head office" and head["racks"] == []
+    (store,) = head["areas"]
+    assert store["name"] == "Head office Store" and store["is_default"] is True
+    assert store["purpose"] == "storage"
+
+    shop = call(
+        owner,
+        "post",
+        f"companies/{company}/branches/",
+        {"name": "Sales office", "state_code": "27", "no_stock": True},
+    ).json()["id"]
+    assert [h["name"] for h in tree(owner, company)] == ["Head office"]
+    r = add(owner, company, branch=shop, kind="rack", name="R1")
+    assert r.status_code == 400 and "No stock" in str(r.json())
+
+    # Untick No stock and the branch gets its default store.
+    call(owner, "patch", f"branches/{shop}/", {"no_stock": False})
+    assert _house(owner, company, "Sales office")["areas"][0]["is_default"] is True
+
+
+def test_the_default_store_stays_and_is_not_duplicated(owner, company, warehouse):
+    store = _house(owner, company)["areas"][0]
+    r = call(owner, "patch", f"warehouse-locations/{store['id']}/", {"is_active": False})
+    assert r.status_code == 400 and "default store" in str(r.json())
+    r = call(owner, "patch", f"warehouse-locations/{store['id']}/", {"name": "Main Store"})
+    assert r.status_code == 200 and r.json()["is_default"] is True
+    # Saving the branch again does not add a second default store.
+    call(owner, "patch", f"branches/{warehouse}/", {"phone": ""})
+    assert [a["name"] for a in _house(owner, company)["areas"]] == ["Main Store"]
+    # No stock cannot be ticked while racks exist, but the lone default store does not count.
+    add(owner, company, branch=warehouse, kind="rack", name="R1")
+    r = call(owner, "patch", f"branches/{warehouse}/", {"no_stock": True})
+    assert r.status_code == 400 and "racks, bins or areas" in str(r.json())
+
+
+def test_no_stock_with_only_the_default_store_closes_it(owner, company, warehouse):
+    r = call(owner, "patch", f"branches/{warehouse}/", {"no_stock": True})
+    assert r.status_code == 200, r.json()
+    assert "Bhiwandi warehouse" not in [h["name"] for h in tree(owner, company)]
+    call(owner, "patch", f"branches/{warehouse}/", {"no_stock": False})
+    assert [a["name"] for a in _house(owner, company)["areas"]] == ["Bhiwandi warehouse Store"]
 
 
 def test_the_shape_rules(owner, company, warehouse):
@@ -177,13 +220,14 @@ def test_renaming_is_allowed_and_recorded(alpha, owner, company, warehouse):
     assert done.status_code == 200 and done.json()["name"] == "Rack 1"
     with use_tenant(alpha):
         entries = AuditEntry.objects.filter(record_type="warehouse_location")
-        assert entries.count() == 2
+        # The branch's default store was added too, and recorded.
+        assert entries.count() == 3
         assert any("Rack 1" in str(e.changes) for e in entries)
 
 
 def test_a_warehouse_with_locations_stays_a_warehouse(owner, company, warehouse):
     add(owner, company, branch=warehouse, kind="rack", name="R1")
-    r = call(owner, "patch", f"branches/{warehouse}/", {"is_warehouse": False})
+    r = call(owner, "patch", f"branches/{warehouse}/", {"no_stock": True})
     assert r.status_code == 400 and "racks, bins or areas" in str(r.json())
 
 

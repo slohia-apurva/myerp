@@ -46,8 +46,10 @@ class LocationSerializer(serializers.ModelSerializer):
             "notes",
             "is_active",
             "bin_count",
+            "is_default",
             "lock",
         ]
+        read_only_fields = ["is_default"]
 
 
 class LocationExchangeSerializer(LocationSerializer):
@@ -96,8 +98,8 @@ def save_location(company, location: L | None, data: dict) -> L:
         raise ValidationError({"branch": ["Pick the warehouse."]})
     if branch.company_id != company.pk:
         raise ValidationError({"branch": ["Pick a warehouse of this company."]})
-    if not branch.is_warehouse:
-        raise ValidationError({"branch": [f"{branch.name} is not a warehouse."]})
+    if branch.no_stock:
+        raise ValidationError({"branch": [f"{branch.name} is ticked No stock."]})
     if not new and branch.pk != location.branch_id:
         raise ValidationError({"branch": ["A rack, bin or area cannot move to another warehouse."]})
     if new and not branch.is_active:
@@ -123,6 +125,11 @@ def save_location(company, location: L | None, data: dict) -> L:
     if kind != L.AREA:
         purpose = ""
 
+    if not new and location.is_default:
+        if data.get("is_active") is False:
+            raise ValidationError({"is_active": ["The default store cannot be disabled."]})
+        if kind != location.kind or purpose != location.purpose:
+            raise ValidationError({"kind": ["The default store stays a storage area."]})
     if "name" in data:
         data["name"] = duplicates.tidy(data["name"])
     name = data.get("name", location.name)
@@ -186,13 +193,13 @@ exchange.register(
         queryset=lambda ctx: _locations(ctx.company).order_by("branch__name", "kind", "name"),
         save=_exchange_save,
         per_company=True,
-        exclude=("bin_count", "purpose_label"),
+        exclude=("bin_count", "purpose_label", "is_default"),
         labels={"branch": "Warehouse", "rack": "On rack", "purpose": "Area is for"},
         hints={
             "kind": "Rack, Bin or Area",
             "rack": "Only for a bin: the name of its rack. List a rack before its bins.",
             "purpose": "Only for an area: what it is for (Receiving, Production, Despatch...)",
-            "branch": "The branch ticked as a warehouse",
+            "branch": "The branch (one that is not ticked No stock)",
         },
     )
 )
@@ -202,7 +209,7 @@ def warehouse_tree(company) -> list[dict]:
     """Every warehouse branch with its racks (and their bins) and areas."""
     rows = list(_locations(company))
     out = []
-    for branch in company.branches.filter(is_warehouse=True).order_by("name"):
+    for branch in company.branches.filter(no_stock=False).order_by("name"):
         mine = [r for r in rows if r.branch_id == branch.pk]
         bins: dict[int, list] = {}
         for r in mine:

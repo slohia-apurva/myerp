@@ -5,6 +5,7 @@ from datetime import date
 from audit import recorder
 from core.ledger_groups import ensure_cash_ledger, ensure_head_office, seed_standard_groups
 from core.models import Branch, Company, Ledger, LedgerGroup, fiscal_year_start
+from core.stores import sync_default_store
 from tenancy.context import tenant_atomic
 
 
@@ -28,6 +29,8 @@ def create_company(**fields) -> Company:
 
 def _starting_records(company: Company) -> None:
     ensure_head_office(Branch, company)
+    for branch in Branch.objects.filter(company=company):
+        sync_default_store(branch)
     # The head office starts with the company's address and contact.
     head = company.branches.get(is_head_office=True)
     for field in ("address", "pincode", "city", "phone", "email", "contact_person"):

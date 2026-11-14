@@ -88,6 +88,12 @@ def _own_branches(company):
     return branches.filter(company=company) if company else branches
 
 
+def _locations(company):
+    """Racks, bins and areas to clear. The head office keeps its default store."""
+    rows = WarehouseLocation.objects.exclude(is_default=True, branch__is_head_office=True)
+    return rows.filter(branch__company=company) if company else rows
+
+
 def _certificates(company):
     return Certificate.objects.filter(company=company) if company else Certificate.objects.all()
 
@@ -117,12 +123,7 @@ def _plan(level: str, company):
             ("Customers and suppliers", _orphan_parties(company)),
             ("Ledger groups you added", _own_groups(company)),
             ("Licences and certificates", _certificates(company)),
-            (
-                "Racks, bins and areas",
-                WarehouseLocation.objects.filter(branch__company=company)
-                if company
-                else WarehouseLocation.objects.all(),
-            ),
+            ("Racks, bins and areas", _locations(company)),
             ("Branches other than the head office", _own_branches(company)),
         ]
     if level == "all":
@@ -216,6 +217,9 @@ def _delete_masters(scope) -> None:
     _scope_ledgers(scope).delete()
     Party.objects.filter(pk__in=parties).delete()
     _certificates(scope).delete()
+    # Bins before the racks they stand on.
+    _locations(scope).filter(kind="bin").delete()
+    _locations(scope).delete()
     _own_branches(scope).delete()
     # Deepest groups first: a group cannot go while one sits under it.
     while (groups := _own_groups(scope).filter(children__isnull=True)).exists():
