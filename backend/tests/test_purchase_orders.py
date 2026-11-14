@@ -527,3 +527,51 @@ def test_a_supplier_carries_purchase_terms_only(owner, world):
     good = call(owner, "patch", url, {"party": {"purchase_terms": buying}})
     assert good.status_code == 200, good.json()
     assert good.json()["party"]["purchase_terms_name"] == "purchase terms"
+
+
+def test_an_import_order_keeps_its_currency_and_import_details(owner, buyer, world, alpha):
+    from core.models import Currency
+
+    detail = call(owner, "get", f"companies/{world['company']}/").json()
+    group = next(g["id"] for g in detail["ledger_groups"] if g["name"] == "Sundry Creditors")
+    party = {"gst_type": "overseas", "country": "Sri Lanka", "state_code": ""}
+    made = call(owner, "post", f"companies/{world['company']}/ledgers/",
+                {"name": "Ceylon Spice Exports", "group": group, "party": party})  # fmt: skip
+    assert made.status_code == 201, made.json()
+    ceylon = made.json()["id"]
+    with use_tenant(alpha):
+        usd = Currency.objects.get_or_create(code="USD", defaults={"name": "US Dollar"})[0]
+        usd.symbol = "$"
+        usd.save()
+        Ledger.objects.filter(pk=ceylon).update(currency=usd)
+    w = {**world, "ceylon": ceylon}
+    url = f"companies/{world['company']}/purchase-orders/"
+    details = {
+        "incoterm": "CIF", "named_place": "Kolkata", "mode": "sea_fcl",
+        "port_loading": "Colombo", "port_discharge": "Kolkata", "origin": "sri lanka",
+        "latest_shipment": TODAY.isoformat(), "payment": "lc_sight", "partial": "not_allowed",
+        "transhipment": "allowed", "insurance_by": "seller",
+        "documents": ["packing_list", "commercial_invoice"], "packing": "5 kg cartons",
+    }  # fmt: skip
+    po = call(buyer, "post", url, order(w, supplier="ceylon", import_details=details))
+    assert po.status_code == 201, po.json()
+    body = po.json()
+    assert (body["currency"], body["currency_symbol"], body["igst_total"]) == ("USD", "$", "0.00")
+    assert (body["total"], body["round_off"]) == ("90366.80", "0.00")  # not rounded to 90367
+    got = body["import_details"]
+    assert got["origin"] == "Sri Lanka"
+    assert got["incoterm_label"] == "CIF - Cost, Insurance and Freight"
+    assert got["documents"] == ["commercial_invoice", "packing_list"]
+    assert got["documents_labels"] == ["Commercial invoice", "Packing list"]
+    # The next order to this supplier starts with these details (not the date).
+    setup = call(buyer, "get", f"{url}setup/").json()
+    row = next(s for s in setup["suppliers"] if s["id"] == ceylon)
+    assert (row["overseas"], row["currency"]) == (True, "USD")
+    assert row["last_import"]["incoterm"] == "CIF"
+    assert row["last_import"]["latest_shipment"] == ""
+    bad = call(buyer, "post", url, order(w, supplier="ceylon",
+               import_details={"incoterm": "XYZ", "origin": "Atlantis"})).json()  # fmt: skip
+    assert set(bad["import_details"]) == {"incoterm", "origin"}
+    # A domestic supplier's order has no import details and is in rupees.
+    home = call(buyer, "post", url, order(world, import_details=details)).json()
+    assert (home["currency"], home["import_details"]) == ("INR", {})

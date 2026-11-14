@@ -84,6 +84,11 @@ class PurchaseOrder(models.Model):
     whatsapp_to = models.JSONField(default=list, blank=True)
     mail_agent_user = models.BooleanField(default=False)
     supplier_ref = models.CharField(max_length=80, blank=True)
+    # The order's currency: the supplier ledger's (INR unless it is overseas with a
+    # foreign currency ledger). No exchange rate is kept on an order.
+    currency = models.CharField(max_length=3, default="INR")
+    # Shipment and payment terms of an import (buying.imports); empty otherwise.
+    import_details = models.JSONField(default=dict, blank=True)
     # The set the terms were taken from (the supplier's, else the company's
     # default); the text below is the order's own copy and may be changed.
     terms_set = models.ForeignKey(

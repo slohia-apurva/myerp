@@ -136,6 +136,7 @@ SKIP = {
     # A purchase order's totals follow from its items; its submit shows as the status.
     "interstate",
     "supplier_address",  # shown by its name, as an extra
+    "import_details",  # shown in words, as an extra
     "taxable_total",
     "cgst_total",
     "sgst_total",
@@ -356,6 +357,7 @@ def _register() -> None:
                 extras={
                     # "status" itself is skipped (a shipment's comes from tracking).
                     "order_status": ("Status", lambda o: o.get_status_display()),
+                    "import_terms": ("Import details", _import_words),
                     "supplier_address_label": (
                         "Supplier address",
                         lambda o: (o.supplier_address or {}).get("label") or None,
@@ -576,6 +578,20 @@ def _on_post_save(sender, instance, created, raw=False, **kwargs):
             s.pending[key] = pending
     action = AuditEntry.CREATE if pending.before is None else AuditEntry.UPDATE
     _write(instance, key, pending, action, _changes(pending.before, snapshot(instance)), s)
+
+
+def _import_words(o) -> str | None:
+    from buying.imports import labelled
+
+    d = labelled(o.import_details or {})
+    parts = [
+        " ".join(x for x in (d.get("incoterm"), d.get("named_place")) if x),
+        d.get("mode_label", ""),
+        " to ".join(x for x in (d.get("port_loading"), d.get("port_discharge")) if x),
+        d.get("payment_label", ""),
+        ", ".join(d.get("documents_labels") or []),
+    ]
+    return "; ".join(p for p in parts if p) or None
 
 
 def touch(record: models.Model) -> None:
