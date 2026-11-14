@@ -739,6 +739,16 @@ function ItemForm(props: {
   const stockName = unitName(stock);
   const listed = [stock, ...rows.map((r) => r.unit)].filter((id, k, all) => id && all.indexOf(id) === k);
   const unitChoices = listed.map((id) => ({ value: id, label: unitName(id) }));
+  const [centralRates, setCentralRates] = useState<{ rate: string; label: string }[]>([]);
+  useEffect(() => {
+    api<{ rate: string; label: string }[]>("v1/gst-rates/").then(setCentralRates);
+  }, []);
+  // The active central rates, plus a rate this item already holds that has since been disabled.
+  const rateOptions = (current: string) => {
+    const list = centralRates.map((c) => ({ value: plain(c.rate), label: c.label }));
+    if (current && !list.some((o) => o.value === current)) list.push({ value: current, label: `GST ${current}%` });
+    return list;
+  };
   const setRate = (i: number, change: Partial<GstRate>) => setRates(rates.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const setRow = (i: number, change: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const toggleUsed = (i: number, code: string, on: boolean) =>
@@ -1098,7 +1108,14 @@ function ItemForm(props: {
                         <input required type="date" aria-label="From" value={r.valid_from} onChange={(e) => setRate(i, { valid_from: e.target.value })} />
                       </td>
                       <td>
-                        <input required className="num" inputMode="decimal" aria-label="GST rate (%)" value={r.rate} onChange={(e) => setRate(i, { rate: e.target.value })} />
+                        <Combobox
+                          required
+                          ariaLabel="GST rate (%)"
+                          placeholder="Type to search rates…"
+                          value={r.rate}
+                          options={rateOptions(r.rate)}
+                          onChange={(v) => setRate(i, { rate: v })}
+                        />
                       </td>
                       <td>
                         <button type="button" className="link danger" onClick={() => setRates(rates.filter((_, j) => j !== i))}>

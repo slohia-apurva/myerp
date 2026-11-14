@@ -209,12 +209,16 @@ def _register() -> None:
                 extras={
                     "counters": (
                         "Last numbers",
-                        lambda f: "; ".join(
-                            f"{c.year.name}: {c.last}"
-                            for c in f.counters.select_related("year").order_by("year__start_date")
-                            if c.last
-                        )
-                        or None,
+                        lambda f: (
+                            "; ".join(
+                                f"{c.year.name}: {c.last}"
+                                for c in f.counters.select_related("year").order_by(
+                                    "year__start_date"
+                                )
+                                if c.last
+                            )
+                            or None
+                        ),
                     )
                 },
             ),
@@ -230,10 +234,12 @@ def _register() -> None:
                 extras={
                     "periods": (
                         "Locked months",
-                        lambda y: ", ".join(
-                            f"{p.start_date:%b %Y}" for p in y.periods.filter(is_locked=True)
-                        )
-                        or "None",
+                        lambda y: (
+                            ", ".join(
+                                f"{p.start_date:%b %Y}" for p in y.periods.filter(is_locked=True)
+                            )
+                            or "None"
+                        ),
                     )
                 },
             ),
@@ -259,14 +265,16 @@ def _register() -> None:
                 extras={
                     "units": (
                         "Units",
-                        lambda i: "; ".join(
-                            f"{u.unit} (stock unit)"
-                            if u.contains_unit_id is None
-                            else f"{u.unit} = {_number(u.contains_qty)} {u.contains_unit}"
-                            f" ({_number(u.factor)} {i.stock_unit})"
-                            for u in i.units.all()
-                        )
-                        or None,
+                        lambda i: (
+                            "; ".join(
+                                f"{u.unit} (stock unit)"
+                                if u.contains_unit_id is None
+                                else f"{u.unit} = {_number(u.contains_qty)} {u.contains_unit}"
+                                f" ({_number(u.factor)} {i.stock_unit})"
+                                for u in i.units.all()
+                            )
+                            or None
+                        ),
                     ),
                     "gst_rates": (
                         "GST rates",

@@ -9,6 +9,7 @@ from core import (
     data_reset,
     exchange,
     fiscal,
+    gst_rates,
     gstin_lookup,
     hsn,
     item_groups,
@@ -46,6 +47,12 @@ urlpatterns = [
         central.CarrierAdminDetailView.as_view(),
         name="central-carrier",
     ),
+    path("central/gst-rates/", central.GstRateAdminListView.as_view(), name="central-gst-rates"),
+    path(
+        "central/gst-rates/<int:pk>/",
+        central.GstRateAdminDetailView.as_view(),
+        name="central-gst-rate",
+    ),
     path(
         "central/carrier-requests/",
         central.CarrierRequestListView.as_view(),
@@ -59,6 +66,7 @@ urlpatterns = [
     path("countries/", places.CountryListView.as_view(), name="countries"),
     path("pin/<str:pin>/", places.PinView.as_view(), name="pin"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
+    path("gst-rates/", gst_rates.GstRateListView.as_view(), name="gst-rates"),
     path("print/pdf/", printout.PdfView.as_view(), name="print-pdf"),
     path("exchange/<str:key>/", exchange.ExportView.as_view(), name="exchange-export"),
     path("exchange/<str:key>/import/", exchange.ImportView.as_view(), name="exchange-import"),

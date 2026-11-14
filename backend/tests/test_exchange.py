@@ -309,7 +309,7 @@ def test_items_with_units_and_gst_rates(owner, alpha):
         ],
         "GST rates": [
             RATES,
-            ["Ghee 500 ml", "01-07-2017", "12"],
+            ["Ghee 500 ml", "01-07-2017", "18"],
             ["Ghee 500 ml", "22-09-2025", "5"],
         ],
     }
@@ -342,7 +342,7 @@ def test_items_with_units_and_gst_rates(owner, alpha):
     assert item["hsn"] == "0405"
     carton = next(u for u in item["units"] if u["unit_name"] == "Carton")
     assert carton["factor"] == "24.000000" and carton["used_for"] == ["purchase"]
-    assert [r["rate"] for r in item["gst_rates"]] == ["12.00", "5.00"]
+    assert [r["rate"] for r in item["gst_rates"]] == ["18.00", "5.00"]
 
     # The exported file goes back in unchanged.
     got = sheets_of(owner, "items")

@@ -300,6 +300,24 @@ def test_gst_rates_are_dated(accountant, unit, alpha):
     assert over.status_code == 400
 
 
+def test_item_gst_rates_come_from_the_central_list(accountant, unit):
+    item = make(accountant, unit).json()
+    url = f"items/{item['id']}/"
+    odd = call(accountant, "patch", url, {"gst_rates": [{"valid_from": "2027-04-01", "rate": "7"}]})
+    assert odd.status_code == 400
+    assert "7% is not in the GST rates list" in str(odd.json())
+    # 28% is in the list but disabled: refused when new, kept when the item already had it.
+    off = [{"valid_from": "2017-07-01", "rate": "28"}]
+    assert call(accountant, "patch", url, {"gst_rates": off}).status_code == 400
+    from tenancy.models import GstRate
+
+    GstRate.objects.filter(rate=28).update(is_active=True)
+    assert call(accountant, "patch", url, {"gst_rates": off}).status_code == 200
+    GstRate.objects.filter(rate=28).update(is_active=False)
+    again = off + [{"valid_from": "2027-04-01", "rate": "18"}]
+    assert call(accountant, "patch", url, {"gst_rates": again}).status_code == 200
+
+
 def test_item_ticks_allow_purchase_sales_and_stock(accountant, unit):
     item = make(accountant, unit).json()
     assert item["allow_purchase"] is True and item["allow_sales"] is True

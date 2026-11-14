@@ -20,12 +20,19 @@ from core import duplicates
 from core.api import Signed
 from tenancy import hsn_import, pin_import
 from tenancy.context import use_tenant
-from tenancy.models import Carrier, CarrierRequest, HsnCode, Tenant
+from tenancy.models import Carrier, CarrierRequest, GstRate, HsnCode, Tenant
 from tenancy.provisioning import create_tenant, drop_tenant_database
 
 # key, label, what it is for, model, screen to open (a hash route) or "".
 CENTRAL_TABLES = [
     ("hsn", "HSN codes", "HSN and SAC codes searched on the item form.", HsnCode, "#/hsn"),
+    (
+        "gst_rates",
+        "GST rates",
+        "The GST rates an item's rate history picks from.",
+        GstRate,
+        "",
+    ),
     (
         "carriers",
         "Couriers",
@@ -151,6 +158,62 @@ class CarrierAdminDetailView(APIView):
         with transaction.atomic():
             serializer.save()
         return Response(CarrierAdminSerializer(carrier).data)
+
+
+class GstRateAdminSerializer(serializers.ModelSerializer):
+    label = serializers.CharField(read_only=True)
+    rate = serializers.DecimalField(max_digits=5, decimal_places=2)
+
+    class Meta:
+        model = GstRate
+        fields = ["id", "rate", "label", "is_active"]
+
+    def validate_rate(self, value):
+        if not 0 <= value <= 100:
+            raise serializers.ValidationError("A GST rate is between 0 and 100.")
+        return value
+
+
+def _refuse_same_rate(rate, exclude=None) -> None:
+    clash = GstRate.objects.filter(rate=rate).exclude(pk=exclude).first()
+    if clash:
+        raise ValidationError({"rate": [f"{clash.label} is already in the list."]})
+
+
+class GstRateAdminListView(APIView):
+    """The central list of GST rates. Every customer picks from it; only
+    platform admins add to it. Never deleted, only disabled."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _platform_admin(request)
+        return Response(GstRateAdminSerializer(GstRate.objects.all(), many=True).data)
+
+    def post(self, request):
+        _platform_admin(request)
+        serializer = GstRateAdminSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        _refuse_same_rate(serializer.validated_data["rate"])
+        with transaction.atomic():
+            row = serializer.save()
+        return Response(GstRateAdminSerializer(row).data, status=status.HTTP_201_CREATED)
+
+
+class GstRateAdminDetailView(APIView):
+    """Only the Active tick changes: a rate's number is its identity."""
+
+    permission_classes = [Signed]
+
+    def patch(self, request, pk: int):
+        _platform_admin(request)
+        row = GstRate.objects.filter(pk=pk).first()
+        if row is None:
+            raise NotFound("No such GST rate.")
+        if "is_active" in request.data:
+            row.is_active = bool(request.data["is_active"])
+            row.save(update_fields=["is_active"])
+        return Response(GstRateAdminSerializer(row).data)
 
 
 class CarrierRequestSerializer(serializers.ModelSerializer):
