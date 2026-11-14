@@ -1595,7 +1595,8 @@ export const MANUAL: Chapter[] = [
           Ledgers list. Typing the GSTIN makes the party a registered one and
           fills in the state and PAN; the state decides the place of supply on
           invoices. "Fetch details" asks the GST portal for the name and address
-          and fills them in. The registered address goes in the "Addresses" section,
+          and fills them in (the name only when the box is empty or still holds
+          the name typed in a 'Create "…"' picker). The registered address goes in the "Addresses" section,
           named after the party; you can rename it, for example "Head office".
           It also warns if the GSTIN is not "Active" (cancelled or suspended).
           If the lookup is not available (the key is not set, the credits are
@@ -1967,9 +1968,11 @@ export const MANUAL: Chapter[] = [
             Under "Supplier and Dates" pick the "Supplier". If it is not there yet,
             type its name and click 'Create "…"': the "Add ledger" form opens in a
             new browser tab, under "Sundry Creditors" with the name filled in.
-            Fill in its GST details and contacts and click "Save"; the tab
-            closes and the order picks the new supplier (only people who may
-            add masters see this). Its "Credit Term"
+            Type its GSTIN and click "Fetch details": the name you typed is
+            replaced by the name on the GST record. Fill in its credit terms and
+            contacts and click "Save"; the tab closes and the order picks the
+            new supplier with its credit term and contacts (only people who may
+            add masters see this). The supplier's "Credit Term"
             fills in by itself; you can change it for this order. Fill in the
             "Order Date", "Deliver To" (the branch the goods come to; the line
             under it says which store they go to), and if you like the
