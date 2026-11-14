@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { PageHeader } from "./Brand";
 import { usePrintMenu } from "./Exchange";
+import { SidePanel, SideRows } from "./Master";
 
 /** HSN / SAC codes: one central list kept by MyERP, the same for every customer. */
 export type Hsn = { id: number; hsn_code: string; description: string; is_active: boolean };
@@ -10,15 +11,18 @@ type Found = { total: number; results: Hsn[] };
 const search = (q: string, pick: boolean) =>
   api<Found>(`v1/hsn/?q=${encodeURIComponent(q)}${pick ? "&limit=pick" : ""}`);
 
-/** Masters > HSN codes: the central list, to look up and search. */
+/** Masters > HSN codes: the central list, to look up and search. The details of the
+ * clicked row are on the right. Nobody adds or changes a code here: MyERP keeps the list. */
 export function HsnPage(_props: { session: SignedIn }) {
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Found>({ total: 0, results: [] });
+  const [selectedId, setSelected] = useState<number | null>(null);
   useEffect(() => {
     const t = setTimeout(() => search(q, false).then(setFound), 200);
     return () => clearTimeout(t);
   }, [q]);
   const printing = usePrintMenu({ title: "HSN codes", scope: q ? `Search: ${q}` : "" });
+  const selected = found.results.find((h) => h.id === selectedId) ?? null;
   return (
     <section className="page">
       <PageHeader
@@ -27,41 +31,70 @@ export function HsnPage(_props: { session: SignedIn }) {
         sub={`${found.total} code${found.total === 1 ? "" : "s"} · kept centrally by MyERP, the same for every company. Searched when you enter an item's HSN.`}
       />
       {printing.panel}
-      <input
-        type="search"
-        placeholder="Search by code or words in the description"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      <table>
-        <thead>
-          <tr>
-            <th>HSN code</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          {found.results.map((h) => (
-            <tr key={h.id} className={h.is_active ? "" : "off"}>
-              <td>
-                {h.hsn_code}
-                {!h.is_active && <span className="pill">Inactive</span>}
-              </td>
-              <td>{h.description}</td>
-            </tr>
-          ))}
-          {found.results.length === 0 && (
-            <tr>
-              <td colSpan={2} className="small">
-                {found.total === 0 ? "The list has not been loaded yet." : "Nothing matches."}
-              </td>
-            </tr>
+      <div className="side-layout">
+        <div className="side-main">
+          <input
+            type="search"
+            placeholder="Search by code or words in the description"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <table className="pick">
+            <thead>
+              <tr>
+                <th>HSN code</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {found.results.map((h) => (
+                <tr
+                  key={h.id}
+                  className={`${h.is_active ? "" : "off"}${selectedId === h.id ? " selected" : ""}`}
+                  onClick={() => setSelected(h.id)}
+                >
+                  <td>
+                    {h.hsn_code}
+                    {!h.is_active && <span className="pill">Inactive</span>}
+                  </td>
+                  <td>{h.description}</td>
+                </tr>
+              ))}
+              {found.results.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="small">
+                    {found.total === 0 && q === "" ? "The list has not been loaded yet." : "Nothing matches."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {found.total > found.results.length && q === "" && (
+            <p className="small">Showing the first {found.results.length}. Type in the search box to find others.</p>
           )}
-        </tbody>
-      </table>
-      {found.total > found.results.length && q === "" && (
-        <p className="small">Showing the first {found.results.length}. Type in the search box to find others.</p>
-      )}
+        </div>
+        <div className="side-col">
+          <SidePanel title="HSN Code Details">
+            {selected ? (
+              <SideRows
+                rows={[
+                  ["HSN Code", selected.hsn_code],
+                  ["Description", selected.description],
+                  ["Status", selected.is_active ? "In use" : "Inactive"],
+                ]}
+              />
+            ) : (
+              <p className="small">Click a code to see its details here.</p>
+            )}
+          </SidePanel>
+          <SidePanel title="About This List">
+            <p className="small">
+              MyERP keeps this list for every company, so codes cannot be added or changed here. An item's HSN must be a
+              code from this list.
+            </p>
+          </SidePanel>
+        </div>
+      </div>
     </section>
   );
 }
