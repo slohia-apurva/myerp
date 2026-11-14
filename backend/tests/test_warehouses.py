@@ -90,6 +90,20 @@ def test_racks_bins_and_areas_build_the_tree(owner, company, warehouse):
     assert [a["name"] for a in house["areas"]] == ["Despatch"]
 
 
+def test_a_location_says_what_uses_it_and_what_is_locked(owner, company, warehouse):
+    from core import locks
+
+    rack = add(owner, company, branch=warehouse, kind="rack", name="R1").json()
+    assert rack["lock"] == {"in_use": [], "locked": []}
+    locks.register("warehouse_location", lambda loc: "2 stock entries")
+    try:
+        (house,) = tree(owner, company)
+        assert house["racks"][0]["lock"]["in_use"] == ["2 stock entries"]
+        assert set(house["racks"][0]["lock"]["locked"]) == {"kind", "parent"}
+    finally:
+        locks._USES["warehouse_location"].pop()
+
+
 def test_only_a_warehouse_branch_holds_locations(owner, company):
     head = call(owner, "get", f"companies/{company}/").json()["branches"][0]["id"]
     r = add(owner, company, branch=head, kind="rack", name="R1")

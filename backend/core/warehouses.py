@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check, _company
 from core.companies import visible_companies
-from core.locks import refuse_key_changes
+from core.locks import lock_status, refuse_key_changes
 from core.models import Branch, WarehouseLocation
 from tenancy.context import tenant_atomic
 
@@ -28,6 +28,10 @@ class LocationSerializer(serializers.ModelSerializer):
     )
     purpose_label = serializers.CharField(source="get_purpose_display", read_only=True)
     bin_count = serializers.IntegerField(read_only=True, default=0)
+    lock = serializers.SerializerMethodField()
+
+    def get_lock(self, location) -> dict:
+        return lock_status("warehouse_location", location)
 
     class Meta:
         model = L
@@ -42,6 +46,7 @@ class LocationSerializer(serializers.ModelSerializer):
             "notes",
             "is_active",
             "bin_count",
+            "lock",
         ]
 
 
