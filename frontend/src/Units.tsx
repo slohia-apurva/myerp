@@ -1,12 +1,14 @@
 import { Combobox } from "./Combobox";
-import { announceCreated, useNewName } from "./Create";
-import { ErrorNote, useOpenParam } from "./ErrorNote";
+import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName } from "./Create";
+import { useOpenParam } from "./ErrorNote";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Activity, WithActivity } from "./Audit";
+import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
-import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
+import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
+import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { ActionCells, ActionHeads } from "./RowActions";
 
 /** Units of measure: one list for every company in the group. */
 export type Unit = {
@@ -16,6 +18,7 @@ export type Unit = {
   gst_code: string;
   whole_numbers: boolean;
   is_active: boolean;
+  lock?: LockInfo;
 };
 
 /** How a unit reads in the masters: "Kilogram (Kg)". Entry screens and reports use
@@ -50,31 +53,44 @@ export function useGstCodes() {
   return codes;
 }
 
-/** Masters > Units. */
+/** `?form=new`, `?form=<id>` or `?form=copy-<id>`: this tab was opened to add, change,
+ * view or duplicate one unit (Sidharth, 2026-11-13). */
+const formParam = () => hashParam("form");
+
+/** Masters > Units. The details of the clicked row are on the right; Add, Edit and
+ * Duplicate open in a new tab. */
 export function UnitsPage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
   const { units, reload } = useUnits();
-  const [editing, setEditing] = useState<Unit | "new" | null>(null);
-  const [copyOf, setCopyOf] = useState<Unit | null>(null);
+  const form = formParam();
+  if (form) return <UnitFormTab form={form} canEdit={canEdit} />;
+  return <UnitList session={session} canEdit={canEdit} units={units} reload={reload} />;
+}
+
+function UnitList(props: { session: SignedIn; canEdit: boolean; units: Unit[]; reload: () => void }) {
+  const { units, canEdit, reload } = props;
+  const [selectedId, setSelected] = useState<number | null>(null);
+  useCreated("unit_saved", (c) => {
+    reload();
+    setSelected(c.id);
+  });
   const startName = useNewName();
   useEffect(() => {
-    if (startName && canEdit) setEditing("new"); // opened by "Create …" in a dropdown
+    // Opened by "Create …" in a dropdown: go straight to the Add page.
+    if (startName && canEdit) window.location.hash = `#/units?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const done = () => {
-    setEditing(null);
-    setCopyOf(null);
-    reload();
-  };
-  const io = useExchange({ master: "units", noun: "units", session, onImported: reload });
+  const io = useExchange({ master: "units", noun: "units", session: props.session, onImported: reload });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
-    const found = openId && units.find((u) => u.id === openId);
-    if (found) {
-      setCopyOf(null);
-      setEditing(found);
+    // Opened from a link (for example a duplicate-name refusal): select that row.
+    if (openId && units.some((u) => u.id === openId)) {
+      setSelected(openId);
       opened();
     }
   }, [openId, units, opened]);
+  const codes = useGstCodes();
+  const selected = units.find((u) => u.id === selectedId) ?? null;
+  const edit = (what: number | string) => openTab(`#/units?form=${what}`);
   return (
     <section className="page">
       <PageHeader
@@ -83,81 +99,139 @@ export function UnitsPage({ session }: { session: SignedIn }) {
         actions={
           <>
             {io.buttons}
-            {canEdit && (
-              <button
-                onClick={() => {
-                  setCopyOf(null);
-                  setEditing("new");
-                }}
-              >
-                Add unit
-              </button>
-            )}
+            {canEdit && <button onClick={() => edit("new")}>Add unit</button>}
           </>
         }
       />
-      <WithActivity activity={<Activity type="unit" stamp={JSON.stringify(units)} />}>
-        {io.panel}
-        {editing && (
-          <UnitForm
-            key={editing === "new" ? `new-${copyOf?.id ?? ""}` : editing.id}
-            unit={editing === "new" ? null : editing}
-            copyOf={copyOf}
-            startName={editing === "new" && !copyOf ? (startName ?? undefined) : undefined}
-            readOnly={!canEdit}
-            onDone={done}
-            onCancel={() => {
-              setEditing(null);
-              setCopyOf(null);
-            }}
-          />
-        )}
-        <table>
-          <thead>
-            <tr>
-              <th>Unit</th>
-              <th>Short name</th>
-              <th>GST unit code</th>
-              <th>Whole numbers only</th>
-              <ActionHeads />
-            </tr>
-          </thead>
-          <tbody>
-            {units.map((u) => (
-              <tr key={u.id} className={u.is_active ? "" : "off"}>
-                <td>
-                  {u.name}
-                  {!u.is_active && <span className="pill">Inactive</span>}
-                </td>
-                <td>{u.short_name}</td>
-                <td>{u.gst_code}</td>
-                <td>{u.whole_numbers ? "Yes" : "No"}</td>
-                <ActionCells
-                  canEdit={canEdit}
-                  onOpen={() => {
-                    setCopyOf(null);
-                    setEditing(u);
-                  }}
-                  onDuplicate={() => {
-                    setCopyOf(u);
-                    setEditing("new");
-                  }}
-                />
+      {io.panel}
+      <div className="side-layout">
+        <div className="side-main">
+          <table className="pick">
+            <thead>
+              <tr>
+                <th>Unit</th>
+                <th>Short name</th>
+                <th>GST unit code</th>
+                <th>Whole numbers only</th>
+                <ActionHeads />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </WithActivity>
+            </thead>
+            <tbody>
+              {units.map((u) => (
+                <tr
+                  key={u.id}
+                  className={`${u.is_active ? "" : "off"}${selectedId === u.id ? " selected" : ""}`}
+                  onClick={() => setSelected(u.id)}
+                  onDoubleClick={() => edit(u.id)}
+                >
+                  <td>
+                    {u.name}
+                    {!u.is_active && <span className="pill">Disabled</span>}
+                  </td>
+                  <td>{u.short_name}</td>
+                  <td>{u.gst_code}</td>
+                  <td>{u.whole_numbers ? "Yes" : "No"}</td>
+                  <ActionCells canEdit={canEdit} onOpen={() => edit(u.id)} onDuplicate={() => edit(`copy-${u.id}`)} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="side-col">
+          <SidePanel title="Unit Details">
+            {selected ? (
+              <SideRows
+                rows={[
+                  ["Unit", unitLabel(selected)],
+                  [
+                    "GST Unit Code",
+                    selected.gst_code
+                      ? `${selected.gst_code}${codes.find((c) => c.code === selected.gst_code) ? ` - ${codes.find((c) => c.code === selected.gst_code)!.name}` : ""}`
+                      : "",
+                  ],
+                  ["Whole Numbers Only", selected.whole_numbers ? "Yes" : "No"],
+                  ["In Use", selected.lock?.in_use.join(", ") ?? ""],
+                  ["Disabled", selected.is_active ? "No" : "Yes"],
+                ]}
+              />
+            ) : (
+              <p className="small">Click a row to see its details here.</p>
+            )}
+          </SidePanel>
+          <SidePanel title="Activity">
+            <ChangeLog type="unit" id={selected?.id} stamp={JSON.stringify(selected ?? units.length)} />
+          </SidePanel>
+        </div>
+      </div>
     </section>
   );
 }
 
+/** The form of one unit, alone in its own tab: Save and Cancel close the tab. */
+function UnitFormTab(props: { form: string; canEdit: boolean }) {
+  const copy = props.form.startsWith("copy-");
+  const key = Number(props.form.replace("copy-", ""));
+  const [loaded, setLoaded] = useState(props.form === "new");
+  const [units, setUnits] = useState<Unit[]>([]);
+  useEffect(() => {
+    if (props.form === "new") return;
+    api<Unit[]>("v1/units/").then((rows) => {
+      setUnits(rows);
+      setLoaded(true);
+    });
+  }, [props.form]);
+  const startName = useNewName();
+  const target = props.form === "new" ? null : (units.find((u) => u.id === key) ?? null);
+  const toList = () => {
+    window.location.hash = "#/units";
+  };
+  const finish = (saved?: { id: number; name: string }) => {
+    if (saved) announceSaved("unit_saved", saved);
+    closeThisTab(toList);
+  };
+  const editing = props.form !== "new" && !copy;
+  const readOnly = !props.canEdit;
+  const title = props.form === "new" ? "Add unit" : copy ? "Duplicate unit" : readOnly ? "View unit" : "Edit unit";
+  if (!loaded)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+      </section>
+    );
+  if (props.form !== "new" && target === null)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+        <p className="error">That unit was not found.</p>
+      </section>
+    );
+  if (readOnly && !editing)
+    return (
+      <section className="page">
+        <PageHeader title={title} />
+        <p className="error">You may only view units.</p>
+      </section>
+    );
+  return (
+    <UnitForm
+      title={title}
+      unit={editing ? target : null}
+      copyOf={copy ? target : null}
+      startName={props.form === "new" ? (startName ?? undefined) : undefined}
+      readOnly={readOnly}
+      onDone={finish}
+      onCancel={() => finish()}
+    />
+  );
+}
+
 function UnitForm(props: {
+  title: string;
   unit: Unit | null;
   copyOf?: Unit | null;
   startName?: string;
   readOnly?: boolean;
-  onDone: () => void;
+  onDone: (saved?: { id: number; name: string }) => void;
   onCancel: () => void;
 }) {
   const u = props.unit;
@@ -167,37 +241,61 @@ function UnitForm(props: {
   const codes = useGstCodes();
   const [gstCode, setGstCode] = useState(props.copyOf ? props.copyOf.gst_code : (u?.gst_code ?? ""));
   const [whole, setWhole] = useState(from?.whole_numbers ?? false);
+  const [disabled, setDisabled] = useState(u ? !u.is_active : false);
   const [error, setError] = useState<unknown>("");
+  const [busy, setBusy] = useState(false);
+  const locked = (field: string) => isLocked(u?.lock, field);
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    setBusy(true);
     const body = { name, short_name: shortName, gst_code: gstCode, whole_numbers: whole };
     try {
-      if (u) await api(`v1/units/${u.id}/`, body, "PATCH");
-      else announceCreated("unit", await api<{ id: number; name: string }>("v1/units/", body));
-      props.onDone();
+      if (u) {
+        await api(`v1/units/${u.id}/`, { ...body, is_active: !disabled }, "PATCH");
+        props.onDone({ id: u.id, name });
+      } else {
+        const made = await api<{ id: number; name: string }>("v1/units/", body);
+        announceCreated("unit", made);
+        props.onDone(made);
+      }
     } catch (err) {
       setError(err);
+      setBusy(false);
     }
   };
 
   return (
-    <form className="card" onSubmit={save}>
-      <h4>{u ? `${props.readOnly ? "View" : "Edit"} ${u.name}` : props.copyOf ? `Duplicate ${props.copyOf.name}` : "Add unit"}</h4>
-      <FormBody readOnly={props.readOnly}>
-        <Section title="Unit">
-          <div className="row">
-            <label>
-              Name
-              <input required autoFocus value={name} placeholder="e.g. Carton" onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label>
-              Short name
-              <input required value={shortName} maxLength={10} placeholder="e.g. ctn" onChange={(e) => setShortName(e.target.value)} />
-            </label>
-            <label>
-              GST unit code
+    <FormPage
+      title={props.title}
+      sub={u ? unitLabel(u) : undefined}
+      formId="unit-form"
+      onSubmit={save}
+      onCancel={props.onCancel}
+      busy={busy}
+      error={error}
+      readOnly={props.readOnly}
+      disabled={u ? { value: disabled, set: setDisabled } : undefined}
+      activity={u ? <ChangeLog type="unit" id={u.id} stamp={JSON.stringify(u)} /> : undefined}
+    >
+      <InUseNote lock={u?.lock} />
+      <Section title="General">
+        <p className="small">
+          <span className="req-star">*</span> Required
+        </p>
+        <div className="item-fields">
+          <label>
+            <span className="req">Name</span>
+            <input required autoFocus value={name} placeholder="e.g. Carton" onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>
+            <span className="req">Short Name</span>
+            <input required value={shortName} maxLength={10} placeholder="e.g. ctn" onChange={(e) => setShortName(e.target.value)} />
+          </label>
+          <label>
+            <span className="req">GST Unit Code</span>
+            <Locked on={locked("gst_code")}>
               <Combobox
                 required
                 value={gstCode}
@@ -205,30 +303,16 @@ function UnitForm(props: {
                 empty="Pick a code"
                 options={codes.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))}
               />
-            </label>
-          </div>
+            </Locked>
+          </label>
+        </div>
+        <Locked on={locked("whole_numbers")}>
           <label className="check">
             <input type="checkbox" checked={whole} onChange={(e) => setWhole(e.target.checked)} />
             Whole numbers only (2.5 cartons is not allowed)
           </label>
-        </Section>
-      </FormBody>
-      <ErrorNote error={error} />
-      <div className="buttons">
-        {!props.readOnly && <button>Save</button>}
-        <button type="button" className="link" onClick={props.onCancel}>
-          {props.readOnly ? "Close" : "Cancel"}
-        </button>
-        {u && !props.readOnly && (
-          <ActiveButton
-            url={`v1/units/${u.id}/`}
-            active={u.is_active}
-            what={`the unit ${u.name}`}
-            onDone={props.onDone}
-            onError={setError}
-          />
-        )}
-      </div>
-    </form>
+        </Locked>
+      </Section>
+    </FormPage>
   );
 }

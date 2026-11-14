@@ -851,8 +851,8 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Units".</li>
           <li>
-            Click "Add unit", then give the "Name" (for example Drum) and a
-            "Short name" (for example drm).
+            Click "Add unit". The form opens in a new browser tab. Give the
+            "Name" (for example Drum) and a "Short name" (for example drm).
           </li>
           <li>
             Pick the "GST unit code" (click the box and type a few letters to
@@ -865,20 +865,28 @@ export const MANUAL: Chapter[] = [
             cartons: a quantity like 2.5 cartons will then be refused on
             documents.
           </li>
-          <li>Click "Save".</li>
+          <li>
+            Click "Save"; the tab closes and the unit is selected in the list.
+          </li>
         </ol>
         <p>
+          Click a unit in the list to see its details on the right, with its
+          activity below. "Edit" (or a double-click on the row) and "Duplicate"
+          open in a new tab.
+        </p>
+        <p>
           Once an item uses a unit, its "GST unit code" and "Whole numbers only"
-          cannot be changed, so old records keep their meaning. The name can
-          still be corrected.
+          cannot be changed, so old records keep their meaning: the form shows
+          a line "In use: ..." at the top and greys those two fields with a
+          "Locked" tag. The name can still be corrected.
         </p>
         <p>
           Wherever a unit is picked or shown in the masters, such as on an item,
           it reads with its short name in brackets, for example "Kilogram (Kg)".
           Entry screens and reports will show the short name alone ("Kg").
           Names and short names must be different from each other, whatever the
-          capital letters. Units are never deleted: click "Edit" and then the
-          "Disable" button to stop offering a unit ("Enable" brings it back).
+          capital letters. Units are never deleted: on the form, tick "Disabled" under
+          "Switches" to stop offering a unit, and untick it to bring it back.
           Items that already use it keep it.
         </p>
         <p>
