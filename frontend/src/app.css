@@ -2318,3 +2318,21 @@ table.groups tr.selected td:first-child {
   flex-direction: column;
   gap: 10px;
 }
+
+/* Dropdown lists float above the edge of a section (Sidharth, 2026-11-14): a folding section and a
+   grid must not clip a picker's list, so they no longer hide overflow; the title strip is rounded
+   instead of the box clipping it. */
+.fold {
+  overflow: visible;
+}
+.fold > summary,
+#item-form .fold > .fold-head {
+  border-radius: 7px;
+}
+.fold[open] > summary,
+#item-form .fold.open > .fold-head {
+  border-radius: 7px 7px 0 0;
+}
+table.grid {
+  overflow: visible;
+}
