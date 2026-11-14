@@ -625,8 +625,9 @@ export const MANUAL: Chapter[] = [
           Click "Request Addition" at the top of the "HSN codes" screen, or the
           "Not in the list? Request Addition" link under the "HSN code" box on
           the item form (the "GST Rates" section has one too). A new tab opens:
-          pick the "List" ("HSN or SAC code" or "GST rate"), type the code or
-          rate, the "Description" for a code, and a "Note For The MyERP Team" if
+          pick the "List" ("HSN or SAC code", "GST rate", "Country" or "PIN code"),
+          type the code or rate, the "Description" for an HSN code, the
+          "2-Letter Country Code" for a country, the "City" and "State" for a PIN, and a "Note For The MyERP Team" if
           you like, then click "Send Request". The same entry cannot be asked for
           twice while a request for it is open, and an entry that is already in
           the list is refused.
@@ -637,6 +638,37 @@ export const MANUAL: Chapter[] = [
           decides, a line appears under "Needs your attention" on your Dashboard;
           click "OK" to dismiss it. An added entry is in the list at once, for
           every company.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "places",
+    title: "Countries and PIN codes",
+    summary:
+      "The central lists of countries, and of PIN codes with their city and state.",
+    body: (
+      <>
+        <p>
+          MyERP keeps one list of countries and one of PIN codes for everyone,
+          so they are the same in every company. You cannot change them, but
+          you can search them: click "Masters" in the top menu, then
+          "Countries" or "PIN codes", and type in the search box. Click a line
+          to see its details on the right; for a PIN code that includes the
+          couriers that deliver there.
+        </p>
+        <p>
+          A customer or supplier's "Country" is picked from the country list
+          (it starts at India). The PIN code list gives an Indian address its
+          city and state: see the chapter "Ledgers".
+        </p>
+        <h3>Ask for a missing country or PIN code</h3>
+        <p>
+          Click "Request Addition" at the top of either screen, or the "PIN not
+          in the list? Request Addition" link under the "PIN code" box on an
+          address. Pick the "List", fill in the boxes and click "Send Request".
+          Once the MyERP team clicks "Approve &amp; Add", the entry is in the
+          list for every company, and a line on your Dashboard tells you.
         </p>
       </>
     ),
@@ -1489,14 +1521,16 @@ export const MANUAL: Chapter[] = [
           are filled in from the GST portal, and you can change any of them.
         </p>
         <p>
-          Type the six digits of the "PIN code" and MyERP looks it up in the
-          central list: the "City" box is filled in if it was empty, and so is
-          the "State" on a party address. The couriers that deliver to that PIN
-          are shown under the box (with "out of delivery area" where it
-          applies). You can change the city or state if the list is wrong.
-          Company and branch forms have a "City" box too, filled from the PIN
-          the same way, but their state is not changed. For an overseas party,
-          the "Country" box is a type-to-search list of countries.
+          For an Indian address, click the "PIN code" box and type the PIN, or
+          words of the city or state, and click the PIN you want in the list.
+          The "City" and "State" boxes are then filled in for you; they are
+          shown, not typed. A PIN that is not in the list is refused: click
+          "PIN not in the list? Request Addition" (see the chapter "Countries
+          and PIN codes"). An address saved before this rule keeps its city and
+          state until you change its PIN. For an overseas party, the "Country"
+          box is a type-to-search list of countries, and "Postal code" and
+          "City" are typed freely. Company and branch forms still have their
+          own "PIN code" and "City" boxes.
         </p>
         <p>
           In the "Contacts" section, click "+ Add contact" for each person you deal

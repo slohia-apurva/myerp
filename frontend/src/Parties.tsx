@@ -1,4 +1,4 @@
-import { CountryPicker, PinInput } from "./Pin";
+import { CountryPicker, PinPicker } from "./Pin";
 import { Section } from "./Brand";
 import { SidePanel, SideRows } from "./Master";
 import { PartyDocuments } from "./PartyDocuments";
@@ -353,18 +353,20 @@ export function PartyFields({
                     onChange={(e) => setAddress(i, { label: e.target.value })}
                   />
                 </label>
-                <label>
-                  {overseas ? "Country" : "State"}
-                  {overseas ? (
+                {overseas ? (
+                  <label>
+                    Country
                     <CountryPicker value={a.country} onChange={(country) => setAddress(i, { country })} />
-                  ) : (
-                    <StateSelect
-                      states={states}
-                      value={a.state_code}
-                      onChange={(code) => setAddress(i, { state_code: code })}
+                  </label>
+                ) : (
+                  <label>
+                    <span className="req">PIN code</span>
+                    <PinPicker
+                      value={a.pincode}
+                      onPick={(r) => setAddress(i, { pincode: r.pin, city: r.city, state_code: r.state_code || a.state_code })}
                     />
-                  )}
-                </label>
+                  </label>
+                )}
               </div>
               <label>
                 Address
@@ -376,23 +378,34 @@ export function PartyFields({
                 />
               </label>
               <div className="row">
-                <label>
-                  PIN code
-                  <PinInput
-                    value={a.pincode}
-                    onChange={(pincode) => setAddress(i, { pincode })}
-                    onFound={(f) => {
-                      const change: Partial<PartyAddress> = {};
-                      if (!a.city && f.city) change.city = f.city;
-                      if (!overseas && !a.state_code && f.state_code) change.state_code = f.state_code;
-                      if (Object.keys(change).length) setAddress(i, change);
-                    }}
-                  />
-                </label>
-                <label>
-                  City
-                  <input value={a.city} onChange={(e) => setAddress(i, { city: e.target.value })} />
-                </label>
+                {overseas ? (
+                  <>
+                    <label>
+                      Postal code
+                      <input value={a.pincode} onChange={(e) => setAddress(i, { pincode: e.target.value })} />
+                    </label>
+                    <label>
+                      City
+                      <input value={a.city} onChange={(e) => setAddress(i, { city: e.target.value })} />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <label>
+                      City
+                      <input readOnly tabIndex={-1} value={a.city} placeholder="Shown when a PIN is picked" />
+                    </label>
+                    <label>
+                      State
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        value={states.find((st) => st.code === a.state_code)?.name ?? ""}
+                        placeholder="Shown when a PIN is picked"
+                      />
+                    </label>
+                  </>
+                )}
                 {registered && (
                   <label>
                     GSTIN at this address (if different)

@@ -135,6 +135,8 @@ export function MastersMenu(props: { active: boolean; company?: Company; canSeeM
         ["Brands", "#/brands", props.canSeeMasters],
         ["Units", "#/units", props.canSeeMasters],
         ["HSN codes", "#/hsn", props.canSeeMasters],
+        ["Countries", "#/countries", props.canSeeMasters],
+        ["PIN codes", "#/pin-codes", props.canSeeMasters],
       ]}
     />
   );

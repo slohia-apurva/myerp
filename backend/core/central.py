@@ -20,12 +20,29 @@ from core import central_requests, duplicates
 from core.api import Signed
 from tenancy import hsn_import, pin_import
 from tenancy.context import use_tenant
-from tenancy.models import Carrier, CarrierRequest, CentralRequest, GstRate, HsnCode, Tenant
+from tenancy.models import (
+    Carrier,
+    CarrierRequest,
+    CentralRequest,
+    Country,
+    GstRate,
+    HsnCode,
+    PinCode,
+    Tenant,
+)
 from tenancy.provisioning import create_tenant, drop_tenant_database
 
 # key, label, what it is for, model, screen to open (a hash route) or "".
 CENTRAL_TABLES = [
     ("hsn", "HSN codes", "HSN and SAC codes searched on the item form.", HsnCode, "#/hsn"),
+    ("countries", "Countries", "The countries a party can be in.", Country, "#/countries"),
+    (
+        "pins",
+        "PIN codes",
+        "PIN codes with their city and state, picked on an Indian address.",
+        PinCode,
+        "#/pin-codes",
+    ),
     (
         "gst_rates",
         "GST rates",
@@ -230,6 +247,8 @@ class CentralRequestAdminSerializer(serializers.ModelSerializer):
             "entry",
             "description",
             "note",
+            "city",
+            "state_code",
             "requested_by",
             "status",
             "created_at",

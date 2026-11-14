@@ -864,7 +864,7 @@ function AdditionRequests() {
   return (
     <Section title="Requests">
       <p className="small">
-        Entries customers asked for in the HSN or GST rate lists. "Approve &amp; Add" puts the entry in the list for every
+        Entries customers asked for in the HSN, GST rate, country or PIN code lists. "Approve &amp; Add" puts the entry in the list for every
         company and shows the customer a notice; "Not needed" shows them that it was declined.
       </p>
       <table>
@@ -890,7 +890,7 @@ function AdditionRequests() {
               <td>{r.kind_label}</td>
               <td>
                 {r.entry}
-                {r.description && <div className="small">{r.description}</div>}
+                {(r.description || r.city) && <div className="small">{[r.description, r.city, r.state_code && `state ${r.state_code}`].filter(Boolean).join(" · ")}</div>}
               </td>
               <td>{r.note}</td>
               <td>{r.status_label}</td>

@@ -190,15 +190,25 @@ class CentralRequest(models.Model):
     team adds the entry on the Central screen and marks the request Added."""
 
     HSN, GST_RATE = "hsn", "gst_rate"
-    KINDS = [(HSN, "HSN or SAC code"), (GST_RATE, "GST rate")]
+    COUNTRY, PIN = "country", "pin"
+    KINDS = [
+        (HSN, "HSN or SAC code"),
+        (GST_RATE, "GST rate"),
+        (COUNTRY, "Country"),
+        (PIN, "PIN code"),
+    ]
     OPEN, ADDED, DECLINED = "open", "added", "declined"
     STATUSES = [(OPEN, "Open"), (ADDED, "Added to the list"), (DECLINED, "Not needed")]
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="central_requests")
     kind = models.CharField(max_length=12, choices=KINDS)
-    entry = models.CharField(max_length=40)  # the code or rate asked for
+    # The HSN code, GST rate, country name or PIN asked for. A country's 2-letter code is
+    # kept in `description`; a PIN's city and GST state code in `city` and `state_code`.
+    entry = models.CharField(max_length=40)
     description = models.CharField(max_length=500, blank=True)
     note = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state_code = models.CharField(max_length=2, blank=True)
     requested_by = models.CharField(max_length=254, blank=True)
     status = models.CharField(max_length=10, choices=STATUSES, default=OPEN)
     created_at = models.DateTimeField(auto_now_add=True)
