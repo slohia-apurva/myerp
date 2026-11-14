@@ -1828,6 +1828,9 @@ fieldset.item-checks {
     grid-template-rows: none;
     grid-auto-flow: row;
   }
+  .item-cols > div:empty {
+    display: none;
+  }
   .item-edit .item-general > div:first-child {
     grid-template-columns: minmax(0, 1fr);
   }
