@@ -358,6 +358,20 @@ def _register() -> None:
                     # "status" itself is skipped (a shipment's comes from tracking).
                     "order_status": ("Status", lambda o: o.get_status_display()),
                     "import_terms": ("Import details", _import_words),
+                    "charges": (
+                        "Charges",
+                        lambda o: "; ".join(
+                            f"{c.item} {c.amount}"
+                            + (f" + GST {_number(c.gst_rate)}%" if c.gst_rate else "")
+                            + {
+                                "no": " (not in stock cost)",
+                                "qty": " (stock cost by quantity)",
+                                "value": " (stock cost by value)",
+                            }.get(c.add_to_stock, "")
+                            for c in o.charges.select_related("item")
+                        )
+                        or None,
+                    ),
                     "supplier_address_label": (
                         "Supplier address",
                         lambda o: (o.supplier_address or {}).get("label") or None,

@@ -196,6 +196,8 @@ class ItemSerializer(serializers.ModelSerializer):
             "maintain_stock",
             "allow_purchase",
             "allow_sales",
+            "purchase_charge",
+            "add_to_stock",
             "offer_to_all",
             "notes",
             "is_active",
@@ -341,12 +343,18 @@ def _save_item(item: Item, data: dict) -> Item:
         "maintain_stock",
         "allow_purchase",
         "allow_sales",
+        "purchase_charge",
+        "add_to_stock",
         "offer_to_all",
         "notes",
         "is_active",
     ):
         if field in data:
             setattr(item, field, data[field])
+    if item.purchase_charge and item.item_type != Item.SERVICE:
+        raise ValidationError(
+            {"purchase_charge": ["Only a service item can be a purchase charge."]}
+        )
     if "hsn" in data and data["hsn"] and not data["hsn"].isdigit():
         raise ValidationError({"hsn": ["The HSN code is digits only."]})
     if not item.hsn:
@@ -582,6 +590,8 @@ exchange.register(
             "maintain_stock": "Maintain stock",
             "allow_purchase": "Allow purchase",
             "allow_sales": "Allow sales",
+            "purchase_charge": "Use as purchase charge",
+            "add_to_stock": "Add to stock cost",
             "offer_to_all": "Offer to all",
             "units": "Units of measure",
             "units.contains_qty": "Contains how many",

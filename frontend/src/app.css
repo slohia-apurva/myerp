@@ -2691,3 +2691,24 @@ td.nowrap {
     grid-template-columns: 1fr;
   }
 }
+
+/* Purchase order charges: the stock cost choice as a row of radio buttons */
+.po-charges td.po-stock {
+  white-space: nowrap;
+}
+.po-charges td.po-stock label.check {
+  display: inline-flex;
+  margin-right: 0.75rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+.po-charges .po-item {
+  width: 26%;
+  min-width: 200px;
+}
+.po-charges .po-basis {
+  min-width: 150px;
+}
+.po-charges .po-gst {
+  min-width: 90px;
+}

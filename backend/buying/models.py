@@ -154,3 +154,33 @@ class PurchaseOrderLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item} × {self.qty}"
+
+
+class PurchaseOrderCharge(models.Model):
+    """An extra the supplier bills on the order (Sidharth, 2026-11-14): a service
+    item marked "Use as Purchase Charge". Its amount is fixed, a share of the
+    items' taxable value, or a rate on their total quantity. "Add to Stock Cost"
+    says how it is spread over the items when the goods are received (by
+    quantity or by value), or "No" for the expense account."""
+
+    FIXED, PERCENT, PER_UNIT = "fixed", "percent", "per_unit"
+    BASES = [(FIXED, "Fixed"), (PERCENT, "% of items"), (PER_UNIT, "Per unit")]
+
+    order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="charges")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    basis = models.CharField(max_length=10, choices=BASES, default=FIXED)
+    # The amount for Fixed, the percent for "% of items", the rate per unit for "Per unit".
+    rate = models.DecimalField(**QTY, validators=[MinValueValidator(0)])
+    amount = models.DecimalField(**MONEY)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    add_to_stock = models.CharField(max_length=5, choices=Item.STOCK_COST, default=Item.BY_VALUE)
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item} {self.amount}"
