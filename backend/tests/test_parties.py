@@ -7,6 +7,7 @@ from accounts.models import Role, User
 from core.companies import create_company
 from core.india import gstin_check_char
 from tenancy.context import use_tenant
+from tenancy.models import PinCode, State
 
 pytestmark = pytest.mark.django_db(databases="__all__")
 
@@ -57,6 +58,8 @@ def add_ledger(client, company, group, **extra):
 
 
 def test_a_customer_gets_party_details(accountant, company, alpha):
+    PinCode.objects.create(pin="560001", city="Bengaluru GPO", state=State.objects.get(code="29"))
+    PinCode.objects.create(pin="411028", city="Pune", state=State.objects.get(code="27"))
     with use_tenant(alpha):
         salesman = User.objects.create_user("ravi@x.in", full_name="Ravi").pk
     party = {
@@ -81,6 +84,7 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
             {
                 "label": "Pune godown",
                 "address": "Hadapsar",
+                "pincode": "411028",
                 "state_code": "27",
                 "gstin": gstin("27"),
                 "is_shipping": True,
@@ -95,7 +99,8 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
     assert saved["state_code"] == "29"
     assert saved["salesman_name"] == "Ravi"
     assert [a["label"] for a in saved["addresses"]] == ["Bengaluru office", "Pune godown"]
-    assert [a["city"] for a in saved["addresses"]] == ["Bengaluru", ""]
+    # City and state come from the PIN list.
+    assert [a["city"] for a in saved["addresses"]] == ["Bengaluru GPO", "Pune"]
     assert [(c["name"], c["is_primary"]) for c in saved["contacts"]] == [
         ("Mr Rao", True),
         ("Meena", False),
@@ -489,3 +494,34 @@ def test_a_party_in_use_reports_its_locked_fields(accountant, company):
         assert open_.json()["is_active"] is False
     finally:
         locks._USES["party"].remove(fn)
+
+
+def test_an_indian_address_takes_its_place_from_the_pin_list(accountant, company):
+    PinCode.objects.create(pin="560001", city="Bengaluru GPO", state=State.objects.get(code="29"))
+
+    def save(address, **extra):
+        party = {
+            "gst_type": "unregistered",
+            "state_code": "29",
+            "addresses": [{"label": "Shop", "address": "1 Road", **address}],
+        }
+        return add_ledger(accountant, company, "Sundry Debtors", party=party, **extra)
+
+    # A PIN that is not in the list, or none at all, is refused for a new Indian address.
+    assert "Pick the PIN code" in str(save({"pincode": "999999"}).json())
+    assert "Pick the PIN code" in str(save({}).json())
+    ok = save({"pincode": "560001", "city": "Typed", "state_code": "27"})
+    assert ok.status_code == 201, ok.json()
+    address = ok.json()["party"]["addresses"][0]
+    assert (address["city"], address["state_code"]) == ("Bengaluru GPO", "29")
+
+    # An overseas address is typed freely, and a saved legacy address keeps its place.
+    abroad = {
+        "gst_type": "overseas",
+        "country": "Oman",
+        "addresses": [{"label": "Muscat", "address": "x", "country": "Oman", "city": "Muscat"}],
+    }
+    assert (
+        add_ledger(accountant, company, "Sundry Debtors", party=abroad, name="Gulf").status_code
+        == 201
+    )

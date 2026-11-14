@@ -9,7 +9,7 @@ import { hashParam, openTab } from "./Master";
 /** A request to add an entry to a central list, sent to the MyERP team (Sidharth, 2026-11-14). */
 export type AdditionRequest = {
   id: number;
-  kind: "hsn" | "gst_rate";
+  kind: Kind;
   kind_label: string;
   entry: string;
   description: string;
@@ -17,22 +17,28 @@ export type AdditionRequest = {
   requested_by: string;
   status: "open" | "added" | "declined";
   status_label: string;
+  city: string;
+  state_code: string;
   created_at: string;
   seen: boolean;
 };
 
+export type Kind = "hsn" | "gst_rate" | "country" | "pin";
+
 export const REQUEST_LISTS = [
   { value: "hsn", label: "HSN or SAC code" },
   { value: "gst_rate", label: "GST rate" },
+  { value: "country", label: "Country" },
+  { value: "pin", label: "PIN code" },
 ];
 
 /** Opens the "Request Addition" screen in a new tab, the list (and a typed entry) filled in. */
-export function openRequestAddition(kind: "hsn" | "gst_rate", entry = "") {
+export function openRequestAddition(kind: Kind, entry = "") {
   openTab(`#/request-addition?kind=${kind}${entry ? `&entry=${encodeURIComponent(entry)}` : ""}`);
 }
 
 /** "Not in the list? Request Addition" link for a dropdown that picks from a central list. */
-export function RequestAdditionLink(props: { kind: "hsn" | "gst_rate"; label?: string }) {
+export function RequestAdditionLink(props: { kind: Kind; label?: string }) {
   return (
     <button type="button" className="link" onClick={() => openRequestAddition(props.kind)}>
       {props.label ?? "Not in the list? Request Addition"}
@@ -40,14 +46,31 @@ export function RequestAdditionLink(props: { kind: "hsn" | "gst_rate"; label?: s
   );
 }
 
+const ENTRY_LABEL: Record<string, string> = {
+  hsn: "HSN Or SAC Code",
+  gst_rate: "GST Rate (%)",
+  country: "Country Name",
+  pin: "PIN Code",
+};
+
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 /** The screen opened by every "Request Addition" button. */
 export function RequestAdditionPage() {
-  const [kind, setKind] = useState(hashParam("kind") === "gst_rate" ? "gst_rate" : "hsn");
+  const asked = hashParam("kind");
+  const [kind, setKind] = useState<string>(REQUEST_LISTS.some((l) => l.value === asked) ? asked! : "hsn");
   const [entry, setEntry] = useState(hashParam("entry") ?? "");
   const [description, setDescription] = useState("");
   const [note, setNote] = useState("");
+  const [city, setCity] = useState("");
+  const [stateCode, setStateCode] = useState("");
+  const [states, setStates] = useState<{ value: string; label: string }[]>([]);
+  useEffect(() => {
+    api<{ code: string; name: string }[]>("v1/states/").then(
+      (rows) => setStates(rows.map((r) => ({ value: r.code, label: r.name }))),
+      () => setStates([]),
+    );
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [sent, setSent] = useState("");
@@ -63,11 +86,13 @@ export function RequestAdditionPage() {
     setError(null);
     setSent("");
     try {
-      const made = await api<AdditionRequest>("v1/central-requests/", { kind, entry, description, note });
+      const made = await api<AdditionRequest>("v1/central-requests/", { kind, entry, description, note, city, state_code: stateCode });
       setSent(made.entry);
       setEntry("");
       setDescription("");
       setNote("");
+      setCity("");
+      setStateCode("");
       load();
     } catch (err) {
       setError(err);
@@ -103,14 +128,31 @@ export function RequestAdditionPage() {
                 <Combobox options={REQUEST_LISTS} value={kind} onChange={(v) => v && setKind(v)} ariaLabel="List" />
               </label>
               <label>
-                <span className="req">{kind === "hsn" ? "HSN Or SAC Code" : "GST Rate (%)"}</span>
+                <span className="req">{ENTRY_LABEL[kind]}</span>
                 <input required value={entry} onChange={(e) => setEntry(e.target.value)} />
               </label>
-              {kind === "hsn" && (
+              {(kind === "hsn" || kind === "country") && (
                 <label>
-                  <span className="req">Description</span>
-                  <input required value={description} onChange={(e) => setDescription(e.target.value)} />
+                  <span className="req">{kind === "hsn" ? "Description" : "2-Letter Country Code"}</span>
+                  <input
+                    required
+                    maxLength={kind === "hsn" ? 500 : 2}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
                 </label>
+              )}
+              {kind === "pin" && (
+                <>
+                  <label>
+                    <span className="req">City</span>
+                    <input required value={city} onChange={(e) => setCity(e.target.value)} />
+                  </label>
+                  <label>
+                    <span className="req">State</span>
+                    <Combobox options={states} value={stateCode} onChange={setStateCode} required ariaLabel="State" />
+                  </label>
+                </>
               )}
               <label>
                 Note For The MyERP Team
@@ -145,6 +187,7 @@ export function RequestAdditionPage() {
                       <td>
                         {r.entry}
                         {r.description ? ` · ${r.description}` : ""}
+                        {r.city ? ` · ${r.city}` : ""}
                       </td>
                       <td>{r.status_label}</td>
                     </tr>

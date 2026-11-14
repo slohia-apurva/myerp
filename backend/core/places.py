@@ -4,6 +4,7 @@ the couriers that deliver there, to fill a party's address as it is typed."""
 
 import re
 
+from django.db.models import Q
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -19,6 +20,46 @@ class CountryListView(APIView):
         _check(request, VIEW)
         rows = Country.objects.filter(is_active=True)
         return Response([{"code": c.code, "name": c.name} for c in rows])
+
+
+PICK_LIMIT = 30
+LIST_LIMIT = 500
+
+
+class PinCodeListView(APIView):
+    """GET ?q=text&limit=pick: PIN codes to search (a PIN's first digits, or words of the
+    city or state), 30 rows for the picker, else 500."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _check(request, VIEW)
+        pick = request.query_params.get("limit") == "pick"
+        rows = PinCode.objects.select_related("state")
+        if pick or request.query_params.get("active") == "1":
+            rows = rows.filter(is_active=True)
+        q = request.query_params.get("q", "").strip()
+        if q.replace(" ", "").isdigit():
+            rows = rows.filter(pin__startswith=q.replace(" ", ""))
+        else:
+            for word in q.split():
+                rows = rows.filter(Q(city__icontains=word) | Q(state__name__icontains=word))
+        return Response(
+            {
+                "total": PinCode.objects.count(),
+                "results": [
+                    {
+                        "id": p.pk,
+                        "pin": p.pin,
+                        "city": p.city,
+                        "state_code": p.state.code if p.state else "",
+                        "state_name": p.state.name if p.state else "",
+                        "is_active": p.is_active,
+                    }
+                    for p in rows.order_by("pin")[: PICK_LIMIT if pick else LIST_LIMIT]
+                ],
+            }
+        )
 
 
 class PinView(APIView):

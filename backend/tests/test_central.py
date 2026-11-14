@@ -5,7 +5,7 @@ from django.test import Client
 
 from accounts.models import User
 from tenancy.context import use_tenant
-from tenancy.models import GstRate, HsnCode
+from tenancy.models import Country, GstRate, HsnCode, PinCode
 
 pytestmark = pytest.mark.django_db(databases="__all__")
 
@@ -459,3 +459,48 @@ def test_customers_request_additions_to_central_lists(alpha, settings):
         HTTP_HOST=HOST,
     )
     assert ok.status_code == 200 and GstRate.objects.filter(rate=40).exists()
+
+
+def test_customers_request_countries_and_pin_codes(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    boss = _client(alpha, "boss@x.in")
+    owner = _client(alpha, "owner@x.in", owner=True)
+
+    def ask(data):
+        return owner.post(
+            "/api/v1/central-requests/", data, content_type="application/json", HTTP_HOST=HOST
+        )
+
+    assert "2-letter" in str(ask({"kind": "country", "entry": "Kosovo"}).json())
+    assert "already in the country" in str(
+        ask({"kind": "country", "entry": "india", "description": "ZZ"}).json()
+    )
+    assert "6 digits" in str(ask({"kind": "pin", "entry": "12"}).json())
+    assert "city" in str(ask({"kind": "pin", "entry": "370421", "state_code": "24"}).json())
+    assert "state" in str(ask({"kind": "pin", "entry": "370421", "city": "Mundra"}).json())
+    country = ask({"kind": "country", "entry": "Kosovo", "description": "xk"})
+    pin = ask({"kind": "pin", "entry": "370421", "city": "Mundra", "state_code": "24"})
+    assert country.status_code == 201 and pin.status_code == 201, (country.json(), pin.json())
+    assert country.json()["description"] == "XK"
+
+    for made in (country, pin):
+        r = boss.patch(
+            f"/api/v1/central/requests/{made.json()['id']}/",
+            {"status": "added"},
+            content_type="application/json",
+            HTTP_HOST=HOST,
+        )
+        assert r.status_code == 200, r.json()
+    assert Country.objects.get(code="XK").name == "Kosovo"
+    row = PinCode.objects.get(pin="370421")
+    assert row.city == "Mundra" and row.state.code == "24"
+    assert "already in the PIN list" in str(
+        ask({"kind": "pin", "entry": "370421", "city": "x", "state_code": "24"}).json()
+    )
+
+    # Everyone who can see masters can search the PIN list, by PIN or by words.
+    found = owner.get("/api/v1/pin-codes/?q=3704", HTTP_HOST=HOST).json()
+    assert [p["pin"] for p in found["results"]] == ["370421"]
+    assert found["results"][0]["state_name"] == "Gujarat"
+    by_city = owner.get("/api/v1/pin-codes/?q=mundra gujarat&limit=pick", HTTP_HOST=HOST).json()
+    assert [p["pin"] for p in by_city["results"]] == ["370421"]

@@ -85,6 +85,7 @@ urlpatterns = [
         name="central-carrier-request",
     ),
     path("countries/", places.CountryListView.as_view(), name="countries"),
+    path("pin-codes/", places.PinCodeListView.as_view(), name="pin-codes"),
     path("pin/<str:pin>/", places.PinView.as_view(), name="pin"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
     path("gst-rates/", gst_rates.GstRateListView.as_view(), name="gst-rates"),

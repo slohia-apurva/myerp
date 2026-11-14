@@ -32,6 +32,7 @@ from core.models import (
     PartyProduct,
 )
 from core.numbering import next_number
+from tenancy.models import PinCode
 
 
 def _upper(value: str) -> str:
@@ -397,6 +398,30 @@ def _add_to_companies(ledger: Ledger, party: Party, companies) -> None:
         other.save()
 
 
+def _take_place_from_pin(address: PartyAddress, i: int, unchanged: bool) -> None:
+    if address.country.strip().lower() not in ("", "india"):
+        return
+    address.country = "India"
+    pin = (
+        PinCode.objects.select_related("state").filter(pin=address.pincode, is_active=True).first()
+    )
+    if pin is None:
+        if unchanged:
+            return
+        raise ValidationError(
+            {
+                "party": {
+                    "addresses": {
+                        i: {"pincode": ["Pick the PIN code from the list, or Request Addition."]}
+                    }
+                }
+            }
+        )
+    address.city = pin.city or address.city
+    if pin.state:
+        address.state_code = pin.state.code
+
+
 def _save_addresses(party: Party, addresses: list[dict]) -> None:
     for flag, name in (("is_billing", "billing"), ("is_shipping", "shipping")):
         if sum(1 for a in addresses if a.get(flag)) > 1:
@@ -406,6 +431,9 @@ def _save_addresses(party: Party, addresses: list[dict]) -> None:
     labels = [a["label"].strip().lower() for a in addresses]
     if len(set(labels)) != len(labels):
         raise ValidationError({"party": {"addresses": ["Give each address its own name."]}})
+    # An Indian address takes its PIN from the central list, which gives its city and
+    # state. An address saved before that rule, with the same name and PIN, is kept as it is.
+    earlier = {(x.label.lower(), x.pincode) for x in party.addresses.all()}
     party.addresses.all().delete()
     for i, a in enumerate(addresses):
         address = PartyAddress(party=party, **{**a, "label": a["label"].strip()})
@@ -423,6 +451,11 @@ def _save_addresses(party: Party, addresses: list[dict]) -> None:
             )
         if address.gstin and not address.state_code:
             address.state_code = address.gstin[:2]
+        _take_place_from_pin(address, i, (address.label.lower(), address.pincode) in earlier)
+        if address.gstin and address.gstin[:2] != address.state_code:
+            raise ValidationError(
+                {"party": {"addresses": [f"{address.label}: the GSTIN is of another state."]}}
+            )
         try:
             address.full_clean(exclude=["party"])
         except DjangoValidationError as exc:
