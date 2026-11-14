@@ -748,7 +748,7 @@ export const MANUAL: Chapter[] = [
     id: "brands",
     title: "Brands",
     summary:
-      "The brand names that items are sold under, picked on the item's General tab.",
+      "The brand names that items are sold under, picked on the item form.",
     body: (
       <>
         <p>
@@ -760,16 +760,21 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Brands".</li>
           <li>
-            Click "Add brand", then give the "Name" (for example Apurvam) and,
-            if you like, "Notes".
+            Click "Add brand". The form opens in a new browser tab. Give the
+            "Name" (for example Apurvam) and, if you like, "Notes".
           </li>
-          <li>Click "Save".</li>
+          <li>
+            Click "Save"; the tab closes and the brand is selected in the list.
+          </li>
         </ol>
         <p>
-          Brand names must be different, whatever the capital letters. The
-          "Items" column shows how many items carry each brand. Brands are never
-          deleted: click "Edit" and then the "Disable" button to stop offering a
-          brand ("Enable" brings it back); items already using it keep it. To
+          Click a brand in the list to see its details on the right, with its
+          activity below. "Edit" (or a double-click on the row) and "Duplicate"
+          open in a new tab. Brand names must be different, whatever the
+          capital letters. The "Items" column shows how many items carry each
+          brand. Brands are never deleted: on the form, tick "Disabled" under
+          "Switches" to stop offering a brand, and untick it to bring it back;
+          items already using it keep it. To
           change many brands at once, use "Actions" at the top of the screen
           (see "Import, export and print").
         </p>
