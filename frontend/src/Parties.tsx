@@ -64,6 +64,9 @@ export type Party = {
   /** A customer's Selling price list; its own item prices (below) win over it. */
   price_list?: number | null;
   price_list_name?: string;
+  /** A supplier's Buying price list. */
+  buying_price_list?: number | null;
+  buying_price_list_name?: string;
   /** The customer's own rates, loaded and saved apart from the party (item_prices endpoint). */
   item_prices?: PriceRow[];
   salesman: number | null;
@@ -178,11 +181,11 @@ function PanelBox(props: {
 
 /** A customer's own rates for single items: they win over its price list. The same lines show on
  * each item, as "Customer Prices" (one set of data seen from both sides). Saved with the ledger. */
-function PartyItemPrices(props: { party: Party; onChange: (p: Party) => void; canEdit: boolean }) {
-  const { party, onChange } = props;
+function PartyItemPrices(props: { party: Party; onChange: (p: Party) => void; canEdit: boolean; supplier: boolean }) {
+  const { party, onChange, supplier } = props;
   useEffect(() => {
     if (party.item_prices !== undefined || !party.id) return;
-    api<(PriceRow & { min_qty: string; rate: string })[]>(`v1/parties/${party.id}/item-prices/`).then((rows) =>
+    api<(PriceRow & { min_qty: string; rate: string })[]>(`v1/parties/${party.id}/item-prices/?side=${supplier ? "buying" : "selling"}`).then((rows) =>
       onChange({ ...party, item_prices: rows.map(rowFromServer) }),
     );
     // Load once per party; `party` changes as the form is edited.
@@ -192,8 +195,8 @@ function PartyItemPrices(props: { party: Party; onChange: (p: Party) => void; ca
   return (
     <Section title="Item Prices">
       <p className="small">
-        This customer's own rate for an item. Where it has any price for an item, only those are used for it; the
-        price list covers the other items. Rates are before GST.
+        This {supplier ? "supplier's" : "customer's"} own rate for an item. Where it has any price for an item, only
+        those are used for it; the price list covers the other items. Rates are before GST.
       </p>
       <PriceTable rows={rows} onChange={(item_prices) => onChange({ ...party, item_prices })} by="item" readOnly={!props.canEdit} />
     </Section>
@@ -372,21 +375,26 @@ export function PartyFields({
           />
           {term && <span className="small">{term.summary}</span>}
         </label>
-        {!supplier && (
-          <label>
-            Price list
-            <Combobox
-              value={p.price_list ? String(p.price_list) : ""}
-              empty="None"
-              options={priceLists
-                .filter((l) => l.kind === "selling" && (l.is_active || l.id === p.price_list))
-                .map((l) => ({ value: String(l.id), label: l.name }))}
-              onChange={(v) => set({ price_list: v ? Number(v) : null })}
-              create={newList}
-            />
-            <span className="small">The rates this customer is sold at. Its own Item Prices win.</span>
-          </label>
-        )}
+        <label>
+          Price list
+          <Combobox
+            value={(supplier ? p.buying_price_list : p.price_list) ? String(supplier ? p.buying_price_list : p.price_list) : ""}
+            empty="None"
+            options={priceLists
+              .filter(
+                (l) =>
+                  l.kind === (supplier ? "buying" : "selling") &&
+                  (l.is_active || l.id === (supplier ? p.buying_price_list : p.price_list)),
+              )
+              .map((l) => ({ value: String(l.id), label: l.name }))}
+            onChange={(v) => set(supplier ? { buying_price_list: v ? Number(v) : null } : { price_list: v ? Number(v) : null })}
+            create={newList}
+          />
+          <span className="small">
+            {supplier ? "The rates this supplier sells to you at" : "The rates this customer is sold at"}. Its own Item
+            Prices win.
+          </span>
+        </label>
         <label>
           {supplier ? "Purchaser" : "Salesman"}
           <Combobox
@@ -575,8 +583,8 @@ export function PartyFields({
         />
       </PanelBox>
 
-      <PanelBox ctx={ctx} code="prices" off={supplier}>
-        <PartyItemPrices party={p} onChange={onChange} canEdit={canEdit ?? true} />
+      <PanelBox ctx={ctx} code="prices">
+        <PartyItemPrices party={p} onChange={onChange} canEdit={canEdit ?? true} supplier={supplier} />
       </PanelBox>
 
       <PanelBox ctx={ctx} code="contacts">
@@ -678,7 +686,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
   const creditRows: [string, string][] = [
     ["Credit Limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
     ["Credit Terms", p.credit_term_name ?? ""],
-    ["Price List", p.price_list_name ?? ""],
+    ["Price List", (supplier ? p.buying_price_list_name : p.price_list_name) ?? ""],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
     ...(!supplier && p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
   ];

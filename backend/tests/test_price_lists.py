@@ -210,3 +210,76 @@ def test_price_lists_export_and_import_with_prices_by_name(accountant, world):
     assert "Item" in prices["columns"] and len(prices["rows"]) == 2
     assert any("Green Tea" in str(cell) for row in prices["rows"] for cell in row)
     assert made["price_count"] == 2
+
+
+def test_supplier_prices_are_kept_apart_from_customer_prices(alpha, accountant, world):
+    sell = [line(world, rate="170", on="2026-11-01")]
+    buy = [
+        line(world, rate="120", on="2026-11-01"),
+        line(world, qty="1000", rate="110", on="2026-11-01"),
+    ]
+    path = f"parties/{world['fresh']}/item-prices/"
+    assert call(accountant, "put", path, sell).status_code == 200
+    saved = call(accountant, "put", path + "?side=buying", buy)
+    assert saved.status_code == 200, saved.json()
+    assert len(call(accountant, "get", path).json()) == 1  # customer side untouched
+    assert len(call(accountant, "get", path + "?side=buying").json()) == 2
+    assert call(accountant, "get", path + "?side=nope").status_code == 400
+    # The item shows each side apart; the supplier side is edited from the item too.
+    assert len(call(accountant, "get", f"items/{world['tea']}/customer-prices/").json()) == 1
+    suppliers = call(accountant, "get", f"items/{world['tea']}/supplier-prices/").json()
+    assert {r["party_name"] for r in suppliers} == {"Fresh Mart"} and len(suppliers) == 2
+    emptied = call(accountant, "put", f"items/{world['tea']}/supplier-prices/", [])
+    assert emptied.json() == []
+    assert len(call(accountant, "get", path).json()) == 1  # still there
+
+    from core.models import Party
+
+    with use_tenant(alpha):
+        fresh = Party.objects.get(pk=world["fresh"])
+        pack = Unit.objects.get(pk=world["pack"])
+        tea = Item.objects.get(pk=world["tea"])
+        rate = price_lists.rate_for
+        assert rate(fresh, tea, pack, 5, datetime.date(2026, 12, 1)) == Decimal("170")
+        assert rate(fresh, tea, pack, 5, datetime.date(2026, 12, 1), side="buying") is None
+
+
+def test_a_supplier_takes_an_active_buying_list_and_its_rate_follows_it(accountant, world, alpha):
+    from tests.test_parties import add_ledger
+
+    with use_tenant(alpha):
+        company = create_company(name="Apurvam Organics LLP", state_code="27").pk
+    buying = make_list(
+        accountant,
+        world,
+        [line(world, rate="120"), line(world, qty="1000", rate="110")],
+        name="Suppliers",
+        kind="buying",
+    ).json()
+    selling = make_list(accountant, world, []).json()
+    party = {"gst_type": "unregistered", "state_code": "27"}
+    wrong = add_ledger(
+        accountant,
+        company,
+        "Sundry Creditors",
+        name="Pack Well",
+        party={**party, "buying_price_list": selling["id"]},
+    )
+    assert wrong.status_code == 400 and "Buying price list" in str(wrong.json())
+    made = add_ledger(
+        accountant,
+        company,
+        "Sundry Creditors",
+        name="Pack Well",
+        party={**party, "buying_price_list": buying["id"]},
+    )
+    assert made.status_code == 201, made.json()
+    assert made.json()["party"]["buying_price_list_name"] == "Suppliers"
+    with use_tenant(alpha):
+        supplier = Party.objects.get(pk=made.json()["party"]["id"])
+        tea, pack = Item.objects.get(pk=world["tea"]), Unit.objects.get(pk=world["pack"])
+        on = datetime.date(2026, 6, 1)
+        assert price_lists.rate_for(supplier, tea, pack, 5, on, side="buying") == Decimal("120")
+        assert price_lists.rate_for(supplier, tea, pack, 2000, on, side="buying") == Decimal("110")
+    refused = call(accountant, "patch", f"price-lists/{buying['id']}/", {"kind": "selling"})
+    assert refused.status_code == 400 and "1 customer or supplier" in str(refused.json())

@@ -46,6 +46,11 @@ urlpatterns = [
     path(
         "items/<int:pk>/customer-prices/", price_lists.ItemPricesView.as_view(), name="item_prices"
     ),
+    path(
+        "items/<int:pk>/supplier-prices/",
+        price_lists.ItemSupplierPricesView.as_view(),
+        name="item_supplier_prices",
+    ),
     path("admin/reset/", data_reset.DataResetView.as_view(), name="data-reset"),
     path(
         "central-requests/<int:pk>/seen/",

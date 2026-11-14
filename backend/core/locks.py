@@ -184,8 +184,8 @@ register("item_group", _item_group_uses)
 
 
 def _price_list_uses(plist) -> str:
-    n = plist.parties.count()
-    return f"{n} customer{'' if n == 1 else 's'}" if n else ""
+    n = plist.parties.count() + plist.suppliers.count()
+    return f"{n} customer or supplier{'' if n == 1 else 's'}" if n else ""
 
 
 register("credit_term", _term_uses)

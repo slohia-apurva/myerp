@@ -19,7 +19,7 @@ export type PriceRow = {
   unit_label?: string;
 };
 
-export type PartyOption = { id: number; name: string; customer_number: string };
+export type PartyOption = { id: number; name: string; customer_number: string; vendor_number: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -78,7 +78,7 @@ export function useCustomerChoices() {
 export function PriceTable(props: {
   rows: PriceRow[];
   onChange: (rows: PriceRow[]) => void;
-  by: "item" | "customer";
+  by: "item" | "customer" | "supplier";
   item?: Item | null;
   readOnly?: boolean;
 }) {
@@ -104,7 +104,7 @@ export function PriceTable(props: {
         <table className="grid">
           <thead>
             <tr>
-              <th>{by === "item" ? "Item" : "Customer"}</th>
+              <th>{by === "item" ? "Item" : by === "supplier" ? "Supplier" : "Customer"}</th>
               <th>Unit</th>
               <th className="num">From Qty</th>
               <th className="num">Rate</th>
@@ -139,9 +139,9 @@ export function PriceTable(props: {
                   ) : (
                     <Combobox
                       value={r.party ? String(r.party) : ""}
-                      placeholder="Type to search customers…"
-                      ariaLabel="Customer"
-                      options={parties.filter((x) => x.customer_number).map((x) => ({ value: String(x.id), label: x.name }))}
+                      placeholder={`Type to search ${by === "supplier" ? "suppliers" : "customers"}…`}
+                      ariaLabel={by === "supplier" ? "Supplier" : "Customer"}
+                      options={parties.filter((x) => (by === "supplier" ? x.vendor_number : x.customer_number)).map((x) => ({ value: String(x.id), label: x.name }))}
                       onChange={(v) => set(i, { party: Number(v) || null })}
                     />
                   )}
