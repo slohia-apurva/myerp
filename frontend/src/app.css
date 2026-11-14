@@ -476,7 +476,8 @@ a.button {
 .filters > input {
   flex: 2 1 240px;
 }
-.filters > select {
+.filters > select,
+.filters > .combo {
   flex: 1 1 200px;
 }
 .num {

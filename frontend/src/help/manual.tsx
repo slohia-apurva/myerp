@@ -836,7 +836,9 @@ export const MANUAL: Chapter[] = [
         <p>
           The arrow beside a group folds or opens the groups under it, and "Show
           levels" opens the tree to the depth you pick. The "Items" column
-          counts the items in a group and in the groups below it. Click a group
+          counts the items in a group and in the groups below it; click the number to
+          see those items in the Items list (the "Item group" box above the list
+          shows which group is chosen; pick "All groups" to see every item). Click a group
           to see its details on the right, with its activity below. "Edit",
           "Duplicate" and "+ Sub-group" each open in a new tab.
         </p>

@@ -166,7 +166,15 @@ function GroupList(props: { session: SignedIn; canEdit: boolean; groups: ItemGro
           </span>
         </td>
         <td className="small">{g.notes}</td>
-        <td className="num">{total(g) > 0 ? total(g) : <span className="small">—</span>}</td>
+        <td className="num">
+          {total(g) > 0 ? (
+            <a href={`#/items?group=${g.id}`} onClick={(e) => e.stopPropagation()}>
+              {total(g)}
+            </a>
+          ) : (
+            <span className="small">—</span>
+          )}
+        </td>
         <td className="row-actions">
           {canEdit && (
             <button className="link" onClick={stop(() => edit(`sub-${g.id}`))}>
