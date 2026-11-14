@@ -59,11 +59,14 @@ export const MANUAL: Chapter[] = [
 
         <h3>Picking from a list</h3>
         <p>
-          Wherever you pick a group, state, currency, credit term, salesman or
+          A box with a small down arrow at its right end opens a list. Wherever
+          you pick a group, state, currency, credit term, salesman or
           an existing customer or supplier, click the box and start typing: the
           list narrows to what matches (type any part of the name, in any
           order). Use the up and down arrow keys and Enter, or click the one you
-          want. Press Esc to close the list without changing it.
+          want. Press Esc to close the list without changing it. The arrow
+          points up and turns green while the list is open, and is faded on a
+          box that is locked.
         </p>
 
         <h3>Adding a missing record from a list</h3>

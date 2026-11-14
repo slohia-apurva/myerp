@@ -77,7 +77,7 @@ export function Combobox(props: {
 
   return (
     <div
-      className="combo"
+      className={open ? "combo open" : "combo"}
       ref={box}
       onBlur={(e) => {
         if (!box.current?.contains(e.relatedTarget as Node | null)) close();
@@ -92,6 +92,7 @@ export function Combobox(props: {
         required={props.required && !chosen?.value}
         placeholder={props.placeholder ?? "Type to search…"}
         value={display}
+        onClick={() => setOpen(true)}
         onFocus={(e) => {
           setOpen(true);
           setCursor(Math.max(0, all.findIndex((o) => o.value === value)));
@@ -119,6 +120,10 @@ export function Combobox(props: {
           }
         }}
       />
+      {/* The small down arrow that says this field opens a list (Sidharth, 2026-11-14). */}
+      <svg className="combo-arrow" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
       {open && (
         <ul className="combo-list" role="listbox" ref={list}>
           {shown.length === 0 && <li className="combo-none">Nothing matches</li>}

@@ -2366,3 +2366,29 @@ table.grid {
     z-index: 40;
   }
 }
+
+/* A small down arrow at the right end of every dropdown field; it turns green and points up while the
+   list is open, and fades on a locked field (Sidharth, 2026-11-14). */
+.combo input {
+  padding-right: 34px;
+}
+.combo-arrow {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  color: #5f6b76;
+  pointer-events: none;
+}
+.combo.open .combo-arrow {
+  color: var(--green);
+  transform: rotate(180deg);
+}
+.locked-field .combo-arrow {
+  opacity: 0.45;
+}
+.locked-field:has(.combo)::after {
+  right: 34px;
+}
