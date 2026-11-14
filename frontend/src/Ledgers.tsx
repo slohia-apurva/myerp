@@ -10,7 +10,7 @@ import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 
-type Ledger = {
+export type Ledger = {
   id: number;
   name: string;
   group: number;

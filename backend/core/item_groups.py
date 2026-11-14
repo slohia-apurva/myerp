@@ -10,8 +10,14 @@ from rest_framework.views import APIView
 
 from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
-from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
-from core.models import ItemGroup
+from core.locks import (
+    account_uses,
+    lock_status,
+    refuse_key_changes,
+    refuse_move_outside_top,
+    root_group,
+)
+from core.models import Company, ItemGroup, ItemGroupAccount, Ledger
 from tenancy.context import tenant_atomic
 
 
@@ -29,22 +35,180 @@ def descendant_ids(group: ItemGroup) -> set[int]:
     return found
 
 
+ACCOUNT_FIELDS = {
+    "stock_ledger": "Stock Ledger",
+    "cogs_ledger": "Cost Of Goods Sold Ledger",
+    "expense_ledger": "Expense Ledger",
+}
+
+
+class AccountRowSerializer(serializers.Serializer):
+    """One company's accounts on a main item group (write side)."""
+
+    company = serializers.PrimaryKeyRelatedField(queryset=Company.objects.all())
+    stock_ledger = serializers.PrimaryKeyRelatedField(
+        queryset=Ledger.objects.all(), allow_null=True, required=False
+    )
+    cogs_ledger = serializers.PrimaryKeyRelatedField(
+        queryset=Ledger.objects.all(), allow_null=True, required=False
+    )
+    expense_ledger = serializers.PrimaryKeyRelatedField(
+        queryset=Ledger.objects.all(), allow_null=True, required=False
+    )
+
+
+def _account_rows(group: ItemGroup) -> list[dict]:
+    """The accounts the group's items post to: its own rows when it is a main
+    group, else its main group's (read only, inherited)."""
+    top = root_group(group)
+    rows = ItemGroupAccount.objects.filter(group=top).select_related(
+        "company", "stock_ledger", "cogs_ledger", "expense_ledger"
+    )
+    out = []
+    for r in rows.order_by("company__name"):
+        out.append(
+            {
+                "company": r.company_id,
+                "company_name": r.company.name,
+                "stock_ledger": r.stock_ledger_id,
+                "stock_ledger_name": r.stock_ledger.name if r.stock_ledger_id else "",
+                "cogs_ledger": r.cogs_ledger_id,
+                "cogs_ledger_name": r.cogs_ledger.name if r.cogs_ledger_id else "",
+                "expense_ledger": r.expense_ledger_id,
+                "expense_ledger_name": r.expense_ledger.name if r.expense_ledger_id else "",
+                "locked": account_uses(top, r.company),
+            }
+        )
+    return out
+
+
 class ItemGroupSerializer(serializers.ModelSerializer):
     parent = serializers.PrimaryKeyRelatedField(
         queryset=ItemGroup.objects.all(), allow_null=True, required=False
     )
     item_count = serializers.IntegerField(read_only=True, default=0)
     lock = serializers.SerializerMethodField()
+    accounts = serializers.SerializerMethodField()
+    accounts_in = AccountRowSerializer(many=True, required=False, write_only=True)
+    accounts_from = serializers.SerializerMethodField()
 
     def get_lock(self, group) -> dict:
         return lock_status("item_group", group)
 
+    def get_accounts(self, group) -> list:
+        return _account_rows(group)
+
+    def get_accounts_from(self, group):
+        """For a sub-group: the main group its accounts come from."""
+        if group.parent_id is None:
+            return None
+        top = root_group(group)
+        return {"id": top.pk, "name": top.name}
+
     class Meta:
         model = ItemGroup
-        fields = ["id", "name", "parent", "notes", "is_active", "item_count", "lock"]
+        fields = [
+            "id",
+            "name",
+            "parent",
+            "notes",
+            "is_active",
+            "item_count",
+            "lock",
+            "accounts",
+            "accounts_in",
+            "accounts_from",
+        ]
+
+
+def _under(ledger: Ledger, group_code: str) -> bool:
+    node = ledger.group
+    while node is not None:
+        if node.code == group_code:
+            return True
+        node = node.parent
+    return False
+
+
+def _check_account_ledger(company: Company, field: str, ledger: Ledger | None) -> None:
+    if ledger is None:
+        return
+    label = ACCOUNT_FIELDS[field]
+    if ledger.company_id != company.pk:
+        raise ValidationError(
+            {"accounts_in": [f"{label}: {ledger.name} is not a ledger of {company.name}."]}
+        )
+    if not ledger.is_active:
+        raise ValidationError({"accounts_in": [f"{label}: {ledger.name} is disabled."]})
+    if field == "stock_ledger" and not _under(ledger, "stock_in_hand"):
+        raise ValidationError(
+            {"accounts_in": [f"{label}: {ledger.name} must be under Stock-in-Hand."]}
+        )
+    if field != "stock_ledger" and ledger.group.nature != "expense":
+        raise ValidationError(
+            {"accounts_in": [f"{label}: {ledger.name} must be an expense ledger."]}
+        )
+
+
+def _save_accounts(group: ItemGroup, rows: list[dict]) -> None:
+    """Replace the group's per-company accounts. Only a main group holds them, and
+    a company's row that is locked (entries exist) stays as it is."""
+    if group.parent_id is not None:
+        if rows:
+            raise ValidationError(
+                {
+                    "accounts_in": [
+                        f"Accounts are set on the main group {root_group(group).name}; "
+                        "this group uses them."
+                    ]
+                }
+            )
+        return
+    seen: set[int] = set()
+    clean = {}
+    for r in rows:
+        company = r["company"]
+        if company.pk in seen:
+            raise ValidationError({"accounts_in": [f"{company.name} is listed twice."]})
+        seen.add(company.pk)
+        for field in ACCOUNT_FIELDS:
+            _check_account_ledger(company, field, r.get(field))
+        clean[company.pk] = r
+    existing = {a.company_id: a for a in group.accounts.select_related("company")}
+    for company_id, row in existing.items():
+        why = account_uses(group, row.company)
+        if not why:
+            continue
+        new = clean.get(company_id)
+        same = new is not None and all(
+            getattr(row, f"{f}_id") == (new.get(f).pk if new.get(f) else None)
+            for f in ACCOUNT_FIELDS
+        )
+        if not same:
+            raise ValidationError(
+                {
+                    "accounts_in": [
+                        f"Cannot change the accounts of {row.company.name}: this is in use "
+                        f"({', '.join(why)})."
+                    ]
+                }
+            )
+    group.accounts.all().delete()
+    ItemGroupAccount.objects.bulk_create(
+        [
+            ItemGroupAccount(
+                group=group,
+                company=r["company"],
+                **{f: r.get(f) for f in ACCOUNT_FIELDS},
+            )
+            for r in clean.values()
+            if any(r.get(f) for f in ACCOUNT_FIELDS)
+        ]
+    )
 
 
 def _save_group(group: ItemGroup, data: dict) -> ItemGroup:
+    accounts = data.pop("accounts_in", None)
     if "name" in data:
         data["name"] = duplicates.tidy(data["name"])
         duplicates.check_name(
@@ -85,6 +249,16 @@ def _save_group(group: ItemGroup, data: dict) -> ItemGroup:
     except DjangoValidationError as exc:
         raise ValidationError(exc.message_dict) from exc
     group.save()
+    if group.parent_id is not None and group.pk:
+        # a group that now sits under another uses that main group's accounts
+        for row in group.accounts.select_related("company"):
+            if why := account_uses(group, row.company):
+                raise ValidationError(
+                    {"parent": [f"Its accounts for {row.company.name} are in use ({why[0]})."]}
+                )
+        group.accounts.all().delete()
+    if accounts is not None:
+        _save_accounts(group, accounts)
     return group
 
 
@@ -112,7 +286,7 @@ exchange.register(
         serializer=ItemGroupSerializer,
         queryset=lambda ctx: ItemGroup.objects.order_by("name"),
         save=lambda ctx, group, data: _save_group(group or ItemGroup(), data),
-        exclude=("item_count",),
+        exclude=("item_count", "accounts", "accounts_in", "accounts_from"),
         codecs={
             "parent": exchange.Codec(
                 to_cell=_parent_name,

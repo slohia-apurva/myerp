@@ -3,10 +3,12 @@ import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
+import type { Company, Detail } from "./Companies";
 import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName } from "./Create";
 import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { InUseNote, type LockInfo } from "./Lock";
+import type { Ledger } from "./Ledgers";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 
 /** Item groups: one tree for every company in the group, like ledger groups. */
@@ -18,7 +20,26 @@ export type ItemGroup = {
   is_active: boolean;
   item_count: number;
   lock?: LockInfo;
+  /** The accounts its items post to: its own rows, or its main group's when it is a sub-group. */
+  accounts?: AccountRow[];
+  /** For a sub-group: the main group its accounts come from. */
+  accounts_from?: { id: number; name: string } | null;
 };
+
+/** One company's accounts on a main item group. `locked` says why the row can no longer change. */
+export type AccountRow = {
+  company: number;
+  company_name: string;
+  stock_ledger: number | null;
+  stock_ledger_name: string;
+  cogs_ledger: number | null;
+  cogs_ledger_name: string;
+  expense_ledger: number | null;
+  expense_ledger_name: string;
+  locked: string[];
+};
+
+type Picks = { stock: string; cogs: string; expense: string };
 
 export function useItemGroups() {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
@@ -217,6 +238,28 @@ function GroupList(props: { session: SignedIn; canEdit: boolean; groups: ItemGro
               <p className="small">Click a group to see its details here.</p>
             )}
           </SidePanel>
+          <SidePanel title="Accounts">
+            {selected && (selected.accounts ?? []).length > 0 ? (
+              <>
+                {selected.accounts_from && (
+                  <p className="small">From the main group {selected.accounts_from.name}.</p>
+                )}
+                {(selected.accounts ?? []).map((a) => (
+                  <SideRows
+                    key={a.company}
+                    rows={[
+                      ["Company", a.company_name],
+                      ["Stock Ledger", a.stock_ledger_name],
+                      ["Cost Of Goods Sold Ledger", a.cogs_ledger_name],
+                      ["Expense Ledger", a.expense_ledger_name],
+                    ]}
+                  />
+                ))}
+              </>
+            ) : (
+              <p className="small">{selected ? "No accounts set yet." : "Click a group to see its accounts here."}</p>
+            )}
+          </SidePanel>
           <SidePanel title="Activity">
             <ChangeLog type="item_group" id={selected?.id} stamp={JSON.stringify(selected ?? groups.length)} />
           </SidePanel>
@@ -301,6 +344,16 @@ function GroupForm(props: {
   const [disabled, setDisabled] = useState(g ? !g.is_active : false);
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
+  // Accounts per company (main groups only): the ledger ids picked, as text.
+  const startRows = copy?.accounts ?? g?.accounts ?? [];
+  const [picks, setPicks] = useState<Record<number, Picks>>(() =>
+    Object.fromEntries(
+      startRows.map((a) => [
+        a.company,
+        { stock: String(a.stock_ledger ?? ""), cogs: String(a.cogs_ledger ?? ""), expense: String(a.expense_ledger ?? "") },
+      ]),
+    ),
+  );
   const paths = useMemo(() => groupPaths(props.groups), [props.groups]);
   const below = useMemo(() => {
     // A group cannot be moved under itself or a group below it.
@@ -324,7 +377,17 @@ function GroupForm(props: {
     event.preventDefault();
     setError("");
     setBusy(true);
-    const body = { name, parent: parent === "" ? null : Number(parent), notes };
+    const num = (v: string) => (v === "" ? null : Number(v));
+    const body: Record<string, unknown> = { name, parent: num(parent), notes };
+    if (parent === "")
+      body.accounts_in = Object.entries(picks)
+        .filter(([, p]) => p.stock || p.cogs || p.expense)
+        .map(([company, p]) => ({
+          company: Number(company),
+          stock_ledger: num(p.stock),
+          cogs_ledger: num(p.cogs),
+          expense_ledger: num(p.expense),
+        }));
     try {
       if (g) {
         await api(`v1/item-groups/${g.id}/`, { ...body, is_active: !disabled }, "PATCH");
@@ -388,6 +451,162 @@ function GroupForm(props: {
           </label>
         </div>
       </Section>
+      <Section title="Accounts">
+        {parent === "" ? (
+          <AccountGrid
+            rows={g?.accounts ?? []}
+            picks={picks}
+            onPick={(company, next) => setPicks((all) => ({ ...all, [company]: next }))}
+            readOnly={props.readOnly}
+          />
+        ) : (
+          <InheritedAccounts
+            main={props.groups.find((x) => x.id === rootOf(Number(parent)))}
+            sourceName={paths.get(rootOf(Number(parent))) ?? ""}
+          />
+        )}
+      </Section>
     </FormPage>
+  );
+}
+
+/** Sub-groups show their main group's accounts, read only. */
+function InheritedAccounts(props: { main?: ItemGroup; sourceName: string }) {
+  const rows = props.main?.accounts ?? [];
+  return (
+    <>
+      <p className="small">
+        From the main group <b>{props.sourceName}</b>. Change them there; every group under it uses the same accounts.
+        {props.main && (
+          <>
+            {" "}
+            <button type="button" className="link" onClick={() => openTab(`#/item-groups?form=${props.main!.id}`)}>
+              Open {props.sourceName}
+            </button>
+          </>
+        )}
+      </p>
+      {rows.length === 0 ? (
+        <p className="small">No accounts are set on {props.sourceName} yet.</p>
+      ) : (
+        <table className="grid">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Stock Ledger</th>
+              <th>Cost Of Goods Sold Ledger</th>
+              <th>Expense Ledger (Non-Stock Purchases And Own Use)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.company}>
+                <td>{a.company_name}</td>
+                <td>{a.stock_ledger_name || "—"}</td>
+                <td>{a.cogs_ledger_name || "—"}</td>
+                <td>{a.expense_ledger_name || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
+/** A main group's accounts: one row per company, three ledger pickers each. A company's row locks
+ * once entries exist (Sidharth, 2026-11-14). */
+function AccountGrid(props: {
+  rows: AccountRow[];
+  picks: Record<number, Picks>;
+  onPick: (company: number, next: Picks) => void;
+  readOnly?: boolean;
+}) {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [ledgers, setLedgers] = useState<Record<number, { ledgers: Ledger[]; stockGroups: Set<number> }>>({});
+  useEffect(() => {
+    api<Company[]>("v1/companies/").then((list) => {
+      setCompanies(list);
+      list.forEach((c) =>
+        Promise.all([api<Ledger[]>(`v1/companies/${c.id}/ledgers/`), api<Detail>(`v1/companies/${c.id}/`)]).then(
+          ([ls, detail]) => {
+            // The groups at and under Stock-in-Hand.
+            const stock = new Set<number>();
+            const root = detail.ledger_groups.find((x) => x.code === "stock_in_hand");
+            const walk = (id: number) => {
+              stock.add(id);
+              detail.ledger_groups.filter((x) => x.parent === id).forEach((x) => walk(x.id));
+            };
+            if (root) walk(root.id);
+            setLedgers((all) => ({ ...all, [c.id]: { ledgers: ls, stockGroups: stock } }));
+          },
+        ),
+      );
+    });
+  }, []);
+  const empty: Picks = { stock: "", cogs: "", expense: "" };
+  if (companies.length === 0) return <p className="small">Loading companies…</p>;
+  return (
+    <>
+      <p className="small">
+        The accounts the items of this group post to, for each company. Groups under this one use the same accounts.
+        Leave a company empty if it does not use this group.
+      </p>
+      <table className="grid account-grid">
+        <thead>
+          <tr>
+            <th>Company</th>
+            <th>Stock Ledger</th>
+            <th>Cost Of Goods Sold Ledger</th>
+            <th>Expense Ledger (Non-Stock Purchases And Own Use)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {companies.map((c) => {
+            const row = props.rows.find((r) => r.company === c.id);
+            const locked = row?.locked ?? [];
+            const picks = props.picks[c.id] ?? empty;
+            const data = ledgers[c.id];
+            const pick = (key: keyof Picks, kind: "stock" | "expense") => {
+              const options = (data?.ledgers ?? [])
+                .filter((l) => (l.is_active || String(l.id) === picks[key]) && (kind === "stock" ? data!.stockGroups.has(l.group) : l.nature === "expense"))
+                .map((l) => ({ value: String(l.id), label: l.name }));
+              return (
+                <Combobox
+                  value={picks[key]}
+                  empty="—"
+                  placeholder="Type to search ledgers…"
+                  ariaLabel={`${key} ledger of ${c.name}`}
+                  options={options}
+                  onChange={(v) => props.onPick(c.id, { ...picks, [key]: v })}
+                />
+              );
+            };
+            const off = props.readOnly || locked.length > 0;
+            const wrap = (el: JSX.Element) => (off ? <span className="locked-field" {...({ inert: "" } as object)}>{el}</span> : el);
+            return (
+              <tr key={c.id}>
+                <td>
+                  {c.name}
+                  {locked.length > 0 && (
+                    <>
+                      <div className="small">In use: {locked.join(", ")}</div>
+                    </>
+                  )}
+                </td>
+                <td>{wrap(pick("stock", "stock"))}</td>
+                <td>{wrap(pick("cogs", "expense"))}</td>
+                <td>{wrap(pick("expense", "expense"))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="small">
+        Stock Ledger holds the value of stock on hand. Cost Of Goods Sold takes the cost of stock goods when they are
+        sold. Expense takes the cost of items that keep no stock (stationery, services) and of stock used inside the
+        company.
+      </p>
+    </>
   );
 }
