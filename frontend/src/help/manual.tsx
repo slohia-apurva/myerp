@@ -1952,8 +1952,10 @@ export const MANUAL: Chapter[] = [
           in the box above the list. Every column has its own "Search" box under
           its heading: type in as many as you like, and only orders matching all
           of them stay. "Clear searches" empties them. Click an order to see its
-          details and activity at the right, with "Open", "Edit" (drafts only),
-          "Duplicate" and "Hide"; double-click it or press Enter to open it. Print
+          details and activity at the right, with "Open"; click it again to
+          close the panel. With a draft clicked, "Edit" beside "New purchase
+          order" at the top opens it for changes. Double-click an order or
+          press Enter to open it. "Duplicate" is on the order's own page. Print
           and PDF of the list are under "Actions".
         </p>
         <h3>Make a purchase order</h3>

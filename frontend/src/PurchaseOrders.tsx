@@ -187,6 +187,17 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
         sub={`${setup?.company_name ?? ""} · ${shown.length} ${shown.length === 1 ? "order" : "orders"}`}
         actions={
           <>
+            {canCreate && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={selected?.status !== "draft"}
+                title={selected ? (selected.status === "draft" ? "" : "Only a draft can be changed") : "Click a draft order first"}
+                onClick={() => selected && openTab(`${base(companyId)}?form=${selected.id}`)}
+              >
+                Edit
+              </button>
+            )}
             {canCreate && <button onClick={() => openTab(`${base(companyId)}?form=new`)}>New purchase order</button>}
             {printing.buttons}
           </>
@@ -242,7 +253,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                   key={o.id}
                   tabIndex={0}
                   className={selected?.id === o.id ? "selected" : ""}
-                  onClick={() => setSelectedId(o.id)}
+                  onClick={() => setSelectedId(selected?.id === o.id ? null : o.id)}
                   onDoubleClick={() => openTab(`${base(companyId)}?view=${o.id}`)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") openTab(`${base(companyId)}?view=${o.id}`);
@@ -272,7 +283,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
             )}
           </table>
           {shown.length > 0 && (
-            <p className="small no-print">Click an order to see it at the right; double-click or press Enter to open it in a new tab.</p>
+            <p className="small no-print">Click an order to see it at the right (click it again to close the panel); double-click or press Enter to open it in a new tab.</p>
           )}
         </div>
         {selected && (
@@ -293,19 +304,6 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
               <div className="side-buttons">
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
-                </button>
-                {canCreate && selected.status === "draft" && (
-                  <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?form=${selected.id}`)}>
-                    Edit
-                  </button>
-                )}
-                {canCreate && (
-                  <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?form=copy-${selected.id}`)}>
-                    Duplicate
-                  </button>
-                )}
-                <button type="button" className="link" onClick={() => setSelectedId(null)}>
-                  Hide
                 </button>
               </div>
             </SidePanel>
