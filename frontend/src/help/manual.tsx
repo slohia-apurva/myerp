@@ -1982,6 +1982,18 @@ export const MANUAL: Chapter[] = [
             "Expected Delivery" date and the "Supplier's Quote Ref".
           </li>
           <li>
+            Under "Addresses", "Bill To" starts as the branch ticked as the
+            default billing one (else the head office); pick another branch if
+            the bill should name it. "Ship To" is the "Deliver To" branch. Pick
+            the "Supplier Address" from the supplier's addresses (its default
+            billing address to start with). Each shows as it will print: the
+            street, "City - PIN", the state, then GSTIN, FSSAI, contact person,
+            phone and email (from the branch, or from the company when the
+            branch has none; FSSAI from "Licences and certificates" and from the
+            supplier's documents). The supplier's address is kept on the order
+            as it was, even if the supplier's addresses change later.
+          </li>
+          <li>
             Under "Supplier Contacts and Agent", tick "Send Mail" for each
             person who should get the order by mail. The supplier's purchase
             contacts and its main contact are ticked to start with; a contact

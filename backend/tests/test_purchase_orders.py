@@ -380,3 +380,57 @@ def test_a_line_takes_the_items_purchase_description_unless_changed(buyer, world
         "Assam CTC\n50 kg sacks",
         "Second flush only",
     ]
+
+
+def test_bill_to_ship_to_and_the_suppliers_address(buyer, world, alpha):
+    from core.models import Branch, Certificate, PartyAddress, PartyDocument
+
+    with use_tenant(alpha):
+        company = Company.objects.get(pk=world["company"])
+        head = company.branches.get(is_head_office=True)
+        Branch.objects.filter(pk=head.pk).update(
+            address="10/D/2, Ho Chi Minh Sarani", city="Kolkata", pincode="700071",
+            contact_person="Accounts Desk", phone="9830012345", email="accounts@example.in",
+        )  # fmt: skip
+        godown = Branch.objects.create(
+            company=company, name="Sankrail Godown", state_code="27", address="Dag 177",
+            city="Howrah", pincode="711302",
+        )  # fmt: skip
+        Certificate.objects.create(company=company, kind="fssai", number="10019031002962")
+        party = Ledger.objects.get(pk=world["local"]).party
+        PartyAddress.objects.create(
+            party=party, label="Head office", address="4 Hill Cart Road", city="Siliguri",
+            pincode="734001", state_code="27", is_billing=True,
+        )  # fmt: skip
+        PartyAddress.objects.create(
+            party=party, label="Godown", address="Plot 9", city="Pune", state_code="27"
+        )
+        PartyDocument.objects.create(party=party, kind="fssai", number="12823999000123")
+    url = f"companies/{world['company']}/purchase-orders/"
+    setup = call(buyer, "get", f"{url}setup/").json()
+    local = next(s for s in setup["suppliers"] if s["id"] == world["local"])
+    assert [a["label"] for a in local["addresses"]] == ["Head office", "Godown"]
+
+    # Left out: the default billing branch and the supplier's billing address.
+    po = call(buyer, "post", url, order(world, branch=godown.pk)).json()
+    assert po["bill_to"] == head.pk and po["supplier_address"]["label"] == "Head office"
+    shown = po["addresses"]
+    assert shown["bill_to"]["address"] == "10/D/2, Ho Chi Minh Sarani"
+    assert shown["bill_to"]["contact"] == "Accounts Desk"
+    assert shown["bill_to"]["fssai"] == "10019031002962"
+    assert shown["ship_to"]["label"] == "Sankrail Godown"
+    assert shown["ship_to"]["city"] == "Howrah"
+    assert shown["supplier"]["city"] == "Siliguri"
+    assert shown["supplier"]["fssai"] == "12823999000123"
+
+    # Another of the supplier's addresses, by name; one it does not have is refused.
+    other = call(buyer, "post", url, order(world, supplier_address="godown")).json()
+    assert other["supplier_address"]["city"] == "Pune"
+    refused = call(buyer, "post", url, order(world, supplier_address="Mumbai"))
+    assert "supplier's addresses" in str(refused.json())
+
+    # The address is kept as it was when the supplier's addresses change later.
+    with use_tenant(alpha):
+        PartyAddress.objects.filter(party=party).delete()
+    kept = call(buyer, "get", f"purchase-orders/{po['id']}/").json()
+    assert kept["addresses"]["supplier"]["address"] == "4 Hill Cart Road"

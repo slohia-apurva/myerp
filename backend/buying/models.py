@@ -52,6 +52,14 @@ class PurchaseOrder(models.Model):
     credit_term = models.ForeignKey(
         CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # The company's billing address on the order (a branch; the default billing one
+    # unless changed). The goods go to `branch`, which is the Ship To.
+    bill_to = models.ForeignKey(
+        Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # The supplier's address picked for the order, copied as it was (label, address,
+    # city, pincode, state_code, country, gstin): its addresses are re-saved whole.
+    supplier_address = models.JSONField(default=dict, blank=True)
     # Who brings the goods: one of our transporters, or none for "By Supplier"
     # (the supplier sends them). Comes from the supplier's preferred transporter.
     transporter = models.ForeignKey(

@@ -20,19 +20,21 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from buying.models import PurchaseOrder, PurchaseOrderLine
-from core import fiscal, numbering
+from core import fiscal, india, numbering
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
 from core.items import gst_rate_on
 from core.models import (
     Branch,
+    Certificate,
     CreditTerm,
     Item,
     ItemUnit,
     Ledger,
     LedgerGroup,
     Party,
+    PartyAddress,
     PartyContact,
     PartyItemName,
     PriceList,
@@ -77,6 +79,98 @@ def charges_gst(party: Party | None) -> bool:
 
 
 # Reading --------------------------------------------------------------------
+
+
+# Addresses ---------------------------------------------------------------------
+
+
+def _valid(today: datetime.date, valid_until) -> bool:
+    return valid_until is None or valid_until >= today
+
+
+def _branch_fssai(b: Branch) -> str:
+    """The branch's own FSSAI licence, else the company-wide one (not lapsed)."""
+    today = timezone.localdate()
+    rows = Certificate.objects.filter(company_id=b.company_id, kind=Certificate.FSSAI).filter(
+        Q(branch=b) | Q(branch__isnull=True)
+    )
+    found = sorted(
+        (c for c in rows if _valid(today, c.valid_until)), key=lambda c: c.branch_id is None
+    )
+    return found[0].number if found else ""
+
+
+def _party_fssai(party: Party | None, label: str = "") -> str:
+    """The party's FSSAI licence: the one for this address if any, else its main one."""
+    if party is None:
+        return ""
+    today = timezone.localdate()
+    rows = [
+        d
+        for d in party.documents.filter(kind="fssai", is_active=True)
+        if d.number and _valid(today, d.valid_until)
+    ]
+    rows.sort(key=lambda d: (d.address_label.lower() != label.lower(), d.address_label != ""))
+    return rows[0].number if rows else ""
+
+
+def _branch_address(b: Branch) -> dict:
+    """A branch of ours as an address block: its own details, else the company's."""
+    c = b.company
+    return {
+        "name": c.name,
+        "label": b.name,
+        "address": b.address or c.address,
+        "city": b.city or (c.city if not b.address else ""),
+        "pincode": b.pincode or (c.pincode if not b.address else ""),
+        "state_code": b.state_code,
+        "state": india.STATES.get(b.state_code, ""),
+        "country": "India",
+        "gstin": b.gstin or c.gstin,
+        "fssai": _branch_fssai(b),
+        "contact": b.contact_person or c.contact_person,
+        "phone": b.phone or c.phone,
+        "email": b.email or c.email,
+    }
+
+
+def _party_address(a: PartyAddress) -> dict:
+    """A supplier's address as kept on the order."""
+    return {
+        "label": a.label,
+        "address": a.address,
+        "city": a.city,
+        "pincode": a.pincode,
+        "state_code": a.state_code,
+        "state": india.STATES.get(a.state_code, ""),
+        "country": a.country,
+        "gstin": a.gstin,
+    }
+
+
+def _default_bill_to(company_id: int) -> Branch | None:
+    branches = Branch.objects.filter(company_id=company_id, is_active=True)
+    return (
+        branches.filter(default_billing=True).first()
+        or branches.filter(is_head_office=True).first()
+    )
+
+
+def _addresses_out(o: PurchaseOrder) -> dict:
+    """Bill To, Ship To and the supplier's address, as the order shows and prints them."""
+    party = o.supplier.party
+    kept = o.supplier_address or {}
+    supplier = {
+        "name": o.supplier.name,
+        **kept,
+        "gstin": kept.get("gstin") or (party.gstin if party else ""),
+        "fssai": _party_fssai(party, kept.get("label", "")),
+    }
+    return {
+        "bill_to": _branch_address(o.bill_to) if o.bill_to else None,
+        "ship_to": _branch_address(o.branch),
+        "supplier": supplier,
+    }
 
 
 def _line_out(ln: PurchaseOrderLine) -> dict:
@@ -148,6 +242,9 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "supplier_gstin": party.gstin if party else "",
         "branch": o.branch_id,
         "branch_name": o.branch.name,
+        "bill_to": o.bill_to_id,
+        "bill_to_name": o.bill_to.name if o.bill_to else "",
+        "supplier_address": o.supplier_address,
         "order_date": o.order_date,
         "expected_date": o.expected_date,
         "credit_term": o.credit_term_id,
@@ -179,6 +276,7 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
     }
     if lines:
         data["lines"] = [_line_out(ln) for ln in o.lines.all()]
+        data["addresses"] = _addresses_out(o)
     return data
 
 
@@ -189,7 +287,8 @@ def _orders(company):
             "supplier__party",
             "agent",
             "agent_user",
-            "branch",
+            "branch__company",
+            "bill_to__company",
             "credit_term",
             "transporter",
             "created_by",
@@ -226,6 +325,12 @@ class OrderSerializer(serializers.Serializer):
     transporter = serializers.PrimaryKeyRelatedField(
         queryset=CourierAccount.objects.all(), required=False, allow_null=True
     )
+    # Left out: the company's default billing branch.
+    bill_to = serializers.PrimaryKeyRelatedField(
+        queryset=Branch.objects.all(), required=False, allow_null=True
+    )
+    # The name ("label") of one of the supplier's addresses; left out: its billing one.
+    supplier_address = serializers.CharField(required=False, allow_blank=True, max_length=60)
     agent = serializers.PrimaryKeyRelatedField(
         queryset=Ledger.objects.all(), required=False, allow_null=True
     )
@@ -298,6 +403,19 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
             errors["transporter"] = ["Pick a transporter of this company."]
         elif not transporter.is_active and transporter.pk != o.transporter_id:
             errors["transporter"] = [f"{transporter.name} is disabled."]
+    bill_to = data.get("bill_to") or _default_bill_to(o.company_id)
+    if bill_to is not None:
+        if bill_to.company_id != o.company_id:
+            errors["bill_to"] = ["Pick a branch of this company."]
+        elif not bill_to.is_active and bill_to.pk != o.bill_to_id:
+            errors["bill_to"] = ["This branch is closed."]
+    places = list(supplier.party.addresses.all()) if supplier.party_id else []
+    wanted = (data.get("supplier_address") or "").strip().lower()
+    place = next((a for a in places if a.label.lower() == wanted), None) if wanted else None
+    if wanted and place is None:
+        errors["supplier_address"] = ["Pick one of the supplier's addresses."]
+    elif place is None:
+        place = next((a for a in places if a.is_billing), places[0] if places else None)
     expected = data.get("expected_date")
     if expected and expected < data["order_date"]:
         errors["expected_date"] = ["The expected delivery date is before the order date."]
@@ -373,6 +491,8 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     o.order_date, o.expected_date = data["order_date"], expected
     o.credit_term = term
     o.transporter = transporter
+    o.bill_to = bill_to
+    o.supplier_address = _party_address(place) if place else {}
     o.agent, o.mail_to = agent, mail_to
     o.agent_user = agent_user
     o.mail_agent_user = bool(agent_user and data.get("mail_agent_user"))
@@ -548,7 +668,7 @@ class OrderSetupView(APIView):
         suppliers = (
             Ledger.objects.filter(company=company, party_side="supplier", party__isnull=False)
             .select_related("party__credit_term")
-            .prefetch_related("party__contacts")
+            .prefetch_related("party__contacts", "party__addresses")
             .order_by("name")
         )
         return Response(
@@ -574,6 +694,10 @@ class OrderSetupView(APIView):
                         "transporter": s.preferred_transporter_id,
                         "charges_gst": charges_gst(s.party),
                         "contacts": [_contact_out(c) for c in s.party.contacts.all()],
+                        "addresses": [
+                            {**_party_address(a), "is_billing": a.is_billing}
+                            for a in s.party.addresses.all()
+                        ],
                     }
                     for s in suppliers
                 ],
@@ -584,6 +708,9 @@ class OrderSetupView(APIView):
                         "state_code": b.state_code,
                         "is_active": b.is_active,
                         "no_stock": b.no_stock,
+                        "default_billing": b.default_billing,
+                        "is_head_office": b.is_head_office,
+                        "address_block": _branch_address(b),
                         "store": next(
                             (loc.name for loc in b.locations.all() if loc.is_default), ""
                         ),
@@ -596,7 +723,9 @@ class OrderSetupView(APIView):
                             "",
                         ),
                     }
-                    for b in Branch.objects.filter(company=company).prefetch_related("locations")
+                    for b in Branch.objects.filter(company=company)
+                    .select_related("company")
+                    .prefetch_related("locations")
                 ],
                 "employees": [
                     {"id": u.pk, "name": u.display_name, "email": u.email}
