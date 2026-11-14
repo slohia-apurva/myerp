@@ -209,15 +209,24 @@ def _contact_out(c: PartyContact) -> dict:
 
 
 def _mail_contacts(o: PurchaseOrder) -> list[dict]:
-    """The ticked contacts as they are now, the supplier's first, then the agent's."""
-    if not o.mail_to:
+    """The contacts ticked for mail or WhatsApp as they are now, in the order they
+    were ticked, each saying which of the two it gets."""
+    ids = list(dict.fromkeys([*o.mail_to, *o.whatsapp_to]))
+    if not ids:
         return []
-    found = {c.pk: c for c in PartyContact.objects.filter(pk__in=o.mail_to)}
+    found = {c.pk: c for c in PartyContact.objects.filter(pk__in=ids)}
     out = []
-    for pk in o.mail_to:
+    for pk in ids:
         if c := found.get(pk):
             agent = o.agent is not None and c.party_id == o.agent.party_id
-            out.append({**_contact_out(c), "of": "Agent" if agent else "Supplier"})
+            out.append(
+                {
+                    **_contact_out(c),
+                    "of": "Agent" if agent else "Supplier",
+                    "mail": pk in o.mail_to,
+                    "whatsapp": pk in o.whatsapp_to,
+                }
+            )
     return out
 
 
@@ -226,7 +235,8 @@ def _with_agent_user(o: PurchaseOrder, rows: list[dict]) -> list[dict]:
     if u is None or not o.mail_agent_user:
         return rows
     me = {"id": None, "name": u.display_name, "designation": "Employee", "phone": ""}
-    return [*rows, {**me, "email": u.email, "is_primary": False, "kinds": [], "of": "Agent"}]
+    me |= {"email": u.email, "is_primary": False, "kinds": [], "of": "Agent"}
+    return [*rows, {**me, "mail": True, "whatsapp": False}]
 
 
 def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
@@ -257,6 +267,7 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "agent_user_name": o.agent_user.display_name if o.agent_user else "",
         "mail_agent_user": o.mail_agent_user,
         "mail_to": o.mail_to,
+        "whatsapp_to": o.whatsapp_to,
         "mail_contacts": _with_agent_user(o, _mail_contacts(o)),
         "supplier_ref": o.supplier_ref,
         "terms": o.terms,
@@ -338,6 +349,9 @@ class OrderSerializer(serializers.Serializer):
         queryset=User.objects.all(), required=False, allow_null=True
     )
     mail_to = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
+    whatsapp_to = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
     mail_agent_user = serializers.BooleanField(required=False, default=False)
     supplier_ref = serializers.CharField(max_length=80, required=False, allow_blank=True)
     terms = serializers.CharField(required=False, allow_blank=True)
@@ -394,6 +408,12 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
         errors["mail_to"] = ["Pick contacts of the supplier or the agent."]
     elif any(not c.email for c in known):
         errors["mail_to"] = ["A contact without an email cannot be mailed."]
+    whatsapp_to = list(dict.fromkeys(data.get("whatsapp_to") or []))
+    known = PartyContact.objects.filter(pk__in=whatsapp_to, party_id__in=parties)
+    if len(known) != len(whatsapp_to):
+        errors["whatsapp_to"] = ["Pick contacts of the supplier or the agent."]
+    elif any(not c.phone for c in known):
+        errors["whatsapp_to"] = ["A contact without a phone number cannot get WhatsApp."]
     term = data.get("credit_term")
     if term is not None and not term.is_active and term.pk != o.credit_term_id:
         errors["credit_term"] = ["These credit terms are disabled."]
@@ -493,7 +513,7 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     o.transporter = transporter
     o.bill_to = bill_to
     o.supplier_address = _party_address(place) if place else {}
-    o.agent, o.mail_to = agent, mail_to
+    o.agent, o.mail_to, o.whatsapp_to = agent, mail_to, whatsapp_to
     o.agent_user = agent_user
     o.mail_agent_user = bool(agent_user and data.get("mail_agent_user"))
     for field in ("supplier_ref", "terms", "notes"):

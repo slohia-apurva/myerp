@@ -80,6 +80,8 @@ class PurchaseOrder(models.Model):
     # Who the order is mailed to: ids of the supplier's and the agent firm's contacts,
     # and whether the employee agent gets it too.
     mail_to = models.JSONField(default=list, blank=True)
+    # Contacts ticked to get the order on WhatsApp (kept now; sending comes later).
+    whatsapp_to = models.JSONField(default=list, blank=True)
     mail_agent_user = models.BooleanField(default=False)
     supplier_ref = models.CharField(max_length=80, blank=True)
     terms = models.TextField(blank=True)  # printed for the supplier

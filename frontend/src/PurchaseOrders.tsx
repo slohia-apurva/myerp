@@ -59,7 +59,8 @@ export type PurchaseOrder = {
   agent_user_name: string;
   mail_agent_user: boolean;
   mail_to: number[];
-  mail_contacts: (Omit<Contact, "id"> & { id: number | null; of: string })[];
+  whatsapp_to: number[];
+  mail_contacts: (Omit<Contact, "id"> & { id: number | null; of: string; mail: boolean; whatsapp: boolean })[];
   supplier_ref: string;
   terms: string;
   notes: string;
@@ -473,6 +474,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const [agent, setAgentId] = useState(from?.agent ? `l${from.agent}` : from?.agent_user ? `u${from.agent_user}` : "");
   const [mailAgentUser, setMailAgentUser] = useState(from?.mail_agent_user ?? false);
   const [mailTo, setMailTo] = useState<number[]>(from?.mail_to ?? []);
+  const [waTo, setWaTo] = useState<number[]>(from?.whatsapp_to ?? []);
   const [termsText, setTermsText] = useState(from?.terms ?? "");
   const [notes, setNotes] = useState(from?.notes ?? "");
   const [lines, setLines] = useState<Draft[]>(() => [
@@ -544,6 +546,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     // The new supplier's purchase contacts replace the old one's; the agent's stay.
     const agentIds = setup?.suppliers.find((x) => `l${x.id}` === agent)?.contacts.map((c) => c.id) ?? [];
     setMailTo((m) => [...(s ? mailedFirst(s.contacts) : []), ...m.filter((id) => agentIds.includes(id))]);
+    setWaTo((w) => w.filter((id) => agentIds.includes(id)));
     if (`l${value}` === agent) setAgentId("");
     setLines((ls) => ls.map((l) => (l.rateTyped ? l : { ...l, rate: "", source: "" })));
   };
@@ -556,8 +559,10 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     setAgentId(value);
     setMailAgentUser(value.startsWith("u"));
     setMailTo((m) => [...m.filter((id) => !old.includes(id)), ...(next ? mailedFirst(next.contacts) : [])]);
+    setWaTo((w) => w.filter((id) => !old.includes(id)));
   };
   const tick = (id: number, on: boolean) => setMailTo((m) => (on ? [...m, id] : m.filter((x) => x !== id)));
+  const tickWa = (id: number, on: boolean) => setWaTo((w) => (on ? [...w, id] : w.filter((x) => x !== id)));
 
   const fetchRate = (line: Draft) => {
     if (!supplier || !line.item || !line.unit || line.rateTyped) return;
@@ -620,6 +625,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       agent: agent.startsWith("l") ? Number(agent.slice(1)) : null,
       agent_user: agent.startsWith("u") ? Number(agent.slice(1)) : null,
       mail_to: mailTo,
+      whatsapp_to: waTo,
       mail_agent_user: mailAgentUser,
       terms: termsText,
       notes,
@@ -782,9 +788,12 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               </div>
             </div>
           </Fold>
-          <Fold title="Supplier Contacts and Agent" open summary={`${mailTo.length + (agUser && mailAgentUser ? 1 : 0)} to mail${ag || agUser ? ` · agent ${ag?.name ?? agUser?.name}` : ""}`}>
-            <p className="small">Tick who gets this order by mail. Contacts are kept on the supplier's (and the agent's) ledger.</p>
-            <ContactTicks title="Supplier Contacts" contacts={sup?.contacts ?? []} ticked={mailTo} onTick={tick} empty={sup ? "This supplier has no contacts yet." : "Pick the supplier first."} />
+          <Fold title="Supplier Contacts and Agent" open summary={`${mailTo.length + (agUser && mailAgentUser ? 1 : 0)} to mail${waTo.length ? ` · ${waTo.length} on WhatsApp` : ""}${ag || agUser ? ` · agent ${ag?.name ?? agUser?.name}` : ""}`}>
+            <p className="small">
+              Tick who gets this order by mail and who on WhatsApp (WhatsApp sending comes later; the ticks are kept on the order). Contacts are kept on the
+              supplier's (and the agent's) ledger.
+            </p>
+            <ContactTicks title="Supplier Contacts" contacts={sup?.contacts ?? []} ticked={mailTo} onTick={tick} wa={waTo} onWa={tickWa} empty={sup ? "This supplier has no contacts yet." : "Pick the supplier first."} />
             <div className="item-fields">
               <label>
                 Buying Agent
@@ -803,7 +812,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                 <span className="small">A broker or firm from the suppliers, or one of your own employees.</span>
               </label>
             </div>
-            {ag && <ContactTicks title="Agent Contacts" contacts={ag.contacts} ticked={mailTo} onTick={tick} empty="This agent has no contacts yet." />}
+            {ag && <ContactTicks title="Agent Contacts" contacts={ag.contacts} ticked={mailTo} onTick={tick} wa={waTo} onWa={tickWa} empty="This agent has no contacts yet." />}
             {agUser && (
               <ContactTicks
                 title="Agent Contact"
@@ -982,7 +991,16 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   );
 }
 
-function ContactTicks(props: { title: string; contacts: Contact[]; ticked: number[]; onTick: (id: number, on: boolean) => void; empty: string }) {
+function ContactTicks(props: {
+  title: string;
+  contacts: Contact[];
+  ticked: number[];
+  onTick: (id: number, on: boolean) => void;
+  // WhatsApp ticks; left out where WhatsApp does not apply (an employee agent).
+  wa?: number[];
+  onWa?: (id: number, on: boolean) => void;
+  empty: string;
+}) {
   return (
     <div>
       <b className="fact-label">{props.title}</b>
@@ -993,6 +1011,7 @@ function ContactTicks(props: { title: string; contacts: Contact[]; ticked: numbe
           <thead>
             <tr>
               <th>Send Mail</th>
+              {props.wa && <th>WhatsApp</th>}
               <th>Name</th>
               <th>Designation</th>
               <th>Email</th>
@@ -1012,6 +1031,18 @@ function ContactTicks(props: { title: string; contacts: Contact[]; ticked: numbe
                     onChange={(e) => props.onTick(c.id, e.target.checked)}
                   />
                 </td>
+                {props.wa && (
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`WhatsApp ${c.name}`}
+                      disabled={!c.phone}
+                      title={c.phone ? "" : "No phone number for this contact"}
+                      checked={props.wa.includes(c.id)}
+                      onChange={(e) => props.onWa?.(c.id, e.target.checked)}
+                    />
+                  </td>
+                )}
                 <td>
                   {c.name}
                   {c.is_primary && <span className="pill on">Main</span>}
@@ -1246,13 +1277,15 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               </div>
             </dl>
             {order.mail_contacts.length === 0 ? (
-              <p className="small">Nobody is ticked to get this order by mail.</p>
+              <p className="small">Nobody is ticked to get this order by mail or WhatsApp.</p>
             ) : (
               <table className="grid">
                 <thead>
                   <tr>
-                    <th>Mail To</th>
+                    <th>Send To</th>
                     <th>Of</th>
+                    <th>Mail</th>
+                    <th>WhatsApp</th>
                     <th>Designation</th>
                     <th>Email</th>
                     <th>Phone</th>
@@ -1263,6 +1296,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                     <tr key={c.id ?? c.email}>
                       <td>{c.name}</td>
                       <td>{c.of}</td>
+                      <td>{c.mail ? "✓" : ""}</td>
+                      <td>{c.whatsapp ? "✓" : ""}</td>
                       <td>{c.designation}</td>
                       <td>{c.email}</td>
                       <td>{c.phone}</td>

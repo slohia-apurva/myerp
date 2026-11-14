@@ -314,6 +314,31 @@ def test_the_order_is_mailed_to_ticked_contacts_of_the_supplier_and_agent(buyer,
     assert itself["agent"] == ["The agent is not the supplier itself."]
 
 
+def test_contacts_ticked_for_whatsapp(buyer, world, alpha):
+    from core.models import PartyContact
+
+    with use_tenant(alpha):
+        supplier = Ledger.objects.get(pk=world["local"]).party
+        ram = PartyContact.objects.create(party=supplier, name="Ram", email="ram@dtt.in")
+        shyam = PartyContact.objects.create(party=supplier, name="Shyam", phone="9876543210")
+        stranger = PartyContact.objects.create(
+            party=Ledger.objects.get(pk=world["small"]).party, name="X", phone="9876543211"
+        )
+    url = f"companies/{world['company']}/purchase-orders/"
+    po = call(buyer, "post", url, order(world, mail_to=[ram.pk], whatsapp_to=[shyam.pk]))
+    assert po.status_code == 201, po.json()
+    body = po.json()
+    assert body["whatsapp_to"] == [shyam.pk]
+    assert [(c["name"], c["mail"], c["whatsapp"]) for c in body["mail_contacts"]] == [
+        ("Ram", True, False),
+        ("Shyam", False, True),
+    ]
+    nophone = call(buyer, "post", url, order(world, whatsapp_to=[ram.pk])).json()
+    assert nophone["whatsapp_to"] == ["A contact without a phone number cannot get WhatsApp."]
+    wrong = call(buyer, "post", url, order(world, whatsapp_to=[stranger.pk])).json()
+    assert wrong["whatsapp_to"] == ["Pick contacts of the supplier or the agent."]
+
+
 def test_the_agent_can_be_an_employee(buyer, world, alpha):
     with use_tenant(alpha):
         rina = User.objects.create_user("rina@x.in", full_name="Rina").pk
