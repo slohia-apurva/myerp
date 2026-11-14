@@ -31,6 +31,7 @@ from core.models import (
     Item,
     ItemUnit,
     Ledger,
+    LedgerGroup,
     Party,
     PartyContact,
     PartyItemName,
@@ -522,6 +523,12 @@ class OrderSetupView(APIView):
         return Response(
             {
                 "company_name": company.name,
+                # Where "Create …" in the supplier picker adds a new supplier's ledger.
+                "supplier_group": LedgerGroup.objects.filter(
+                    company=company, code="sundry_creditors"
+                )
+                .values_list("pk", flat=True)
+                .first(),
                 "suppliers": [
                     {
                         "id": s.pk,

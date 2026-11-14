@@ -4,7 +4,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
-import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
+import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
 import { useCreditTerms, type CreditTerm } from "./CreditTerms";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
@@ -85,7 +85,7 @@ type Supplier = {
 };
 type BranchRow = { id: number; name: string; state_code: string; is_active: boolean; no_stock: boolean; store: string; receiving: string };
 type Employee = { id: number; name: string; email: string };
-type Setup = { company_name: string; suppliers: Supplier[]; branches: BranchRow[]; employees: Employee[] };
+type Setup = { company_name: string; suppliers: Supplier[]; branches: BranchRow[]; employees: Employee[]; supplier_group: number | null };
 type BuyItem = {
   id: number;
   name: string;
@@ -114,10 +114,27 @@ const pillClass = (status: string) =>
 
 function useSetup(companyId: number) {
   const [setup, setSetup] = useState<Setup | null>(null);
+  // refresh returns the request, so "Create …" can wait for the new supplier.
+  const refresh = useCallback(
+    () => api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/`).then(setSetup, () => setSetup(null)),
+    [companyId],
+  );
   useEffect(() => {
-    api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/`).then(setSetup, () => setSetup(null));
-  }, [companyId]);
-  return setup;
+    refresh();
+  }, [refresh]);
+  return { setup, refresh };
+}
+
+/** 'Create "<typed>"' in the supplier picker: the company's Add ledger form in a new tab, under
+ * Sundry Creditors with the name filled in; the picker takes the supplier once it is saved. */
+function newSupplier(companyId: number, setup: Setup | null, refresh: () => unknown): Creatable | undefined {
+  if (!setup?.supplier_group) return undefined;
+  return {
+    kind: "ledger",
+    href: (name) =>
+      `${window.location.pathname}${window.location.search}#/companies/${companyId}/ledgers?form=new-in-${setup.supplier_group}&new=${encodeURIComponent(name)}`,
+    reload: refresh,
+  };
 }
 
 const base = (companyId: number) => `#/companies/${companyId}/purchase-orders`;
@@ -147,7 +164,7 @@ const COLUMNS: [key: string, label: string, text: (o: PurchaseOrder) => string, 
 
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
   const canCreate = session.permissions.includes("purchase.create");
-  const setup = useSetup(companyId);
+  const { setup } = useSetup(companyId);
   const [view, setView] = useState("open");
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [search, setSearch] = useState<Record<string, string>>({});
@@ -386,9 +403,11 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const { companyId, order } = props;
   const from = order ?? props.copyOf;
   const canSubmit = props.session.permissions.includes("purchase.submit");
-  const setup = useSetup(companyId);
+  const { setup, refresh: refreshSetup } = useSetup(companyId);
   const { terms, refresh: refreshTerms } = useCreditTerms();
-  const newTerm = props.session.permissions.includes("masters.edit") ? creatable("credit_term", "credit-terms", refreshTerms) : undefined;
+  const mayAddMasters = props.session.permissions.includes("masters.edit");
+  const newTerm = mayAddMasters ? creatable("credit_term", "credit-terms", refreshTerms) : undefined;
+  const addSupplier = mayAddMasters ? newSupplier(companyId, setup, refreshSetup) : undefined;
   const [supplier, setSupplierId] = useState(from ? String(from.supplier) : "");
   const [branch, setBranch] = useState(from ? String(from.branch) : "");
   const [orderDate, setOrderDate] = useState(order?.order_date ?? today());
@@ -578,6 +597,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                   required
                   value={supplier}
                   onChange={pickSupplier}
+                  create={addSupplier}
                   placeholder="Type to search suppliers…"
                   options={(setup?.suppliers ?? [])
                     .filter((s) => s.is_active || String(s.id) === supplier)

@@ -1964,7 +1964,12 @@ export const MANUAL: Chapter[] = [
             Click "New purchase order" (it opens in a new browser tab).
           </li>
           <li>
-            Under "Supplier and Dates" pick the "Supplier". Its "Credit Term"
+            Under "Supplier and Dates" pick the "Supplier". If it is not there yet,
+            type its name and click 'Create "…"': the "Add ledger" form opens in a
+            new browser tab, under "Sundry Creditors" with the name filled in.
+            Fill in its GST details and contacts and click "Save"; the tab
+            closes and the order picks the new supplier (only people who may
+            add masters see this). Its "Credit Term"
             fills in by itself; you can change it for this order. Fill in the
             "Order Date", "Deliver To" (the branch the goods come to; the line
             under it says which store they go to), and if you like the

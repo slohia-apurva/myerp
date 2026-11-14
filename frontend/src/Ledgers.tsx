@@ -1,5 +1,5 @@
 import { Combobox } from "./Combobox";
-import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
+import { announceCreated, announceSaved, closeThisTab, creatable, useCreated, useNewName, type Creatable } from "./Create";
 import { useOpenParam } from "./ErrorNote";
 import { FormEvent, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { api, SignedIn } from "./api";
@@ -388,6 +388,8 @@ function LedgerFormTab(props: { companyId: number; form: string; session: Signed
     api<Ledger[]>(`v1/companies/${props.companyId}/ledgers/`).then(setLedgers);
   }, [loadDetail, props.companyId]);
   const canEdit = props.session.permissions.includes("masters.edit");
+  // `&new=<name>`: opened by "Create …" in a picker (a purchase order's supplier, say).
+  const startName = useNewName();
   const adding = props.form === "new" || inGroup;
   const editing = !adding && !copy;
   const target = adding ? null : (ledgers?.find((l) => l.id === key) ?? null);
@@ -425,12 +427,14 @@ function LedgerFormTab(props: { companyId: number; form: string; session: Signed
       groups={ordered}
       createGroup={creatable("ledger_group", `companies/${props.companyId}/groups`, loadDetail)}
       defaultGroup={inGroup ? String(key) : ""}
+      startName={adding ? (startName ?? undefined) : undefined}
       booksStart={detail.company.books_start}
       multiCurrency={detail.company.multi_currency}
       companyState={detail.company.state_code}
       readOnly={!canEdit}
       onDone={(saved) => {
         if (saved) announceSaved("ledger_saved", saved);
+        if (saved && adding && startName) announceCreated("ledger", saved);
         closeThisTab(toList);
       }}
       onCancel={() => closeThisTab(toList)}
@@ -529,12 +533,13 @@ function LedgerForm(props: {
   companyState: string;
   onDone: (saved?: { id: number; name: string }) => void;
   onCancel: () => void;
+  startName?: string;
 }) {
   const l = props.ledger;
   // A duplicate copies the setup, not the name, account number, party numbers or balances.
   const c = props.copyOf;
   const from = l ?? c;
-  const [name, setName] = useState(l?.name ?? (c ? `${c.name} (copy)` : ""));
+  const [name, setName] = useState(l?.name ?? (c ? `${c.name} (copy)` : (props.startName ?? "")));
   const [group, setGroup] = useState(from ? String(from.group) : props.defaultGroup);
   const [notes, setNotes] = useState(from?.notes ?? "");
   const [disabled, setDisabled] = useState(l ? !l.is_active : false);
