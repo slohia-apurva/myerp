@@ -348,7 +348,7 @@ type Branch = Contact &
     gstin: string;
     is_head_office: boolean;
     is_active: boolean;
-    is_warehouse: boolean;
+    no_stock: boolean;
   };
 export type Group = {
   id: number;
@@ -1161,7 +1161,7 @@ function Branches(props: {
                 {b.is_head_office && (
                   <span className="small"> · head office</span>
                 )}
-                {b.is_warehouse && <span className="small"> · warehouse</span>}
+                {b.no_stock && <span className="small"> · no stock</span>}
                 <div>
                   {DEFAULTS.filter(([flag]) => b[flag]).map(([flag]) => (
                     <span key={flag} className="tag">
@@ -1223,7 +1223,7 @@ function BranchForm(props: {
     default_ship_to: b?.default_ship_to ?? false,
     default_ship_from: b?.default_ship_from ?? false,
   });
-  const [isWarehouse, setIsWarehouse] = useState(b?.is_warehouse ?? false);
+  const [noStock, setNoStock] = useState(b?.no_stock ?? false);
   const [error, setError] = useState<unknown>("");
 
   const save = async (event: FormEvent) => {
@@ -1237,7 +1237,7 @@ function BranchForm(props: {
       name,
       state_code: stateCode,
       gstin,
-      is_warehouse: isWarehouse,
+      no_stock: noStock,
       ...contact,
       ...ticked,
     };
@@ -1321,15 +1321,16 @@ function BranchForm(props: {
           ))}
         </fieldset>
         <fieldset>
-          <legend>Warehouse</legend>
+          <legend>Stock</legend>
           <label className="check">
             <input
               type="checkbox"
-              checked={isWarehouse}
-              onChange={(e) => setIsWarehouse(e.target.checked)}
+              checked={noStock}
+              onChange={(e) => setNoStock(e.target.checked)}
             />
-            This branch is a warehouse (goods are stored here; add its racks,
-            bins and areas under "Masters", "Warehouses")
+            No stock (goods are never stored at this branch). Otherwise this
+            branch is a warehouse: add its racks, bins and areas under
+            "Masters", "Warehouses"
           </label>
         </fieldset>
       </FormBody>

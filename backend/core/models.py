@@ -212,8 +212,9 @@ class Branch(models.Model):
     default_billing = models.BooleanField(default=False)
     default_ship_to = models.BooleanField(default=False)
     default_ship_from = models.BooleanField(default=False)
-    # A branch that is a physical warehouse: it holds racks, bins and areas.
-    is_warehouse = models.BooleanField(default=False)
+    # Every branch holds stock (it is a warehouse, with racks, bins and areas) unless ticked
+    # "No stock". A stock-holding branch always has a default store (WarehouseLocation.is_default).
+    no_stock = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-is_head_office", "name"]
@@ -287,10 +288,17 @@ class WarehouseLocation(models.Model):
     purpose = models.CharField(max_length=12, choices=PURPOSES, blank=True)  # areas only
     notes = models.CharField(max_length=200, blank=True)
     is_active = models.BooleanField(default=True)
+    # The branch's default store: the area stock goes to when no other place is chosen.
+    is_default = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["branch_id", "kind", "name"]
         constraints = [
+            models.UniqueConstraint(
+                fields=["branch"],
+                condition=models.Q(is_default=True),
+                name="one_default_store_per_branch",
+            ),
             models.UniqueConstraint(
                 "branch",
                 "kind",

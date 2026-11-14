@@ -46,7 +46,7 @@ LABELS = {
     "default_billing": "Default billing address",
     "default_ship_to": "Default ship to",
     "default_ship_from": "Default ship from",
-    "is_warehouse": "Warehouse",
+    "no_stock": "No stock",
     "kind": "Type",
     "valid_until": "Renewal date",
     "parent": "Under",

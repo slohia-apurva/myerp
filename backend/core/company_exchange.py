@@ -55,12 +55,12 @@ exchange.register(
             "default_billing": "Default billing",
             "default_ship_to": "Default ship to",
             "default_ship_from": "Default ship from",
-            "is_warehouse": "Warehouse",
+            "no_stock": "No stock",
         },
         hints={
             "gstin": "Leave empty when the branch uses the company's GSTIN",
-            "is_warehouse": "Yes when goods are stored here; racks, bins and areas are added "
-            "to it on the Warehouses tab",
+            "no_stock": "Yes when goods are never stored at this branch; otherwise racks, bins "
+            "and areas can be added to it on the Warehouses screen",
             "default_billing": "One branch of the company has each default; "
             "tick it on another branch to move it",
         },

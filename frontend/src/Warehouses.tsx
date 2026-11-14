@@ -23,6 +23,7 @@ export type Location = {
   notes: string;
   is_active: boolean;
   bin_count: number;
+  is_default: boolean;
   lock?: LockInfo;
 };
 export type Rack = Location & { bins: Location[] };
@@ -113,7 +114,7 @@ function WarehouseList(props: {
     <section className="page">
       <PageHeader
         title="Warehouses"
-        sub="A warehouse is a branch ticked Warehouse. Racks stand in it and hold bins; areas are its named zones, such as receiving, production and despatch."
+        sub="Every branch not ticked No stock is a warehouse, with a default store. Racks stand in it and hold bins; areas are its named zones, such as receiving, production and despatch."
         actions={io.buttons}
       />
       {io.panel}
@@ -264,6 +265,7 @@ function WarehouseList(props: {
                     >
                       <td>
                         {a.name}
+                        {a.is_default && <span className="pill on">Default</span>}
                         {!a.is_active && <span className="pill">Disabled</span>}
                       </td>
                       <td>{a.purpose_label}</td>
@@ -423,7 +425,11 @@ function LocationForm(props: {
     if (kind === "area") body.purpose = purpose;
     try {
       if (location) {
-        await api(`v1/warehouse-locations/${location.id}/`, { ...body, is_active: !disabled }, "PATCH");
+        await api(
+          `v1/warehouse-locations/${location.id}/`,
+          location.is_default ? body : { ...body, is_active: !disabled },
+          "PATCH",
+        );
         props.onDone({ id: location.id, name });
       } else {
         const made = await api<{ id: number; name: string }>(`v1/companies/${props.companyId}/warehouse-locations/`, {
@@ -450,7 +456,7 @@ function LocationForm(props: {
       busy={busy}
       error={error}
       readOnly={props.readOnly}
-      disabled={location ? { value: disabled, set: setDisabled } : undefined}
+      disabled={location && !location.is_default ? { value: disabled, set: setDisabled } : undefined}
       tips={
         kind === "rack" ? (
           <p className="small">A rack with open bins cannot be disabled; disable its bins first.</p>
