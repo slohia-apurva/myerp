@@ -2122,6 +2122,16 @@ export const MANUAL: Chapter[] = [
           SGST; one in another state charges IGST. An unregistered or
           composition supplier charges no GST, so its orders have none.
         </p>
+        <h3>Print and PDF</h3>
+        <p>
+          On an open order, "Actions" then "Print" opens the order as the supplier gets it, in a new tab, with the print
+          window: your letterhead, the "Supplier", "Bill To" and "Ship To" addresses, the dates, credit term and
+          transporter, the items with their descriptions, the charges, a "Tax Summary" by HSN / SAC code, the totals, the
+          amount in words, the terms and conditions and the signature. An import shows its shipment and payment terms,
+          "Documents Required" and "Packing and Marking", in the order's currency with no GST. A draft prints with
+          "DRAFT" across each page. "Download PDF" opens the same page: pick "Save as PDF" as the printer to keep a PDF.
+          Every page has the order number and "Page n of m" at the foot.
+        </p>
         <h3>Submit, change and cancel</h3>
         <ul>
           <li>

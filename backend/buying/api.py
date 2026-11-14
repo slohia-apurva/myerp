@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from accounts.models import User
 from buying import imports
 from buying.models import PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
-from core import fiscal, india, numbering
+from core import fiscal, india, numbering, words
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -29,6 +29,7 @@ from core.items import gst_rate_on
 from core.models import (
     Branch,
     Certificate,
+    Company,
     CreditTerm,
     Currency,
     Item,
@@ -167,6 +168,33 @@ def _default_bill_to(company_id: int) -> Branch | None:
         branches.filter(default_billing=True).first()
         or branches.filter(is_head_office=True).first()
     )
+
+
+def _letterhead(c: Company) -> dict:
+    """The company as the print's heading shows it: registered office and numbers."""
+    today = timezone.localdate()
+    wide = {
+        k: n
+        for k, n, until in Certificate.objects.filter(
+            company=c, branch__isnull=True, kind__in=(Certificate.FSSAI, Certificate.IEC)
+        ).values_list("kind", "number", "valid_until")
+        if _valid(today, until)
+    }
+    return {
+        "name": c.name,
+        "address": c.address,
+        "city": c.city,
+        "pincode": c.pincode,
+        "state": india.STATES.get(c.state_code, ""),
+        "state_code": c.state_code,
+        "phone": c.phone,
+        "email": c.email,
+        "gstin": c.gstin,
+        "pan": c.pan,
+        "cin": c.cin,
+        "fssai": wide.get(Certificate.FSSAI, ""),
+        "iec": wide.get(Certificate.IEC, ""),
+    }
 
 
 def _addresses_out(o: PurchaseOrder) -> dict:
@@ -326,6 +354,9 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         data["lines"] = [_line_out(ln) for ln in o.lines.all()]
         data["charges"] = [_charge_out(c) for c in o.charges.all()]
         data["addresses"] = _addresses_out(o)
+        data["letterhead"] = _letterhead(o.company)
+        name = Currency.objects.filter(code=o.currency).values_list("name", flat=True).first()
+        data["amount_words"] = words.amount(o.total, o.currency, name or "")
     return data
 
 
