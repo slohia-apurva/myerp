@@ -11,7 +11,7 @@ import { RichText } from "./RichText";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
-import { Fold, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, SidePanel, SideRows } from "./Master";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
@@ -198,6 +198,9 @@ function ItemList({ session }: { session: SignedIn }) {
   const { units } = useUnits();
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
+  // `?group=<id>` (from the Items count on Item groups) shows that group and everything under it.
+  const [groupFilter, setGroupFilter] = useState(hashParam("group") ?? "");
+  const { groups: allGroups } = useItemGroups();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -224,11 +227,21 @@ function ItemList({ session }: { session: SignedIn }) {
 
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const inGroup = new Set<number>();
+    if (groupFilter) {
+      const add = (id: number) => {
+        inGroup.add(id);
+        allGroups.filter((g) => g.parent === id).forEach((g) => add(g.id));
+      };
+      add(Number(groupFilter));
+    }
     return items.filter((i) => {
+      if (groupFilter && (i.item_group === null || !inGroup.has(i.item_group))) return false;
       const text = [i.name, i.item_number, i.hsn, ...i.units.map((u) => u.barcode)].join(" ").toLowerCase();
       return words.every((w) => text.includes(w));
     });
-  }, [items, query]);
+  }, [items, query, groupFilter, allGroups]);
+  const groupLabels = groupPaths(allGroups);
   const selected = items.find((i) => i.id === selectedId) ?? shown[0] ?? null;
   const pick = (i: Item) => setSelectedId(i.id);
   const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
@@ -264,6 +277,13 @@ function ItemList({ session }: { session: SignedIn }) {
               placeholder="Search by name, item number, HSN or barcode"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+            />
+            <Combobox
+              value={groupFilter}
+              onChange={setGroupFilter}
+              empty="All groups"
+              ariaLabel="Item group"
+              options={allGroups.map((g) => ({ value: String(g.id), label: groupLabels.get(g.id) ?? g.name }))}
             />
           </div>
           <table className="pick">
