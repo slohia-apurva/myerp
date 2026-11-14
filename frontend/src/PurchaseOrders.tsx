@@ -644,6 +644,10 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     closeThisTab(() => {
       window.location.hash = base(companyId);
     });
+  // "Save" keeps the draft and the form open, to carry on adding (Sidharth, 2026-11-14);
+  // after the first save of a new order the form edits that draft.
+  const [draftId, setDraftId] = useState<number | null>(order?.id ?? null);
+  const [savedAt, setSavedAt] = useState("");
   const save = async (submit: boolean) => {
     setError("");
     setBusy(true);
@@ -669,12 +673,21 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       submit,
     };
     try {
-      const saved = order
-        ? await api<PurchaseOrder>(`v1/purchase-orders/${order.id}/`, body, "PATCH")
+      const saved = draftId
+        ? await api<PurchaseOrder>(`v1/purchase-orders/${draftId}/`, body, "PATCH")
         : await api<PurchaseOrder>(`v1/companies/${companyId}/purchase-orders/`, body);
       announceSaved("purchase_order_saved", { id: saved.id, name: saved.number || "Draft" });
-      if (submit) window.location.hash = `${base(companyId)}?view=${saved.id}`;
-      else close();
+      if (submit) {
+        window.location.hash = `${base(companyId)}?view=${saved.id}`;
+        return;
+      }
+      if (!draftId) {
+        setDraftId(saved.id);
+        // Reloading this tab now opens the saved draft (no new form, no reload now).
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${saved.id}`);
+      }
+      setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
+      setBusy(false);
     } catch (err) {
       setError(err);
       setBusy(false);
@@ -689,12 +702,13 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   return (
     <section className="page item-edit">
       <PageHeader
-        title={props.title}
+        title={draftId && !order ? "Edit Purchase Order" : props.title}
+        sub={savedAt ? `Saved as a draft at ${savedAt}. Carry on, or click "Close" and finish it later.` : undefined}
         crumbs={[{ label: "Entry › Purchase › Purchase Order", href: base(companyId) }]}
         actions={
           <>
             <button type="button" className="link" onClick={close}>
-              Cancel
+              {draftId ? "Close" : "Cancel"}
             </button>
             <button type="submit" form="po-form" className={canSubmit ? "secondary" : undefined} disabled={busy}>
               Save

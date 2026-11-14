@@ -194,9 +194,16 @@ def test_wrong_lines_and_parties_are_refused(buyer, world):
     assert "Line 1: Pick one of the units of Tea Box." in errors
     assert any("whole numbers" in e for e in errors)
     assert any("more than zero" in e for e in errors)
-    assert (
-        "Add at least one item." in call(buyer, "post", url, order(world, lines=[])).json()["lines"]
-    )
+    # A draft may have no items yet; submitting needs one, and nothing is saved then.
+    empty = call(buyer, "post", url, order(world, lines=[]))
+    assert empty.status_code == 201, empty.json()
+    assert empty.json()["status"] == "draft"
+    refused = call(buyer, "post", f"purchase-orders/{empty.json()['id']}/submit/", {}).json()
+    assert refused["lines"] == ["Add at least one item before submitting."]
+    before = len(call(buyer, "get", url).json())
+    at_once = call(buyer, "post", url, {**order(world, lines=[]), "submit": True}).json()
+    assert at_once["lines"] == ["Add at least one item before submitting."]
+    assert len(call(buyer, "get", url).json()) == before
     customer = call(buyer, "post", url, order(world, "shop")).json()
     assert customer["supplier"] == ["Pick a supplier of this company."]
     late = order(world, expected_date=(TODAY - datetime.timedelta(days=1)).isoformat())

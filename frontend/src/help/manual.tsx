@@ -2073,8 +2073,12 @@ export const MANUAL: Chapter[] = [
             Note" is only for your own people.
           </li>
           <li>
-            Click "Save" to keep it as a draft (it can still be changed), or
-            "Submit" to give it its number and send it.
+            Click "Save" to keep it as a draft: the form stays open, so you can
+            carry on adding and click "Save" again. A draft can be saved before
+            it has any items. Click "Close" to leave it for later; open it
+            again from the list ("Edit") to finish it. Click "Submit" to give
+            the order its number and send it; an order needs at least one item
+            to be submitted.
           </li>
         </ol>
         <p>
