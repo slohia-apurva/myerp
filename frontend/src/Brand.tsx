@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 /** The MyERP mark: a leaf-green rounded square with a white M. */
 export function Mark({ size = 28 }: { size?: number }) {
@@ -39,8 +39,28 @@ export function PageHeader(props: {
   actions?: ReactNode;
   children?: ReactNode;
 }) {
+  const band = useRef<HTMLElement>(null);
+  // The top menu and this band stay fixed while the page scrolls (Sidharth, 2026-11-14); the side
+  // panels stick just below them, so the page tells the styles how tall the two are together.
+  useEffect(() => {
+    const root = document.documentElement;
+    const top = document.querySelector<HTMLElement>(".topbar");
+    const measure = () => {
+      const menu = top?.offsetHeight ?? 0;
+      root.style.setProperty("--topbar-h", `${menu}px`);
+      root.style.setProperty("--stick-top", `${menu + (band.current?.offsetHeight ?? 0)}px`);
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    if (band.current) watch.observe(band.current);
+    if (top) watch.observe(top);
+    return () => {
+      watch.disconnect();
+      root.style.removeProperty("--stick-top");
+    };
+  }, []);
   return (
-    <header className="band">
+    <header className="band" ref={band}>
       <div className="band-inner">
         <div className="band-row">
           <div className="band-title">
