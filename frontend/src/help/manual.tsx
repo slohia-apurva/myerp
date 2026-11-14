@@ -455,11 +455,11 @@ export const MANUAL: Chapter[] = [
           item gets a number such as ITEM-00001. The list shows the item
           number, name, group, HSN, stock unit and today's GST rate. Click an
           item and its "Item Details" and "Activity" (the change log) show in
-          the panels on the right. Type in the search box to find an item by
+          the panels on the right, with "View", "Edit" and "Duplicate" buttons under "Item Details". Type in the search box to find an item by
           name, number, HSN or barcode.
         </p>
         <p>
-          Double-click an item, press Enter, or click "Open" to see its own
+          Double-click an item, press Enter, or click "View" under "Item Details" to see its own
           page, which opens in a new browser tab so the list stays open. It has folding sections: "General", "Sales", "Purchase", "GST
           Rates", "Stock And Quality", "Units Of Measure", "Customer And Supplier
           Names" and "Connections". Click a section's title bar to open or close it; a closed section

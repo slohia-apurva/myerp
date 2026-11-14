@@ -332,9 +332,14 @@ function ItemList({ session }: { session: SignedIn }) {
                   ]}
                 />
                 <div className="side-buttons">
-                  <button type="button" onClick={() => openItemView(selected.id)}>
-                    Open
+                  <button type="button" className="link" onClick={() => openItemView(selected.id)}>
+                    View
                   </button>
+                  {canEdit && (
+                    <button type="button" className="link" onClick={() => openItemForm(String(selected.id))}>
+                      Edit
+                    </button>
+                  )}
                   {canEdit && (
                     <button type="button" className="link" onClick={() => openItemForm(`copy-${selected.id}`)}>
                       Duplicate
