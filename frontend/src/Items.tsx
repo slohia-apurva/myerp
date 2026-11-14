@@ -1028,37 +1028,39 @@ function ItemForm(props: {
                 onChange={setSalesText}
                 hint="The wording customers see for this item on quotations, orders and sales bills."
               />
-              <label>
-                Default sales unit
-                <Combobox value={salesUnit} onChange={setSalesUnit} empty="Same as the stock unit" options={unitChoices} />
-              </label>
-              <label>
-                MRP (₹)
-                <input className="num" inputMode="decimal" value={mrp} onChange={(e) => setMrp(e.target.value)} />
-              </label>
-              <label>
-                USP
-                <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
-              </label>
-              <label>
-                Batch No
-                <input maxLength={60} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
-              </label>
-              <label>
-                Best before (counted from the manufacturing date)
-                <input className="num" inputMode="numeric" value={bestBefore} onChange={(e) => setBestBefore(e.target.value)} />
-              </label>
-              <label>
-                Best before in
-                <Combobox
-                  value={bestBeforeUnit}
-                  onChange={setBestBeforeUnit}
-                  options={[
-                    { value: "days", label: "Days" },
-                    { value: "months", label: "Months" },
-                  ]}
-                />
-              </label>
+              <div className="item-cols wide">
+                <label>
+                  Default sales unit
+                  <Combobox value={salesUnit} onChange={setSalesUnit} empty="Same as the stock unit" options={unitChoices} />
+                </label>
+                <label>
+                  MRP (₹)
+                  <input className="num" inputMode="decimal" value={mrp} onChange={(e) => setMrp(e.target.value)} />
+                </label>
+                <label>
+                  USP
+                  <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
+                </label>
+                <label>
+                  Batch No
+                  <input maxLength={60} value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
+                </label>
+                <label>
+                  Best before (counted from the manufacturing date)
+                  <input className="num" inputMode="numeric" value={bestBefore} onChange={(e) => setBestBefore(e.target.value)} />
+                </label>
+                <label>
+                  Best before in
+                  <Combobox
+                    value={bestBeforeUnit}
+                    onChange={setBestBeforeUnit}
+                    options={[
+                      { value: "days", label: "Days" },
+                      { value: "months", label: "Months" },
+                    ]}
+                  />
+                </label>
+              </div>
             </div>
           </Section>
         )}
