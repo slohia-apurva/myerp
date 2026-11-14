@@ -19,6 +19,7 @@ type Line = {
   item_name: string;
   item_number: string;
   hsn: string;
+  description?: string;
   unit: number;
   unit_name: string;
   qty: string;
@@ -102,6 +103,7 @@ type BuyItem = {
   name: string;
   item_number: string;
   hsn: string;
+  description: string;
   purchase_unit: number;
   units: { unit: number; name: string; whole_numbers: boolean }[];
   gst_rate: string | null;
@@ -351,6 +353,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
 type Draft = {
   key: number;
   item: string;
+  description: string;
   unit: string;
   qty: string;
   rate: string;
@@ -360,7 +363,7 @@ type Draft = {
   source: string;
 };
 let nextKey = 1;
-const blankLine = (): Draft => ({ key: nextKey++, item: "", unit: "", qty: "", rate: "", discount: "", rateTyped: false, source: "" });
+const blankLine = (): Draft => ({ key: nextKey++, item: "", description: "", unit: "", qty: "", rate: "", discount: "", rateTyped: false, source: "" });
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 function work(line: Draft, gst: number) {
@@ -439,6 +442,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     ...(from?.lines ?? []).map((l) => ({
       key: nextKey++,
       item: String(l.item),
+      description: l.description ?? "",
       unit: String(l.unit),
       qty: l.qty,
       rate: l.rate,
@@ -524,7 +528,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       if ("item" in patch) {
         const it = items.find((i) => String(i.id) === patch.item);
         const unit = it ? String(it.units.some((u) => u.unit === it.purchase_unit) ? it.purchase_unit : (it.units[0]?.unit ?? "")) : "";
-        next = next.map((l) => (l.key === key ? { ...l, unit, rateTyped: false, source: "" } : l));
+        // The item's purchase description comes with it; it can be changed for this order.
+        next = next.map((l) => (l.key === key ? { ...l, unit, description: it?.description ?? "", rateTyped: false, source: "" } : l));
       }
       if (next[next.length - 1].item) next = [...next, blankLine()];
       const now = next.find((l) => l.key === key)!;
@@ -569,7 +574,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       mail_agent_user: mailAgentUser,
       terms: termsText,
       notes,
-      lines: filled.map((l) => ({ item: Number(l.item), unit: Number(l.unit), qty: l.qty || "0", rate: l.rate || "0", discount_pct: l.discount || "0" })),
+      lines: filled.map((l) => ({ item: Number(l.item), description: l.description, unit: Number(l.unit), qty: l.qty || "0", rate: l.rate || "0", discount_pct: l.discount || "0" })),
       submit,
     };
     try {
@@ -763,6 +768,17 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                             options={itemOptions}
                           />
                           {theirs && <span className="small">{theirs}</span>}
+                          {l.item && (
+                            <textarea
+                              className="po-desc"
+                              rows={Math.min(4, Math.max(1, l.description.split("\n").length))}
+                              maxLength={5000}
+                              aria-label={`Description ${i + 1}`}
+                              placeholder="Description for the supplier"
+                              value={l.description}
+                              onChange={(e) => change(l.key, { description: e.target.value })}
+                            />
+                          )}
                         </td>
                         <td className="num">
                           <input
@@ -1142,7 +1158,10 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                   {(order.lines ?? []).map((l, i) => (
                     <tr key={l.id}>
                       <td>{i + 1}</td>
-                      <td>{l.item_name}</td>
+                      <td>
+                        <b>{l.item_name}</b>
+                        {l.description && <div className="line-desc">{l.description}</div>}
+                      </td>
                       <td>{l.hsn}</td>
                       <td className="num">{l.qty}</td>
                       <td>{l.unit_name}</td>

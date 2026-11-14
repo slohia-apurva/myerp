@@ -600,15 +600,15 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             On the "Sales" tab, write the "Sales description" customers should
-            see on quotations, orders and bills (both descriptions have a bar
-            above the text box: "B", "I" and "U" for bold, italic and underline,
-            "Bullets", "Numbers", "Font" and "Size"; select the words first, and
-            "Clear formatting" takes the formatting off), and pick the "Default sales
+            see on quotations, orders and bills (both descriptions are plain
+            text; on a printed document they show a little smaller, under the
+            item name in bold), and pick the "Default sales
             unit" (for example Carton). Fill in the "MRP (₹)", the "USP" and the
             "Batch No" printed on the pack. "Best before" is a number with
             "Days" or "Months": a manufacturing order adds it to the
             manufacturing date to work out the best-before date. On the
-            "Purchase" tab write the "Purchase description" for suppliers, pick
+            "Purchase" tab write the "Purchase description" for suppliers (a
+            purchase order line starts with it and can change it), pick
             the "Default purchase unit", and fill in the "Lead time in days",
             "Safety stock qty", "Minimum order qty" and "Max stock qty" (the
             quantities are in the item's default unit; the maximum cannot be
@@ -1993,7 +1993,10 @@ export const MANUAL: Chapter[] = [
           <li>
             Under "Items" pick an item in the empty row. Only items that may be
             bought from this supplier are offered (see the supplier's Products
-            list). The unit starts as the item's purchase unit. Type the "Qty".
+            list). The box under the item fills in with the item's "Purchase
+            description"; change it for this order if you like (plain text,
+            printed under the item name). The unit starts as the item's
+            purchase unit. Type the "Qty".
             The "Rate" fills in from the supplier's own Item Prices, or else its
             "Buying" price list, and the line under it says which; type over it
             to use another rate. Add a "Disc %" if the supplier gives one. A new

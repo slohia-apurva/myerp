@@ -355,3 +355,28 @@ def test_the_transporter_is_by_supplier_or_one_of_ours(buyer, world, alpha):
     # A transporter on a submitted order is in use.
     with use_tenant(alpha):
         assert "1 purchase order" in locks.uses("courier_account", ours)
+
+
+def test_a_line_takes_the_items_purchase_description_unless_changed(buyer, world, alpha):
+    with use_tenant(alpha):
+        Item.objects.filter(pk=world["tea"]).update(purchase_description="Assam CTC\n50 kg sacks")
+    url = f"companies/{world['company']}/purchase-orders/"
+    picked = call(buyer, "get", f"{url}items/?supplier={world['local']}").json()
+    assert next(i for i in picked if i["id"] == world["tea"])["description"] == (
+        "Assam CTC\n50 kg sacks"
+    )
+    lines = [
+        {"item": world["tea"], "unit": world["kg"], "qty": "5", "rate": "180"},
+        {
+            "item": world["tea"],
+            "unit": world["kg"],
+            "qty": "5",
+            "rate": "180",
+            "description": "Second flush only  \n",
+        },
+    ]
+    po = call(buyer, "post", url, order(world, lines=lines)).json()
+    assert [ln["description"] for ln in po["lines"]] == [
+        "Assam CTC\n50 kg sacks",
+        "Second flush only",
+    ]

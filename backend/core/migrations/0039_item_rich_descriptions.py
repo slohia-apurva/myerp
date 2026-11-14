@@ -1,6 +1,14 @@
+import html
+import re
+
 from django.db import migrations, models
 
-from core import richtext
+
+def _from_text(text: str) -> str:
+    """Plain text as HTML (core.richtext.from_text, removed when the descriptions
+    went back to plain text in 0047)."""
+    escaped = html.escape((text or "").strip(), quote=False)
+    return re.sub(r"\r\n|\r|\n", "<br>", escaped)
 
 
 def to_formatted(apps, schema_editor):
@@ -12,7 +20,7 @@ def to_formatted(apps, schema_editor):
         for field in ("sales_description", "purchase_description"):
             old = getattr(item, field)
             if old:
-                setattr(item, field, richtext.from_text(old))
+                setattr(item, field, _from_text(old))
                 changed = True
         if changed:
             item.save(update_fields=["sales_description", "purchase_description"])
