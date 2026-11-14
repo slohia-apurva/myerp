@@ -591,12 +591,13 @@ export const MANUAL: Chapter[] = [
           same in every company and is looked after centrally. You cannot change
           it, but you can search it: click "Masters" in the top menu, then "HSN
           codes", and type a few digits of the code or words from the
-          description.
+          description. Click a code in the list to see its details on the
+          right.
         </p>
         <p>
           On the item form, the "HSN" box searches this list as you type. Type a
           few digits, or words such as "turmeric", and click the code you want.
-          A code that is not in the list can still be typed in. If a code you
+          A code that is not in the list is refused. If a code you
           need is missing, tell us and it will be added for everyone.
         </p>
       </>
