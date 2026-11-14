@@ -170,3 +170,60 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
     />
   );
 }
+
+/** "Entry" in the top menu: the entry screens, grouped. "Purchase ▸" opens its own list
+ * to the right on hover (or on a click, for touch screens). Goods Receipt, Purchase
+ * Invoice and Purchase Return are shown as coming next until they are built. */
+export function EntryMenu(props: { active: boolean; company: Company }) {
+  const [open, setOpen] = useState(false);
+  const [sub, setSub] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const shut = () => setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    window.addEventListener("hashchange", shut);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+      window.removeEventListener("hashchange", shut);
+    };
+  }, [open]);
+  const id = props.company.id;
+  return (
+    <div className={`menu${props.active ? " active" : ""}`} ref={box}>
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+          setSub(false);
+        }}
+      >
+        Entry <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="menu-panel" role="menu">
+          <div className={`menu-sub${sub ? " open" : ""}`}>
+            <button type="button" aria-haspopup="true" aria-expanded={sub} onClick={() => setSub(!sub)}>
+              Purchase <span aria-hidden="true">▸</span>
+            </button>
+            <div className="menu-flyout" role="menu" aria-label="Purchase">
+              <a role="menuitem" href={`#/companies/${id}/purchase-orders`} onClick={() => setOpen(false)}>
+                Purchase Order
+              </a>
+              <span className="soon">Goods Receipt · next</span>
+              <span className="soon">Purchase Invoice · next</span>
+              <span className="soon">Purchase Return · later</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

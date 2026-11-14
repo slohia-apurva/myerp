@@ -1926,6 +1926,113 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "purchase-orders",
+    title: "Purchase orders",
+    summary:
+      "What the company asks a supplier for: drafts, submit and number, cancel. Nothing is posted to the books.",
+    body: (
+      <>
+        <p>
+          A purchase order says what you asked a supplier for, at what rate and
+          by when. It is the first step of purchase: the goods receipt (GRN), the
+          purchase invoice and the purchase return come next and will be made
+          from it. A purchase order posts nothing to the books or to stock.
+        </p>
+        <h3>Find the purchase orders</h3>
+        <p>
+          Click "Entry" in the top menu, point at "Purchase" and click
+          "Purchase Order" in the list that opens to the right (on a phone,
+          tap "Purchase" to open it). The orders are those of the company picked
+          at the top right. "Entry" shows only when that company uses the
+          Purchase module and your role may see purchase.
+        </p>
+        <p>
+          The list runs across the whole screen. "Open (drafts and ordered)"
+          shows first; pick "Drafts", "Received or closed", "Cancelled" or "All"
+          in the box above the list. Every column has its own "Search" box under
+          its heading: type in as many as you like, and only orders matching all
+          of them stay. "Clear searches" empties them. Click an order to see its
+          details and activity at the right, with "Open"; click it again to
+          close the panel. With a draft clicked, "Edit" beside "New purchase
+          order" at the top opens it for changes. Double-click an order or
+          press Enter to open it. "Duplicate" is on the order's own page. Print
+          and PDF of the list are under "Actions".
+        </p>
+        <h3>Make a purchase order</h3>
+        <ol>
+          <li>
+            Click "New purchase order" (it opens in a new browser tab).
+          </li>
+          <li>
+            Under "Supplier and Dates" pick the "Supplier". Its "Credit Term"
+            fills in by itself; you can change it for this order. Fill in the
+            "Order Date", "Deliver To" (the branch the goods come to; the line
+            under it says which store they go to), and if you like the
+            "Expected Delivery" date and the "Supplier's Quote Ref".
+          </li>
+          <li>
+            Under "Supplier Contacts and Agent", tick "Send Mail" for each
+            person who should get the order by mail. The supplier's purchase
+            contacts and its main contact are ticked to start with; a contact
+            with no email cannot be ticked. If an agent buys for you, pick it as the
+            "Buying Agent": either a broker or firm from the suppliers list
+            (marked "Supplier"; add it as a supplier first) or one of your own
+            employees (marked "Employee"), and tick who of them gets the mail. Contacts themselves are added on the supplier's ledger.
+          </li>
+          <li>
+            Under "Items" pick an item in the empty row. Only items that may be
+            bought from this supplier are offered (see the supplier's Products
+            list). The unit starts as the item's purchase unit. Type the "Qty".
+            The "Rate" fills in from the supplier's own Item Prices, or else its
+            "Buying" price list, and the line under it says which; type over it
+            to use another rate. Add a "Disc %" if the supplier gives one. A new
+            empty row appears for the next item; "✕" removes a line.
+          </li>
+          <li>
+            Under "Terms and Notes", "Terms for the Supplier" are printed on the
+            order; the "Internal Note" is only for your own people.
+          </li>
+          <li>
+            Click "Save" to keep it as a draft (it can still be changed), or
+            "Submit" to give it its number and send it.
+          </li>
+        </ol>
+        <p>
+          The screen runs across the whole width. The boxes at the bottom show the "Totals" (taxable value, GST and the
+          round off to the rupee), when payment falls due under the credit term
+          ("Payment Due"; the exact dates are set on the purchase invoice) and
+          the "Activity". GST comes from each item's rate on the order date. A
+          supplier in the same state as the "Deliver To" branch charges CGST and
+          SGST; one in another state charges IGST. An unregistered or
+          composition supplier charges no GST, so its orders have none.
+        </p>
+        <h3>Submit, change and cancel</h3>
+        <ul>
+          <li>
+            "Submit" gives the order its number from the "Purchase order"
+            series (see "Numbering") and makes it final: it can no longer be
+            changed. Its date must fall in an open month of a fiscal year.
+          </li>
+          <li>
+            To change a submitted order, open it, click "Cancel order", say why,
+            and click "Cancel order" again; then click "Duplicate", change the
+            copy and submit it. A cancelled order stays in the list with its
+            reason.
+          </li>
+          <li>
+            Once a submitted order names a supplier, item or unit, those count
+            as "in use" and their key fields lock. A draft does not.
+          </li>
+        </ul>
+        <Note>
+          Who may do what follows the role: "Purchase" may make, change and
+          submit orders; cancelling needs an Owner or a role with "cancel" for
+          purchase. People who may only look see "Open", never "Edit".
+        </Note>
+      </>
+    ),
+  },
+  {
     id: "users",
     title: "Users",
     summary: "Letting people sign in and choosing what they can do.",

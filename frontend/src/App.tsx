@@ -24,7 +24,8 @@ import { CountriesPage } from "./Countries";
 import { PinCodesPage } from "./PinCodes";
 import { RequestAdditionPage } from "./RequestAddition";
 import { HelpPage, helpTopicFor } from "./help/Help";
-import { AdminMenu, CompanyPicker, MastersMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
+import { AdminMenu, CompanyPicker, EntryMenu, MastersMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
+import { PurchaseOrdersPage } from "./PurchaseOrders";
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "units" | "item-groups" | "brands" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -78,6 +79,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
   const canManageUsers = session.permissions.includes("users.manage");
   const canSeeMasters = session.permissions.includes("masters.view");
   const canSeeShipments = session.permissions.some((p) => p === "sales.view" || p === "stock.view");
+  const canSeePurchase = session.permissions.includes("purchase.view");
   const current = useCurrentCompany(page === "companies" ? id : undefined, canSeeMasters);
   const signOut = () => {
     // Stop Google from signing the person straight back in on this browser.
@@ -105,12 +107,15 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
               canSeeMasters={canSeeMasters}
             />
           )}
+          {canSeePurchase && current.company?.modules.includes("purchase") && (
+            <EntryMenu active={page === "companies" && sub === "purchase-orders"} company={current.company} />
+          )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments"].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments", "purchase-orders"].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -138,6 +143,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
       <main>
         {page === "help" ? (
           <HelpPage topic={topic} />
+        ) : page === "companies" && id && sub === "purchase-orders" && canSeePurchase ? (
+          <PurchaseOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && canSeeMasters ? (
           id && sub === "shipments" && canSeeShipments ? (
             <ShipmentsPage key={id} companyId={id} session={session} />

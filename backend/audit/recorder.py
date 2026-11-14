@@ -96,6 +96,14 @@ LABELS = {
     "cod_amount": "Amount to collect (₹)",
     "expected_on": "Expected delivery",
     "cancel_reason": "Reason cancelled",
+    "supplier_ref": "Supplier's quote ref",
+    "order_date": "Order date",
+    "expected_date": "Expected delivery",
+    "branch": "Deliver to",
+    "terms": "Terms for the supplier",
+    "agent": "Buying agent",
+    "agent_user": "Buying agent (employee)",
+    "mail_agent_user": "Mail the employee agent",
 }
 
 # Fields that are internal or change by themselves.
@@ -121,6 +129,15 @@ SKIP = {
     "delivered_at",
     "received_by",
     "created_by",
+    # A purchase order's totals follow from its items; its submit shows as the status.
+    "interstate",
+    "taxable_total",
+    "cgst_total",
+    "sgst_total",
+    "igst_total",
+    "round_off",
+    "submitted_at",
+    "mail_to",  # shown by name as "Mail to"
 }
 
 Snapshot = dict[str, tuple[str, Any]]  # field -> (label, value as shown)
@@ -144,6 +161,7 @@ TRACKED: dict[type[models.Model], Tracked] = {}
 
 def _register() -> None:
     from accounts.models import Role, User
+    from buying.models import PurchaseOrder
     from core import india
     from core import modules as company_modules
     from core.models import (
@@ -158,6 +176,7 @@ def _register() -> None:
         Ledger,
         LedgerGroup,
         NumberFormat,
+        PartyContact,
         PriceList,
         Unit,
         WarehouseLocation,
@@ -305,6 +324,33 @@ def _register() -> None:
                 by_company,
                 extras={"customer": ("Customer", lambda s: s.party.name if s.party else None)},
                 formats={"carrier_id": carrier_name},
+            ),
+            PurchaseOrder: Tracked(
+                "purchase_order",
+                "Purchase order",
+                by_company,
+                extras={
+                    # "status" itself is skipped (a shipment's comes from tracking).
+                    "order_status": ("Status", lambda o: o.get_status_display()),
+                    "mail_contacts": (
+                        "Mail to",
+                        lambda o: ", ".join(
+                            f"{c.name} <{c.email}>"
+                            for c in PartyContact.objects.filter(pk__in=o.mail_to)
+                        )
+                        or None,
+                    ),
+                    "items": (
+                        "Items",
+                        lambda o: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            f" at {_number(ln.rate)}"
+                            + (f" less {_number(ln.discount_pct)}%" if ln.discount_pct else "")
+                            for ln in o.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                },
             ),
         }
     )
