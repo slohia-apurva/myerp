@@ -527,7 +527,7 @@ def test_an_indian_address_takes_its_place_from_the_pin_list(accountant, company
     )
 
 
-def test_a_customer_has_a_preferred_transporter_of_its_own_company(accountant, company, alpha):
+def test_a_party_has_a_preferred_transporter_of_its_own_company(accountant, company, alpha):
     from shipping.models import CourierAccount
 
     with use_tenant(alpha):
@@ -549,17 +549,18 @@ def test_a_customer_has_a_preferred_transporter_of_its_own_company(accountant, c
     assert saved["preferred_transporter"] == mine.pk
     assert saved["preferred_transporter_name"] == "Delhivery B2B"
 
-    # Another company's transporter, and a supplier's, are refused.
+    # Another company's transporter is refused; a supplier may have one too.
     assert "of this company" in str(party(theirs.pk, name="Other Mart").json())
-    refused = party(mine.pk, group="Sundry Creditors", name="Supplier Ltd")
-    assert "Only a customer" in str(refused.json())
+    supplier = party(mine.pk, group="Sundry Creditors", name="Supplier Ltd")
+    assert supplier.status_code == 201, supplier.json()
+    assert supplier.json()["party"]["preferred_transporter_name"] == "Delhivery B2B"
 
     # The transporter says who prefers it, and counts as in use.
     with use_tenant(alpha):
-        assert mine.preferred_by.count() == 1
+        assert mine.preferred_by.count() == 2
     listed = call(accountant, "get", f"companies/{company}/courier-accounts/").json()
     row = next(a for a in listed if a["id"] == mine.pk)
-    assert row["preferred_by"] == 1 and row["lock"]["in_use"] == ["1 customer"]
+    assert row["preferred_by"] == 2 and row["lock"]["in_use"] == ["1 customer", "1 supplier"]
 
     # A disabled transporter stays on the customer that has it but is not offered to others.
     with use_tenant(alpha):

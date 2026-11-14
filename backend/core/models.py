@@ -532,7 +532,8 @@ class Ledger(models.Model):
     salesman = models.ForeignKey(
         "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
-    # The transporter this company usually sends a customer's goods with (customers only).
+    # The transporter this company usually sends a customer's goods with, or brings a
+    # supplier's goods with (none for a supplier: "By Supplier").
     preferred_transporter = models.ForeignKey(
         "shipping.CourierAccount",
         null=True,

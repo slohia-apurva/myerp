@@ -248,16 +248,18 @@ export function PartyFields({
   useEffect(() => {
     api<Person[]>("v1/people/").then(setPeople);
   }, []);
-  // A customer's usual transporter, one of this company's own (only when it has Sales).
-  const hasSales = companies.find((c) => c.id === companyId)?.modules.includes("sales") ?? false;
+  // A customer's usual transporter (when the company has Sales) or a supplier's (when it
+  // has Purchase): one of this company's own. A supplier with none sends the goods itself.
+  const modules = companies.find((c) => c.id === companyId)?.modules ?? [];
+  const hasTransport = modules.includes(supplier ? "purchase" : "sales");
   const [transporters, setTransporters] = useState<CourierAccount[]>([]);
   const refreshTransporters = useCallback(
     () => api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setTransporters),
     [companyId],
   );
   useEffect(() => {
-    if (hasSales && !supplier) refreshTransporters();
-  }, [hasSales, supplier, refreshTransporters]);
+    if (hasTransport) refreshTransporters();
+  }, [hasTransport, refreshTransporters]);
   const newTransporter = creatable("courier_account", `companies/${companyId}/couriers`, refreshTransporters);
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
   const ctx = { tab, fold };
@@ -404,12 +406,12 @@ export function PartyFields({
             onChange={(v) => set({ salesman: v ? Number(v) : null })}
           />
         </label>
-        {hasSales && !supplier && (
+        {hasTransport && (
           <label>
             Preferred Transporter
             <Combobox
               value={p.preferred_transporter == null ? "" : String(p.preferred_transporter)}
-              empty="None"
+              empty={supplier ? "By Supplier" : "None"}
               options={transporters
                 .filter((t) => t.is_active || t.id === p.preferred_transporter)
                 .map((t) => ({ value: String(t.id), label: t.is_active ? t.name : `${t.name} (disabled)` }))}
@@ -688,7 +690,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
     ["Credit Terms", p.credit_term_name ?? ""],
     ["Price List", (supplier ? p.buying_price_list_name : p.price_list_name) ?? ""],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
-    ...(!supplier && p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
+    ...(p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
   ];
   return (
     <>

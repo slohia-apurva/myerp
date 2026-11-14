@@ -39,6 +39,7 @@ from core.models import (
 )
 from core.parties import items_for_party
 from core.price_lists import find_rate
+from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
 
 VIEW, CREATE, SUBMIT, CANCEL = (f"purchase.{a}" for a in ("view", "create", "submit", "cancel"))
@@ -150,6 +151,8 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "expected_date": o.expected_date,
         "credit_term": o.credit_term_id,
         "credit_term_name": o.credit_term.name if o.credit_term else "",
+        "transporter": o.transporter_id,
+        "transporter_name": o.transporter.name if o.transporter else "By Supplier",
         "agent": o.agent_id,
         "agent_name": o.agent.name if o.agent else "",
         "agent_user": o.agent_user_id,
@@ -182,7 +185,13 @@ def _orders(company):
     return (
         PurchaseOrder.objects.filter(company=company)
         .select_related(
-            "supplier__party", "agent", "agent_user", "branch", "credit_term", "created_by"
+            "supplier__party",
+            "agent",
+            "agent_user",
+            "branch",
+            "credit_term",
+            "transporter",
+            "created_by",
         )
         .prefetch_related("lines__item", "lines__unit")
     )
@@ -208,6 +217,9 @@ class OrderSerializer(serializers.Serializer):
     expected_date = serializers.DateField(required=False, allow_null=True)
     credit_term = serializers.PrimaryKeyRelatedField(
         queryset=CreditTerm.objects.all(), required=False, allow_null=True
+    )
+    transporter = serializers.PrimaryKeyRelatedField(
+        queryset=CourierAccount.objects.all(), required=False, allow_null=True
     )
     agent = serializers.PrimaryKeyRelatedField(
         queryset=Ledger.objects.all(), required=False, allow_null=True
@@ -269,6 +281,12 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     term = data.get("credit_term")
     if term is not None and not term.is_active and term.pk != o.credit_term_id:
         errors["credit_term"] = ["These credit terms are disabled."]
+    transporter = data.get("transporter")
+    if transporter is not None:
+        if transporter.company_id != o.company_id:
+            errors["transporter"] = ["Pick a transporter of this company."]
+        elif not transporter.is_active and transporter.pk != o.transporter_id:
+            errors["transporter"] = [f"{transporter.name} is disabled."]
     expected = data.get("expected_date")
     if expected and expected < data["order_date"]:
         errors["expected_date"] = ["The expected delivery date is before the order date."]
@@ -342,6 +360,7 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     o.supplier, o.branch = supplier, branch
     o.order_date, o.expected_date = data["order_date"], expected
     o.credit_term = term
+    o.transporter = transporter
     o.agent, o.mail_to = agent, mail_to
     o.agent_user = agent_user
     o.mail_agent_user = bool(agent_user and data.get("mail_agent_user"))
@@ -540,6 +559,7 @@ class OrderSetupView(APIView):
                         "gst_type_label": s.party.get_gst_type_display(),
                         "state_code": s.party.state_code,
                         "credit_term": s.party.credit_term_id,
+                        "transporter": s.preferred_transporter_id,
                         "charges_gst": charges_gst(s.party),
                         "contacts": [_contact_out(c) for c in s.party.contacts.all()],
                     }
@@ -573,6 +593,10 @@ class OrderSetupView(APIView):
                 "credit_terms": [
                     {"id": t.pk, "name": t.name, "is_active": t.is_active}
                     for t in CreditTerm.objects.all()
+                ],
+                "transporters": [
+                    {"id": t.pk, "name": t.name, "is_active": t.is_active}
+                    for t in company.courier_accounts.order_by("name")
                 ],
             }
         )

@@ -439,13 +439,14 @@ def _add_to_companies(ledger: Ledger, party: Party, companies) -> None:
 
 
 def _check_preferred_transporter(ledger: Ledger, side: str, transporter) -> None:
-    """A customer's usual transporter is one of this company's own, and still active
-    unless the customer already had it."""
+    """A customer's or supplier's usual transporter is one of this company's own,
+    and still active unless the party already had it. A supplier with none sends
+    the goods itself ("By Supplier" on a purchase order)."""
     if transporter is None:
         return
     error = None
-    if side != "customer":
-        error = "Only a customer has a preferred transporter."
+    if side not in ("customer", "supplier"):
+        error = "Only a customer or a supplier has a preferred transporter."
     elif transporter.company_id != ledger.company_id:
         error = "Pick a transporter of this company."
     elif not transporter.is_active and transporter.pk != ledger.preferred_transporter_id:

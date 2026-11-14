@@ -14,6 +14,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from core.models import Branch, Company, CreditTerm, Item, Ledger, Unit
+from shipping.models import CourierAccount
 
 MONEY = {"max_digits": 18, "decimal_places": 2}
 QTY = {"max_digits": 18, "decimal_places": 6}
@@ -50,6 +51,11 @@ class PurchaseOrder(models.Model):
     expected_date = models.DateField(null=True, blank=True)
     credit_term = models.ForeignKey(
         CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Who brings the goods: one of our transporters, or none for "By Supplier"
+    # (the supplier sends them). Comes from the supplier's preferred transporter.
+    transporter = models.ForeignKey(
+        CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     # A buying agent: a firm from the company's suppliers (a broker, say), or one of
     # our own employees (a user). At most one of the two.
