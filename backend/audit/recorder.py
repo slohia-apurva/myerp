@@ -140,6 +140,7 @@ SKIP = {
     "round_off",
     "submitted_at",
     "mail_to",  # shown by name as "Mail to"
+    "whatsapp_to",  # shown by name as "WhatsApp to"
 }
 
 Snapshot = dict[str, tuple[str, Any]]  # field -> (label, value as shown)
@@ -343,6 +344,14 @@ def _register() -> None:
                         lambda o: ", ".join(
                             f"{c.name} <{c.email}>"
                             for c in PartyContact.objects.filter(pk__in=o.mail_to)
+                        )
+                        or None,
+                    ),
+                    "whatsapp_contacts": (
+                        "WhatsApp to",
+                        lambda o: ", ".join(
+                            f"{c.name} ({c.phone})"
+                            for c in PartyContact.objects.filter(pk__in=o.whatsapp_to)
                         )
                         or None,
                     ),

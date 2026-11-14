@@ -2001,6 +2001,10 @@ export const MANUAL: Chapter[] = [
             "Buying Agent": either a broker or firm from the suppliers list
             (marked "Supplier"; add it as a supplier first) or one of your own
             employees (marked "Employee"), and tick who of them gets the mail. Contacts themselves are added on the supplier's ledger.
+            Tick "WhatsApp" for each person who should also get the order on
+            WhatsApp; a contact with no phone number cannot be ticked. For now
+            the ticks are only kept on the order: sending on WhatsApp comes
+            later.
           </li>
           <li>
             Under "Items" pick an item in the empty row. Only items that may be
