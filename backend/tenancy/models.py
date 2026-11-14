@@ -175,6 +175,17 @@ class Carrier(models.Model):
     # The carrier's public tracking page, with {awb} where the number goes.
     tracking_url = models.CharField(max_length=300, blank=True)
     is_active = models.BooleanField(default=True)
+    # How MyERP talks to the carrier: not at all, tracking only, or booking too.
+    # Each customer then supplies their own credentials, named in
+    # `credential_fields` as a list of {key, label, secret}.
+    NO_API, TRACKING, BOOKING = "none", "tracking", "booking"
+    INTEGRATIONS = [
+        (NO_API, "None"),
+        (TRACKING, "Tracking only"),
+        (BOOKING, "Booking and tracking"),
+    ]
+    integration = models.CharField(max_length=10, choices=INTEGRATIONS, default=NO_API)
+    credential_fields = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["name"]

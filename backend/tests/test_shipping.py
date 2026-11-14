@@ -403,3 +403,141 @@ def test_reset_entries_clears_shipments(alpha, owner, store, company, b2b, setti
     assert resp.status_code == 200, resp.json()
     with use_tenant(alpha):
         assert not Shipment.objects.filter(pk=sid).exists()
+
+
+def _creds(alpha, pk):
+    from shipping.models import CourierAccount
+
+    with use_tenant(alpha):
+        return CourierAccount.objects.get(pk=pk).credentials
+
+
+def _api_carrier(name="Acme Freight", fields=None):
+    return Carrier.objects.create(
+        name=name,
+        kind="transporter",
+        integration="booking",
+        credential_fields=fields
+        or [
+            {"key": "client_id", "label": "Client ID", "secret": False},
+            {"key": "api_key", "label": "API Key", "secret": True},
+        ],
+    ).pk
+
+
+def test_courier_lists_what_a_customer_must_supply(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    boss = _client(alpha, "boss@x.in", "owner")
+    body = {
+        "name": "Acme Freight",
+        "kind": "transporter",
+        "integration": "booking",
+        "credential_fields": [
+            {"label": "Client ID", "secret": False},
+            {"label": "API Key", "secret": True},
+        ],
+    }
+    resp = call(boss, "post", "central/carriers/", body)
+    assert resp.status_code == 201, resp.json()
+    assert [f["key"] for f in resp.json()["credential_fields"]] == ["client_id", "api_key"]
+    clash = call(boss, "post", "central/carriers/", {**body, "name": "Acme Two"})
+    assert clash.status_code == 201  # same labels on another courier are fine
+    twice = {**body, "name": "Acme Three", "credential_fields": [{"label": "A"}, {"label": "a"}]}
+    assert call(boss, "post", "central/carriers/", twice).status_code == 400
+    none = {**body, "name": "Acme Four", "integration": "none"}
+    assert call(boss, "post", "central/carriers/", none).status_code == 400
+
+
+def test_a_transporter_keeps_its_own_api_credentials_and_secrets_stay_hidden(alpha, owner, company):
+    path = f"companies/{company}/courier-accounts/"
+    cid = _api_carrier()
+    resp = call(
+        owner,
+        "post",
+        path,
+        {
+            "carrier_id": cid,
+            "name": "Acme B2B",
+            "gstin": GSTIN,
+            "service": "b2b",
+            "credentials": {"client_id": "C-42", "api_key": "s3cret-value"},
+        },
+    )
+    assert resp.status_code == 201, resp.json()
+    out = resp.json()
+    shown = {f["key"]: f for f in out["credential_fields"]}
+    assert shown["client_id"]["value"] == "C-42"
+    assert shown["api_key"]["saved"] is True and shown["api_key"]["value"] == ""
+    assert "s3cret-value" not in str(out) and "credentials" not in out
+
+    stored = _creds(alpha, out["id"])
+    assert stored["client_id"] == "C-42"
+    assert stored["api_key"] != "s3cret-value"  # locked, not plain
+    from core import secrets
+
+    assert secrets.unlock(stored["api_key"]) == "s3cret-value"
+
+    # Leaving the secret blank keeps it; a plain value changes; null clears.
+    resp = call(
+        owner,
+        "patch",
+        f"courier-accounts/{out['id']}/",
+        {"credentials": {"client_id": "C-43", "api_key": ""}},
+    )
+    assert resp.status_code == 200, resp.json()
+    stored2 = _creds(alpha, out["id"])
+    assert stored2["api_key"] == stored["api_key"] and stored2["client_id"] == "C-43"
+    resp = call(
+        owner, "patch", f"courier-accounts/{out['id']}/", {"credentials": {"api_key": None}}
+    )
+    assert not _creds(alpha, out["id"]).get("api_key")
+
+    # A key the courier does not list is refused.
+    bad = call(owner, "patch", f"courier-accounts/{out['id']}/", {"credentials": {"x": "1"}})
+    assert bad.status_code == 400
+
+
+def test_credentials_are_dropped_when_the_courier_changes_and_never_exported_or_logged(
+    alpha, owner, company
+):
+    path = f"companies/{company}/courier-accounts/"
+    resp = call(
+        owner,
+        "post",
+        path,
+        {
+            "carrier_id": _api_carrier(),
+            "name": "Acme B2B",
+            "gstin": GSTIN,
+            "credentials": {"client_id": "C-42", "api_key": "s3cret-value"},
+        },
+    )
+    pk = resp.json()["id"]
+    other = call(owner, "patch", f"courier-accounts/{pk}/", {"carrier_id": carrier("Delhivery")})
+    assert other.status_code == 200 and other.json()["credential_fields"] == []
+
+    assert _creds(alpha, pk) == {}
+    from audit.models import AuditEntry
+
+    with use_tenant(alpha):
+        text = " ".join(str(e.changes) for e in AuditEntry.objects.all())
+    assert "s3cret-value" not in text and "C-42" not in text
+    assert "API credentials saved on" in text
+
+
+def test_secret_storage_not_set_up_refuses_a_secret_but_not_plain_values(owner, company, settings):
+    settings.DEBUG = False
+    settings.MYERP_SECRETS_KEY = ""
+    path = f"companies/{company}/courier-accounts/"
+    base = {"carrier_id": _api_carrier(), "name": "Acme B2B", "gstin": GSTIN}
+    plain = call(owner, "post", path, {**base, "credentials": {"client_id": "C-42"}})
+    assert plain.status_code == 201
+    secret = call(owner, "post", path, {**base, "name": "Acme 2", "credentials": {"api_key": "zz"}})
+    assert secret.status_code == 400 and "not set up" in str(secret.json())
+
+
+@pytest.fixture(autouse=True)
+def _secrets_key(settings):
+    from cryptography.fernet import Fernet
+
+    settings.MYERP_SECRETS_KEY = Fernet.generate_key().decode()

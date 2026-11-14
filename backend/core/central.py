@@ -111,7 +111,48 @@ def _platform_admin(request) -> None:
 class CarrierAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Carrier
-        fields = ["id", "name", "kind", "awb_pattern", "awb_hint", "tracking_url", "is_active"]
+        fields = [
+            "id",
+            "name",
+            "kind",
+            "awb_pattern",
+            "awb_hint",
+            "tracking_url",
+            "integration",
+            "credential_fields",
+            "is_active",
+        ]
+
+    def validate_credential_fields(self, value):
+        """A list of {label, secret}; each label gets a stable key that stays
+        the same when the label is reworded (the key is sent back in `key`)."""
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Give a list of credentials.")
+        out, keys, labels = [], set(), set()
+        for row in value:
+            label = duplicates.tidy(str((row or {}).get("label", "")))
+            if not label:
+                raise serializers.ValidationError("Every credential needs a label.")
+            if label.lower() in labels:
+                raise serializers.ValidationError(f'"{label}" is listed twice.')
+            labels.add(label.lower())
+            key = re.sub(r"[^a-z0-9]+", "_", str(row.get("key") or label).lower()).strip("_")
+            if not key or key in keys:
+                raise serializers.ValidationError(f'"{label}" needs a different label.')
+            keys.add(key)
+            out.append({"key": key, "label": label, "secret": bool(row.get("secret"))})
+        return out
+
+    def validate(self, attrs):
+        integration = attrs.get("integration", getattr(self.instance, "integration", "none"))
+        fields = attrs.get(
+            "credential_fields", getattr(self.instance, "credential_fields", []) or []
+        )
+        if integration == Carrier.NO_API and fields:
+            raise serializers.ValidationError(
+                {"credential_fields": ["Set the integration first: this courier has none."]}
+            )
+        return attrs
 
     def validate_name(self, value):
         return duplicates.tidy(value)

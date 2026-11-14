@@ -45,8 +45,8 @@ class CourierAccount(models.Model):
     "Delhivery B2B". It may point at a carrier of the central list (for AWB
     checks, tracking pages and PIN coverage) or stand alone for a local
     transporter. One carrier can have several (B2C parcel and B2B freight),
-    each with its own rates and, later, its own API keys (kept in Secret
-    Manager, never here). The GSTIN is the Transporter ID of an e-way bill.
+    each with its own rates and its own API login (`credentials`, secrets
+    encrypted). The GSTIN is the Transporter ID of an e-way bill.
     Never deleted, only disabled."""
 
     B2C, B2B, AGGREGATOR = "b2c", "b2b", "aggregator"
@@ -74,6 +74,11 @@ class CourierAccount(models.Model):
     service = models.CharField(max_length=12, choices=SERVICES, default=B2C)
     account_code = models.CharField(max_length=40, blank=True)
     notes = models.TextField(blank=True)
+    # The company's own login for the carrier's API, by the keys the carrier
+    # lists (tenancy.Carrier.credential_fields). Secret values are stored
+    # encrypted (core/secrets.py) and are never sent back to a screen.
+    credentials = models.JSONField(default=dict, blank=True)
+    credentials_updated_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:

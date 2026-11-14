@@ -19,7 +19,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import duplicates, exchange
+from core import duplicates, exchange, secrets
 from core.api import CONTACT_FIELDS, EDIT, VIEW, Signed, _check
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -64,6 +64,8 @@ def _carrier_out(c: Carrier) -> dict:
         "kind_label": c.get_kind_display(),
         "awb_hint": c.awb_hint,
         "tracking_url": c.tracking_url,
+        "integration": c.integration,
+        "credential_fields": c.credential_fields,
         "is_active": c.is_active,
     }
 
@@ -88,6 +90,13 @@ class CourierAccountSerializer(serializers.ModelSerializer):
     # For a transporter that is not in the courier list: a word for the MyERP team.
     note_for_central = serializers.CharField(write_only=True, allow_blank=True, required=False)
     lock = serializers.SerializerMethodField()
+    # The company's own API login, by the carrier's credential keys: a secret
+    # left blank keeps its saved value, null clears a value.
+    credentials = serializers.DictField(
+        child=serializers.CharField(allow_blank=True, allow_null=True, max_length=500),
+        write_only=True,
+        required=False,
+    )
 
     def get_lock(self, account) -> dict:
         return lock_status("courier_account", account)
@@ -105,10 +114,12 @@ class CourierAccountSerializer(serializers.ModelSerializer):
             "account_code",
             "notes",
             "note_for_central",
+            "credentials",
+            "credentials_updated_at",
             "is_active",
             "lock",
         ]
-        read_only_fields = ["state_code"]
+        read_only_fields = ["state_code", "credentials_updated_at"]
 
 
 def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
@@ -117,8 +128,48 @@ def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
     data["carrier_name"] = carrier.name if carrier else ""
     data["service_label"] = a.get_service_display()
     data["company"] = a.company_id
+    # The carrier's credential boxes: plain values come back, secrets only as
+    # "saved" (the value never leaves the server).
+    data["credential_fields"] = [
+        {
+            "key": f["key"],
+            "label": f["label"],
+            "secret": bool(f.get("secret")),
+            "saved": bool(a.credentials.get(f["key"])),
+            "value": "" if f.get("secret") else a.credentials.get(f["key"], ""),
+        }
+        for f in (carrier.credential_fields if carrier else [])
+    ]
+    data["integration"] = carrier.integration if carrier else "none"
     data["preferred_by"] = a.preferred_by.count()
     return data
+
+
+def _apply_credentials(account: CourierAccount, incoming: dict | None) -> None:
+    """Keep only the keys the account's courier lists, then apply what was sent."""
+    carrier = Carrier.objects.filter(pk=account.carrier_id).first() if account.carrier_id else None
+    fields = {f["key"]: f for f in (carrier.credential_fields if carrier else [])}
+    kept = {k: v for k, v in (account.credentials or {}).items() if k in fields}
+    changed = kept != (account.credentials or {})
+    for key, value in (incoming or {}).items():
+        field = fields.get(key)
+        if field is None:
+            raise ValidationError({"credentials": [f"This courier has no credential {key!r}."]})
+        if value is None or (value.strip() == "" and not field.get("secret")):
+            changed |= kept.pop(key, None) is not None
+        elif value.strip() == "":
+            continue  # a secret left blank keeps its saved value
+        else:
+            try:
+                new = secrets.lock(value.strip()) if field.get("secret") else value.strip()
+            except secrets.SecretsNotSetUp as exc:
+                raise ValidationError({"credentials": [str(exc)]}) from exc
+            if field.get("secret") or kept.get(key) != new:
+                changed = True
+            kept[key] = new
+    account.credentials = kept
+    if changed:
+        account.credentials_updated_at = timezone.now()
 
 
 def _ask_central(account: CourierAccount, note: str, user) -> None:
@@ -141,6 +192,7 @@ def _ask_central(account: CourierAccount, note: str, user) -> None:
 
 def _save_account(account: CourierAccount, data: dict, user=None) -> None:
     note = data.pop("note_for_central", "").strip()
+    incoming = data.pop("credentials", None)
     if data.get("carrier_id") is not None:
         carrier = Carrier.objects.filter(pk=data["carrier_id"]).first()
         if carrier is None or (not carrier.is_active and carrier.pk != account.carrier_id):
@@ -167,6 +219,7 @@ def _save_account(account: CourierAccount, data: dict, user=None) -> None:
     refuse_key_changes("courier_account", account, data)
     for field, value in data.items():
         setattr(account, field, value)
+    _apply_credentials(account, incoming)
     try:
         account.full_clean(validate_constraints=False)
     except DjangoValidationError as exc:
@@ -209,6 +262,7 @@ exchange.register(
         queryset=lambda ctx: ctx.company.courier_accounts.order_by("name"),
         save=_import_account,
         per_company=True,
+        exclude=("credentials", "credentials_updated_at"),
         labels={
             "carrier_id": "Courier in MyERP's list",
             "account_code": "Account code",
