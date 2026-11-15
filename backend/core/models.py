@@ -84,6 +84,11 @@ class Company(models.Model):
     sales_terms = models.ForeignKey(
         "TermsSet", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    # A small Lord Ganesha image at the top centre of the first page of every printout
+    # (core/print_mark.py). The company may upload its own image instead.
+    print_ganesha = models.BooleanField("print Lord Ganesha image", default=False)
+    print_image = models.BinaryField(null=True, blank=True, editable=False)
+    print_image_type = models.CharField(max_length=20, blank=True, editable=False)
 
     class Meta:
         ordering = ["name"]

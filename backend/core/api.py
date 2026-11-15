@@ -21,7 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import duplicates, india
+from core import duplicates, india, print_mark
 from core import modules as company_modules
 from core.companies import create_company, visible_companies
 from core.locks import lock_status, refuse_key_changes
@@ -94,6 +94,15 @@ class CompanySerializer(serializers.ModelSerializer):
     tan = serializers.CharField(max_length=10, allow_blank=True, required=False)
     validate_gstin = validate_pan = validate_cin = validate_tan = staticmethod(_upper)
     modules = serializers.ListField(child=serializers.CharField(), required=False)
+    # The image under Printing: the company's own upload, else the standard one.
+    print_image = serializers.SerializerMethodField()
+    print_image_own = serializers.SerializerMethodField()
+
+    def get_print_image(self, company) -> str:
+        return print_mark.data_url(*print_mark.image_of(company))
+
+    def get_print_image_own(self, company) -> bool:
+        return bool(company.print_image)
 
     def validate_modules(self, value):
         try:
@@ -122,6 +131,9 @@ class CompanySerializer(serializers.ModelSerializer):
             "books_start",
             "multi_currency",
             "modules",
+            "print_ganesha",
+            "print_image",
+            "print_image_own",
             "base_currency",
         ]
         read_only_fields = ["base_currency"]
@@ -528,7 +540,13 @@ class CompanyDetailView(APIView):
         fields = ["name", "gstin", "pan", *REGISTRATION_FIELDS, "state_code", *CONTACT_FIELDS]
         if "modules" in data and data["modules"] != company.modules and not request.user.is_owner:
             raise PermissionDenied("Only an Owner can change a company's modules.")
-        extra = ["fiscal_year_start_month", "books_start", "multi_currency", "modules"]
+        extra = [
+            "fiscal_year_start_month",
+            "books_start",
+            "multi_currency",
+            "modules",
+            "print_ganesha",
+        ]
         refuse_key_changes("company", company, data)
         _save(company, data, [*fields, *extra])
         if not company.multi_currency and company.ledgers.exclude(currency=None).exists():

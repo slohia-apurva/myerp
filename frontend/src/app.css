@@ -1633,6 +1633,17 @@ form.card .address-card {
     font-size: 10pt;
     color: #000;
   }
+  .print-sheet {
+    position: relative;
+  }
+  /* The company's image (core/print_mark.py): top centre of the first page. */
+  .print-sheet .print-mark {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 11mm;
+  }
   .print-sheet h1 {
     font-size: 16pt;
     margin: 0 0 4px;
@@ -3087,15 +3098,25 @@ td.nowrap {
   }
 }
 
-/* The signature on the Users screen. */
-.sig-row {
+/* The company's image on the purchase order: top centre of page 1 only. */
+.po-mark-img {
+  position: absolute;
+  top: 9mm;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 13mm;
+}
+
+/* An image with its buttons beside it: a user's signature, the company's printed image. */
+.image-row {
   display: flex;
   gap: 16px;
   align-items: center;
   flex-wrap: wrap;
+  margin-top: 8px;
 }
-.sig-box {
-  min-width: 180px;
+.image-box {
+  min-width: 120px;
   min-height: 56px;
   display: flex;
   align-items: center;
@@ -3105,8 +3126,8 @@ td.nowrap {
   padding: 8px 14px;
   background: #fff;
 }
-.sig-box img {
-  max-height: 56px;
+.image-box img {
+  max-height: 64px;
   max-width: 240px;
   display: block;
 }

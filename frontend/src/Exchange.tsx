@@ -434,7 +434,31 @@ function ImportForm(props: {
 
 /** The list as a plain printed table: rendered outside the app, printed,
  * then removed. */
+/** The company's image for the top of page 1 (core/print_mark.py), fetched once. */
+let markRequest: Promise<string> | null = null;
+function printMark(): Promise<string> {
+  markRequest ??= api<{ mark: string }>("v1/print/mark/")
+    .then((r) => r.mark)
+    .catch(() => {
+      markRequest = null;
+      return "";
+    });
+  return markRequest;
+}
+
 function Printout({ sheet, onDone }: { sheet: PrintSheet; onDone: () => void }) {
+  const [mark, setMark] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    printMark().then((m) => live && setMark(m));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return mark === null ? null : <PrintoutSheet sheet={sheet} mark={mark} onDone={onDone} />;
+}
+
+function PrintoutSheet({ sheet, mark, onDone }: { sheet: PrintSheet; mark: string; onDone: () => void }) {
   useEffect(() => {
     document.body.classList.add("printing-sheet");
     const finish = () => {
@@ -452,6 +476,7 @@ function Printout({ sheet, onDone }: { sheet: PrintSheet; onDone: () => void }) 
   const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   return createPortal(
     <div className="print-sheet">
+      {mark && <img className="print-mark" src={mark} alt="" />}
       <h1>{sheet.title}</h1>
       <p className="small">
         {[sheet.scope, `printed ${today}`, plural(sheet.sheets[0].rows.length, "row")].filter(Boolean).join(" · ")}

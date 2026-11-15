@@ -95,13 +95,15 @@ def _clean(sheets) -> list[dict]:
     return out
 
 
-def pdf(title: str, scope: str, sheets: list[dict]) -> bytes:
-    """The report as a PDF file."""
+def pdf(title: str, scope: str, sheets: list[dict], mark: bytes | None = None) -> bytes:
+    """The report as a PDF file; `mark` is the small image printed at the top
+    centre of the first page (core/print_mark.py), if any."""
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_RIGHT
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
     from reportlab.platypus import (
         LongTable,
         Paragraph,
@@ -182,6 +184,7 @@ def pdf(title: str, scope: str, sheets: list[dict]) -> bytes:
         story.append(table)
 
     out = io.BytesIO()
+    picture = ImageReader(io.BytesIO(mark)) if mark else None
 
     def footer(canvas, number: int, total: int) -> None:
         canvas.saveState()
@@ -190,6 +193,12 @@ def pdf(title: str, scope: str, sheets: list[dict]) -> bytes:
         line = f"{title} · {scope}" if scope else title
         canvas.drawString(margin, 7 * mm, line if rupee else line.replace("₹", "Rs "))
         canvas.drawRightString(page[0] - margin, 7 * mm, f"Page {number} of {total}")
+        if picture is not None and number == 1:
+            # First page only, centred in the top margin beside the title.
+            iw, ih = picture.getSize()
+            h = 11 * mm
+            w = h * iw / ih
+            canvas.drawImage(picture, (page[0] - w) / 2, page[1] - 3.5 * mm - h, w, h, mask="auto")
         canvas.restoreState()
 
     doc = SimpleDocTemplate(
@@ -231,7 +240,10 @@ def _numbered_canvas(footer):
 
 
 def pdf_response(title: str, scope: str, sheets: list[dict], stem: str) -> HttpResponse:
-    response = HttpResponse(pdf(title, scope, sheets), content_type="application/pdf")
+    from core import print_mark
+
+    mark = print_mark.mark(print_mark.group_company())
+    response = HttpResponse(pdf(title, scope, sheets, mark), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{_slug(stem)}.pdf"'
     return response
 

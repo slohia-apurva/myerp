@@ -20,6 +20,7 @@ from core import (
     party_documents,
     places,
     price_lists,
+    print_mark,
     printout,
     terms,
     units,
@@ -107,6 +108,12 @@ urlpatterns = [
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
     path("gst-rates/", gst_rates.GstRateListView.as_view(), name="gst-rates"),
     path("print/pdf/", printout.PdfView.as_view(), name="print-pdf"),
+    path("print/mark/", print_mark.MarkView.as_view(), name="print-mark"),
+    path(
+        "companies/<int:pk>/print-image/",
+        print_mark.PrintImageView.as_view(),
+        name="company-print-image",
+    ),
     path("exchange/<str:key>/", exchange.ExportView.as_view(), name="exchange-export"),
     path("exchange/<str:key>/import/", exchange.ImportView.as_view(), name="exchange-import"),
     path(
