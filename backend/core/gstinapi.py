@@ -61,6 +61,12 @@ def _address(data: dict) -> str:
     return text or (data.get("address") or "").strip()
 
 
+def _city(data: dict) -> str:
+    """The city of the registered address, else its district."""
+    parts = data.get("address_details") or {}
+    return ((parts.get("city") or "").strip() or (parts.get("district") or "").strip()).title()
+
+
 def _get(gstin: str, key: str) -> requests.Response:
     delay = BACKOFF
     for attempt in range(1, ATTEMPTS + 1):
@@ -105,4 +111,5 @@ def lookup(gstin: str) -> dict:
         "gst_type": _gst_type(data.get("taxpayer_type")),
         "address": _address(data),
         "pincode": data.get("pincode") or "",
+        "city": _city(data),
     }

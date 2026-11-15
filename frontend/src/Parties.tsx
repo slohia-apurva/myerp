@@ -783,6 +783,7 @@ type GstinDetails = {
   gst_type: string;
   address: string;
   pincode: string;
+  city: string;
 };
 
 /** The GSTIN of one extra address, with "Fetch details" to fill that address
@@ -803,6 +804,7 @@ function AddressGstin(props: {
         label: r.trade_name || r.legal_name,
         address: r.address,
         pincode: r.pincode,
+        city: r.city,
         state_code: r.state_code,
       });
       const found = r.legal_name ? `Found: ${r.legal_name}` : "Found.";
@@ -882,7 +884,7 @@ export function GstinField(props: {
             label: r.trade_name || r.legal_name,
             address: r.address,
             pincode: r.pincode,
-            city: "",
+            city: r.city,
             state_code: r.state_code,
             country: "India",
             gstin: "",

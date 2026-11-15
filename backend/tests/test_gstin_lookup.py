@@ -6,6 +6,7 @@ from django.test import Client, override_settings
 from accounts.models import Role, User
 from core.india import gstin_check_char
 from tenancy.context import use_tenant
+from tenancy.models import PinCode, State
 
 pytestmark = pytest.mark.django_db(databases="__all__")
 
@@ -24,6 +25,7 @@ def fake_provider(number):
         "legal_name": "FRESH MART PRIVATE LIMITED",
         "trade_name": "Fresh Mart",
         "pincode": "411004",
+        "city": "Poona",
     }
 
 
@@ -62,3 +64,13 @@ def test_lookup_returns_the_provider_details(accountant):
     assert (body["state_code"], body["pan"]) == ("27", "AAPFU0939F")
     missing = lookup(accountant, gstin("29"))
     assert missing.status_code == 400
+
+
+@override_settings(GSTIN_LOOKUP_PROVIDER="tests.test_gstin_lookup.fake_provider")
+def test_lookup_fills_the_city_from_the_pin_list_else_from_gst(accountant):
+    """Bug 2026-11-15: a ledger address filled by "Fetch details" had its PIN but no city."""
+    body = lookup(accountant, gstin()).json()
+    assert body["city"] == "Poona"  # PIN not in the list: the GST portal's city
+    PinCode.objects.create(pin="411004", city="Pune", state=State.objects.get(code="27"))
+    body = lookup(accountant, gstin()).json()
+    assert (body["pincode"], body["city"]) == ("411004", "Pune")

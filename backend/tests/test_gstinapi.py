@@ -81,6 +81,7 @@ def test_success_maps_details_and_sends_the_key(key, calls, caplog):
     assert got["gst_type"] == "regular"
     assert got["address"] == "12, MG Road, Camp, Pune"
     assert got["pincode"] == "411004"
+    assert got["city"] == "Pune"
     assert "credits_remaining=41" in caplog.text
 
 
@@ -90,6 +91,8 @@ def test_address_falls_back_to_the_text_and_type_maps():
     assert gstinapi._gst_type(data["taxpayer_type"]) == "composition"
     assert gstinapi._gst_type("SEZ Unit") == "sez"
     assert gstinapi._gst_type(None) == "regular"
+    assert gstinapi._city({"address_details": {"district": "KOLKATA", "city": ""}}) == "Kolkata"
+    assert gstinapi._city({}) == ""
 
 
 @pytest.mark.parametrize(

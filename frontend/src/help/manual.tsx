@@ -1704,7 +1704,9 @@ export const MANUAL: Chapter[] = [
           and fills them in (the name only when the box is empty or still holds
           the name typed in a 'Create "…"' picker). The registered address goes in the "Addresses" section,
           named after the party; you can rename it, for example "Head office".
-          It also warns if the GSTIN is not "Active" (cancelled or suspended).
+          Its "PIN Code" and "City" are filled too: the city comes from the PIN
+          list, or from the GST details when the PIN is not in the list yet (then
+          use "Request Addition" before you save). It also warns if the GSTIN is not "Active" (cancelled or suspended).
           If the lookup is not available (the key is not set, the credits are
           used up, or the GST system is down) it says so, and you enter the
           details by hand.
