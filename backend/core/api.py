@@ -901,6 +901,10 @@ def change_ledger(request, ledger: Ledger, data: dict) -> Ledger:
     if "name" in data:
         _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
     refuse_key_changes("ledger", ledger, data)
+    if ledger.system_code and data.get("is_active") is False:
+        raise ValidationError(
+            {"is_active": ["MyERP posts to this ledger itself, so it cannot be disabled."]}
+        )
     _save(ledger, data, LEDGER_FIELDS)
     _set_foreign_opening(ledger)
     _save_opening_bills(ledger, bills)
