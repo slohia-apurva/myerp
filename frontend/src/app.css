@@ -3806,3 +3806,19 @@ td.nowrap {
     display: none;
   }
 }
+
+/* Purchase invoice (PurchaseInvoices.tsx). */
+.grid input.num-in {
+  width: 96px;
+  text-align: right;
+}
+.grid input.num-in.small-in {
+  width: 56px;
+}
+.bad-note {
+  color: var(--red);
+  font-weight: 700;
+}
+.totals-box {
+  max-width: 380px;
+}

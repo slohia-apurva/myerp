@@ -224,7 +224,11 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
               <a role="menuitem" href={`#/companies/${id}/goods-receipts`} onClick={() => setOpen(false)}>
                 Goods Receipt
               </a>
-              <span className="soon">Purchase Invoice · next</span>
+              {props.orders && (
+                <a role="menuitem" href={`#/companies/${id}/purchase-invoices`} onClick={() => setOpen(false)}>
+                  Purchase Invoice
+                </a>
+              )}
               <span className="soon">Purchase Return · later</span>
             </div>
           </div>

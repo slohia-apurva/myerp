@@ -155,8 +155,8 @@ const PRINTS = [
 const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pill");
 
 /** "Create ▾" on a submitted receipt: the documents that follow from it. */
-const CREATE_FROM_RECEIPT = [
-  { label: "Purchase Invoice (supplier's bill)", disabled: true },
+const createFromReceipt = (companyId: number, id: number) => [
+  { label: "Purchase Invoice (supplier's bill)", onClick: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&receipt=${id}`) },
   { label: "Purchase Return", disabled: true },
 ];
 
@@ -1200,7 +1200,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
                 Submit
               </button>
             )}
-            {r.status === "submitted" && <ActionsMenu label="Create" main items={CREATE_FROM_RECEIPT} note="These come with the next pieces of work" />}
+            {r.status === "submitted" && <ActionsMenu label="Create" main items={createFromReceipt(companyId, r.id)} note="Purchase Return comes later" />}
           </>
         }
       />
