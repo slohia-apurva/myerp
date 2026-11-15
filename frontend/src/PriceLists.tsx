@@ -10,6 +10,7 @@ import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
+import { ColumnSearch } from "./ColumnSearch";
 
 /** Price lists: named sets of rates for selling or buying, each rate from a date and a quantity. */
 export type PriceList = {
@@ -109,6 +110,7 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList
                 <th className="num">Used By</th>
                 <ActionHeads />
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody>
               {lists.map((l) => (

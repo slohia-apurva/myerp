@@ -13,8 +13,13 @@ PICK_LIMIT = 30
 LIST_LIMIT = 500
 
 
-def search(q: str, active_only: bool, limit: int):
+def search(q: str, active_only: bool, limit: int, code: str = "", desc: str = ""):
     rows = HsnCode.objects.all()
+    # The search box under each column of the list (Sidharth, 2026-11-15).
+    if code.strip():
+        rows = rows.filter(hsn_code__startswith=code.replace(" ", ""))
+    for word in desc.split():
+        rows = rows.filter(description__icontains=word)
     if active_only:
         rows = rows.filter(is_active=True)
     q = q.strip()
@@ -28,7 +33,8 @@ def search(q: str, active_only: bool, limit: int):
 
 
 class HsnListView(APIView):
-    """GET ?q=text&active=1&limit=pick (30 rows for the picker, else 500)."""
+    """GET ?q=text&active=1&limit=pick (30 rows for the picker, else 500); &code= and &desc=
+    narrow the list by its two columns."""
 
     permission_classes = [Signed]
 
@@ -39,6 +45,8 @@ class HsnListView(APIView):
             request.query_params.get("q", ""),
             request.query_params.get("active") == "1" or pick,
             PICK_LIMIT if pick else LIST_LIMIT,
+            request.query_params.get("code", ""),
+            request.query_params.get("desc", ""),
         )
         return Response(
             {

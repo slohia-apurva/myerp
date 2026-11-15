@@ -11,6 +11,7 @@ import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { type Carrier, type CourierAccount, NoSales, SERVICES, useCarriers, useCompany, useCourierAccounts } from "./Shipments";
+import { ColumnSearch } from "./ColumnSearch";
 
 type Account = CourierAccount & { lock?: LockInfo; preferred_by?: number };
 
@@ -90,6 +91,7 @@ function AccountList(props: { companyId: number; canEdit: boolean; session: Sign
                   <th>Account code</th>
                   <ActionHeads />
                 </tr>
+                <ColumnSearch />
               </thead>
               <tbody>
                 {accounts.map((a) => (

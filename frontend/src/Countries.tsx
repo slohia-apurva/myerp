@@ -4,6 +4,7 @@ import { PageHeader } from "./Brand";
 import { usePrintMenu } from "./Exchange";
 import { SidePanel, SideRows } from "./Master";
 import { openRequestAddition } from "./RequestAddition";
+import { ColumnSearch } from "./ColumnSearch";
 
 type Country = { code: string; name: string };
 
@@ -51,6 +52,7 @@ export function CountriesPage({ session }: { session: SignedIn }) {
                 <th>Country</th>
                 <th>Code</th>
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody>
               {shown.map((c) => (

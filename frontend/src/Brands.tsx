@@ -7,6 +7,7 @@ import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { ColumnSearch } from "./ColumnSearch";
 
 /** Brands: one list for every company in the group; an item picks its brand on the General section. */
 export type Brand = { id: number; name: string; notes: string; is_active: boolean; item_count: number };
@@ -82,6 +83,7 @@ function BrandList(props: { session: SignedIn; canEdit: boolean; brands: Brand[]
                 <th className="num">Items</th>
                 <ActionHeads />
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody>
               {brands.map((b) => (

@@ -2482,29 +2482,54 @@ table.unit-lines tr.sel td.row-actions {
   }
 }
 
-/* ...and so do the column headings, just under that row. */
+/* ...and so do the column headings, with the search boxes under them, right under that row. The page
+   measures that row (--list-bar-h, set in PageHeader) so no list row shows between the two
+   (Sidharth, 2026-11-15). */
 @media (min-width: 721px) {
-  .side-main table.pick thead th,
-  .side-main table.groups thead th {
+  .side-main table.pick > thead,
+  .side-main table.groups > thead {
     position: sticky;
-    top: calc(var(--stick-top, 0px) + 54px);
+    top: calc(var(--stick-top, 0px) + var(--list-bar-h, 0px));
     z-index: 25;
+  }
+  .side-main table.pick > thead th,
+  .side-main table.groups > thead th {
     background: #f4f6f8;
   }
-}
-@media (min-width: 721px) {
   .side-main table.pick,
   .side-main table.groups {
     overflow: visible;
   }
-  .side-main table.pick thead th:first-child,
-  .side-main table.groups thead th:first-child {
+  .side-main table.pick > thead > tr:first-child > th:first-child,
+  .side-main table.groups > thead > tr:first-child > th:first-child {
     border-top-left-radius: 12px;
   }
-  .side-main table.pick thead th:last-child,
-  .side-main table.groups thead th:last-child {
+  .side-main table.pick > thead > tr:first-child > th:last-child,
+  .side-main table.groups > thead > tr:first-child > th:last-child {
     border-top-right-radius: 12px;
   }
+}
+
+/* The search box under each column heading of a master list (ColumnSearch.tsx). */
+table thead tr.col-search > th {
+  padding: 4px 6px 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+table thead tr.col-search input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-weight: 400;
+  min-width: 60px;
+}
+table thead tr.col-search-none > th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--slate);
 }
 
 /* Entry menu: Purchase opens its own list to the right on hover (Sidharth, 2026-11-14) */

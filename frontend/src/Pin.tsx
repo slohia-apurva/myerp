@@ -84,8 +84,11 @@ export function CountryPicker(props: { value: string; onChange: (name: string) =
 export type PinRow = { id: number; pin: string; city: string; state_code: string; state_name: string; is_active: boolean };
 type PinFound = { total: number; results: PinRow[] };
 
-export const searchPins = (q: string, pick: boolean) =>
-  api<PinFound>(`v1/pin-codes/?q=${encodeURIComponent(q)}${pick ? "&limit=pick" : ""}`);
+export const searchPins = (q: string, pick: boolean, cols: string[] = []) =>
+  api<PinFound>(
+    `v1/pin-codes/?q=${encodeURIComponent(q)}${pick ? "&limit=pick" : ""}` +
+      ["pin", "city", "state"].map((k, i) => `&${k}=${encodeURIComponent(cols[i] ?? "")}`).join(""),
+  );
 
 /** The PIN box of an Indian address: type a PIN, or words of the city or state, and pick from
  * the central list. Typed text counts only when it is exactly a PIN in the list; anything else

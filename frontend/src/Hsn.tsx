@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type SignedIn } from "./api";
+import { ColumnSearch } from "./ColumnSearch";
 import { FloatingList } from "./FloatingList";
 import { PageHeader } from "./Brand";
 import { usePrintMenu } from "./Exchange";
@@ -10,19 +11,24 @@ import { openRequestAddition } from "./RequestAddition";
 export type Hsn = { id: number; hsn_code: string; description: string; is_active: boolean };
 type Found = { total: number; results: Hsn[] };
 
-const search = (q: string, pick: boolean) =>
-  api<Found>(`v1/hsn/?q=${encodeURIComponent(q)}${pick ? "&limit=pick" : ""}`);
+const search = (q: string, pick: boolean, cols: string[] = []) =>
+  api<Found>(
+    `v1/hsn/?q=${encodeURIComponent(q)}${pick ? "&limit=pick" : ""}` +
+      `&code=${encodeURIComponent(cols[0] ?? "")}&desc=${encodeURIComponent(cols[1] ?? "")}`,
+  );
 
 /** Masters > HSN codes: the central list, to look up and search. The details of the
  * clicked row are on the right. Nobody adds or changes a code here: MyERP keeps the list. */
 export function HsnPage({ session }: { session: SignedIn }) {
   const [q, setQ] = useState("");
+  const [cols, setCols] = useState<string[]>([]);
   const [found, setFound] = useState<Found>({ total: 0, results: [] });
   const [selectedId, setSelected] = useState<number | null>(null);
   useEffect(() => {
-    const t = setTimeout(() => search(q, false).then(setFound), 200);
+    const t = setTimeout(() => search(q, false, cols).then(setFound), 200);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, cols]);
+  const searching = q !== "" || cols.some((c) => c.trim() !== "");
   const printing = usePrintMenu({ title: "HSN codes", scope: q ? `Search: ${q}` : "" });
   const selected = found.results.find((h) => h.id === selectedId) ?? null;
   return (
@@ -56,6 +62,7 @@ export function HsnPage({ session }: { session: SignedIn }) {
                 <th>HSN code</th>
                 <th>Description</th>
               </tr>
+              <ColumnSearch onSearch={setCols} />
             </thead>
             <tbody>
               {found.results.map((h) => (
@@ -74,14 +81,14 @@ export function HsnPage({ session }: { session: SignedIn }) {
               {found.results.length === 0 && (
                 <tr>
                   <td colSpan={2} className="small">
-                    {found.total === 0 && q === "" ? "The list has not been loaded yet." : "Nothing matches."}
+                    {found.total === 0 && !searching ? "The list has not been loaded yet." : "Nothing matches."}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          {found.total > found.results.length && q === "" && (
-            <p className="small">Showing the first {found.results.length}. Type in the search box to find others.</p>
+          {found.total > found.results.length && !searching && (
+            <p className="small">Showing the first {found.results.length}. Type in a search box to find others.</p>
           )}
         </div>
         <div className="side-col">
