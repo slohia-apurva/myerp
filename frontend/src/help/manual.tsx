@@ -296,6 +296,10 @@ export const MANUAL: Chapter[] = [
               'Tick "Print a small Lord Ganesha image…" to print a small image at the top centre of the first page of every printout: purchase orders, reports and all other prints. "Use our own image…" puts your own PNG or JPG (up to 300 KB) in its place; "Use the standard image" brings the standard one back. The image is saved as soon as it is chosen.',
             ],
             [
+              "Attachments",
+              'Shown when editing a saved company. Under "Attachment Needed to Submit", tick each entry type (Purchase Order, Goods Receipt, Purchase Invoice) that must have at least one file in its "Attachments" box before it can be submitted. "Save" still keeps a draft without a file; "Submit" without one saves the draft and asks for the file. New entry types join the list unticked as they are built.',
+            ],
+            [
               "Mail Account",
               'The shared mailbox MyERP sends mail from (mail to suppliers, for example), shown when editing a saved company. Give the "Mailbox Address" (such as purchase@…), a "From Name" and its "App Password". For Google Workspace, sign in to that mailbox, turn on 2-Step Verification, and make an app password under Google Account › Security › App passwords; "Mail Server" smtp.gmail.com and "Port" 587 are filled in already. Click "Save", then "Send Test Mail": a test mail comes to your own address. The password is kept locked and never shown again; leave it blank to keep the saved one. Replies to mail sent from MyERP go to the person who sent it.',
             ],
@@ -2315,7 +2319,7 @@ export const MANUAL: Chapter[] = [
           "Type" (pick another from the list to change it), "Added By" and
           "Added On"; "Open" shows the file and "×" removes it. Files stay with
           the order after Submit, and more can still be added later. Adding
-          or removing a file is written to the order's Activity. Anyone who may make orders may add files; others, such as "Storekeeper", only see and open them.
+          or removing a file is written to the order's Activity. Anyone who may make orders may add files; others, such as "Storekeeper", only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
         </p>
         <Note>
           Who may do what follows the role: "Purchase" may make, change and
@@ -2501,7 +2505,7 @@ export const MANUAL: Chapter[] = [
           "Type" (pick another from the list to change it), "Added By" and
           "Added On"; "Open" shows the file and "×" removes it. Files stay with
           the receipt after Submit, and more can still be added later. Adding
-          or removing a file is written to the receipt's Activity. Anyone who may make receipts may add files; others only see and open them.
+          or removing a file is written to the receipt's Activity. Anyone who may make receipts may add files; others only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
         </p>
         <Note>
           Receipts are made and submitted by the Purchase or Storekeeper roles;
@@ -2581,6 +2585,7 @@ export const MANUAL: Chapter[] = [
           <li>
             The "Attachments" box keeps the supplier's bill (PDF or photo) and any
             other papers, on the draft and after Submit.
+            If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
           </li>
           <li>
             "Print ▾" prints the page or saves it as a PDF. "Scan e-invoice QR",

@@ -22,7 +22,7 @@ from accounts.models import User
 from audit.models import AuditEntry
 from buying import imports
 from buying.models import GoodsReceipt, PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
-from core import fiscal, india, numbering, print_mark, words
+from core import attachments, fiscal, india, numbering, print_mark, words
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -777,6 +777,7 @@ def _charges(
 def _submit(o: PurchaseOrder, user) -> None:
     if not user.can(SUBMIT):
         raise PermissionDenied("Your role may save drafts but not submit them.")
+    attachments.require_file(o, "purchase_order")
     # A draft may be saved with no items yet, to finish later; an order needs one.
     if not o.lines.exists():
         raise ValidationError({"lines": ["Add at least one item before submitting."]})
@@ -851,6 +852,8 @@ class OrderListView(APIView):
         o = PurchaseOrder(company=company, created_by=request.user)
         _save_order(o, data)
         if data.get("submit"):
+            if refused := attachments.refuse_submit(o, "purchase_order"):
+                return refused
             _submit(o, request.user)
         return Response(_fresh(o), status=status.HTTP_201_CREATED)
 
@@ -878,6 +881,8 @@ class OrderDetailView(APIView):
         data = dict(serializer.validated_data)
         _save_order(o, data)
         if data.get("submit"):
+            if refused := attachments.refuse_submit(o, "purchase_order"):
+                return refused
             _submit(o, request.user)
         return Response(_fresh(o))
 

@@ -9,6 +9,8 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly existing?: Existing,
+    /** A draft the server kept although Submit was refused (core/attachments.py). */
+    readonly keptDraft?: number,
   ) {
     super(message);
   }
@@ -18,6 +20,14 @@ function existingOf(data: unknown): Existing | undefined {
   if (data && typeof data === "object" && "existing" in data) {
     const e = (data as { existing: unknown }).existing;
     if (e && typeof e === "object" && "kind" in e && "id" in e) return e as Existing;
+  }
+  return undefined;
+}
+
+function keptDraftOf(data: unknown): number | undefined {
+  if (data && typeof data === "object" && "attachments" in data && "id" in data) {
+    const id = (data as { id: unknown }).id;
+    if (typeof id === "number") return id;
   }
   return undefined;
 }
@@ -58,7 +68,7 @@ export async function api<T>(path: string, body?: unknown, method?: Method): Pro
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data: unknown = res.status === 204 ? {} : await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data));
+  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data), keptDraftOf(data));
   return data as T;
 }
 

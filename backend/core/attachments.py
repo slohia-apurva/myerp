@@ -43,10 +43,53 @@ class Found:
 
 
 _TYPES: dict[str, Callable] = {}
+# Entry types a company may tick under "Attachment Needed to Submit", in menu order.
+LABELS: dict[str, str] = {}
 
 
-def register(record_type: str, find: Callable) -> None:
+def register(record_type: str, find: Callable, label: str) -> None:
     _TYPES[record_type] = find
+    LABELS[record_type] = label
+
+
+def check_required(value: list) -> list:
+    """The company's "Attachment Needed to Submit" ticks: known entry types only."""
+    unknown = [v for v in value if v not in LABELS]
+    if unknown:
+        raise ValueError(f"Unknown entry type: {', '.join(unknown)}.")
+    return [code for code in LABELS if code in value]
+
+
+def missing_file(record, record_type: str) -> dict | None:
+    """The refusal when the company needs a file on this entry type before Submit
+    (Sidharth, 2026-11-15) and none is attached yet; None when Submit may go on.
+    Saving a draft never needs a file. "id" lets a new form pick up its draft."""
+    company = record.company
+    if record_type not in (company.attachments_required or []):
+        return None
+    if record.pk and files_of(record_type, record.pk).exists():
+        return None
+    label = LABELS.get(record_type, "entry").lower()
+    return {
+        "attachments": [
+            f"Add at least one attachment before Submit: {company.name} needs a file "
+            f"on every {label}. Your draft is saved."
+        ],
+        "id": record.pk,
+    }
+
+
+def require_file(record, record_type: str) -> None:
+    refusal = missing_file(record, record_type)
+    if refusal:
+        raise ValidationError({"attachments": refusal["attachments"]})
+
+
+def refuse_submit(record, record_type: str) -> Response | None:
+    """For a view that saves then submits: answer 400 WITHOUT raising, so the draft
+    it just saved is kept."""
+    refusal = missing_file(record, record_type)
+    return Response(refusal, status=status.HTTP_400_BAD_REQUEST) if refusal else None
 
 
 def _find(request, record_type: str, record_id) -> Found:

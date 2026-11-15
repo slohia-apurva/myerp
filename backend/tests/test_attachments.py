@@ -112,3 +112,39 @@ def test_a_storekeeper_attaches_to_a_goods_receipt(alpha, world, po):  # noqa: F
     added = attach(store, draft.pk, name="lr.pdf", record_type="goods_receipt", kind="lr")
     assert added.status_code == 201, added.json()
     assert added.json()["kind_label"] == "Lorry receipt (LR)"
+
+
+def test_a_company_can_need_a_file_before_submit(owner, buyer, world, alpha):  # noqa: F811
+    link = f"companies/{world['company']}/"
+    shown = call(owner, "get", link).json()["company"]
+    assert shown["attachments_required"] == []
+    assert [code for code, _ in shown["attachment_types"]] == [
+        "purchase_order",
+        "goods_receipt",
+        "purchase_invoice",
+    ]
+    wrong = call(owner, "patch", link, {"attachments_required": ["sales_order"]})
+    assert wrong.status_code == 400 and "Unknown entry type" in str(wrong.json())
+    ticked = call(owner, "patch", link, {"attachments_required": ["purchase_order"]})
+    assert ticked.status_code == 200 and ticked.json()["attachments_required"] == ["purchase_order"]
+
+    # Submit straight from a new form: refused, but the draft is kept.
+    orders = f"companies/{world['company']}/purchase-orders/"
+    refused = call(buyer, "post", orders, order(world, submit=True))
+    assert refused.status_code == 400
+    assert "Add at least one attachment" in refused.json()["attachments"][0]
+    draft_id = refused.json()["id"]
+    draft = call(buyer, "get", f"purchase-orders/{draft_id}/").json()
+    assert draft["status"] == "draft" and not draft["number"]
+    # The separate Submit action is refused too.
+    assert call(buyer, "post", f"purchase-orders/{draft_id}/submit/").status_code == 400
+
+    assert attach(buyer, draft_id).status_code == 201
+    done = call(buyer, "patch", f"purchase-orders/{draft_id}/", order(world, submit=True))
+    assert done.status_code == 200, done.json()
+    assert done.json()["number"]
+    with use_tenant(alpha):
+        entry = AuditEntry.objects.filter(
+            record_type="company", changes__0__field="attachments_required"
+        )
+        assert entry.exists()

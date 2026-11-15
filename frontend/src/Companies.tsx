@@ -136,6 +136,10 @@ export type Company = Contact & {
   print_ganesha: boolean;
   print_image: string;
   print_image_own: boolean;
+  /** Entry types that cannot be submitted without an attachment. */
+  attachments_required: string[];
+  /** The entry types that can be ticked, as [code, label]. */
+  attachment_types: [string, string][];
   base_currency: string;
 };
 type DefaultFlag = "default_billing" | "default_ship_to" | "default_ship_from";
@@ -621,6 +625,7 @@ function CompanyForm(props: {
     from?.multi_currency ?? false,
   );
   const [printGanesha, setPrintGanesha] = useState(from?.print_ganesha ?? false);
+  const [needFile, setNeedFile] = useState<string[]>(from?.attachments_required ?? []);
   const mailbox = useMailAccount(c?.id);
   const allModules = useModules();
   const [modules, setModules] = useState<string[] | null>(
@@ -654,6 +659,7 @@ function CompanyForm(props: {
       ...(booksStart ? { books_start: booksStart } : {}),
       multi_currency: multiCurrency,
       print_ganesha: printGanesha,
+      ...(c ? { attachments_required: needFile } : {}),
       ...(!c && modules ? { modules } : {}),
       ...(c ? {} : abbr ? { abbr } : {}),
     };
@@ -821,6 +827,33 @@ function CompanyForm(props: {
           </p>
         )}
       </Section>
+      {c && (
+        <Section title="Attachments">
+          <p className="small">
+            Tick an entry to make a file (bill, challan, photo) compulsory before it can be
+            submitted. Saving a draft without a file is still allowed.
+          </p>
+          <div className="fact-label">Attachment Needed to Submit</div>
+          {c.attachment_types.map(([code, label]) => (
+            <label className="check" key={code}>
+              <input
+                type="checkbox"
+                checked={needFile.includes(code)}
+                onChange={(e) =>
+                  setNeedFile((now) =>
+                    e.target.checked ? [...now, code] : now.filter((x) => x !== code),
+                  )
+                }
+              />
+              {label}
+            </label>
+          ))}
+          <p className="small">
+            New entry types (Purchase Return, Sales Invoice and others) join this list as they
+            are built, unticked.
+          </p>
+        </Section>
+      )}
       {c && <MailAccountFields box={mailbox} onError={setError} />}
       {!c && (
         <fieldset>
@@ -1166,6 +1199,15 @@ function Overview({ detail }: { detail: Detail }) {
                 {c.print_ganesha
                   ? `Printed on page 1 (${c.print_image_own ? "own image" : "standard image"})`
                   : "Not printed"}
+              </dd>
+            </div>
+            <div>
+              <dt>Attachment Needed to Submit</dt>
+              <dd>
+                {c.attachment_types
+                  .filter(([code]) => c.attachments_required.includes(code))
+                  .map(([, label]) => label)
+                  .join(", ") || "None"}
               </dd>
             </div>
           </dl>
