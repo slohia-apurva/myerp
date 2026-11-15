@@ -2129,8 +2129,8 @@ export const MANUAL: Chapter[] = [
           transporter, the items with their descriptions, the charges, a "Tax Summary" by HSN / SAC code, the totals, the
           amount in words, the terms and conditions and the signature. An import shows its shipment and payment terms,
           "Documents Required" and "Packing and Marking", in the order's currency with no GST. A draft prints with
-          "DRAFT" across each page. "Download PDF" opens the same page: pick "Save as PDF" as the printer to keep a PDF.
-          Every page has the order number and "Page n of m" at the foot.
+          "DRAFT" across each page; a submitted order says "Approved by" who submitted it and when, under the signature. The supplier's box shows the people the order is mailed to, else its main contact. "Download PDF" opens the same page: pick "Save as PDF" as the printer to keep a PDF.
+          Pages after the first start with a short heading (logo, company, order number and date, the supplier "continued"); when the items run over, a page ends "Carried to page n" with the total so far and the next begins "Brought from page n-1". Every page has the order number and "Page n of m" at the foot.
         </p>
         <h3>Submit, change and cancel</h3>
         <ul>

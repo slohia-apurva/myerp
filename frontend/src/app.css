@@ -2713,8 +2713,9 @@ td.nowrap {
   min-width: 90px;
 }
 
-/* The purchase order as printed (PoPrint.tsx; layout approved by Sidharth, 2026-11-14).
- * Sizes in points, as on the A4 page; on screen the sheet is shown on a grey desk. */
+/* The purchase order as printed (PoPrint.tsx): the designs approved by Sidharth on
+ * 2026-11-14, with lighter fonts (2026-11-15). Each .po-page is one A4 sheet; sizes are
+ * in points, as on paper. On screen the sheets lie on a grey desk. */
 .po-print-bar {
   display: flex;
   gap: 10px;
@@ -2728,50 +2729,79 @@ td.nowrap {
   margin: 0 auto 0 0;
   color: var(--slate);
 }
-.po-sheet {
+.po-measure {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+}
+.po-page > div:not(.po-foot):not(.po-mark) {
+  display: flow-root;
+}
+.po-page td,
+.po-page th {
+  border: 0;
+}
+.po-page {
   position: relative;
   box-sizing: border-box;
   width: 210mm;
-  max-width: 100%;
-  min-height: 297mm;
-  margin: 0 auto 24px;
-  padding: 12mm 11mm;
+  height: 297mm;
+  margin: 0 auto 16px;
+  padding: 12mm 11mm 16mm;
+  overflow: hidden;
   background: #fff;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
   color: #1f2933;
   font-family: Inter, system-ui, sans-serif;
   font-size: 8.5pt;
   line-height: 1.4;
-  overflow-x: auto;
 }
-.po-sheet.is-draft::before,
-.po-sheet.is-cancelled::before {
-  content: "DRAFT";
-  position: fixed;
-  top: 45%;
+.po-page > div.po-measure-body {
+  height: 100%;
+}
+.po-mark {
+  position: absolute;
+  top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-35deg);
   font-size: 110pt;
   font-weight: 800;
   color: rgba(220, 38, 38, 0.1);
   pointer-events: none;
-  z-index: 0;
 }
-.po-sheet.is-cancelled::before {
-  content: "CANCELLED";
-  font-size: 80pt;
+.po-mark.long {
+  font-size: 72pt;
 }
-.po-sheet table {
+.po-foot {
+  position: absolute;
+  left: 11mm;
+  right: 11mm;
+  bottom: 7mm;
+  display: flex;
+  justify-content: space-between;
+  font-size: 7pt;
+  color: #7b8794;
+}
+.po-foot b {
+  font-size: 8pt;
+  font-weight: 600;
+  color: #14532d;
+}
+.po-page table {
   width: 100%;
   border-collapse: collapse;
 }
-.po-sheet .po-r {
+.po-page .po-r {
   text-align: right;
 }
-.po-sheet .po-mut {
+.po-page .po-mut {
   color: #616e7c;
 }
-.po-sheet .b td {
+.po-page .b td {
+  font-weight: 600;
+}
+.po-page b {
   font-weight: 600;
 }
 .po-band {
@@ -2789,6 +2819,10 @@ td.nowrap {
   color: #14532d;
   letter-spacing: 0.02em;
 }
+.po-brand {
+  display: flex;
+  align-items: center;
+}
 .po-no {
   font-size: 11pt;
   font-weight: 600;
@@ -2796,31 +2830,39 @@ td.nowrap {
 }
 .po-date {
   font-size: 10pt;
-  font-weight: 400;
+}
+.po-band-short {
+  align-items: flex-end;
+  padding-bottom: 6pt;
+  margin-bottom: 10pt;
+}
+.po-short-title {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #14532d;
+}
+.po-short-no {
+  font-size: 9pt;
+  font-weight: 600;
 }
 .po-logo {
   display: inline-flex;
-  width: 30pt;
-  height: 30pt;
-  border-radius: 7pt;
+  width: 24pt;
+  height: 24pt;
+  border-radius: 6pt;
   background: #2e9e62;
   color: #fff;
-  font-weight: 800;
-  font-size: 17pt;
+  font-weight: 700;
+  font-size: 14pt;
   align-items: center;
   justify-content: center;
   margin-right: 8pt;
-  vertical-align: middle;
 }
 .po-company {
   font-size: 12pt;
-  font-weight: 600;
-}
-.po-sheet b {
-  font-weight: 600;
 }
 .po-lh {
-  margin-top: 4pt;
+  margin-top: 6pt;
   line-height: 1.5;
 }
 .po-lab {
@@ -2845,7 +2887,6 @@ td.nowrap {
   border-radius: 5pt;
   padding: 7pt;
   line-height: 1.45;
-  break-inside: avoid;
 }
 .po-addr dl {
   display: grid;
@@ -2859,7 +2900,7 @@ td.nowrap {
   display: contents;
 }
 .po-addr dt {
-  font-weight: 700;
+  font-weight: 600;
   color: #14532d;
 }
 .po-addr dd {
@@ -2882,6 +2923,8 @@ td.nowrap {
   font-size: 7.5pt;
   font-weight: 600;
   text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 .po-items th.po-r {
@@ -2897,24 +2940,41 @@ td.nowrap {
 .po-items tr.alt td {
   background: #f6faf8;
 }
-.po-items tr {
-  break-inside: avoid;
-}
-.po-sheet tr.po-total td {
+.po-page tr.po-total td {
   border-top: 1px solid #14532d;
   font-weight: 600;
+}
+.po-page tr.po-total td.po-blank {
+  border-top: 0;
 }
 .po-items tr.po-sub td {
   background: #e3f2e9;
   color: #14532d;
-  font-weight: 700;
-  font-size: 8pt;
+  font-weight: 600;
+  font-size: 7pt;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 4pt 5pt;
 }
+.po-items tr.po-carry td,
+.po-items tr.po-brought td {
+  font-style: italic;
+  color: #52606d;
+}
+.po-items tr.po-carry td:not(:first-child) {
+  border-top: 1px solid #14532d;
+}
+.po-items tr.po-carry td.po-r,
+.po-items tr.po-brought td.po-r {
+  font-weight: 600;
+}
+.po-cont {
+  margin: 8pt 0 0;
+  font-style: italic;
+  color: #616e7c;
+}
 .po-desc {
-  font-size: 7.5pt;
+  font-size: 7pt;
   color: #3e4c59;
   margin-top: 1pt;
   white-space: pre-line;
@@ -2922,16 +2982,14 @@ td.nowrap {
 .po-sums {
   display: flex;
   gap: 16pt;
-  margin-top: 14pt;
-}
-.po-keep {
-  break-inside: avoid;
+  padding-top: 14pt;
 }
 .po-grow {
   flex: 1;
 }
 .po-tax td {
   padding: 3pt 4pt;
+  white-space: nowrap;
 }
 .po-tax thead td {
   color: #616e7c;
@@ -2951,20 +3009,25 @@ td.nowrap {
   border-top: 2px solid #2e9e62;
   font-size: 10.5pt;
   font-weight: 600;
+}
+.po-totals tr.po-grand td.po-r {
   color: #14532d;
 }
 .po-docs {
   margin: 0;
-  padding-left: 14pt;
+  padding-left: 12pt;
   columns: 2;
 }
 .po-pre {
   white-space: pre-line;
 }
-.po-terms b {
-  display: block;
-  margin-top: 4pt;
-  color: #14532d;
+.po-terms.two {
+  columns: 2;
+  column-gap: 14pt;
+}
+.po-term-group {
+  break-inside: avoid;
+  margin-bottom: 4pt;
 }
 .po-end {
   align-items: flex-end;
@@ -2988,17 +3051,19 @@ td.nowrap {
   body.printing-doc {
     background: #fff;
   }
-  body.printing-doc .po-sheet {
-    width: auto;
-    min-height: 0;
+  body.printing-doc .po-page {
     margin: 0;
-    padding: 0;
     box-shadow: none;
-    overflow: visible;
+    break-after: page;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-}
-.po-tax thead td {
-  white-space: nowrap;
+  body.printing-doc .po-page:last-child {
+    break-after: auto;
+  }
+  body.printing-doc main {
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
 }

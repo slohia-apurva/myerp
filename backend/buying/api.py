@@ -197,6 +197,27 @@ def _letterhead(c: Company) -> dict:
     }
 
 
+def _supplier_contact(o: PurchaseOrder) -> dict:
+    """Contact, phone and email in the supplier's box: the supplier's people the
+    order goes to, else its main contact (or its purchase contacts)."""
+    party = o.supplier.party
+    if party is None:
+        return {}
+    picked = [*o.mail_to, *o.whatsapp_to]
+    people = list(party.contacts.filter(pk__in=picked)) if picked else []
+    if not people:
+        every = list(party.contacts.all())
+        people = [c for c in every if c.is_primary] or [
+            c for c in every if "purchase" in (c.kinds or [])
+        ]
+    # One person and their phone (the first); every email the order goes to.
+    return {
+        "contact": next((c.name for c in people if c.name), ""),
+        "phone": next((c.phone for c in people if c.phone), ""),
+        "email": ", ".join(c.email for c in people if c.email),
+    }
+
+
 def _addresses_out(o: PurchaseOrder) -> dict:
     """Bill To, Ship To and the supplier's address, as the order shows and prints them."""
     party = o.supplier.party
@@ -206,6 +227,7 @@ def _addresses_out(o: PurchaseOrder) -> dict:
         **kept,
         "gstin": kept.get("gstin") or (party.gstin if party else ""),
         "fssai": _party_fssai(party, kept.get("label", "")),
+        **_supplier_contact(o),
     }
     return {
         "bill_to": _branch_address(o.bill_to) if o.bill_to else None,
@@ -348,10 +370,20 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "created_by_name": o.created_by.display_name if o.created_by else "",
         "created_at": o.created_at,
         "submitted_at": o.submitted_at,
+        "submitted_by_name": o.submitted_by.display_name if o.submitted_by else "",
+        "created_by_email": o.created_by.email if o.created_by else "",
         "line_count": len(o.lines.all()),
     }
     if lines:
         data["lines"] = [_line_out(ln) for ln in o.lines.all()]
+        # The supplier's own code for each item, printed as "Your code …".
+        codes = dict(
+            PartyItemName.objects.filter(party=o.supplier.party_id)
+            .exclude(code="")
+            .values_list("item_id", "code")
+        )
+        for row in data["lines"]:
+            row["supplier_code"] = codes.get(row["item"], "")
         data["charges"] = [_charge_out(c) for c in o.charges.all()]
         data["addresses"] = _addresses_out(o)
         data["letterhead"] = _letterhead(o.company)
@@ -367,6 +399,7 @@ def _orders(company):
             "supplier__party",
             "agent",
             "agent_user",
+            "submitted_by",
             "branch__company",
             "bill_to__company",
             "credit_term",
@@ -731,6 +764,7 @@ def _submit(o: PurchaseOrder, user) -> None:
     o.number = numbering.next_document_number(o.company, "purchase_order", o.order_date, o.branch)
     o.status = PurchaseOrder.ORDERED
     o.submitted_at = timezone.now()
+    o.submitted_by = user
     o.save()
 
 

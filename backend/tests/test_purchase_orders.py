@@ -164,6 +164,7 @@ def test_submit_numbers_the_order_and_fixes_it(buyer, world):
     body = submitted.json()
     assert body["status"] == "ordered"
     assert "/PO/" in body["number"] and body["number"].endswith("00001")
+    assert body["submitted_by_name"]  # printed as "Approved by … on …"
     change = call(buyer, "patch", f"purchase-orders/{po['id']}/", order(world, supplier_ref="X"))
     assert "cannot be changed" in str(change.json())
     # "Submit" on a new form saves and submits at once; numbers follow on.
@@ -319,6 +320,13 @@ def test_the_order_is_mailed_to_ticked_contacts_of_the_supplier_and_agent(buyer,
     assert "without an email" in str(blank)
     itself = call(buyer, "post", url, order(world, agent=world["local"])).json()
     assert itself["agent"] == ["The agent is not the supplier itself."]
+    # The print's supplier box: the people it goes to, else the main contact.
+    supplier_box = body["addresses"]["supplier"]
+    assert (supplier_box["contact"], supplier_box["email"]) == ("Ram", "ram@dtt.in")
+    with use_tenant(alpha):
+        PartyContact.objects.filter(pk=nomail.pk).update(is_primary=True)
+    none_ticked = call(buyer, "post", url, order(world)).json()["addresses"]["supplier"]
+    assert (none_ticked["contact"], none_ticked["phone"]) == ("Shyam", "9876543210")
 
 
 def test_contacts_ticked_for_whatsapp(buyer, world, alpha):

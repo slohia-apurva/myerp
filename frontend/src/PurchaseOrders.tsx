@@ -35,6 +35,7 @@ type Line = {
   sgst: string;
   igst: string;
   amount: string;
+  supplier_code?: string;
 };
 export type Charge = {
   id: number;
