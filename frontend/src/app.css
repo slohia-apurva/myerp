@@ -3696,3 +3696,6 @@ td.nowrap {
 .mail-preview textarea {
   box-sizing: border-box;
 }
+.supplier-mail .field > .fact-label {
+  display: block;
+}

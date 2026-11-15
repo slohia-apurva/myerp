@@ -85,3 +85,43 @@ def test_the_draft_lists_what_differs_and_sends_one_mail(buyer, short, alpha):  
 
 def test_storekeepers_cannot_mail_suppliers(store, short):  # noqa: F811
     assert call(store, "get", f"purchase-orders/{short['po']}/supplier-mail/").status_code == 403
+
+
+def test_the_order_goes_by_mail_with_its_pdf(buyer, store, short, alpha):  # noqa: F811
+    with use_tenant(alpha):
+        sales = PartyContact.objects.get(email="sales@dtt.in")
+        from buying.models import PurchaseOrder
+
+        o = PurchaseOrder.objects.get(pk=short["po"])
+        o.mail_to = [sales.pk]
+        o.save(update_fields=["mail_to"])
+    pdf = call(buyer, "get", f"purchase-orders/{short['po']}/pdf/")
+    assert pdf.status_code == 200 and pdf["Content-Type"] == "application/pdf"
+    assert b"".join(pdf.streaming_content if pdf.streaming else [pdf.content]).startswith(b"%PDF")
+
+    link = f"purchase-orders/{short['po']}/mail/"
+    assert call(store, "get", link).status_code == 403
+    draft = call(buyer, "get", link).json()
+    assert draft["to"] == [{"name": "Anil Gurung", "email": "sales@dtt.in"}]
+    assert draft["subject"] == f"Purchase Order No : {short['po_number']}"
+    _mailbox(alpha, short["company"])
+    body = {"to": ["sales@dtt.in"], "cc": ["owner@x.in"], "subject": draft["subject"],
+            "message": draft["message"]}  # fmt: skip
+    res = call(buyer, "post", link, body)
+    assert res.status_code == 200, res.json()
+    m = outbox.outbox[-1]
+    assert m.subject == draft["subject"] and "Please find attached" in m.body
+    name, data, kind = m.attachments[0]
+    assert data.startswith(b"%PDF") and name.endswith(".pdf") and kind == "application/pdf"
+    with use_tenant(alpha):
+        logged = AuditEntry.objects.filter(record_type="purchase_order", record_id=short["po"])
+        assert any(c["field"] == "order_mail" for e in logged for c in e.changes)
+
+    # The supplier mail can carry the order too.
+    sm = f"purchase-orders/{short['po']}/supplier-mail/"
+    d = call(buyer, "get", sm).json()
+    sent = call(buyer, "post", sm, {"to": ["sales@dtt.in"], "subject": "x", "intro": "a",
+                                    "closing": "b", "lines": [d["lines"][0]["id"]],
+                                    "attach_order": True})  # fmt: skip
+    assert sent.status_code == 200, sent.json()
+    assert len(outbox.outbox[-1].attachments) == 1

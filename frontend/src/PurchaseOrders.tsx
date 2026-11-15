@@ -14,7 +14,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { STOCK_COST } from "./Items";
 import { PoPrint } from "./PoPrint";
-import { SupplierMail } from "./SupplierMail";
+import { OrderMail, SupplierMail } from "./SupplierMail";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -1530,6 +1530,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const [reason, setReason] = useState("");
   const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
   const [mailing, setMailing] = useState(!!hashParam("mail"));
+  const [sendingPo, setSendingPo] = useState(false);
   const [mailed, setMailed] = useState("");
   const { terms } = useCreditTerms();
   const reload = useCallback(() => {
@@ -1595,6 +1596,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Cancel order
               </button>
             )}
+            {can("submit") && !draft && order.status !== "cancelled" && !sendingPo && (
+              <button type="button" className="link" onClick={() => setSendingPo(true)}>
+                Email PO
+              </button>
+            )}
             {can("submit") && !draft && order.status !== "cancelled" && !mailing && (
               <button type="button" className="link" onClick={() => setMailing(true)}>
                 Email Supplier
@@ -1642,6 +1648,17 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           )}
           <ErrorNote error={error} />
           {mailed && <p className="use-note">{mailed}</p>}
+          {sendingPo && (
+            <OrderMail
+              orderId={order.id}
+              onClose={() => setSendingPo(false)}
+              onSent={(to) => {
+                setSendingPo(false);
+                setMailed(`Order mailed to ${to.join(", ")}. A copy is in the order's Activity.`);
+                setFiles((n) => n + 1);
+              }}
+            />
+          )}
           {mailing && (
             <SupplierMail
               orderId={order.id}

@@ -10,14 +10,16 @@ import html
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email
+from django.http import HttpResponse
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
 from audit.models import AuditEntry
-from buying.api import SUBMIT, _check, _order, _plain
+from buying.api import SUBMIT, VIEW, _check, _fresh, _order, _plain
 from buying.models import GoodsReceipt, PurchaseOrder
+from buying.po_pdf import order_pdf
 from core import mail, print_mark, printout
 from core.api import Signed
 from core.models import PartyContact
@@ -173,6 +175,8 @@ class SupplierMailView(APIView):
         files = (
             [(f"{r.number.replace('/', '-')}.pdf", receipt_pdf(r), "application/pdf")] if r else []
         )
+        if data.get("attach_order"):
+            files.append(_order_file(o))
         reply_to = [request.user.email] if request.user.email else []
         try:
             mail.send(
@@ -196,6 +200,7 @@ class SupplierMailView(APIView):
                 for ln in lines
             )
             + (f"; attached {r.number}" if r else "")
+            + (f"; attached {o.number}" if data.get("attach_order") else "")
         )
         AuditEntry.objects.create(
             user=request.user,
@@ -353,3 +358,148 @@ def receipt_pdf(r: GoodsReceipt) -> bytes:
     return printout.pdf(
         f"Goods Receipt Note {r.number}", " · ".join(bits), sheets, print_mark.mark(r.company)
     )
+
+
+# The order itself, as a PDF and by mail ----------------------------------------
+
+
+def _order_file(o: PurchaseOrder) -> tuple[str, bytes, str]:
+    return (
+        f"{(o.number or 'draft').replace('/', '-')}.pdf",
+        order_pdf(_fresh(o)),
+        "application/pdf",
+    )
+
+
+class OrderPdfView(APIView):
+    """GET: the order as a PDF file, as it is attached to mail."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        o = _order(request, pk)
+        name, data, kind = _order_file(o)
+        response = HttpResponse(data, content_type=kind)
+        response["Content-Disposition"] = f'inline; filename="{name}"'
+        return response
+
+
+def _order_to(o: PurchaseOrder) -> list[dict]:
+    """Who the order goes to: the contacts ticked "Mail" on it (supplier's and
+    agent's), and the employee agent when ticked; else the supplier's first."""
+    found = {c.pk: c for c in PartyContact.objects.filter(pk__in=o.mail_to).exclude(email="")}
+    out = [{"name": found[i].name, "email": found[i].email} for i in o.mail_to if i in found]
+    if o.mail_agent_user and o.agent_user_id and o.agent_user.email:
+        out.append({"name": o.agent_user.display_name, "email": o.agent_user.email})
+    if not out:
+        out = [{"name": c.name, "email": c.email} for c in _supplier_contacts(o)[:1]]
+    return out
+
+
+def _order_message(o: PurchaseOrder) -> str:
+    when = f" dated {_dmy(o.order_date)}"
+    text = f"Please find attached our purchase order {o.number}{when}."
+    if o.expected_date:
+        text += f" The goods are expected by {_dmy(o.expected_date)}."
+    return text + " Kindly confirm receipt of the order and the dispatch date."
+
+
+class OrderMailView(APIView):
+    """ "Email PO": GET the draft; POST {to, cc, subject, message} sends the
+    order to the supplier with its PDF attached."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, SUBMIT)
+        o = _order(request, pk)
+        if not o.number:
+            raise ValidationError({"detail": "Submit the order before mailing it."})
+        contacts = _supplier_contacts(o)
+        acct = mail.account_of(o.company)
+        agent = (
+            list(PartyContact.objects.filter(party_id=o.agent.party_id).exclude(email=""))
+            if o.agent_id
+            else []
+        )
+        return Response(
+            {
+                "order_number": o.number,
+                "supplier_name": o.supplier.name,
+                "mail_ready": bool(acct and acct.password),
+                "from": acct.address if acct else "",
+                "to": _order_to(o),
+                "to_options": [
+                    {"name": c.name, "email": c.email, "of": "Supplier"} for c in contacts
+                ]
+                + [{"name": c.name, "email": c.email, "of": "Agent"} for c in agent],
+                "cc": [{"name": request.user.display_name, "email": request.user.email}]
+                if request.user.email
+                else [],
+                "cc_options": [
+                    {"name": u.display_name, "email": u.email, "of": "Our team"} for u in _people(o)
+                ]
+                + [{"name": c.name, "email": c.email, "of": "Supplier"} for c in contacts],
+                "subject": f"Purchase Order No : {o.number}",
+                "message": _order_message(o),
+                "signature": _signature(request.user, o),
+                "attachment": _order_file(o)[0],
+            }
+        )
+
+    def post(self, request, pk: int):
+        _check(request, SUBMIT)
+        o = _order(request, pk)
+        if not o.number or o.status == PurchaseOrder.CANCELLED:
+            raise ValidationError({"detail": "Only a submitted order can be mailed."})
+        data = request.data
+        to = _emails(data.get("to"), "to")
+        if not to:
+            raise ValidationError({"to": ["Give at least one address to send to."]})
+        cc = [e for e in _emails(data.get("cc"), "cc") if e not in to]
+        subject = str(data.get("subject") or "").strip()[:200]
+        if not subject:
+            raise ValidationError({"subject": ["Give the subject."]})
+        message = str(data.get("message") or "").strip()
+        names = {c.email.lower(): c.name for c in _supplier_contacts(o)}
+        greeting = names.get(to[0].lower(), "Sir/Madam")
+        signature = _signature(request.user, o)
+        text = f"Dear {greeting},\n\n{message}\n\nRegards,\n{signature}\n"
+        e = html.escape
+        body = (
+            '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2933">'
+            + "".join(
+                f'<p style="margin:0 0 10px">{e(p).replace(chr(10), "<br>")}</p>'
+                for p in [f"Dear {greeting},", *message.split("\n\n"), f"Regards,\n{signature}"]
+                if p.strip()
+            )
+            + "</div>"
+        )
+        try:
+            mail.send(
+                o.company,
+                to=to,
+                cc=cc,
+                subject=subject,
+                text=text,
+                html=body,
+                reply_to=[request.user.email] if request.user.email else [],
+                files=[_order_file(o)],
+            )
+        except mail.NotSetUp as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        record = f'Order mailed: "{subject}" to {", ".join(to)}' + (
+            f", copy to {', '.join(cc)}" if cc else ""
+        )
+        AuditEntry.objects.create(
+            user=request.user,
+            user_name=request.user.display_name[:150],
+            company=o.company,
+            record_type="purchase_order",
+            record_id=o.pk,
+            record_name=str(o)[:200],
+            action=AuditEntry.UPDATE,
+            changes=[{"field": "order_mail", "label": "Mail", "old": None, "new": record}],
+        )
+        return Response({"sent_to": to, "cc": cc})
