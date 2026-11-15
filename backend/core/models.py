@@ -1466,3 +1466,43 @@ class Notification(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class Attachment(models.Model):
+    """A file kept with an entry (a purchase order, a goods receipt…): the
+    supplier's challan, the lorry receipt, a photo of the cartons. Every entry
+    screen has an "Attachments" section (Sidharth, 2026-11-15); files may be
+    added after Submit too. Kept in the tenant's own database, like party
+    documents."""
+
+    MAX_SIZE = 10 * 1024 * 1024
+    KINDS = [
+        ("challan", "Supplier's challan"),
+        ("invoice", "Supplier's invoice"),
+        ("lr", "Lorry receipt (LR)"),
+        ("eway", "E-way bill"),
+        ("photo", "Photo"),
+        ("quotation", "Quotation"),
+        ("coa", "Certificate of analysis"),
+        ("other", "Other"),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="+")
+    record_type = models.CharField(max_length=30)  # as in the audit log, e.g. "goods_receipt"
+    record_id = models.PositiveBigIntegerField()
+    kind = models.CharField(max_length=10, choices=KINDS, default="other")
+    filename = models.CharField(max_length=200)
+    content_type = models.CharField(max_length=100, blank=True)
+    size = models.PositiveIntegerField()
+    data = models.BinaryField()
+    added_by = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        indexes = [models.Index(fields=["record_type", "record_id"])]
+
+    def __str__(self) -> str:
+        return self.filename

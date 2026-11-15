@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
+import { Attachments } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
@@ -1185,6 +1186,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               </label>
             </div>
           </Fold>
+          <Attachments type="purchase_order" id={draftId} />
           <ErrorNote error={error} />
         </div>
         <div className="doc-foot">
@@ -1518,6 +1520,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const [error, setError] = useState<unknown>("");
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
+  const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
   const { terms } = useCreditTerms();
   const reload = useCallback(() => {
     api<PurchaseOrder>(`v1/purchase-orders/${id}/`)
@@ -1774,6 +1777,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               )}
             </Fold>
           )}
+          <Attachments type="purchase_order" id={order.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
         <div className="doc-foot">
           <TotalsPanel
@@ -1790,7 +1794,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           />
           <PaymentPanel term={terms.find((t) => t.id === order.credit_term)} />
           <SidePanel title="Activity">
-            <ChangeLog company={companyId} type="purchase_order" id={order.id} stamp={JSON.stringify(order)} />
+            <ChangeLog company={companyId} type="purchase_order" id={order.id} stamp={JSON.stringify(order) + files} />
           </SidePanel>
         </div>
       </div>

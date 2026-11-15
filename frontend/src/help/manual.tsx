@@ -2217,6 +2217,18 @@ export const MANUAL: Chapter[] = [
             as "in use" and their key fields lock. A draft does not.
           </li>
         </ul>
+        <h3>Attachments</h3>
+        <p>
+          Every entry screen has an "Attachments" box near the foot. Once the
+          order is saved, drop files on it, or click "choose files" (or "take a
+          photo" on a phone) to add the supplier's challan or invoice, the lorry
+          receipt (LR), the e-way bill, photos and other papers: PDF, pictures,
+          Word or Excel, up to 10 MB each. The list shows each "File", its
+          "Type" (pick another from the list to change it), "Added By" and
+          "Added On"; "Open" shows the file and "×" removes it. Files stay with
+          the order after Submit, and more can still be added later. Adding
+          or removing a file is written to the order's Activity. Anyone who may make orders may add files; others, such as "Storekeeper", only see and open them.
+        </p>
         <Note>
           Who may do what follows the role: "Purchase" may make, change and
           submit orders; cancelling needs an Owner or a role with "cancel" for
@@ -2320,6 +2332,18 @@ export const MANUAL: Chapter[] = [
           why. Cancelling reverses the stock and the book entries and shows the
           goods as pending on the orders again. It is refused if any of the
           goods have since been issued or moved.
+        </p>
+        <h3>Attachments</h3>
+        <p>
+          Every entry screen has an "Attachments" box near the foot. Once the
+          receipt is saved, drop files on it, or click "choose files" (or "take a
+          photo" on a phone) to add the supplier's challan or invoice, the lorry
+          receipt (LR), the e-way bill, photos and other papers: PDF, pictures,
+          Word or Excel, up to 10 MB each. The list shows each "File", its
+          "Type" (pick another from the list to change it), "Added By" and
+          "Added On"; "Open" shows the file and "×" removes it. Files stay with
+          the receipt after Submit, and more can still be added later. Adding
+          or removing a file is written to the receipt's Activity. Anyone who may make receipts may add files; others only see and open them.
         </p>
         <Note>
           Receipts are made and submitted by the Purchase or Storekeeper roles;

@@ -3266,3 +3266,27 @@ td.nowrap {
 .doc-page .fold-body .grn-orders label.tick input {
   width: auto;
 }
+
+/* Attachments box on entry screens (Attachments.tsx) */
+.attach-list .attach-kind {
+  width: 240px;
+}
+.attach-list .attach-acts {
+  white-space: nowrap;
+  text-align: right;
+}
+.attach-list .attach-acts > * + * {
+  margin-left: 6px;
+}
+.fold-body .drop label.attach-pick {
+  display: inline;
+  margin: 0;
+  color: var(--green);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.drop + .small,
+.table-wrap + .drop {
+  margin-top: 8px;
+}

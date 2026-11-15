@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
+import { Attachments } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -839,6 +840,7 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
               <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
           </Fold>
+          <Attachments type="goods_receipt" id={draftId} />
         </div>
         <div className="doc-foot">
           <SidePanel title="Against Purchase Order">
@@ -975,6 +977,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
   const [error, setError] = useState<unknown>("");
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
+  const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
   const reload = useCallback(() => {
     api<GoodsReceipt>(`v1/goods-receipts/${id}/`).then(setR, setError);
     api<Postings>(`v1/postings/?voucher_type=goods_receipt&voucher_id=${id}`).then(setPostings, () => setPostings(null));
@@ -1220,6 +1223,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
               <p className="pre">{r.notes}</p>
             </Fold>
           )}
+          <Attachments type="goods_receipt" id={r.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
         <div className="doc-foot">
           <SidePanel title="Postings">
@@ -1240,7 +1244,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
             )}
           </SidePanel>
           <SidePanel title="Activity">
-            <ChangeLog company={companyId} type="goods_receipt" id={r.id} stamp={JSON.stringify(r)} />
+            <ChangeLog company={companyId} type="goods_receipt" id={r.id} stamp={JSON.stringify(r) + files} />
           </SidePanel>
         </div>
       </div>
