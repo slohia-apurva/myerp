@@ -1621,7 +1621,12 @@ export const MANUAL: Chapter[] = [
         </ul>
         <h3>Add a ledger</h3>
         <ol>
-          <li>Click "+ Ledger" beside the group it goes under. The form opens in a new browser tab, with the group filled in.</li>
+          <li>
+            Click "Add ledger" at the top right, then choose the group in the
+            form. Or click "+ Ledger" beside a group in the list, and the group
+            is filled in. Either way the form opens in a new browser tab, and
+            every group can be picked, including ones with no ledgers yet.
+          </li>
           <li>Type the name and choose the group it goes under.</li>
           <li>
             If the company uses foreign currencies, choose the ledger's
