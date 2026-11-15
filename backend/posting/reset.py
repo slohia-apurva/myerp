@@ -5,7 +5,7 @@ its own transaction (migration 0001)."""
 from django.db import connections
 
 from core.data_reset import register_entries
-from posting.models import GLEntry, StockLot, StockLotUse, StockMove
+from posting.models import GLEntry, StockLot, StockLotUse, StockMove, StockRevaluation
 from tenancy.context import require_tenant
 
 
@@ -23,6 +23,7 @@ def _delete(company) -> None:
         cursor.execute("SET LOCAL myerp.purge_postings = 'on'")
     moves = _of(StockMove, company)
     StockLotUse.objects.filter(move__in=moves).delete()
+    _of(StockRevaluation, company).delete()
     _of(StockLot, company).delete()
     moves.delete()
     _of(GLEntry, company).delete()

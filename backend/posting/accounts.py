@@ -19,6 +19,9 @@ STOCK_WITH_JOB_WORKERS = "stock_with_job_workers"
 PRICE_DIFFERENCE = "purchase_price_difference"
 STOCK_ADJUSTMENT = "stock_adjustment"
 ROUND_OFF = "round_off"
+INPUT_CGST = "input_cgst"
+INPUT_SGST = "input_sgst"
+INPUT_IGST = "input_igst"
 
 # code: (name, standard group code)
 SYSTEM_LEDGERS = {
@@ -31,6 +34,9 @@ SYSTEM_LEDGERS = {
     PRICE_DIFFERENCE: ("Purchase Price Difference", "direct_expenses"),
     STOCK_ADJUSTMENT: ("Stock Adjustment", "direct_expenses"),
     ROUND_OFF: ("Round Off", "other_expenses"),
+    INPUT_CGST: ("Input CGST", "duties_taxes"),
+    INPUT_SGST: ("Input SGST", "duties_taxes"),
+    INPUT_IGST: ("Input IGST", "duties_taxes"),
 }
 
 

@@ -174,7 +174,7 @@ TRACKED: dict[type[models.Model], Tracked] = {}
 
 def _register() -> None:
     from accounts.models import Role, User
-    from buying.models import GoodsReceipt, PurchaseOrder
+    from buying.models import GoodsReceipt, PurchaseInvoice, PurchaseOrder
     from core import india
     from core import modules as company_modules
     from core.models import (
@@ -395,6 +395,27 @@ def _register() -> None:
                         lambda r: "; ".join(
                             f"{ln.item} {_number(ln.accepted_qty)} {ln.unit.short_name}"
                             for ln in r.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            PurchaseInvoice: Tracked(
+                "purchase_invoice",
+                "Purchase invoice",
+                by_company,
+                labels={
+                    "bill_no": "Supplier invoice no",
+                    "bill_date": "Supplier invoice date",
+                    "bill_total": "Supplier's bill total",
+                },
+                extras={
+                    "invoice_status": ("Status", lambda i: i.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda i: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} @ {_number(ln.rate)}"
+                            for ln in i.lines.select_related("item")
                         )
                         or None,
                     ),

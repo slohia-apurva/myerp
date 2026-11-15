@@ -2231,8 +2231,9 @@ export const MANUAL: Chapter[] = [
             A submitted order has a "Create ▾" button for the documents that
             follow from it: "Goods Receipt (goods received)" opens a new goods
             receipt for this order with its items filled in (see "Goods
-            receipts"). "Purchase Invoice" (the supplier's bill) is greyed out
-            until that screen is built. As goods are received the order's status
+            receipts"); "Purchase Invoice (supplier's bill)" opens a new purchase
+            invoice with everything received against the order and not yet
+            billed (see "Purchase invoices"). As goods are received the order's status
             becomes "Part received", then "Received".
           </li>
           <li>
@@ -2506,6 +2507,91 @@ export const MANUAL: Chapter[] = [
           Receipts are made and submitted by the Purchase or Storekeeper roles;
           cancelling needs an Owner or a role with "cancel" for purchase or
           stock. The date must fall in an open month of a fiscal year.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "purchase-invoices",
+    title: "Purchase invoices",
+    summary:
+      "The supplier's bill, entered against goods receipts. Submit books it, with input GST and the due dates.",
+    body: (
+      <>
+        <p>
+          A purchase invoice is the supplier's bill. Open it from "Entry" in the
+          top menu, then "Purchase", then "Purchase Invoice"; or from a submitted
+          goods receipt's or purchase order's "Create ▾" button, "Purchase
+          Invoice (supplier's bill)", which fills in what was received and not
+          yet billed. "New purchase invoice" starts an empty one: pick the
+          "Supplier" and click "Get items".
+        </p>
+        <ul>
+          <li>
+            "Supplier's Bill": the "Supplier Invoice No" and "Supplier Invoice
+            Date" as printed on the bill, and the "Posting Date", which starts as
+            the bill date. Change the posting date only when you book a bill on
+            another day (a bill of 31 October entered on 2 November, say): it
+            decides the month the entries and the GST credit go into. The
+            "Credit Term" comes from the order; the due dates count from the
+            supplier's invoice date.
+          </li>
+          <li>
+            "Items" lists each receipt line still to bill ("To Bill"), at the
+            order's rate. Change "Bill Qty", "Bill Rate" or "GST %" to match the
+            bill; a line whose rate differs is shaded and says by how much.
+            "Remove" leaves a line for a later bill.
+          </li>
+          <li>
+            "Charges on the Bill" (freight, loading) come from the order. A
+            charge ticked "Already in Stock Cost" was added to the goods by the
+            receipt, so it only settles against it; an unticked one goes to the
+            charge's own expense ledger. "Add charge" adds another.
+          </li>
+          <li>
+            Type the bill's grand total in "Supplier's Bill Total". It shows
+            "✓ Matches our total", or our total and the difference. Submit is
+            refused until they match; a difference under one rupee goes to Round
+            Off. The same supplier invoice number cannot be entered twice for one
+            supplier in a year.
+          </li>
+          <li>
+            "Save" keeps a draft; "Entries on Submit" and "Due Dates" then show
+            what Submit will post. "Submit" gives the invoice its number and
+            posts it: the receipt's value comes out of "Goods Received but Bills
+            not Received", GST goes to "Input CGST", "Input SGST" or "Input
+            IGST" (made automatically under Duties &amp; Taxes), and the supplier
+            is credited with the due dates. If the bill's rate differs from the
+            receipt's, the difference goes into the cost of the stock still on
+            hand, and the part already used goes to "Purchase Price Difference".
+            No stock moves: the receipt brought the goods in.
+          </li>
+          <li>
+            The list shows "Submitted", "Drafts", "Cancelled", "All" and "Goods
+            received, not billed": the submitted receipts still waiting for a
+            bill, each with "Make Invoice". A first due date already past shows in
+            red.
+          </li>
+          <li>
+            "Cancel invoice" asks why, reverses the entries and makes the goods
+            "not billed" again. It is refused once stock it revalued has been
+            used since. A billed goods receipt cannot be cancelled until its
+            invoice is.
+          </li>
+          <li>
+            The "Attachments" box keeps the supplier's bill (PDF or photo) and any
+            other papers, on the draft and after Submit.
+          </li>
+          <li>
+            "Print ▾" prints the page or saves it as a PDF. "Scan e-invoice QR",
+            bills before the goods come, service bills without a receipt, TDS and
+            imports' bills come in later pieces of work.
+          </li>
+        </ul>
+        <Note>
+          Invoices are made and submitted by the Purchase role; cancelling needs
+          an Owner or a role with "cancel" for purchase. The posting date must
+          fall in an open month of a fiscal year.
         </Note>
       </>
     ),

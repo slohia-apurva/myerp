@@ -726,6 +726,12 @@ def packages_of(r: GoodsReceipt) -> list[dict]:
 
 
 def _cancel(r: GoodsReceipt, user, reason: str) -> None:
+    from buying.invoices import receipt_billed
+
+    if billed := receipt_billed(r):
+        raise ValidationError(
+            {"detail": f"This receipt is billed by {billed}; cancel the invoice first."}
+        )
     if r.status == GoodsReceipt.SUBMITTED:
         service.cancel(KIND, r.pk, user)
         Package.objects.filter(voucher_type=KIND, voucher_id=r.pk).update(

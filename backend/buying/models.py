@@ -293,6 +293,10 @@ class GoodsReceiptLine(models.Model):
     # Set on Submit: the rupee value posted (order rate + charges to stock).
     value = models.DecimalField(**MONEY, default=Decimal("0"))
     charges_value = models.DecimalField(**MONEY, default=Decimal("0"))
+    # What purchase invoices have billed of it so far, and the receipt value
+    # they took out of "Goods Received but Bills not Received".
+    billed_qty = models.DecimalField(**QTY, default=Decimal("0"))
+    billed_value = models.DecimalField(**MONEY, default=Decimal("0"))
 
     class Meta:
         ordering = ["position"]
@@ -375,3 +379,126 @@ class SupplierResponse(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_kind_display()} by {self.name}"
+
+
+class PurchaseInvoice(models.Model):
+    """The supplier's bill, entered against goods receipts (Sidharth,
+    2026-11-15, preview 67). Submit posts: the receipts' value out of "Goods
+    Received but Bills not Received", input GST, a rate difference into the
+    stock still on hand (else "Purchase Price Difference"), and the supplier
+    credited with its due dates. Saved as a draft first; never edited once
+    submitted (cancel and make a new one)."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="purchase_invoices")
+    supplier = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="purchase_invoices")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="purchase_invoices")
+    receipts = models.ManyToManyField(GoodsReceipt, related_name="invoices", blank=True)
+    number = models.CharField(max_length=30, blank=True)
+    bill_no = models.CharField(max_length=40, blank=True)  # the supplier's invoice number
+    bill_date = models.DateField(null=True, blank=True)
+    posting_date = models.DateField(null=True, blank=True)  # starts as the bill date
+    credit_term = models.ForeignKey(
+        CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # The grand total printed on the supplier's bill; Submit needs ours to match.
+    bill_total = models.DecimalField(**MONEY, null=True, blank=True)
+    interstate = models.BooleanField(default=False)
+    taxable_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    cgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    round_off = models.DecimalField(**MONEY, default=Decimal("0"))
+    total = models.DecimalField(**MONEY, default=Decimal("0"))
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-posting_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company", "number", condition=~models.Q(number=""), name="pinv_number_unique"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft purchase invoice {self.pk}"
+
+
+class PurchaseInvoiceLine(models.Model):
+    """One billed line: a quantity of a goods receipt line at the bill's rate."""
+
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    receipt_line = models.ForeignKey(
+        GoodsReceiptLine, on_delete=models.PROTECT, related_name="invoice_lines"
+    )
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+    rate = models.DecimalField(**QTY, validators=[MinValueValidator(0)])
+    taxable = models.DecimalField(**MONEY)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY)
+    # Set on Submit: the receipt value cleared, and the rate difference split
+    # between the stock still on hand and "Purchase Price Difference".
+    receipt_value = models.DecimalField(**MONEY, default=Decimal("0"))
+    stock_difference = models.DecimalField(**MONEY, default=Decimal("0"))
+    price_difference = models.DecimalField(**MONEY, default=Decimal("0"))
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item_id}: {self.qty} @ {self.rate}"
+
+
+class PurchaseInvoiceCharge(models.Model):
+    """A charge on the bill (freight, loading): a service item with its GST.
+    "In stock cost" charges were already added to the goods by the receipt,
+    so they only settle against it; the others go to the item's expense."""
+
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name="charges")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    amount = models.DecimalField(**MONEY, validators=[MinValueValidator(0)])
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    in_stock_cost = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item_id}: {self.amount}"
+
+
+class PurchaseInvoiceDue(models.Model):
+    """When the bill is to be paid: one row per part of the credit term."""
+
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name="dues")
+    position = models.PositiveSmallIntegerField()
+    due_date = models.DateField()
+    amount = models.DecimalField(**MONEY)
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.due_date}: {self.amount}"

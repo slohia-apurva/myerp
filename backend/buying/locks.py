@@ -4,6 +4,7 @@ draft is not yet an entry; a submitted order (even one cancelled later) is."""
 from buying.models import (
     GoodsReceipt,
     GoodsReceiptPutaway,
+    PurchaseInvoice,
     PurchaseOrder,
     PurchaseOrderCharge,
     PurchaseOrderLine,
@@ -57,3 +58,14 @@ locks.register(
         "goods receipt",
     ),
 )
+
+
+def _invoices(**where) -> str:
+    rows = PurchaseInvoice.objects.filter(**where).exclude(status=PurchaseInvoice.DRAFT)
+    return locks._count(rows.distinct(), "purchase invoice")
+
+
+locks.register("ledger", lambda ledger: _invoices(supplier=ledger))
+locks.register("branch", lambda branch: _invoices(branch=branch))
+locks.register("item", lambda item: _invoices(lines__item=item))
+locks.register("item", lambda item: _invoices(charges__item=item))

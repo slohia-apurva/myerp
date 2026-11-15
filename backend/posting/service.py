@@ -30,7 +30,7 @@ from rest_framework.exceptions import ValidationError
 
 from core import fiscal
 from core.models import Batch, Branch, Company, Item, Ledger, WarehouseLocation
-from posting.models import GLEntry, StockLot, StockLotUse, StockMove
+from posting.models import GLEntry, StockLot, StockLotUse, StockMove, StockRevaluation
 
 PAISA = Decimal("0.01")
 ZERO = Decimal("0")
@@ -72,6 +72,15 @@ class StockLine:
     rate: Decimal | None = None
     batch: Batch | None = None
     valued: bool = True
+
+
+@dataclass
+class Revalue:
+    """Change the value of what is left of a lot, with no change in quantity
+    (a bill at a different rate than the receipt). `value` is signed rupees."""
+
+    lot: StockLot
+    value: Decimal
 
 
 @dataclass
@@ -279,6 +288,7 @@ def post(
     voucher: Voucher,
     stock: Sequence[StockLine] = (),
     gl: Sequence[GLLine] | Callable[[list[Decimal]], Sequence[GLLine]] = (),
+    revalue: Sequence[Revalue] = (),
 ) -> Posted:
     """Write a submitted document's stock moves and GL entries. Call it inside
     the document's `tenant_atomic()` so a refusal leaves nothing behind."""
@@ -294,6 +304,7 @@ def post(
         move, value = (_receive if line.qty > 0 else _issue)(voucher, line, common)
         out.stock.append(move)
         out.stock_values.append(value)
+    revalued = [_revalue(voucher, r, common) for r in revalue if money(r.value)]
     lines = _check_gl(voucher, gl(out.stock_values) if callable(gl) else gl)
     out.gl = GLEntry.objects.bulk_create(
         [
@@ -310,9 +321,33 @@ def post(
             for x in lines
         ]
     )
-    if not out.gl and not out.stock:
+    if not out.gl and not out.stock and not revalued:
         _refuse(f"{voucher.number} has nothing to post.")
     return out
+
+
+def _revalue(voucher: Voucher, r: Revalue, common: dict) -> StockRevaluation:
+    lot = StockLot.objects.select_for_update().get(pk=r.lot.pk)
+    value = money(r.value)
+    if lot.company_id != voucher.company.pk or lot.branch_id != voucher.branch.pk:
+        _refuse("Stock of another branch cannot be revalued here.")
+    if lot.qty_left <= 0:
+        _refuse(f"No stock is left in the lot of {lot.item} to revalue.")
+    if lot.value_left + value < 0:
+        _refuse(f"The stock of {lot.item} cannot be valued below nil.")
+    lot.value_left += value
+    lot.rate = (lot.value_left / lot.qty_left).quantize(Decimal("0.000001"))
+    lot.save(update_fields=["value_left", "rate"])
+    return StockRevaluation.objects.create(
+        company=voucher.company,
+        branch=voucher.branch,
+        item_id=lot.item_id,
+        lot=lot,
+        date=voucher.date,
+        value=value,
+        qty_left=lot.qty_left,
+        **common,
+    )
 
 
 def cancel(voucher_type: str, voucher_id: int, user=None) -> None:
@@ -359,6 +394,30 @@ def cancel(voucher_type: str, voucher_id: int, user=None) -> None:
                 lot.qty_left += use.qty
                 lot.value_left += use.value
                 lot.save(update_fields=["qty_left", "value_left"])
+    revalued = StockRevaluation.objects.filter(
+        voucher_type=voucher_type, voucher_id=voucher_id, is_reversal=False
+    )
+    for rv in revalued:
+        lot = StockLot.objects.select_for_update().get(pk=rv.lot_id)
+        if lot.qty_left != rv.qty_left:
+            _refuse(
+                f"{lot.item} revalued by {rv.voucher_no} has since been issued; "
+                "cancel those entries first."
+            )
+        lot.value_left -= rv.value
+        if lot.qty_left:
+            lot.rate = (lot.value_left / lot.qty_left).quantize(Decimal("0.000001"))
+        lot.save(update_fields=["value_left", "rate"])
+        StockRevaluation.objects.create(
+            company=rv.company,
+            branch=rv.branch,
+            item=rv.item,
+            lot=lot,
+            date=rv.date,
+            value=-rv.value,
+            qty_left=lot.qty_left,
+            **common,
+        )
     StockMove.objects.bulk_create(
         [
             StockMove(
@@ -413,4 +472,11 @@ def stock_value(company: Company, item: Item | None = None, branch: Branch | Non
         rows = rows.filter(item=item)
     if branch is not None:
         rows = rows.filter(branch=branch)
-    return rows.aggregate(v=Sum("value"))["v"] or ZERO
+    revalued = StockRevaluation.objects.filter(company=company)
+    if item is not None:
+        revalued = revalued.filter(item=item)
+    if branch is not None:
+        revalued = revalued.filter(branch=branch)
+    return (rows.aggregate(v=Sum("value"))["v"] or ZERO) + (
+        revalued.aggregate(v=Sum("value"))["v"] or ZERO
+    )

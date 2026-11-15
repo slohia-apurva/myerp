@@ -138,3 +138,29 @@ class StockLotUse(models.Model):
 
     def __str__(self) -> str:
         return f"{self.qty} of lot {self.lot_id}"
+
+
+class StockRevaluation(VoucherRef):
+    """A change in the value of stock already received, with no change in its
+    quantity: the supplier billed a different rate than the goods receipt
+    took (rule 11). It changes the lot's value left, so later issues cost the
+    corrected rate. `qty_left` is the lot's quantity when it was written; a
+    cancel is refused once the lot has been issued since."""
+
+    company = models.ForeignKey("core.Company", on_delete=models.PROTECT, related_name="+")
+    branch = models.ForeignKey("core.Branch", on_delete=models.PROTECT, related_name="+")
+    item = models.ForeignKey("core.Item", on_delete=models.PROTECT, related_name="+")
+    lot = models.ForeignKey(StockLot, on_delete=models.PROTECT, related_name="revaluations")
+    date = models.DateField()
+    value = models.DecimalField(max_digits=18, decimal_places=2)
+    qty_left = models.DecimalField(max_digits=18, decimal_places=6)
+
+    class Meta:
+        ordering = ["date", "id"]
+        indexes = [models.Index(fields=["voucher_type", "voucher_id"])]
+        constraints = [
+            models.CheckConstraint(condition=~Q(value=0), name="stock_revaluation_not_zero"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.voucher_no}: lot {self.lot_id} {self.value}"
