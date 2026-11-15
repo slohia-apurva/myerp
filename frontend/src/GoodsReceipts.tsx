@@ -23,6 +23,26 @@ type Putaway = {
   mfg_date: string | null;
   expiry_date: string | null;
   qty: string;
+  packages: number | null;
+  package_type: string;
+  package_type_label: string;
+  package_qty: string | null;
+};
+type PackageRow = {
+  id: number;
+  number: string;
+  kind_label: string;
+  item_name: string;
+  item_number: string;
+  batch: string;
+  location_name: string;
+  qty: string;
+  left_qty: string;
+  unit_name: string;
+  status: string;
+  status_label: string;
+  position: number;
+  of_count: number;
 };
 type LineInfo = {
   order_line: number;
@@ -82,6 +102,7 @@ export type GoodsReceipt = {
   submitted_at: string | null;
   submitted_by_name: string;
   lines?: ReceiptLine[];
+  packages?: PackageRow[];
 };
 type PendingLine = LineInfo & { pending: string };
 type PendingOrder = {
@@ -102,6 +123,7 @@ type Setup = {
   transporters: { id: number; name: string }[];
   users: { id: number; name: string }[];
   suppliers: { id: number; name: string }[];
+  package_types: [string, string][];
   can_submit: boolean;
   can_cancel: boolean;
   can_create: boolean;
@@ -376,7 +398,19 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
 
 /** A part of a line's accepted quantity: its bin or area and batch. `batch` is
  * "b<id>" for a batch in the master, "n<number>" for a new one typed here, "" for none. */
-type PutDraft = { key: number; location: string; batch: string; mfg: string; expiry: string; qty: string };
+type PutDraft = { key: number; location: string; batch: string; mfg: string; expiry: string; qty: string; pkgs: string; pkgType: string; pkgQty: string };
+/** Packages × Qty per Package gives the quantity (5 bags of 20 = 100). */
+const packed = (p: PutDraft) => !!(num(p.pkgs) && num(p.pkgQty));
+const withPack = (p: PutDraft, patch: Partial<PutDraft>): PutDraft => {
+  const next = { ...p, ...patch };
+  return packed(next) ? { ...next, qty: qty(round6(num(next.pkgs) * num(next.pkgQty))) } : next;
+};
+/** A quantity in whole packages of the usual size, else no package count. */
+const fitPacks = (p: PutDraft, total: number): PutDraft => {
+  const each = num(p.pkgQty);
+  const n = each ? total / each : 0;
+  return { ...p, qty: total ? qty(round6(total)) : "", pkgs: n && Number.isInteger(round6(n)) ? String(round6(n)) : "" };
+};
 type LineDraft = { key: number; info: LineInfo; received: string; rejected: string; puts: PutDraft[] };
 let nextKey = 1;
 const num = (v: string) => Number(v) || 0;
@@ -437,6 +471,9 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
         mfg: p.new_batch ? (p.mfg_date ?? "") : "",
         expiry: p.new_batch ? (p.expiry_date ?? "") : "",
         qty: qty(p.qty),
+        pkgs: p.packages ? String(p.packages) : "",
+        pkgType: p.package_type,
+        pkgQty: p.package_qty ? qty(p.package_qty) : "",
       })),
     })),
   );
@@ -478,7 +515,12 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
       info: l,
       received: open ? qty(open) : "",
       rejected: "",
-      puts: [{ key: nextKey++, location: defaultPlace ? String(defaultPlace.id) : "", batch: "", mfg: "", expiry: "", qty: open ? qty(open) : "" }],
+      puts: [
+        fitPacks(
+          { key: nextKey++, location: defaultPlace ? String(defaultPlace.id) : "", batch: "", mfg: "", expiry: "", qty: "", pkgs: "", pkgType: "", pkgQty: "" },
+          open,
+        ),
+      ],
     };
   };
   const offered = pending.filter((o) => !branch || String(o.branch) === branch);
@@ -512,21 +554,27 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
   };
   const changeLine = (key: number, patch: Partial<LineDraft>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const changePut = (line: LineDraft, key: number, patch: Partial<PutDraft>) =>
-    changeLine(line.key, { puts: line.puts.map((p) => (p.key === key ? { ...p, ...patch } : p)) });
+    changeLine(line.key, { puts: line.puts.map((p) => (p.key === key ? withPack(p, patch) : p)) });
   const setReceived = (l: LineDraft, received: string) => {
     // A single bin follows the accepted quantity until the person splits it.
     const acc = Math.max(num(received) - num(l.rejected), 0);
-    changeLine(l.key, { received, puts: l.puts.length === 1 ? [{ ...l.puts[0], qty: acc ? qty(round6(acc)) : "" }] : l.puts });
+    changeLine(l.key, { received, puts: l.puts.length === 1 ? [fitPacks(l.puts[0], round6(acc))] : l.puts });
   };
   const setRejected = (l: LineDraft, rejected: string) => {
     const acc = Math.max(num(l.received) - num(rejected), 0);
-    changeLine(l.key, { rejected, puts: l.puts.length === 1 ? [{ ...l.puts[0], qty: acc ? qty(round6(acc)) : "" }] : l.puts });
+    changeLine(l.key, { rejected, puts: l.puts.length === 1 ? [fitPacks(l.puts[0], round6(acc))] : l.puts });
   };
   const addPut = (l: LineDraft) => {
     const rest = round6(accepted(l) - putTotal(l));
     const last = l.puts[l.puts.length - 1];
     changeLine(l.key, {
-      puts: [...l.puts, { key: nextKey++, location: "", batch: last?.batch ?? "", mfg: last?.mfg ?? "", expiry: last?.expiry ?? "", qty: rest > 0 ? qty(rest) : "" }],
+      puts: [
+        ...l.puts,
+        fitPacks(
+          { key: nextKey++, location: "", batch: last?.batch ?? "", mfg: last?.mfg ?? "", expiry: last?.expiry ?? "", qty: "", pkgs: "", pkgType: last?.pkgType ?? "", pkgQty: last?.pkgQty ?? "" },
+          rest > 0 ? rest : 0,
+        ),
+      ],
     });
   };
 
@@ -577,6 +625,9 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
             mfg_date: p.batch.startsWith("n") && p.mfg ? p.mfg : null,
             expiry_date: p.batch.startsWith("n") && p.expiry ? p.expiry : null,
             qty: p.qty || "0",
+            packages: packed(p) ? Number(p.pkgs) : null,
+            package_type: packed(p) ? p.pkgType : "",
+            package_qty: packed(p) ? p.pkgQty : null,
           })),
       })),
       submit,
@@ -793,6 +844,7 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
                               line={l}
                               places={places}
                               batches={batches[l.info.item] ?? []}
+                              packageTypes={setup?.package_types ?? []}
                               onChange={(key, patch) => changePut(l, key, patch)}
                               onAdd={() => addPut(l)}
                               onRemove={(key) => changeLine(l.key, { puts: l.puts.filter((p) => p.key !== key) })}
@@ -873,6 +925,7 @@ function PutawayBox(props: {
   line: LineDraft;
   places: Place[];
   batches: BatchRow[];
+  packageTypes: [string, string][];
   onChange: (key: number, patch: Partial<PutDraft>) => void;
   onAdd: () => void;
   onRemove: (key: number) => void;
@@ -888,10 +941,14 @@ function PutawayBox(props: {
   ];
   const placeOptions = props.places.map((p) => ({ value: String(p.id), label: p.name, hint: p.kind === "area" ? "Area" : "Bin" }));
   const ok = Math.abs(done - acc) < 1e-9;
+  const typeOptions = props.packageTypes.map(([value, label]) => ({ value, label }));
+  const count = l.puts.reduce((s, p) => s + (packed(p) ? num(p.pkgs) : 0), 0);
+  const kinds = new Set(l.puts.filter(packed).map((p) => p.pkgType));
+  const kindName = kinds.size === 1 ? (props.packageTypes.find(([v]) => kinds.has(v))?.[1] ?? "package").toLowerCase() : "package";
   return (
     <div className="grn-put">
       <div className="grn-put-head">
-        <b>Put away into bins</b> <span className="small-inline">· split the accepted quantity across bins{l.info.batch_tracked ? " and batches" : ""}</span>
+        <b>Put away into bins</b> <span className="small-inline">· split the accepted quantity across bins{l.info.batch_tracked ? ", batches" : ""} and packages</span>
       </div>
       <table className="grid">
         <thead>
@@ -904,6 +961,9 @@ function PutawayBox(props: {
                 <th>Expiry</th>
               </>
             )}
+            <th className="num">Packages</th>
+            <th>Package Type</th>
+            <th className="num">Qty per Package</th>
             <th className="num">Qty ({unit})</th>
             <th />
           </tr>
@@ -940,8 +1000,21 @@ function PutawayBox(props: {
                     </td>
                   </>
                 )}
+                <td className="num grn-pk-n">
+                  <input inputMode="numeric" aria-label={`Packages ${n + 1}`} value={p.pkgs} placeholder="Loose" onChange={(e) => props.onChange(p.key, { pkgs: e.target.value.replace(/\D/g, "") })} />
+                </td>
+                <td className="grn-pk-type">
+                  <Combobox value={p.pkgType} onChange={(v) => props.onChange(p.key, { pkgType: v })} ariaLabel={`Package type ${n + 1}`} empty="None" options={typeOptions} />
+                </td>
                 <td className="num">
-                  <input inputMode="decimal" aria-label={`Qty ${n + 1}`} value={p.qty} onChange={(e) => props.onChange(p.key, { qty: e.target.value })} />
+                  <input inputMode="decimal" aria-label={`Qty per package ${n + 1}`} value={p.pkgQty} onChange={(e) => props.onChange(p.key, { pkgQty: e.target.value })} />
+                </td>
+                <td className="num">
+                  {packed(p) ? (
+                    <b>{p.qty}</b>
+                  ) : (
+                    <input inputMode="decimal" aria-label={`Qty ${n + 1}`} value={p.qty} onChange={(e) => props.onChange(p.key, { qty: e.target.value })} />
+                  )}
                 </td>
                 <td>
                   {l.puts.length > 1 && (
@@ -962,9 +1035,59 @@ function PutawayBox(props: {
         <span className={ok ? "ok-note" : "warn"}>
           {ok ? "✓ " : ""}
           {qty(round6(done))} of {qty(round6(acc))} {unit} put away
+          {count > 0 && ` · ${count} ${kindName}${count === 1 ? "" : "s"}`}
         </span>
       </div>
     </div>
+  );
+}
+
+/** After Submit every bag or box has its own number, for stickers and tracing (Sidharth, 2026-11-15). */
+function PackagesBox({ rows }: { rows: PackageRow[] }) {
+  const kinds = new Set(rows.map((k) => k.kind_label));
+  const name = kinds.size === 1 ? [...kinds][0].toLowerCase() : "package";
+  const units = new Set(rows.map((k) => k.unit_name));
+  const total = rows.reduce((s, k) => s + Number(k.qty), 0);
+  return (
+    <Fold title="Packages" open summary={`${rows.length} ${name}${rows.length === 1 ? "" : "s"}${units.size === 1 ? ` · ${qty(round6(total))} ${[...units][0]}` : ""}`}>
+      <div className="table-scroll">
+        <table className="grid grn-packages">
+          <thead>
+            <tr>
+              <th>Package No</th>
+              <th>Type</th>
+              <th>Item</th>
+              <th>Batch</th>
+              <th>Bin</th>
+              <th className="num">Received</th>
+              <th className="num">Left</th>
+              <th>Unit</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((k) => (
+              <tr key={k.id}>
+                <td>
+                  <b>{k.number}</b> <span className="small-inline">{k.position} of {k.of_count}</span>
+                </td>
+                <td>{k.kind_label}</td>
+                <td>{k.item_name}</td>
+                <td>{k.batch}</td>
+                <td>{k.location_name}</td>
+                <td className="num">{qty(k.qty)}</td>
+                <td className="num">{qty(k.left_qty)}</td>
+                <td>{k.unit_name}</td>
+                <td>
+                  <span className={k.status === "in_stock" ? "pill on" : "pill"}>{k.status_label}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="small">Each bag or box has its own number, which a sticker and barcode will carry later. When stock is issued, the bags taken will be picked by these numbers.</p>
+    </Fold>
   );
 }
 
@@ -1160,6 +1283,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
                                       <th>Expiry</th>
                                     </>
                                   )}
+                                  <th>Packages</th>
                                   <th className="num">Qty ({l.unit_name})</th>
                                 </tr>
                               </thead>
@@ -1176,6 +1300,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
                                         <td>{shortDate(p.expiry_date)}</td>
                                       </>
                                     )}
+                                    <td>{p.packages ? `${p.packages} ${p.package_type_label}${p.packages === 1 ? "" : "s"} of ${qty(p.package_qty ?? 0)} ${l.unit_name}` : "Loose"}</td>
                                     <td className="num">{qty(p.qty)}</td>
                                   </tr>
                                 ))}
@@ -1198,6 +1323,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
               </table>
             </div>
           </Fold>
+          {!!r.packages?.length && <PackagesBox rows={r.packages} />}
           {(r.qc_cartons || r.qc_batch_print || r.qc_by_name) && (
             <Fold title="Quality Check" open>
               <dl className="kv">

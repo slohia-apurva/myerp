@@ -265,3 +265,47 @@ def test_a_missing_stock_ledger_stops_the_submit(store, grn, alpha):
     assert res.status_code == 400 and 'Set the "Stock Ledger"' in str(res.json())
     with use_tenant(alpha):
         assert not GoodsReceipt.objects.filter(status="submitted").exists()
+
+
+def test_bags_in_bins_get_their_own_numbers_on_submit(store, grn, alpha):
+    """Sidharth's example: 5 bags of 20 in one bin, 1 bag of 10 in another."""
+    puts = [
+        {"location": grn["bin1"], "batch_number": "DTT-9", "qty": "0",
+         "packages": 5, "package_type": "bag", "package_qty": "20"},
+        {"location": grn["bin2"], "batch_number": "DTT-9", "qty": "0",
+         "packages": 1, "package_type": "bag", "package_qty": "10"},
+    ]  # fmt: skip
+    draft = call(store, "post", url(grn), receipt(grn, [tea_line(grn, "110", puts=puts)])).json()
+    first = draft["lines"][0]["putaways"][0]
+    assert (first["qty"], first["packages"], first["package_type_label"]) == (
+        "100.000000",
+        5,
+        "Bag",
+    )
+    assert draft["packages"] == []  # numbers come on Submit
+    done = call(store, "post", f"goods-receipts/{draft['id']}/submit/").json()
+    bags = done["packages"]
+    assert [b["number"] for b in bags] == [f"PK-{n:06d}" for n in range(1, 7)]
+    assert [(b["location_name"], b["qty"]) for b in bags[4:]] == [
+        ("F01 / A-02", "20.000000"),
+        ("F01 / A-06", "10.000000"),
+    ]
+    assert (bags[5]["batch"], bags[5]["position"], bags[5]["of_count"]) == ("DTT-9", 6, 6)
+    assert {b["status_label"] for b in bags} == {"In stock"}
+
+    # The next receipt carries on the numbers; a cancelled one keeps its bags as "Cancelled".
+    more = [{"location": grn["bin1"], "batch_number": "DTT-9", "qty": "0",
+             "packages": 2, "package_type": "bag", "package_qty": "20"}]  # fmt: skip
+    second = call(
+        store, "post", url(grn), receipt(grn, [tea_line(grn, "40", puts=more)], submit=True)
+    )
+    assert [b["number"] for b in second.json()["packages"]] == ["PK-000007", "PK-000008"]
+    boss = client_for(alpha, "boss@x.in", "owner")
+    gone = call(boss, "post", f"goods-receipts/{second.json()['id']}/cancel/", {"reason": "Wrong"})
+    assert {b["status_label"] for b in gone.json()["packages"]} == {"Cancelled"}
+
+
+def test_packages_need_all_three_figures(store, grn):
+    puts = [{"location": grn["bin1"], "batch_number": "B1", "qty": "600", "packages": 5}]
+    res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=puts)]))
+    assert "number of packages, the package and the quantity in each" in str(res.json())
