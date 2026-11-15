@@ -324,6 +324,10 @@ export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClo
           <span className="fact-label">The Mail (the text box can be changed)</span>
           <p>Dear {greeting},</p>
           <textarea rows={5} value={message} onChange={(e) => setMessage(e.target.value)} aria-label="Message" />
+          <p>
+            <span className="mail-button">View and Accept Order</span>
+          </p>
+          <p className="small">The supplier's private link is added here: they can accept the order or report an issue without signing in.</p>
           <p className="pre">Regards,{"\n" + draft.signature}</p>
         </div>
       </div>

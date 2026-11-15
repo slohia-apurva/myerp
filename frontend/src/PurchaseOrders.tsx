@@ -109,8 +109,18 @@ export type PurchaseOrder = {
   cancel_reason: string;
   created_by_name: string;
   line_count: number;
+  supplier_status: string;
+  supplier_status_label: string;
+  supplier_response?: SupplierResponse;
   lines?: Line[];
   charges?: Charge[];
+};
+/** What the supplier said through the link in the mailed order. */
+type SupplierResponse = {
+  status: string;
+  status_label: string;
+  dispatch_date: string | null;
+  rows: { kind: string; at: string; to?: string; by?: string; opened_at?: string | null; name?: string; dispatch_date?: string | null; comment?: string }[];
 };
 /** An address as the order shows and prints it. */
 export type Place = {
@@ -269,7 +279,9 @@ const COLUMNS: [key: string, label: string, text: (o: PurchaseOrder) => string, 
   ["ref", "Supplier Ref", (o) => o.supplier_ref],
   ["total", "Amount ₹", (o) => `${o.total} ${money(o.total)}`, true],
   ["status", "Status", (o) => o.status_label],
+  ["reply", "Supplier Reply", (o) => o.supplier_status_label],
 ];
+const replyClass = (s: string) => (s === "accepted" ? "pill on" : s === "issue" ? "pill warn" : "pill");
 
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
   const canCreate = session.permissions.includes("purchase.create");
@@ -395,6 +407,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                   <td>
                     <span className={pillClass(o.status)}>{o.status_label}</span>
                   </td>
+                  <td>{o.number && o.status !== "cancelled" && <span className={replyClass(o.supplier_status)}>{o.supplier_status_label}</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -403,6 +416,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                 <tr>
                   <td colSpan={6}>Total</td>
                   <td className="num">{money(total)}</td>
+                  <td />
                   <td />
                 </tr>
               </tfoot>
@@ -1808,6 +1822,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           {!draft && order.status !== "cancelled" && (order.lines ?? []).some((l) => l.stock) && (
             <ReceivedBox order={order} canClose={can("submit")} onDone={(o) => setOrder(o)} />
           )}
+          {!!order.supplier_response?.rows.length && <SupplierReplies box={order.supplier_response} />}
           {!!order.charges?.length && <ChargesView order={order} />}
           {(order.terms || order.notes) && (
             <Fold title="Terms and Notes" open>
@@ -2252,6 +2267,39 @@ function ReceivedBox({ order, canClose, onDone }: { order: PurchaseOrder; canClo
             })}
           </tbody>
         </table>
+      </div>
+    </Fold>
+  );
+}
+
+/** "Supplier Response": each mailing of the order and what the supplier said
+ * through its link (Accept Order, Report an Issue, comments). */
+function SupplierReplies({ box }: { box: SupplierResponse }) {
+  const when = (iso: string) => {
+    const d = new Date(iso);
+    const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
+    return `${shortDate(iso.slice(0, 10))} ${time}`;
+  };
+  const tag = box.status === "accepted" && box.dispatch_date ? `Accepted · dispatch ${shortDate(box.dispatch_date)}` : box.status_label;
+  return (
+    <Fold title="Supplier Response" open summary={tag}>
+      <div className="replies">
+        {box.rows.map((r, i) => (
+          <div key={i} className={`reply ${r.kind}`}>
+            {r.kind === "mailed" ? (
+              <>
+                <b>Mailed</b> to {r.to} by {r.by} · {when(r.at)}
+                <span className="small"> · {r.opened_at ? `link opened ${when(r.opened_at)}` : "link not opened yet"}</span>
+              </>
+            ) : (
+              <>
+                <b>{r.kind === "accepted" ? "Accepted" : r.kind === "issue" ? "Issue" : "Comment"}</b> {r.kind === "accepted" ? "by" : "from"} {r.name} · {when(r.at)}
+                {r.dispatch_date && ` · dispatch expected ${shortDate(r.dispatch_date)}`}
+                {r.comment && <div className="pre">"{r.comment}"</div>}
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </Fold>
   );

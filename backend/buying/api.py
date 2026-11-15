@@ -384,6 +384,8 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "created_by_email": o.created_by.email if o.created_by else "",
         "created_by_phone": o.created_by.phone if o.created_by else "",
         "line_count": len(o.lines.all()),
+        "supplier_status": o.supplier_status,
+        "supplier_status_label": o.get_supplier_status_display(),
     }
     if lines:
         data["lines"] = [_line_out(ln) for ln in o.lines.all()]
@@ -404,6 +406,9 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         data["letterhead"] = _letterhead(o.company)
         name = Currency.objects.filter(code=o.currency).values_list("name", flat=True).first()
         data["amount_words"] = words.amount(o.total, o.currency, name or "")
+        from buying.supplier_link import response_box
+
+        data["supplier_response"] = response_box(o)
     return data
 
 
