@@ -300,6 +300,10 @@ class GoodsReceiptPutaway(models.Model):
     mfg_date = models.DateField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
     qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+    # How it came packed: 5 bags of 20 (qty is then 100). Blank for loose goods.
+    packages = models.PositiveIntegerField(null=True, blank=True)
+    package_type = models.CharField(max_length=10, blank=True)
+    package_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
 
     class Meta:
         ordering = ["position"]

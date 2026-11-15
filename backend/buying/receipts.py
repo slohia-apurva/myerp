@@ -12,7 +12,7 @@ import datetime
 from collections import defaultdict
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -33,7 +33,17 @@ from core import numbering
 from core.api import Signed
 from core.batches import save_batch
 from core.companies import visible_companies
-from core.models import Batch, Branch, Item, ItemUnit, Ledger, WarehouseLocation
+from core.models import (
+    PACKAGE_TYPES,
+    Batch,
+    Branch,
+    Company,
+    Item,
+    ItemUnit,
+    Ledger,
+    Package,
+    WarehouseLocation,
+)
 from core.notifications import notify, people_with_roles
 from posting import accounts, service
 from posting.service import GLLine, StockLine, Voucher, money
@@ -41,6 +51,7 @@ from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
 
 ZERO = Decimal("0")
+PACKAGE_LABELS = dict(PACKAGE_TYPES)
 KIND = "goods_receipt"
 VIEW, CREATE, SUBMIT, CANCEL = "view", "create", "submit", "cancel"
 
@@ -111,6 +122,10 @@ def _putaway_out(p: GoodsReceiptPutaway) -> dict:
         "mfg_date": p.batch.mfg_date if p.batch_id else p.mfg_date,
         "expiry_date": p.batch.expiry_date if p.batch_id else p.expiry_date,
         "qty": p.qty,
+        "packages": p.packages,
+        "package_type": p.package_type,
+        "package_type_label": PACKAGE_LABELS.get(p.package_type, ""),
+        "package_qty": p.package_qty,
     }
 
 
@@ -137,6 +152,7 @@ def _line_out(ln: GoodsReceiptLine) -> dict:
         "value": ln.value,
         "charges_value": ln.charges_value,
         "putaways": [_putaway_out(p) for p in ln.putaways.all()],
+        **_usual_pack(ln.item, ln.unit_id),
     }
 
 
@@ -178,11 +194,21 @@ def _receipt_out(r: GoodsReceipt, lines: bool = True) -> dict:
     }
     if lines:
         out["lines"] = [_line_out(ln) for ln in r.lines.all()]
+        out["packages"] = packages_of(r) if r.status != GoodsReceipt.DRAFT else []
     return out
 
 
 def _fresh(r: GoodsReceipt) -> dict:
     return _text(_receipt_out(_receipts(r.company).get(pk=r.pk)))
+
+
+def _usual_pack(item: Item, unit_id: int) -> dict:
+    """The item's usual packing, when the line is in its stock unit."""
+    same = unit_id == item.stock_unit_id and item.pack_qty
+    return {
+        "pack_type": item.pack_type if same else "",
+        "pack_qty": item.pack_qty if same else None,
+    }
 
 
 def pending_lines(order: PurchaseOrder) -> list[dict]:
@@ -208,6 +234,7 @@ def pending_lines(order: PurchaseOrder) -> list[dict]:
                 "ordered": ol.qty,
                 "earlier": ol.received_qty,
                 "pending": max(ol.qty - ol.received_qty, ZERO),
+                **_usual_pack(ol.item, ol.unit_id),
             }
         )
     return out
@@ -223,6 +250,11 @@ class PutawaySerializer(serializers.Serializer):
     mfg_date = serializers.DateField(required=False, allow_null=True)
     expiry_date = serializers.DateField(required=False, allow_null=True)
     qty = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=Decimal("0"))
+    packages = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    package_type = serializers.CharField(required=False, allow_blank=True, max_length=10)
+    package_qty = serializers.DecimalField(
+        max_digits=18, decimal_places=6, required=False, allow_null=True, min_value=Decimal("0")
+    )
 
 
 class LineSerializer(serializers.Serializer):
@@ -373,6 +405,17 @@ def _save(r: GoodsReceipt, data: dict) -> None:
                         f"Line {n}: that batch is not a batch of {ol.item}."
                     )
                     continue
+            count, kind, each = p.get("packages"), p.get("package_type") or "", p.get("package_qty")
+            if count or kind or each:
+                if not (count and kind in PACKAGE_LABELS and each):
+                    errors.setdefault("lines", []).append(
+                        f"Line {n}: give the number of packages, the package and the "
+                        "quantity in each, or leave all three blank."
+                    )
+                    continue
+                p["qty"] = count * each
+            else:
+                count, kind, each = None, "", None
             number = " ".join((p.get("batch_number") or "").split())
             if batch is None and number:
                 batch = Batch.objects.filter(item=ol.item, number__iexact=number).first()
@@ -385,6 +428,9 @@ def _save(r: GoodsReceipt, data: dict) -> None:
                 mfg_date=None if batch else p.get("mfg_date"),
                 expiry_date=None if batch else p.get("expiry_date"),
                 qty=p["qty"],
+                packages=count,
+                package_type=kind,
+                package_qty=each,
             )
     if errors:
         raise ValidationError(errors)
@@ -585,6 +631,7 @@ def _submit(r: GoodsReceipt, user) -> None:
         ol = PurchaseOrderLine.objects.select_for_update().get(pk=ln.order_line_id)
         ol.received_qty += ln.accepted_qty
         ol.save(update_fields=["received_qty"])
+    _make_packages(r, lines)
     r.stock_value = sum(line_values.values(), ZERO)
     r.status = GoodsReceipt.SUBMITTED
     r.submitted_at = timezone.now()
@@ -595,9 +642,74 @@ def _submit(r: GoodsReceipt, user) -> None:
     _over_receipts(r, user)
 
 
+def _make_packages(r: GoodsReceipt, lines: list[GoodsReceiptLine]) -> None:
+    """Each bag or box put away gets its own number, PK-000241 and on, running
+    per company (Sidharth, 2026-11-15)."""
+    puts = [(ln, p) for ln in lines if ln.accepted_qty > 0 for p in ln.putaways.all() if p.packages]
+    if not puts:
+        return
+    Company.objects.select_for_update().get(pk=r.company_id)  # one numberer at a time
+    seq = Package.objects.filter(company=r.company).aggregate(m=Max("seq"))["m"] or 0
+    total = sum(p.packages for _, p in puts)
+    made, n = [], 0
+    for ln, p in puts:
+        each = p.package_qty * _factor(ln.item, ln.unit_id)
+        for _ in range(p.packages):
+            seq += 1
+            n += 1
+            made.append(
+                Package(
+                    company=r.company,
+                    seq=seq,
+                    number=f"PK-{seq:06d}",
+                    kind=p.package_type,
+                    item=ln.item,
+                    batch=p.batch,
+                    location=p.location,
+                    qty=each,
+                    left_qty=each,
+                    voucher_type=KIND,
+                    voucher_id=r.pk,
+                    voucher_number=r.number,
+                    position=n,
+                    of_count=total,
+                )
+            )
+    Package.objects.bulk_create(made)
+
+
+def packages_of(r: GoodsReceipt) -> list[dict]:
+    rows = Package.objects.filter(voucher_type=KIND, voucher_id=r.pk).select_related(
+        "item", "batch", "location__parent", "item__stock_unit"
+    )
+    return [
+        {
+            "id": k.id,
+            "number": k.number,
+            "kind": k.kind,
+            "kind_label": k.get_kind_display(),
+            "item_name": k.item.name,
+            "item_number": k.item.item_number,
+            "batch": k.batch.number if k.batch_id else "",
+            "location_name": str(k.location),
+            "qty": k.qty,
+            "left_qty": k.left_qty,
+            "unit_name": k.item.stock_unit.short_name,
+            "status": k.status,
+            "status_label": k.get_status_display(),
+            "position": k.position,
+            "of_count": k.of_count,
+        }
+        for k in rows
+    ]
+
+
 def _cancel(r: GoodsReceipt, user, reason: str) -> None:
     if r.status == GoodsReceipt.SUBMITTED:
         service.cancel(KIND, r.pk, user)
+        Package.objects.filter(voucher_type=KIND, voucher_id=r.pk).update(
+            status=Package.CANCELLED, left_qty=ZERO
+        )
         for ln in r.lines.all():
             ol = PurchaseOrderLine.objects.select_for_update().get(pk=ln.order_line_id)
             ol.received_qty -= ln.accepted_qty
@@ -798,6 +910,7 @@ class ReceiptSetupView(APIView):
                     .distinct()
                     .order_by("name")
                 ],
+                "package_types": PACKAGE_TYPES,
                 "can_submit": can(request.user, SUBMIT),
                 "can_cancel": can(request.user, CANCEL),
                 "can_create": can(request.user, CREATE),

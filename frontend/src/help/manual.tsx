@@ -687,8 +687,11 @@ export const MANUAL: Chapter[] = [
             what a material request for the item starts as, and can be left
             "Not set"). In the "Switches" box tick "Track batches"
             if you must follow batch numbers, and tick "Quality check on
-            receipt" if goods must be checked when they arrive. On every tab a
-            red * marks a field that must be filled in.
+            receipt" if goods must be checked when they arrive. "Usually
+            Packed In" and "Qty per Package" say how the item normally comes,
+            for example a Bag of 20 (in the default unit); goods receipts fill
+            in their packages from it. On every tab a red * marks a field that
+            must be filled in.
           </li>
           <li>
             In the "Units Of Measure" section, each unit the item is bought,
@@ -2284,6 +2287,16 @@ export const MANUAL: Chapter[] = [
             line says "600 of 600 Kg put away" once it all has a place.
           </li>
           <li>
+            If the goods came in bags, boxes or drums, say so on each bin row:
+            "Packages" (how many), "Package Type" ("Bag") and "Qty per
+            Package". The quantity is then worked out: 5 bags of 20 Kg in bin
+            B1 make 100 Kg. Bags of another size, or in another bin, take a row
+            of their own ("+ Add bin"), for example 1 bag of 10 Kg in bin B2;
+            the line then says "110 of 110 Kg put away · 6 bags". The item's
+            usual packing (on the item's "Stock And Quality" box) fills these
+            in. Leave "Packages" blank for loose goods.
+          </li>
+          <li>
             "Batch No" lists the item's batches. For a new batch, type its
             number and pick 'New batch "…"', then give its "Mfg Date" and
             "Expiry" (leave Expiry blank to have it worked out from the item's
@@ -2317,6 +2330,14 @@ export const MANUAL: Chapter[] = [
             warning, and on Submit the Purchase team and the Owner get a
             notification (the bell at the top right) naming the order, item,
             quantities and who received it; the order's Activity notes it too.
+          </li>
+          <li>
+            Gives every bag or box its own number, PK-000241 and on, shown in
+            the receipt's "Packages" box with its item, batch, bin, the
+            quantity received and left, and its status ("In stock"). The number
+            is what a sticker with a barcode will carry, and the bags taken
+            will be picked by it when stock is issued (both to come). A
+            cancelled receipt keeps its bags, marked "Cancelled".
           </li>
           <li>
             New batches of items marked "QC required" start as "Quarantine";

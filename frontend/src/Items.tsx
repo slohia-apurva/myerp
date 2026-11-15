@@ -65,6 +65,8 @@ export type Item = {
   max_stock_qty: string | null;
   batch_tracked: boolean;
   qc_required: boolean;
+  pack_type: string;
+  pack_qty: string | null;
   default_request_type: string;
   maintain_stock: boolean;
   allow_purchase: boolean;
@@ -89,6 +91,18 @@ const TYPES: [string, string][] = [
   ["goods", "Goods"],
   ["service", "Service"],
 ];
+/** Keep in step with PACKAGE_TYPES in core/models.py. */
+const PACKAGE_TYPES: [string, string][] = [
+  ["bag", "Bag"],
+  ["box", "Box"],
+  ["carton", "Carton"],
+  ["drum", "Drum"],
+  ["bale", "Bale"],
+  ["chest", "Chest"],
+  ["jar", "Jar"],
+  ["pallet", "Pallet"],
+];
+const packLabel = (v: string) => PACKAGE_TYPES.find(([k]) => k === v)?.[1] ?? v;
 const REQUEST_TYPES: [string, string][] = [
   ["manufacture", "Manufacture"],
   ["purchase", "Purchase"],
@@ -579,6 +593,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 rows={[
                   ["Batches tracked", i.batch_tracked ? "Yes" : "No"],
                   ["Quality check on receipt", i.qc_required ? "Yes" : "No"],
+                  ["Usually packed in", i.pack_type && i.pack_qty ? `${packLabel(i.pack_type)} of ${plain(i.pack_qty)} ${unit(i.stock_unit, i.stock_unit_name)}` : "Not set"],
                   ["Default material request type", requestLabel(i.default_request_type)],
                 ]}
               />
@@ -797,6 +812,8 @@ function ItemForm(props: {
   const [maxStock, setMaxStock] = useState(from?.max_stock_qty == null ? "" : plain(from.max_stock_qty));
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
+  const [packType, setPackType] = useState(from?.pack_type ?? "");
+  const [packQty, setPackQty] = useState(from?.pack_qty == null ? "" : plain(from.pack_qty));
   const [requestType, setRequestType] = useState(from?.default_request_type ?? "");
   const [notes, setNotes] = useState(from?.notes ?? "");
   const changeName = (v: string) => setName(v);
@@ -951,6 +968,8 @@ function ItemForm(props: {
       max_stock_qty: num(maxStock),
       batch_tracked: batches,
       qc_required: qc,
+      pack_type: packType,
+      pack_qty: packType ? num(packQty) : null,
       default_request_type: requestType,
       notes,
       sales_description: salesText,
@@ -996,7 +1015,7 @@ function ItemForm(props: {
     ["sales", "Sales", [mrp ? `MRP ₹ ${mrp}` : "", bestBefore ? `Best before ${bestBefore} ${bestBeforeUnit}` : ""].filter(Boolean).join(" · ")],
     ["purchase", "Purchase", [leadTime ? `Lead time ${leadTime} days` : "", safety ? `Safety stock ${safety}` : ""].filter(Boolean).join(" · ")],
     ["gst", "GST Rates", `${rates.length} ${rates.length === 1 ? "rate" : "rates"}`],
-    ["stock", "Stock And Quality", [batches ? "Batches tracked" : "", qc ? "Quality check on receipt" : ""].filter(Boolean).join(" · ")],
+    ["stock", "Stock And Quality", [batches ? "Batches tracked" : "", qc ? "Quality check on receipt" : "", packType && packQty ? `${packLabel(packType)} of ${packQty}` : ""].filter(Boolean).join(" · ")],
     ["units", "Units Of Measure", `${rows.length} ${rows.length === 1 ? "unit" : "units"}`],
     ["names", "Customer And Supplier Names", `${names.length} ${names.length === 1 ? "name" : "names"}`],
     ["prices", "Customer Prices", `${(custPrices ?? []).length} ${(custPrices ?? []).length === 1 ? "price" : "prices"}`],
@@ -1318,6 +1337,17 @@ function ItemForm(props: {
                   options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
                 />
               </label>
+              <label>
+                Usually Packed In
+                <Combobox value={packType} onChange={setPackType} empty="Loose / not set" options={PACKAGE_TYPES.map(([value, label]) => ({ value, label }))} />
+              </label>
+              {packType && (
+                <label>
+                  <span className="req">Qty per Package</span>
+                  <input inputMode="decimal" value={packQty} onChange={(e) => setPackQty(e.target.value)} />
+                  <span className="small">In the default unit, e.g. 20 for a bag of 20 kg. Fills in the packages on a goods receipt.</span>
+                </label>
+              )}
             </div>
             <fieldset className="item-checks">
               <legend>Switches</legend>

@@ -850,6 +850,18 @@ class Brand(models.Model):
         return self.name
 
 
+PACKAGE_TYPES = [
+    ("bag", "Bag"),
+    ("box", "Box"),
+    ("carton", "Carton"),
+    ("drum", "Drum"),
+    ("bale", "Bale"),
+    ("chest", "Chest"),
+    ("jar", "Jar"),
+    ("pallet", "Pallet"),
+]
+
+
 class Item(models.Model):
     """A product, material or service, in one catalogue shared by every
     company in the group. Stock is held in the item's stock unit; each item
@@ -905,6 +917,10 @@ class Item(models.Model):
     max_stock_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
+    # How it usually comes packed ("Bag of 20 kg", in the stock unit): fills in
+    # the packages on a goods receipt (Sidharth, 2026-11-15).
+    pack_type = models.CharField(max_length=10, choices=PACKAGE_TYPES, blank=True)
+    pack_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     # What a material request for this item is raised as, unless changed on it.
     default_request_type = models.CharField(max_length=20, choices=REQUEST_TYPES, blank=True)
     maintain_stock = models.BooleanField(default=True)
@@ -982,6 +998,52 @@ class Batch(models.Model):
     def clean(self):
         if self.mfg_date and self.expiry_date and self.expiry_date < self.mfg_date:
             raise ValidationError({"expiry_date": ["The expiry cannot be before the mfg date."]})
+
+
+class Package(models.Model):
+    """One bag, box or drum of stock with its own number (PK-000241), made when a
+    goods receipt is submitted, so it can be found in its bin, traced when it is
+    issued, and later carry a barcode sticker (Sidharth, 2026-11-15). Stock and
+    the books stay in the item's stock unit; a package only says where it is.
+    Never deleted: a cancelled receipt marks its packages "Cancelled"."""
+
+    IN_STOCK, PART_USED, USED_UP, CANCELLED = "in_stock", "part_used", "used_up", "cancelled"
+    STATUSES = [
+        (IN_STOCK, "In stock"),
+        (PART_USED, "Part used"),
+        (USED_UP, "Used up"),
+        (CANCELLED, "Cancelled"),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    seq = models.PositiveIntegerField()
+    number = models.CharField(max_length=20)
+    kind = models.CharField(max_length=10, choices=PACKAGE_TYPES)
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(max_digits=18, decimal_places=6)  # in the stock unit
+    left_qty = models.DecimalField(max_digits=18, decimal_places=6)
+    status = models.CharField(max_length=10, choices=STATUSES, default=IN_STOCK)
+    # Where it came from, e.g. ("goods_receipt", 12); "n of m" on that entry.
+    voucher_type = models.CharField(max_length=30)
+    voucher_id = models.PositiveBigIntegerField()
+    voucher_number = models.CharField(max_length=40)
+    position = models.PositiveIntegerField()
+    of_count = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["seq"]
+        indexes = [models.Index(fields=["voucher_type", "voucher_id"])]
+        constraints = [
+            models.UniqueConstraint("company", "seq", name="package_seq_unique_per_company")
+        ]
+
+    def __str__(self) -> str:
+        return self.number
 
 
 class ItemUnit(models.Model):
