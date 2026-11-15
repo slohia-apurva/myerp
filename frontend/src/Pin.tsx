@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { FloatingList } from "./FloatingList";
 import { Combobox } from "./Combobox";
 import { openRequestAddition } from "./RequestAddition";
 
@@ -168,7 +169,7 @@ export function PinPicker(props: { value: string; onPick: (row: PinRow) => void;
         }}
       />
       {open && typed && (
-        <ul className="combo-list" role="listbox">
+        <FloatingList anchor={box}>
           {rows.length === 0 && <li className="combo-none">Nothing in the list matches</li>}
           {rows.map((r, i) => (
             <li
@@ -184,7 +185,7 @@ export function PinPicker(props: { value: string; onPick: (row: PinRow) => void;
               <strong>{r.pin}</strong> <span className="small">{[r.city, r.state_name].filter(Boolean).join(", ")}</span>
             </li>
           ))}
-        </ul>
+        </FloatingList>
       )}
       {refused && <span className="error small">{refused}</span>}
       <button type="button" className="link" onClick={() => openRequestAddition("pin")}>

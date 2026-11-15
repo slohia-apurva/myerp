@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type SignedIn } from "./api";
+import { FloatingList } from "./FloatingList";
 import { PageHeader } from "./Brand";
 import { usePrintMenu } from "./Exchange";
 import { SidePanel, SideRows } from "./Master";
@@ -212,7 +213,7 @@ export function HsnPicker(props: { value: string; onChange: (code: string) => vo
         }}
       />
       {open && typed && (
-        <ul className="combo-list" role="listbox">
+        <FloatingList anchor={box}>
           {rows.length === 0 && <li className="combo-none">Nothing in the list matches</li>}
           {rows.map((h, i) => (
             <li
@@ -228,7 +229,7 @@ export function HsnPicker(props: { value: string; onChange: (code: string) => vo
               <strong>{h.hsn_code}</strong> <span className="small">{h.description}</span>
             </li>
           ))}
-        </ul>
+        </FloatingList>
       )}
       {refused && <span className="error small">{refused}</span>}
     </div>

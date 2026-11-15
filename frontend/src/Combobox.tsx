@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Creatable, type Created, openCreate, useCreated } from "./Create";
+import { FloatingList } from "./FloatingList";
 
 export type Option = { value: string; label: string; indent?: number; hint?: string };
 
@@ -59,7 +60,14 @@ export function Combobox(props: {
   });
 
   useEffect(() => {
-    if (list.current && open) list.current.children[cursor]?.scrollIntoView?.({ block: "nearest" });
+    // Scroll only the list itself to the highlighted name; scrollIntoView would also scroll the page and
+    // any box around the field.
+    const ul = list.current;
+    const li = ul?.children[cursor] as HTMLElement | undefined;
+    if (!ul || !li || !open) return;
+    if (li.offsetTop < ul.scrollTop) ul.scrollTop = li.offsetTop;
+    else if (li.offsetTop + li.offsetHeight > ul.scrollTop + ul.clientHeight)
+      ul.scrollTop = li.offsetTop + li.offsetHeight - ul.clientHeight;
   }, [cursor, open]);
 
   const close = () => {
@@ -125,7 +133,7 @@ export function Combobox(props: {
         <path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       {open && (
-        <ul className="combo-list" role="listbox" ref={list}>
+        <FloatingList anchor={box} listRef={list}>
           {shown.length === 0 && <li className="combo-none">Nothing matches</li>}
           {shown.map((o, i) => (
             <li
@@ -146,7 +154,7 @@ export function Combobox(props: {
               {o.hint && <span className="small"> {o.hint}</span>}
             </li>
           ))}
-        </ul>
+        </FloatingList>
       )}
     </div>
   );
