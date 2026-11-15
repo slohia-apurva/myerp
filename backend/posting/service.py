@@ -72,6 +72,9 @@ class StockLine:
     rate: Decimal | None = None
     batch: Batch | None = None
     valued: bool = True
+    # An issue that takes these lots first (goods sent back to the supplier go
+    # out of the receipt's own lots); FIFO for any rest.
+    lots: Sequence[int] = ()
 
 
 @dataclass
@@ -221,6 +224,9 @@ def _issue(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove, 
             )
             .order_by("date", "id")
         )
+        if line.lots:
+            first = set(line.lots)
+            lots = sorted(lots, key=lambda lot: lot.pk not in first)
         left = want
         for lot in lots:
             if left <= 0:

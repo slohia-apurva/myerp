@@ -157,7 +157,7 @@ const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pil
 /** "Create ▾" on a submitted receipt: the documents that follow from it. */
 const createFromReceipt = (companyId: number, id: number) => [
   { label: "Purchase Invoice (supplier's bill)", onClick: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&receipt=${id}`) },
-  { label: "Purchase Return", disabled: true },
+  { label: "Purchase Return (goods sent back)", onClick: () => openTab(`#/companies/${companyId}/purchase-returns?form=new&receipt=${id}`) },
 ];
 
 function useSetup(companyId: number) {
@@ -1206,7 +1206,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
                 Submit
               </button>
             )}
-            {r.status === "submitted" && <ActionsMenu label="Create" main items={createFromReceipt(companyId, r.id)} note="Purchase Return comes later" />}
+            {r.status === "submitted" && <ActionsMenu label="Create" main items={createFromReceipt(companyId, r.id)} />}
           </>
         }
       />
