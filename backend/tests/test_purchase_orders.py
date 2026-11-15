@@ -626,3 +626,18 @@ def test_charges_are_service_items_with_gst_and_a_stock_cost_choice(buyer, world
     assert "Use as Purchase Charge" in str(call(buyer, "post", url, bad).json()["charges"])
     odd = [{"item": freight.pk, "basis": "fixed", "rate": "1", "gst_rate": "7"}]
     assert "not a GST rate" in str(call(buyer, "post", url, order(world, charges=odd)).json())
+
+
+def test_print_carries_the_approvers_signature_and_our_contacts_phone(alpha, buyer, world):
+    with use_tenant(alpha):
+        User.objects.filter(email="buyer@x.in").update(
+            phone="98300 22222", signature=b"\x89PNG\r\n\x1a\nfake", signature_type="image/png"
+        )
+    url = f"companies/{world['company']}/purchase-orders/"
+    draft = call(buyer, "post", url, order(world)).json()
+    shown = call(buyer, "get", f"purchase-orders/{draft['id']}/").json()
+    assert shown["created_by_phone"] == "98300 22222"
+    assert shown["submitted_by_signature"] == ""  # a draft is never signed
+    call(buyer, "post", f"purchase-orders/{draft['id']}/submit/", {})
+    signed = call(buyer, "get", f"purchase-orders/{draft['id']}/").json()
+    assert signed["submitted_by_signature"].startswith("data:image/png;base64,")

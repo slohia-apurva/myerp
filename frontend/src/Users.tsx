@@ -1,6 +1,6 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
-import { api, SignedIn } from "./api";
+import { api, upload, SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 import { PageHeader, Section } from "./Brand";
@@ -21,6 +21,8 @@ type User = {
   id: number;
   email: string;
   full_name: string;
+  phone: string;
+  signature: string;
   is_active: boolean;
   roles: number[];
   companies: number[];
@@ -126,6 +128,7 @@ export function UsersPage({ session }: { session: SignedIn }) {
             roles={roles}
             companies={companies}
             isOwner={session.user.is_owner}
+            myEmail={session.user.email}
             onDone={() => {
               edit(null);
               reload();
@@ -168,6 +171,7 @@ function UserForm(props: {
   roles: Role[];
   companies: Company[];
   isOwner: boolean;
+  myEmail: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -175,6 +179,7 @@ function UserForm(props: {
   const from = user ?? props.copyOf; // a duplicate keeps the roles and companies, not the person
   const [email, setEmail] = useState(user?.email ?? "");
   const [fullName, setFullName] = useState(user?.full_name ?? "");
+  const [phone, setPhone] = useState(user?.phone ?? "");
   const [roleIds, setRoleIds] = useState<number[]>(from?.roles ?? []);
   const [companyIds, setCompanyIds] = useState<number[]>(from?.companies ?? []);
   const [error, setError] = useState<unknown>("");
@@ -184,7 +189,7 @@ function UserForm(props: {
     event.preventDefault();
     setBusy(true);
     setError("");
-    const body = { full_name: fullName, roles: roleIds, companies: companyIds };
+    const body = { full_name: fullName, phone, roles: roleIds, companies: companyIds };
     try {
       if (user) await api(`v1/users/${user.id}/`, body, "PATCH");
       else await api("v1/users/", { ...body, email });
@@ -211,6 +216,21 @@ function UserForm(props: {
         Full name
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
       </label>
+      <label>
+        Mobile
+        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98300 22222" />
+      </label>
+      </Section>
+      <Section title="Signature">
+        {user ? (
+          <SignatureBox
+            user={user}
+            canChange={props.isOwner || user.email === props.myEmail}
+            onError={setError}
+          />
+        ) : (
+          <p className="small">Save the user first; then their signature can be added here.</p>
+        )}
       </Section>
       <fieldset>
         <legend>Roles</legend>
@@ -245,6 +265,58 @@ function UserForm(props: {
         )}
       </div>
     </form>
+  );
+}
+
+/** The signature printed on documents the person submits. It is saved at once,
+ * apart from the form's Save, and only the person or an Owner may change it. */
+function SignatureBox(props: { user: User; canChange: boolean; onError: (e: unknown) => void }) {
+  const [image, setImage] = useState(props.user.signature);
+  const [busy, setBusy] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
+  const url = `v1/users/${props.user.id}/signature/`;
+  const run = async (work: () => Promise<User>) => {
+    setBusy(true);
+    props.onError("");
+    try {
+      setImage((await work()).signature);
+    } catch (err) {
+      props.onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const choose = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    run(() => upload<User>(url, form));
+  };
+  return (
+    <>
+      <div className="sig-row">
+        <div className="sig-box">{image ? <img src={image} alt="Signature" /> : <span className="small">No signature</span>}</div>
+        {props.canChange && (
+          <div>
+            <button type="button" className="link" disabled={busy} onClick={() => picker.current?.click()}>
+              {image ? "Change image…" : "Upload image…"}
+            </button>{" "}
+            <input ref={picker} type="file" accept="image/png,image/jpeg" hidden onChange={choose} />
+            {image && (
+              <button type="button" className="link danger" disabled={busy} onClick={() => run(() => api<User>(url, undefined, "DELETE"))}>
+                Remove
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="small">
+        A PNG or JPG of the signature on a white or clear background, up to 300 KB. It is printed on purchase orders this
+        person submits, above "Authorised Signatory". Only the person or an Owner can change it.
+      </p>
+    </>
   );
 }
 
