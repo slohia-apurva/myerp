@@ -1397,6 +1397,18 @@ fieldset > legend + .form-tabs {
   border-radius: 8px;
   box-shadow: 0 6px 18px rgba(31, 41, 51, 0.14);
 }
+/* The open list is drawn on the page itself (FloatingList.tsx), placed under its field, so no box or
+   table around the field can cut it off (Sidharth, 2026-11-15). */
+.combo-list.floating {
+  position: fixed;
+  z-index: 1000;
+  right: auto;
+  margin: 0;
+  box-sizing: border-box;
+  color: var(--ink);
+  font-weight: 400;
+  text-transform: none;
+}
 .combo-list li {
   padding: 7px 12px;
   cursor: pointer;
