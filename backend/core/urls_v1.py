@@ -18,6 +18,7 @@ from core import (
     item_groups,
     items,
     ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
+    mail,
     notifications,
     numbering_api,
     party_documents,
@@ -117,6 +118,12 @@ urlpatterns = [
         "companies/<int:pk>/print-image/",
         print_mark.PrintImageView.as_view(),
         name="company-print-image",
+    ),
+    path("companies/<int:pk>/mail-account/", mail.MailAccountView.as_view(), name="mail-account"),
+    path(
+        "companies/<int:pk>/mail-account/test/",
+        mail.MailTestView.as_view(),
+        name="mail-account-test",
     ),
     path("exchange/<str:key>/", exchange.ExportView.as_view(), name="exchange-export"),
     path("exchange/<str:key>/import/", exchange.ImportView.as_view(), name="exchange-import"),

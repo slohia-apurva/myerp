@@ -274,6 +274,10 @@ export const MANUAL: Chapter[] = [
               "Printing",
               'Tick "Print a small Lord Ganesha image…" to print a small image at the top centre of the first page of every printout: purchase orders, reports and all other prints. "Use our own image…" puts your own PNG or JPG (up to 300 KB) in its place; "Use the standard image" brings the standard one back. The image is saved as soon as it is chosen.',
             ],
+            [
+              "Mail Account",
+              'The shared mailbox MyERP sends mail from (mail to suppliers, for example), shown when editing a saved company. Give the "Mailbox Address" (such as purchase@…), a "From Name" and its "App Password". For Google Workspace, sign in to that mailbox, turn on 2-Step Verification, and make an app password under Google Account › Security › App passwords; "Mail Server" smtp.gmail.com and "Port" 587 are filled in already. Click "Save", then "Send Test Mail": a test mail comes to your own address. The password is kept locked and never shown again; leave it blank to keep the saved one. Replies to mail sent from MyERP go to the person who sent it.',
+            ],
           ]}
         />
 

@@ -1564,3 +1564,27 @@ class Attachment(models.Model):
 
     def __str__(self) -> str:
         return self.filename
+
+
+class MailAccount(models.Model):
+    """The company's own mailbox that MyERP sends mail from (Sidharth,
+    2026-11-15): one shared mailbox, such as purchase@…, on Google Workspace
+    or any provider that allows sending by SMTP. The password (for Google, an
+    "app password") is kept locked with the server's key (core/secrets.py)
+    and never sent back to a screen."""
+
+    company = models.OneToOneField(Company, on_delete=models.CASCADE, related_name="mail_account")
+    from_name = models.CharField(max_length=100, blank=True)  # e.g. "Apurvam Purchase"
+    address = models.EmailField()
+    host = models.CharField(max_length=100, default="smtp.gmail.com")
+    port = models.PositiveIntegerField(default=587)
+    username = models.CharField(max_length=150, blank=True)  # blank: the address
+    password = models.TextField(blank=True)  # locked
+    updated_by = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    last_test_ok_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return self.address
