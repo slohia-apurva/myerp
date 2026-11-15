@@ -524,8 +524,6 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
                 amount=taxable + tax,
             )
         )
-    if not data["lines"]:
-        line_errors.append("Add at least one item.")
     if line_errors:
         raise ValidationError({"lines": line_errors})
 
@@ -559,6 +557,9 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
 def _submit(o: PurchaseOrder, user) -> None:
     if not user.can(SUBMIT):
         raise PermissionDenied("Your role may save drafts but not submit them.")
+    # A draft may be saved with no items yet, to finish later; an order needs one.
+    if not o.lines.exists():
+        raise ValidationError({"lines": ["Add at least one item before submitting."]})
     fiscal.assert_open(o.company, o.order_date)
     o.number = numbering.next_document_number(o.company, "purchase_order", o.order_date, o.branch)
     o.status = PurchaseOrder.ORDERED
