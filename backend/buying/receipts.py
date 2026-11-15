@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from audit.models import AuditEntry
-from buying.api import _company
+from buying.api import _addresses_out, _company, _letterhead
 from buying.models import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -674,12 +674,15 @@ def packages_of(r: GoodsReceipt) -> list[dict]:
     return [
         {
             "id": k.id,
+            "seq": k.seq,
             "number": k.number,
             "kind": k.kind,
             "kind_label": k.get_kind_display(),
             "item_name": k.item.name,
             "item_number": k.item.item_number,
             "batch": k.batch.number if k.batch_id else "",
+            "expiry_date": k.batch.expiry_date if k.batch_id else None,
+            "location": k.location_id,
             "location_name": str(k.location),
             "qty": k.qty,
             "left_qty": k.left_qty,
@@ -760,12 +763,24 @@ class ReceiptListView(APIView):
         return Response(_fresh(r), status=status.HTTP_201_CREATED)
 
 
+def _print_extras(r: GoodsReceipt) -> dict:
+    """What the "Goods Receipt Note" print adds: the letterhead and the supplier's
+    address as on its (first) order."""
+    first = r.orders.order_by("pk").first()
+    supplier = _addresses_out(first)["supplier"] if first else {"name": r.supplier.name}
+    return _text({"letterhead": _letterhead(r.company), "supplier_place": supplier})
+
+
 class ReceiptDetailView(APIView):
     permission_classes = ReceiptListView.permission_classes
 
     def get(self, request, pk: int):
         _check(request, VIEW)
-        return Response(_fresh(_receipt(request, pk)))
+        r = _receipt(request, pk)
+        data = _fresh(r)
+        if request.query_params.get("print") == "1":
+            data.update(_print_extras(r))
+        return Response(data)
 
     @tenant_atomic()
     def patch(self, request, pk: int):

@@ -3290,3 +3290,303 @@ td.nowrap {
 .table-wrap + .drop {
   margin-top: 8px;
 }
+
+/* Goods receipt prints (GrnPrint.tsx, Sidharth 2026-11-15): the note and the bin sheets
+ * flow onto A4 pages; bag labels are 100 × 50 mm each, or 24 to an A4 sheet. */
+.grn-doc,
+.bin-sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 16px;
+  padding: 12mm 11mm 14mm;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  color: #1f2933;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 8.5pt;
+  line-height: 1.4;
+}
+.grn-doc table,
+.bin-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.grn-doc td,
+.grn-doc th,
+.bin-sheet td,
+.bin-sheet th {
+  border: 0;
+}
+.grn-doc .po-r,
+.bin-sheet .po-r {
+  text-align: right;
+}
+.grn-doc .po-mut,
+.bin-sheet .po-mut {
+  color: #616e7c;
+}
+.grn-doc b,
+.bin-sheet b {
+  font-weight: 600;
+}
+.grn-doc .po-items td,
+.bin-sheet .po-items td {
+  border-bottom: 1px solid #e3ebe6;
+}
+.grn-doc .po-items thead,
+.bin-sheet .po-items thead {
+  display: table-header-group;
+}
+.grn-doc .po-items tr,
+.bin-sheet .po-items tr {
+  break-inside: avoid;
+}
+.grn-doc-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10pt;
+  margin: 12pt 0 6pt;
+}
+.grn-doc-cards .po-addr dl {
+  grid-template-columns: 78pt 1fr;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.grn-doc-h {
+  margin: 12pt 0 4pt;
+}
+.grn-doc-kv {
+  display: grid;
+  grid-template-columns: 130pt 1fr;
+  gap: 2pt 8pt;
+  margin: 0;
+}
+.grn-doc-kv > div {
+  display: contents;
+}
+.grn-doc-kv dt {
+  font-weight: 600;
+  color: #14532d;
+}
+.grn-doc-kv dd {
+  margin: 0;
+}
+.grn-doc-sign {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14pt;
+  margin-top: 34pt;
+  text-align: center;
+  color: #616e7c;
+  font-size: 8pt;
+  break-inside: avoid;
+}
+.grn-doc-sign > div {
+  border-top: 1px solid #9aa5b1;
+  padding-top: 4pt;
+}
+.grn-doc-sign b {
+  display: block;
+  color: #1f2933;
+}
+.grn-doc-foot {
+  margin-top: 18pt;
+  font-size: 7pt;
+  color: #7b8794;
+}
+.bin-sheet-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16pt;
+  border-bottom: 3pt solid #14532d;
+  padding-bottom: 10pt;
+}
+.bin-sheet-name {
+  font-size: 54pt;
+  font-weight: 800;
+  line-height: 1.05;
+  margin: 4pt 0 2pt;
+  overflow-wrap: anywhere;
+}
+.bin-sheet-code {
+  font-size: 11pt;
+  font-weight: 600;
+}
+.bin-sheet-bar {
+  display: block;
+  width: 70mm;
+  height: 14mm;
+  margin-top: 6pt;
+}
+.bin-sheet-qr {
+  width: 38mm;
+  flex: none;
+  text-align: center;
+  color: #616e7c;
+  font-size: 8pt;
+}
+.bin-sheet-qr img {
+  display: block;
+  width: 38mm;
+  height: 38mm;
+}
+.bin-sheet-sub {
+  font-size: 10pt;
+  margin-bottom: 4pt;
+}
+.bin-sheet .bin-sheet-table {
+  font-size: 10.5pt;
+}
+.bin-sheet-write {
+  width: 32%;
+}
+.bin-sheet-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16pt;
+  font-size: 7.5pt;
+  color: #7b8794;
+}
+.bin-sheet-foot b {
+  color: #14532d;
+}
+.bag-labels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.bag-label {
+  box-sizing: border-box;
+  width: 100mm;
+  height: 50mm;
+  padding: 3mm 4mm;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #cbd2d9;
+  color: #000;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 8pt;
+  line-height: 1.3;
+}
+.bag-label-top {
+  display: flex;
+  justify-content: space-between;
+}
+.bag-label-co {
+  font-size: 7.5pt;
+  font-weight: 600;
+}
+.bag-label-no {
+  font-size: 15pt;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.bag-label-qty {
+  text-align: right;
+}
+.bag-label-qty b {
+  font-size: 15pt;
+  font-weight: 800;
+}
+.bag-label-bar {
+  display: block;
+  width: 62mm;
+  height: 10mm;
+  margin: 1mm 0;
+}
+.bag-label-mut {
+  color: #3e4c59;
+  font-size: 7pt;
+}
+.label-sheet {
+  box-sizing: border-box;
+  width: 210mm;
+  height: 297mm;
+  margin: 0 auto 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 70mm);
+  grid-template-rows: repeat(8, 37mm);
+  align-content: center;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  font-family: Inter, system-ui, sans-serif;
+  color: #000;
+}
+.label-cell {
+  box-sizing: border-box;
+  padding: 2.5mm 3.5mm;
+  overflow: hidden;
+  font-size: 7pt;
+  line-height: 1.25;
+  outline: 1px dashed #e4e7eb;
+}
+.label-cell-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9.5pt;
+}
+.label-cell-bar {
+  display: block;
+  width: 52mm;
+  height: 8mm;
+  margin: 1mm 0;
+}
+.label-cell-item {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media print {
+  body.printing-doc .grn-doc,
+  body.printing-doc .bin-sheet {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.printing-doc .bin-sheet {
+    break-after: page;
+  }
+  body.printing-doc .bin-sheet:last-child {
+    break-after: auto;
+  }
+  body.printing-doc .grn-doc .po-mark-img {
+    top: 0;
+    height: 12mm;
+  }
+  body.printing-doc .bag-labels {
+    display: block;
+  }
+  body.printing-doc .bag-label {
+    border: 0;
+    break-after: page;
+  }
+  body.printing-doc .bag-label:last-child {
+    break-after: auto;
+  }
+  body.printing-doc .label-sheet {
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+  body.printing-doc .label-sheet:last-child {
+    break-after: auto;
+  }
+  body.printing-doc .label-cell {
+    outline: 0;
+  }
+}
+.grn-doc .po-band h1 {
+  white-space: nowrap;
+}
+.grn-doc .po-band > div:first-child {
+  max-width: 41%;
+}

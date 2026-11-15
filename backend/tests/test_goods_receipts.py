@@ -309,3 +309,34 @@ def test_packages_need_all_three_figures(store, grn):
     puts = [{"location": grn["bin1"], "batch_number": "B1", "qty": "600", "packages": 5}]
     res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=puts)]))
     assert "number of packages, the package and the quantity in each" in str(res.json())
+
+
+def test_the_print_brings_the_letterhead_and_a_bin_shows_its_bags(store, grn, alpha):
+    puts = [
+        {"location": grn["bin1"], "batch_number": "DTT-7", "qty": "0",
+         "packages": 3, "package_type": "bag", "package_qty": "20"},
+    ]  # fmt: skip
+    body = receipt(grn, [tea_line(grn, "60", puts=puts)], submit=True)
+    done = call(store, "post", url(grn), body).json()
+    plain = call(store, "get", f"goods-receipts/{done['id']}/").json()
+    assert "letterhead" not in plain
+    printed = call(store, "get", f"goods-receipts/{done['id']}/?print=1").json()
+    assert printed["letterhead"]["name"] and printed["supplier_place"]["name"]
+    assert printed["packages"][0]["seq"] == 1 and printed["packages"][0]["location"] == grn["bin1"]
+
+    there = call(store, "get", f"bins/{grn['bin1']}/").json()
+    assert there["code"] == f"LOC-{grn['bin1']:06d}" and there["name"] == "F01 / A-02"
+    assert [(s["item_name"], s["batch"], s["qty"]) for s in there["stock"]] == [
+        ("CTC Tea", "DTT-7", "60.000000")
+    ]
+    assert [k["number"] for k in there["packages"]] == ["PK-000001", "PK-000002", "PK-000003"]
+    rack = call(store, "get", f"bins/{grn['rack']}/").json()  # a rack shows its bins
+    assert len(rack["packages"]) == 3
+    assert call(store, "get", "bins/999999/").status_code == 404
+
+
+def test_a_qr_code_comes_as_a_picture(store):
+    res = call(store, "get", "qr/?text=https://x.in/%23/bins/3")
+    assert res["Content-Type"] == "image/svg+xml"
+    assert res.content.startswith(b"<svg") and b"<path" in res.content
+    assert call(store, "get", "qr/").status_code == 400

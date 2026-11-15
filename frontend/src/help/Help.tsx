@@ -8,6 +8,7 @@ export function helpTopicFor(hash: string): string {
   if (page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "batches" || page === "items" || page === "hsn" || page === "reset" || page === "central")
     return page;
   if (page === "request-addition") return "hsn";
+  if (page === "bins") return "goods-receipts";
   if (page === "countries" || page === "pin-codes") return "places";
   if (page !== "companies") return "start";
   if (!id) return "companies";
