@@ -6,9 +6,11 @@ takes a GSTIN and returns a dict), the endpoint says it is not set up, and
 the screens still work: the state and PAN come from the number itself.
 
 The provider function returns any of: legal_name, trade_name, status,
-gst_type, address, pincode, or raises LookupFailed (or NotSetUp). State and
-PAN are worked out here. The connected provider is core.gstinapi (gstinapi.in),
-which reads its key from the GSTINAPI_KEY environment variable.
+gst_type, address, pincode, city, or raises LookupFailed (or NotSetUp). State and
+PAN are worked out here, and the city is the PIN's city from the central
+PIN list (as an address takes it on save), else the provider's city.
+The connected provider is core.gstinapi (gstinapi.in), which reads its key
+from the GSTINAPI_KEY environment variable.
 """
 
 from django.conf import settings
@@ -20,6 +22,7 @@ from rest_framework.views import APIView
 
 from core import india
 from core.api import VIEW, Signed, _check
+from tenancy.models import PinCode
 
 
 class NotSetUp(APIException):
@@ -57,6 +60,8 @@ class GstinLookupView(APIView):
         found = import_string(provider)(gstin) or {}
         if not found:
             raise ValidationError({"gstin": ["The GST portal has no registration for this GSTIN."]})
+        pincode = (found.get("pincode") or "").strip()
+        listed = PinCode.objects.filter(pin=pincode, is_active=True).first() if pincode else None
         return Response(
             {
                 "gstin": gstin,
@@ -67,6 +72,7 @@ class GstinLookupView(APIView):
                 "status": found.get("status", ""),
                 "gst_type": found.get("gst_type", "regular"),
                 "address": found.get("address", ""),
-                "pincode": found.get("pincode", ""),
+                "pincode": pincode,
+                "city": (listed.city if listed and listed.city else found.get("city", "")),
             }
         )
