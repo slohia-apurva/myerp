@@ -554,6 +554,9 @@ class Ledger(models.Model):
         on_delete=models.PROTECT,
         related_name="preferred_by",
     )
+    # A ledger the posting rules use (posting/accounts.py), such as "grni" for Goods
+    # Received but Bills not Received. Blank for ledgers people add.
+    system_code = models.CharField(max_length=40, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -561,6 +564,11 @@ class Ledger(models.Model):
         constraints = [
             models.UniqueConstraint(
                 "company", Lower("name"), name="ledger_name_unique_per_company"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "system_code"],
+                condition=~models.Q(system_code=""),
+                name="system_ledger_once_per_company",
             ),
             models.UniqueConstraint(
                 fields=["company", "party", "party_side"],
