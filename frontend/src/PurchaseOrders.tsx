@@ -57,6 +57,7 @@ export type PurchaseOrder = {
   company: number;
   number: string;
   status: string;
+  submitted_at?: string | null;
   status_label: string;
   supplier: number;
   supplier_name: string;
@@ -421,6 +422,9 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
               <div className="side-buttons">
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
+                </button>
+                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?print=${selected.id}`)}>
+                  Print
                 </button>
               </div>
             </SidePanel>
@@ -827,8 +831,14 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
         actions={
           <>
             <button type="button" className="link" onClick={close}>
-              {draftId ? "Close" : "Cancel"}
+              Close
             </button>
+            <ActionsMenu
+              label="Print"
+              items={printMenu(companyId, draftId)}
+              disabled={!draftId}
+              title={draftId ? undefined : "Save the order first; a draft prints with the DRAFT mark"}
+            />
             <button type="submit" form="po-form" className={canSubmit ? "secondary" : undefined} disabled={busy}>
               Save
             </button>
@@ -1485,6 +1495,21 @@ function PaymentPanel({ term }: { term: CreditTerm | undefined }) {
   );
 }
 
+/** "Print ▾" on an order: its layouts, each opening in its own tab. More
+ * layouts join this list as they are made. */
+function printMenu(companyId: number, id: number | null) {
+  return [
+    { label: "Purchase order", onClick: () => id && openTab(`${base(companyId)}?print=${id}`) },
+    { label: "Download PDF", onClick: () => id && openTab(`${base(companyId)}?print=${id}&pdf=1`) },
+  ];
+}
+
+/** "Create ▾" on a submitted order: the documents that follow from it. */
+const CREATE_FROM_ORDER = [
+  { label: "Purchase Receipt (goods received)", disabled: true },
+  { label: "Purchase Invoice (supplier's bill)", disabled: true },
+];
+
 // The order's own page (read only) ------------------------------------------------------
 
 function OrderView({ companyId, id, session }: { companyId: number; id: number; session: SignedIn }) {
@@ -1503,11 +1528,6 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   useCreated("purchase_order_saved", (c) => {
     if (c.id === id) reload();
   });
-  // The order prints in its own tab, laid out for the supplier.
-  const printItems = [
-    { label: "Print", onClick: () => openTab(`${base(companyId)}?print=${id}`) },
-    { label: "Download PDF", onClick: () => openTab(`${base(companyId)}?print=${id}&pdf=1`) },
-  ];
   const close = () =>
     closeThisTab(() => {
       window.location.hash = base(companyId);
@@ -1536,6 +1556,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
     <section className="page">
       <PageHeader
         title={order.number ? `Purchase Order ${order.number}` : "Purchase Order (draft)"}
+        sub={
+          order.number && order.submitted_at
+            ? `Submitted as ${order.number} on ${showDate(order.submitted_at.slice(0, 10))} at ${new Date(order.submitted_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`
+            : undefined
+        }
         crumbs={[{ label: "Entry › Purchase › Purchase Order", href: base(companyId) }]}
         actions={
           <>
@@ -1557,12 +1582,21 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Cancel order
               </button>
             )}
+            {/* The order prints in its own tab, laid out for the supplier. */}
+            <ActionsMenu label="Print" items={printMenu(companyId, order.id)} />
             {draft && can("submit") && (
               <button type="button" onClick={() => act("submit")}>
                 Submit
               </button>
             )}
-            <ActionsMenu items={printItems} />
+            {order.status === "ordered" && (
+              <ActionsMenu
+                label="Create"
+                main
+                items={CREATE_FROM_ORDER}
+                note="Both come with the next pieces of work"
+              />
+            )}
           </>
         }
       />

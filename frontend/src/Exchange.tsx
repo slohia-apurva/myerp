@@ -211,11 +211,27 @@ function cellText(cell: Element): string {
   return parts.join(" · ");
 }
 
-type MenuItem = { label: string; onClick?: () => void; href?: string };
+export type MenuItem = { label: string; onClick?: () => void; href?: string; disabled?: boolean };
 
 /** One "Actions" button whose list holds a screen's Import, Export, Print
- * and PDF. The same button on every screen. */
-export function ActionsMenu({ items }: { items: MenuItem[] }) {
+ * and PDF. The same button on every screen. Entry screens use the same
+ * dropdown as "Print ▾" and "Create ▾" (`label`, `main` for the solid
+ * button, `disabled`, and a `note` under the list). */
+export function ActionsMenu({
+  items,
+  label = "Actions",
+  main = false,
+  disabled = false,
+  title,
+  note,
+}: {
+  items: MenuItem[];
+  label?: string;
+  main?: boolean;
+  disabled?: boolean;
+  title?: string;
+  note?: string;
+}) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -233,8 +249,16 @@ export function ActionsMenu({ items }: { items: MenuItem[] }) {
   }, [open]);
   return (
     <div className="actions-menu" ref={box}>
-      <button type="button" className="link" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Actions <span aria-hidden="true">▾</span>
+      <button
+        type="button"
+        className={main ? undefined : "link"}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        title={title}
+        onClick={() => setOpen(!open)}
+      >
+        {label} <span aria-hidden="true">▾</span>
       </button>
       {open && (
         <div className="actions-panel" role="menu">
@@ -248,6 +272,7 @@ export function ActionsMenu({ items }: { items: MenuItem[] }) {
                 key={item.label}
                 type="button"
                 role="menuitem"
+                disabled={item.disabled}
                 onClick={() => {
                   setOpen(false);
                   item.onClick?.();
@@ -257,6 +282,7 @@ export function ActionsMenu({ items }: { items: MenuItem[] }) {
               </button>
             ),
           )}
+          {note && <span className="actions-note">{note}</span>}
         </div>
       )}
     </div>

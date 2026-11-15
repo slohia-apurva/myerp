@@ -1711,6 +1711,15 @@ form.card .address-card {
 .actions-menu > button {
   gap: 8px;
 }
+.actions-panel button:disabled {
+  color: #9aa5b1;
+  cursor: default;
+}
+.actions-note {
+  padding: 6px 16px 4px;
+  color: #7b8794;
+  font-size: 12.5px;
+}
 .actions-holder {
   display: contents;
 }
