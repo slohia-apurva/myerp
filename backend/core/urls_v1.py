@@ -2,6 +2,7 @@ from django.urls import path
 
 from core import (
     api,
+    batches,
     brands,
     central,
     central_requests,
@@ -159,6 +160,8 @@ urlpatterns = [
     ),
     path("fiscal-years/<int:pk>/", fiscal.FiscalYearDetailView.as_view(), name="fiscal-year"),
     path("fiscal-periods/<int:pk>/", fiscal.PeriodDetailView.as_view(), name="fiscal-period"),
+    path("batches/", batches.BatchListView.as_view(), name="batches"),
+    path("batches/<int:pk>/", batches.BatchDetailView.as_view(), name="batch"),
     path("brands/", brands.BrandListView.as_view(), name="brands"),
     path("brands/<int:pk>/", brands.BrandDetailView.as_view(), name="brand"),
     path("item-groups/", item_groups.ItemGroupListView.as_view(), name="item-groups"),

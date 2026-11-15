@@ -176,6 +176,7 @@ def _register() -> None:
     from core import india
     from core import modules as company_modules
     from core.models import (
+        Batch,
         Branch,
         Brand,
         Certificate,
@@ -318,6 +319,7 @@ def _register() -> None:
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),
             ItemGroup: Tracked("item_group", "Item group", lambda r: None),
+            Batch: Tracked("batch", "Batch", lambda r: None),
             Brand: Tracked("brand", "Brand", lambda r: None),
             Item: Tracked(
                 "item",
