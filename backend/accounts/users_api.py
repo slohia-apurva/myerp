@@ -9,7 +9,8 @@ Who may do what:
 """
 
 from rest_framework import serializers, status
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -63,6 +64,7 @@ class UserSerializer(serializers.ModelSerializer):
         many=True, queryset=Company.objects.all(), required=False
     )
     signed_in_before = serializers.SerializerMethodField()
+    signature = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -70,6 +72,8 @@ class UserSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "full_name",
+            "phone",
+            "signature",
             "is_active",
             "roles",
             "companies",
@@ -80,6 +84,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_signed_in_before(self, user) -> bool:
         return bool(user.google_sub)
+
+    def get_signature(self, user) -> str:
+        return user.signature_url()
 
     def validate_email(self, value):
         value = value.strip().lower()
@@ -116,6 +123,9 @@ class UserListView(APIView):
             email=serializer.validated_data["email"],
             full_name=serializer.validated_data.get("full_name", ""),
         )
+        if serializer.validated_data.get("phone"):
+            user.phone = serializer.validated_data["phone"]
+            user.save(update_fields=["phone"])
         user.roles.set(roles)
         user.companies.set(serializer.validated_data.get("companies", []))
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
@@ -148,7 +158,7 @@ class UserDetailView(APIView):
         if was_owner and not stays_active_owner and _active_owner_count(exclude=user) == 0:
             raise ValidationError({"roles": ["There must always be at least one active Owner."]})
 
-        for field in ("full_name", "is_active"):
+        for field in ("full_name", "phone", "is_active"):
             if field in data:
                 setattr(user, field, data[field])
         user.save()
@@ -156,6 +166,51 @@ class UserDetailView(APIView):
             user.roles.set(new_roles)
         if "companies" in data:
             user.companies.set(data["companies"])
+        return Response(UserSerializer(user).data)
+
+
+SIGNATURE_MAX = 300 * 1024
+SIGNATURE_TYPES = {b"\x89PNG\r\n\x1a\n": "image/png", b"\xff\xd8\xff": "image/jpeg"}
+
+
+class SignatureView(APIView):
+    """Upload or remove a person's signature. Only the person themselves or an
+    Owner may, since it is printed as their approval on documents."""
+
+    parser_classes = [MultiPartParser]
+
+    def _user(self, request, pk: int) -> User:
+        user = User.objects.filter(pk=pk).first()
+        if user is None:
+            raise NotFound("No such user.")
+        if user.pk != request.user.pk and not request.user.is_owner:
+            raise PermissionDenied("Only the person themselves or an Owner can change a signature.")
+        return user
+
+    @tenant_atomic()
+    def post(self, request, pk: int):
+        user = self._user(request, pk)
+        upload = request.FILES.get("file")
+        if upload is None:
+            raise ValidationError({"file": ["Choose an image of the signature."]})
+        if upload.size > SIGNATURE_MAX:
+            too_big = "The image is over 300 KB; crop it or save it smaller."
+            raise ValidationError({"file": [too_big]})
+        data = upload.read()
+        kind = next((t for magic, t in SIGNATURE_TYPES.items() if data.startswith(magic)), "")
+        if not kind:
+            raise ValidationError({"file": ["Upload a PNG or JPG image."]})
+        user.signature = data
+        user.signature_type = kind
+        user.save(update_fields=["signature", "signature_type"])
+        return Response(UserSerializer(user).data)
+
+    @tenant_atomic()
+    def delete(self, request, pk: int):
+        user = self._user(request, pk)
+        user.signature = None
+        user.signature_type = ""
+        user.save(update_fields=["signature", "signature_type"])
         return Response(UserSerializer(user).data)
 
 

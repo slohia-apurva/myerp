@@ -216,3 +216,46 @@ def test_create_tenant_user_gives_roles(alpha):
     call_command("create_tenant_user", "alpha", "admin@x.in", "--role", "owner", stdout=StringIO())
     with use_tenant(alpha):
         assert User.objects.get(email="admin@x.in").is_owner
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 50
+
+
+def _sign(client, user_id, data=PNG, name="sig.png"):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    return client.post(
+        f"/api/v1/users/{user_id}/signature/",
+        {"file": SimpleUploadedFile(name, data)},
+        HTTP_HOST=HOST,
+    )
+
+
+def test_mobile_is_saved_and_checked(as_user):
+    admin, _ = as_user("owner")
+    _, clerk = as_user("viewer")
+    ok = call(admin, "patch", f"users/{clerk.pk}/", {"phone": "98300 22222"})
+    assert ok.status_code == 200 and ok.json()["phone"] == "98300 22222"
+    bad = call(admin, "patch", f"users/{clerk.pk}/", {"phone": "call me"})
+    assert bad.status_code == 400
+
+
+def test_only_the_person_or_an_owner_sets_a_signature(as_user):
+    owner, _ = as_user("owner")
+    clerk_client, clerk = as_user("viewer")
+    other_client, _ = as_user("accountant")
+    assert _sign(other_client, clerk.pk).status_code == 403
+    mine = _sign(clerk_client, clerk.pk)
+    assert mine.status_code == 200, mine.json()
+    assert mine.json()["signature"].startswith("data:image/png;base64,")
+    assert _sign(owner, clerk.pk).status_code == 200
+    gone = owner.delete(f"/api/v1/users/{clerk.pk}/signature/", HTTP_HOST=HOST)
+    assert gone.json()["signature"] == ""
+
+
+def test_a_signature_must_be_a_small_png_or_jpg(as_user):
+    _, clerk = as_user("viewer")
+    owner, _ = as_user("owner")
+    assert "PNG or JPG" in str(_sign(owner, clerk.pk, b"%PDF-1.4", "sig.pdf").json())
+    big = PNG + b"0" * (300 * 1024)
+    assert "300 KB" in str(_sign(owner, clerk.pk, big).json())

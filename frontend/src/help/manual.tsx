@@ -2129,7 +2129,7 @@ export const MANUAL: Chapter[] = [
           transporter, the items with their descriptions, the charges, a "Tax Summary" by HSN / SAC code, the totals, the
           amount in words, the terms and conditions and the signature. An import shows its shipment and payment terms,
           "Documents Required" and "Packing and Marking", in the order's currency with no GST. A draft prints with
-          "DRAFT" across each page; a submitted order says "Approved by" who submitted it and when, under the signature. The supplier's box shows the people the order is mailed to, else its main contact. "Download PDF" opens the same page: pick "Save as PDF" as the printer to keep a PDF.
+          "DRAFT" across each page; a submitted order carries the signature of the person who submitted it (if one is saved under Users) and says "Approved by" who submitted it and when. "Our Contact" shows the person who made the order, with their mobile number. The supplier's box shows the people the order is mailed to, else its main contact. "Download PDF" opens the same page: pick "Save as PDF" as the printer to keep a PDF.
           Pages after the first start with a short heading (logo, company, order number and date, the supplier "continued"); when the items run over, a page ends "Carried to page n" with the total so far and the next begins "Brought from page n-1". Every page has the order number and "Page n of m" at the foot.
         </p>
         <h3>Submit, change and cancel</h3>
@@ -2172,7 +2172,11 @@ export const MANUAL: Chapter[] = [
         <h3>Add a user</h3>
         <ol>
           <li>Click "Admin" in the top menu, then "Users", then "Add user".</li>
-          <li>Enter their email (their Google account) and full name.</li>
+          <li>
+            Enter their email (their Google account), full name and "Mobile".
+            The mobile number prints under "Our Contact" on the purchase
+            orders they make.
+          </li>
           <li>Tick their roles. Only an Owner can make someone an Owner.</li>
           <li>
             Tick the companies they may work in. None ticked means all
@@ -2180,6 +2184,15 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>Click "Save".</li>
         </ol>
+        <h3>Signature</h3>
+        <p>
+          Open the user and use "Upload image…" in the "Signature" box: a PNG
+          or JPG of their signature on a white or clear background, up to 300
+          KB. It is saved at once, and prints above "Authorised Signatory" on
+          every purchase order they submit (a draft is never signed). "Change
+          image…" replaces it and "Remove" takes it off. Only the person
+          themselves or an Owner can change a signature.
+        </p>
         <h3>Stop someone signing in</h3>
         <p>
           Click "Edit" on the user, then "Disable". They can no longer sign in;

@@ -5,6 +5,8 @@ People are known by email address. They sign in with Google; MyERP keeps no
 passwords (see docs/decisions/0007-login-with-google.md).
 """
 
+import base64
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
@@ -13,6 +15,7 @@ from django.utils import timezone
 
 from accounts import permissions
 from accounts.roles import OWNER
+from core import india
 
 
 class Role(models.Model):
@@ -53,6 +56,12 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=150, blank=True)
+    # Printed as "Our Contact" on documents this person makes.
+    phone = models.CharField("mobile", max_length=20, blank=True, validators=[india.validate_phone])
+    # A small PNG or JPG, printed above "Authorised Signatory" on documents
+    # this person submits. Kept in the tenant database with the books.
+    signature = models.BinaryField(null=True, blank=True, editable=False)
+    signature_type = models.CharField(max_length=20, blank=True, editable=False)
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(default=timezone.now)
     # Google's permanent account id, recorded at first sign-in. If the email
@@ -77,6 +86,13 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self) -> str:
         return self.email
+
+    def signature_url(self) -> str:
+        """The signature as a data: URL for an <img>, or "" when there is none."""
+        if not self.signature:
+            return ""
+        encoded = base64.b64encode(bytes(self.signature)).decode()
+        return f"data:{self.signature_type};base64,{encoded}"
 
     @property
     def display_name(self) -> str:

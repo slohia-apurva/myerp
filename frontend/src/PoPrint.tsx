@@ -31,6 +31,8 @@ type Order = PurchaseOrder & {
   amount_words: string;
   submitted_at: string | null;
   submitted_by_name: string;
+  submitted_by_signature?: string;
+  created_by_phone?: string;
 };
 
 const dmy = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("-") : "");
@@ -411,6 +413,9 @@ function useParts(order: Order) {
       <div className="po-grow">{order.terms.trim() && <PrintTerms text={order.terms} />}</div>
       <div className="po-sign">
         For {lh.name}
+        <div className="po-sign-img">
+          {order.submitted_by_signature && <img src={order.submitted_by_signature} alt="" />}
+        </div>
         <div className="po-sign-line">
           Authorised Signatory
           <div className="po-mut">{approved}</div>
@@ -583,9 +588,19 @@ function FullHead({ order }: { order: Order }) {
   const imp = order.import_details ?? {};
   const isImport = order.currency !== "INR" || Object.keys(imp).length > 0;
   const ab = order.addresses;
-  const ourContact = order.created_by_name;
+  const ourContact = (
+    <>
+      {order.created_by_name}
+      {order.created_by_phone && (
+        <>
+          <br />
+          {order.created_by_phone}
+        </>
+      )}
+    </>
+  );
   const label = (k: string) => (imp[`${k}_label`] as string) ?? "";
-  const meta: [string, string][] = isImport
+  const meta: [string, ReactNode][] = isImport
     ? [
         ["Currency", `${order.currency} (${order.currency_symbol})`],
         ["Incoterms", [imp.incoterm, imp.named_place].filter(Boolean).join(" ")],

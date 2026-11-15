@@ -3037,8 +3037,18 @@ td.nowrap {
   flex: none;
   text-align: center;
 }
+/* Room for the approver's signature; the line stays put with or without it. */
+.po-sign-img {
+  height: 30pt;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.po-sign-img img {
+  max-height: 30pt;
+  max-width: 150pt;
+}
 .po-sign-line {
-  margin-top: 30pt;
   border-top: 1px solid #333;
   padding-top: 3pt;
 }
@@ -3066,4 +3076,28 @@ td.nowrap {
     padding: 0;
     max-width: none;
   }
+}
+
+/* The signature on the Users screen. */
+.sig-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sig-box {
+  min-width: 180px;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #9bb8a6;
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: #fff;
+}
+.sig-box img {
+  max-height: 56px;
+  max-width: 240px;
+  display: block;
 }

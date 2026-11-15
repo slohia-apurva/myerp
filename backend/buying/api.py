@@ -372,10 +372,15 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "submitted_at": o.submitted_at,
         "submitted_by_name": o.submitted_by.display_name if o.submitted_by else "",
         "created_by_email": o.created_by.email if o.created_by else "",
+        "created_by_phone": o.created_by.phone if o.created_by else "",
         "line_count": len(o.lines.all()),
     }
     if lines:
         data["lines"] = [_line_out(ln) for ln in o.lines.all()]
+        # Printed above "Authorised Signatory"; a draft is never signed.
+        data["submitted_by_signature"] = (
+            o.submitted_by.signature_url() if o.submitted_by and o.status != "draft" else ""
+        )
         # The supplier's own code for each item, printed as "Your code …".
         codes = dict(
             PartyItemName.objects.filter(party=o.supplier.party_id)
