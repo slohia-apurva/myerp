@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
+from buying import imports
 from buying.models import PurchaseOrder, PurchaseOrderLine
 from core import fiscal, india, numbering
 from core.api import Signed
@@ -29,6 +30,7 @@ from core.models import (
     Branch,
     Certificate,
     CreditTerm,
+    Currency,
     Item,
     ItemUnit,
     Ledger,
@@ -72,6 +74,14 @@ def _plain(value: Decimal | None) -> str:
         return ""
     text = format(value, "f")
     return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def _symbol(code: str) -> str:
+    """₹ for rupees, else the currency's symbol (its code when it has none)."""
+    if code == "INR":
+        return "₹"
+    found = Currency.objects.filter(code=code).first()
+    return (found.symbol if found else "") or code
 
 
 def charges_gst(party: Party | None) -> bool:
@@ -272,6 +282,9 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "whatsapp_to": o.whatsapp_to,
         "mail_contacts": _with_agent_user(o, _mail_contacts(o)),
         "supplier_ref": o.supplier_ref,
+        "currency": o.currency,
+        "currency_symbol": _symbol(o.currency),
+        "import_details": imports.labelled(o.import_details),
         "terms_set": o.terms_set_id,
         "terms_set_name": o.terms_set.name if o.terms_set else "",
         "terms": o.terms,
@@ -359,6 +372,8 @@ class OrderSerializer(serializers.Serializer):
     )
     mail_agent_user = serializers.BooleanField(required=False, default=False)
     supplier_ref = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    # For an overseas supplier only; ignored otherwise.
+    import_details = imports.ImportSerializer(required=False)
     # Left out: the supplier's set, else the company's default, with its text
     # when no text is sent.
     terms_set = serializers.PrimaryKeyRelatedField(
@@ -534,6 +549,12 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     o.bill_to = bill_to
     o.supplier_address = _party_address(place) if place else {}
     o.terms_set = terms_set
+    overseas = party is not None and party.gst_type == Party.OVERSEAS
+    o.currency = supplier.currency.code if overseas and supplier.currency_id else "INR"
+    if overseas and "import_details" in data:
+        o.import_details = imports.clean(data["import_details"])
+    elif not overseas:
+        o.import_details = {}
     o.agent, o.mail_to, o.whatsapp_to = agent, mail_to, whatsapp_to
     o.agent_user = agent_user
     o.mail_agent_user = bool(agent_user and data.get("mail_agent_user"))
@@ -545,7 +566,8 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     o.sgst_total = sum((r.sgst for r in rows), Decimal("0"))
     o.igst_total = sum((r.igst for r in rows), Decimal("0"))
     exact = sum((r.amount for r in rows), Decimal("0"))
-    o.total = exact.quantize(RUPEE, rounding=ROUND_HALF_UP)
+    # A rupee order rounds to the rupee; a foreign currency order is not rounded.
+    o.total = exact.quantize(RUPEE, rounding=ROUND_HALF_UP) if o.currency == "INR" else exact
     o.round_off = o.total - exact
     o.save()
     o.lines.all().delete()
@@ -711,13 +733,25 @@ class OrderSetupView(APIView):
         company = _company(request, pk)
         suppliers = (
             Ledger.objects.filter(company=company, party_side="supplier", party__isnull=False)
-            .select_related("party__credit_term", "party__purchase_terms")
+            .select_related("party__credit_term", "party__purchase_terms", "currency")
             .prefetch_related("party__contacts", "party__addresses")
             .order_by("name")
         )
+        last_import: dict[int, dict] = {}
+        for o in (
+            PurchaseOrder.objects.filter(company=company)
+            .exclude(import_details={})
+            .order_by("-order_date", "-pk")
+            .only("supplier_id", "import_details")
+        ):
+            last_import.setdefault(o.supplier_id, {**o.import_details, "latest_shipment": ""})
         return Response(
             {
                 "company_name": company.name,
+                "import_choices": {
+                    key: [list(c) for c in options] for key, options in imports.CHOICES.items()
+                },
+                "default_documents": imports.DEFAULT_DOCUMENTS,
                 # Where "Create …" in the supplier picker adds a new supplier's ledger.
                 "supplier_group": LedgerGroup.objects.filter(
                     company=company, code="sundry_creditors"
@@ -736,6 +770,11 @@ class OrderSetupView(APIView):
                         "state_code": s.party.state_code,
                         "credit_term": s.party.credit_term_id,
                         "transporter": s.preferred_transporter_id,
+                        "currency": s.currency.code if s.currency_id else "INR",
+                        "currency_symbol": _symbol(s.currency.code if s.currency_id else "INR"),
+                        "overseas": s.party.gst_type == Party.OVERSEAS,
+                        # An import starts with the details of the supplier's last order.
+                        "last_import": last_import.get(s.pk) or {},
                         "terms_set": s.party.purchase_terms_id
                         if s.party.purchase_terms and s.party.purchase_terms.is_active
                         else None,

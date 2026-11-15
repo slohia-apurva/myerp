@@ -2039,6 +2039,18 @@ export const MANUAL: Chapter[] = [
             as it was, even if the supplier's addresses change later.
           </li>
           <li>
+            For an overseas supplier an "Import Details" section appears. The
+            order is in the "Currency" of the supplier's ledger (rates, totals
+            and the print are in that currency, with no GST and no rupee value
+            or exchange rate). Fill in the "Incoterms" and "Named Place", the
+            "Mode of Shipment", "Port of Loading" and "Port of Discharge",
+            "Country of Origin", "Latest Shipment Date", "Payment Method",
+            "Partial Shipment", "Transhipment" and "Insurance By", tick the
+            "Documents Required" and write the "Packing and Marking". The next
+            order to the same supplier starts with these details (except the
+            date).
+          </li>
+          <li>
             Under "Supplier Contacts and Agent", tick "Send Mail" for each
             person who should get the order by mail. The supplier's purchase
             contacts and its main contact are ticked to start with; a contact

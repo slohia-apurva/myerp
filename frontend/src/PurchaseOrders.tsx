@@ -3,6 +3,7 @@ import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
+import { CountryPicker } from "./Pin";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
@@ -52,6 +53,9 @@ export type PurchaseOrder = {
   transporter_name: string;
   terms_set: number | null;
   terms_set_name: string;
+  currency: string;
+  currency_symbol: string;
+  import_details: ImportDetails;
   bill_to: number | null;
   bill_to_name: string;
   supplier_address: Partial<Place>;
@@ -110,6 +114,10 @@ type Supplier = {
   credit_term: number | null;
   transporter: number | null;
   terms_set: number | null;
+  currency: string;
+  currency_symbol: string;
+  overseas: boolean;
+  last_import: ImportDetails;
   charges_gst: boolean;
   contacts: Contact[];
   addresses: Place[];
@@ -136,7 +144,22 @@ type Setup = {
   transporters: Transporter[];
   terms_sets: { id: number; name: string; is_active: boolean; text: string }[];
   default_terms: number | null;
+  import_choices: Record<string, [string, string][]>;
+  default_documents: string[];
   supplier_group: number | null;
+};
+/** Shipment and payment terms of an import; `<key>_label` and `documents_labels` come
+ * back from the server beside the codes. */
+type ImportDetails = Record<string, string | string[] | undefined> & { documents?: string[] };
+const IMPORT_KEYS = [
+  "incoterm", "named_place", "mode", "port_loading", "port_discharge", "origin",
+  "latest_shipment", "payment", "partial", "transhipment", "insurance_by", "packing",
+] as const;
+/** The editable part: codes only, as sent back on Save. */
+const importDraft = (d: ImportDetails | undefined): ImportDetails => {
+  const out: ImportDetails = { documents: [...(d?.documents ?? [])] };
+  for (const k of IMPORT_KEYS) out[k] = (d?.[k] as string) ?? "";
+  return out;
 };
 type BuyItem = {
   id: number;
@@ -335,7 +358,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                   <td>{o.branch_name}</td>
                   <td className="nowrap">{shortDate(o.expected_date)}</td>
                   <td>{o.supplier_ref}</td>
-                  <td className="num">{money(o.total)}</td>
+                  <td className="num">{o.currency !== "INR" ? `${o.currency_symbol}${money(o.total)}` : money(o.total)}</td>
                   <td>
                     <span className={pillClass(o.status)}>{o.status_label}</span>
                   </td>
@@ -368,7 +391,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                   ["Credit Term", selected.credit_term_name],
                   ["Transporter", selected.transporter_name],
                   ["Items", String(selected.line_count)],
-                  ["Total", `₹${money(selected.total)}`],
+                  ["Total", `${selected.currency_symbol}${money(selected.total)}`],
                   ["Made By", selected.created_by_name],
                 ]}
               />
@@ -483,6 +506,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const [mailTo, setMailTo] = useState<number[]>(from?.mail_to ?? []);
   const [waTo, setWaTo] = useState<number[]>(from?.whatsapp_to ?? []);
   const [termsText, setTermsText] = useState(from?.terms ?? "");
+  const [imp, setImp] = useState<ImportDetails>(() => importDraft(from?.import_details));
+  const setImpField = (key: string, value: string | string[]) => setImp((d) => ({ ...d, [key]: value }));
   // The set of terms the text came from; picking a set (or a supplier) brings its text
   // unless the text was changed by hand on this order.
   const [termsSet, setTermsSet] = useState(from?.terms_set ? String(from.terms_set) : "");
@@ -565,6 +590,9 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const takeSupplier = (value: string) => {
     setSupplierId(value);
     const s = setup?.suppliers.find((x) => String(x.id) === value);
+    // An import starts with the supplier's last order's details, else the usual documents.
+    if (s?.overseas)
+      setImp(Object.keys(s.last_import).length ? importDraft(s.last_import) : { ...importDraft(undefined), documents: [...(setup?.default_documents ?? [])] });
     // The supplier's credit term comes with it; it can still be changed here.
     if (s) setTerm(s.credit_term ? String(s.credit_term) : "");
     // Its billing address is the one on the order unless another is picked.
@@ -635,7 +663,9 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const taxable = worked.reduce((s, w) => s + w.taxable, 0);
   const tax = worked.reduce((s, w) => s + w.tax, 0);
   const exact = round2(taxable + tax);
-  const rounded = Math.round(exact);
+  // A rupee order rounds to the rupee; a foreign currency order is not rounded.
+  const sym = sup?.currency_symbol ?? "₹";
+  const rounded = sup && sup.currency !== "INR" ? exact : Math.round(exact);
   const interstate = !!sup?.charges_gst && !!br && sup.state_code !== br.state_code;
   const half = worked.reduce((s, w) => s + round2(w.tax / 2), 0);
   const chosenTerm = terms.find((t) => String(t.id) === term);
@@ -668,6 +698,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       mail_agent_user: mailAgentUser,
       terms_set: termsSet ? Number(termsSet) : null,
       terms: termsText,
+      ...(sup?.overseas ? { import_details: { ...imp, latest_shipment: imp.latest_shipment || null } } : {}),
       notes,
       lines: filled.map((l) => ({ item: Number(l.item), description: l.description, unit: Number(l.unit), qty: l.qty || "0", rate: l.rate || "0", discount_pct: l.discount || "0" })),
       submit,
@@ -804,6 +835,14 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               </label>
             </div>
           </Fold>
+          {sup?.overseas && setup && (
+            <ImportFold
+              details={imp}
+              set={setImpField}
+              choices={setup.import_choices}
+              currency={`${sup.currency}${sup.currency_symbol !== sup.currency ? ` (${sup.currency_symbol})` : ""}`}
+            />
+          )}
           <Fold title="Addresses" open summary={[br && `Ship to ${br.name}`, supAddr && `supplier's ${supAddr}`].filter(Boolean).join(" · ")}>
             <div className="address-cols">
               <div>
@@ -883,11 +922,11 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                     <th>Item</th>
                     <th className="num">Qty</th>
                     <th>Unit</th>
-                    <th className="num">Rate ₹</th>
+                    <th className="num">Rate {sym}</th>
                     <th className="num">Disc %</th>
-                    <th className="num">Taxable ₹</th>
+                    <th className="num">Taxable {sym}</th>
                     <th className="num">GST %</th>
-                    <th className="num">Amount ₹</th>
+                    <th className="num">Amount {sym}</th>
                     <th />
                   </tr>
                 </thead>
@@ -1042,10 +1081,13 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
             igst={interstate ? tax : 0}
             roundOff={rounded - exact}
             total={rounded}
+            symbol={sym}
             note={
               !sup
                 ? ""
-                : !sup.charges_gst
+                : sup.overseas
+                  ? `An import: no GST on the order (IGST and duty are paid on the bill of entry). Amounts in ${sup.currency}.`
+                  : !sup.charges_gst
                   ? "This supplier does not charge GST on its bills."
                   : interstate
                     ? "Supplier in another state, so IGST."
@@ -1132,7 +1174,131 @@ function ContactTicks(props: {
   );
 }
 
-function TotalsPanel(p: { taxable: number; cgst: number; sgst: number; igst: number; roundOff: number; total: number; note: string }) {
+/** "Import Details": shown on the form only for an overseas supplier (Sidharth, 2026-11-14).
+ * Amounts are in the supplier's currency; no exchange rate is kept on the order. */
+function ImportFold(props: {
+  details: ImportDetails;
+  set: (key: string, value: string | string[]) => void;
+  choices: Record<string, [string, string][]>;
+  currency: string;
+}) {
+  const d = props.details;
+  const text = (k: string) => (d[k] as string) ?? "";
+  const pick = (k: string, label: string, hint?: string) => (
+    <label>
+      {label}
+      <Combobox
+        value={text(k)}
+        onChange={(v) => props.set(k, v)}
+        empty="Not set"
+        options={(props.choices[k] ?? []).map(([value, l]) => ({ value, label: l }))}
+      />
+      {hint && <span className="small">{hint}</span>}
+    </label>
+  );
+  const docs = d.documents ?? [];
+  const summary = [props.currency.split(" ")[0], [text("incoterm"), text("named_place")].filter(Boolean).join(" "), (props.choices.mode ?? []).find(([c]) => c === text("mode"))?.[1]]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <Fold title="Import Details" open summary={summary}>
+      <p className="small">For an overseas supplier: printed on the order. Amounts on this order are in {props.currency}.</p>
+      <div className="import-grid">
+        <label>
+          Currency
+          <input value={props.currency} readOnly className="locked-field" />
+          <span className="small">From the supplier's ledger</span>
+        </label>
+        {pick("incoterm", "Incoterms")}
+        <label>
+          Named Place
+          <input value={text("named_place")} maxLength={80} placeholder="e.g. Kolkata" onChange={(e) => props.set("named_place", e.target.value)} />
+          <span className="small">Where the Incoterm applies</span>
+        </label>
+        {pick("mode", "Mode of Shipment")}
+        <label>
+          Port of Loading
+          <input value={text("port_loading")} maxLength={80} placeholder="e.g. Colombo" onChange={(e) => props.set("port_loading", e.target.value)} />
+        </label>
+        <label>
+          Port of Discharge
+          <input value={text("port_discharge")} maxLength={80} placeholder="e.g. Kolkata" onChange={(e) => props.set("port_discharge", e.target.value)} />
+        </label>
+        <label>
+          Country of Origin
+          <CountryPicker value={text("origin")} onChange={(v) => props.set("origin", v)} />
+        </label>
+        <label>
+          Latest Shipment Date
+          <input type="date" value={text("latest_shipment")} onChange={(e) => props.set("latest_shipment", e.target.value)} />
+        </label>
+        {pick("payment", "Payment Method")}
+        {pick("partial", "Partial Shipment")}
+        {pick("transhipment", "Transhipment")}
+        {pick("insurance_by", "Insurance By")}
+      </div>
+      <div className="item-fields">
+        <div>
+          <b className="fact-label">Documents Required</b>
+          <div className="checks">
+            {(props.choices.documents ?? []).map(([code, label]) => (
+              <label key={code} className="check">
+                <input
+                  type="checkbox"
+                  checked={docs.includes(code)}
+                  onChange={(e) => props.set("documents", e.target.checked ? [...docs, code] : docs.filter((x) => x !== code))}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <span className="small">The ticks start from the supplier's last order.</span>
+        </div>
+        <label>
+          Packing and Marking
+          <textarea rows={3} value={text("packing")} maxLength={1000} onChange={(e) => props.set("packing", e.target.value)} />
+        </label>
+      </div>
+    </Fold>
+  );
+}
+
+/** The import details of a saved order, as facts. */
+function ImportView({ order }: { order: PurchaseOrder }) {
+  const d = order.import_details;
+  const t = (k: string) => (d[k] as string) || "";
+  const rows: [string, string][] = [
+    ["Currency", order.currency],
+    ["Incoterms", [t("incoterm"), t("named_place")].filter(Boolean).join(" ")],
+    ["Mode of Shipment", t("mode_label")],
+    ["Port of Loading", t("port_loading")],
+    ["Port of Discharge", t("port_discharge")],
+    ["Country of Origin", t("origin")],
+    ["Latest Shipment Date", showDate(t("latest_shipment") || null)],
+    ["Payment Method", t("payment_label")],
+    ["Partial Shipment", t("partial_label")],
+    ["Transhipment", t("transhipment_label")],
+    ["Insurance By", t("insurance_by_label")],
+    ["Documents Required", ((d.documents_labels as string[]) ?? []).join(", ")],
+    ["Packing and Marking", t("packing")],
+  ];
+  return (
+    <Fold title="Import Details" open>
+      <dl className="kv">
+        {rows
+          .filter(([, v]) => v)
+          .map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+      </dl>
+    </Fold>
+  );
+}
+
+function TotalsPanel(p: { taxable: number; cgst: number; sgst: number; igst: number; roundOff: number; total: number; note: string; symbol?: string }) {
   return (
     <SidePanel title="Totals">
       <SideRows
@@ -1141,8 +1307,8 @@ function TotalsPanel(p: { taxable: number; cgst: number; sgst: number; igst: num
           ...(p.cgst ? ([["CGST", money(p.cgst)]] as [string, string][]) : []),
           ...(p.sgst ? ([["SGST", money(p.sgst)]] as [string, string][]) : []),
           ...(p.igst ? ([["IGST", money(p.igst)]] as [string, string][]) : []),
-          ["Round Off", money(p.roundOff)],
-          ["Total", `₹${money(p.total)}`],
+          ...(!p.symbol || p.symbol === "₹" || p.roundOff ? ([["Round Off", money(p.roundOff)]] as [string, string][]) : []),
+          ["Total", `${p.symbol ?? "₹"}${money(p.total)}`],
         ]}
       />
       {p.note && <p className="small">{p.note}</p>}
@@ -1326,6 +1492,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 ))}
             </dl>
           </Fold>
+          {order.currency !== "INR" || Object.keys(order.import_details).length > 0 ? <ImportView order={order} /> : null}
           <Fold title="Addresses" open>
             <div className="address-cols">
               <div>
@@ -1390,11 +1557,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                     <th>HSN</th>
                     <th className="num">Qty</th>
                     <th>Unit</th>
-                    <th className="num">Rate ₹</th>
+                    <th className="num">Rate {order.currency_symbol}</th>
                     <th className="num">Disc %</th>
-                    <th className="num">Taxable ₹</th>
+                    <th className="num">Taxable {order.currency_symbol}</th>
                     <th className="num">GST %</th>
-                    <th className="num">Amount ₹</th>
+                    <th className="num">Amount {order.currency_symbol}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1460,6 +1627,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             igst={Number(order.igst_total)}
             roundOff={Number(order.round_off)}
             total={Number(order.total)}
+            symbol={order.currency_symbol}
             note=""
           />
           <PaymentPanel term={terms.find((t) => t.id === order.credit_term)} />

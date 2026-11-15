@@ -2578,6 +2578,11 @@ table.unit-lines tr.sel td.row-actions {
 .doc-page .fold-body label .small {
   color: var(--slate);
 }
+/* A tick's words are a value, not a field heading. */
+.doc-page .fold-body label.check {
+  color: var(--ink);
+  font-weight: 400;
+}
 .fact-label {
   color: var(--green);
   font-size: 14px;
@@ -2673,4 +2678,16 @@ td.nowrap {
 }
 .terms-text b:first-child {
   margin-top: 0;
+}
+/* Import details on a purchase order: three columns of short fields */
+.import-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 24px;
+  margin-bottom: 12px;
+}
+@media (max-width: 900px) {
+  .import-grid {
+    grid-template-columns: 1fr;
+  }
 }
