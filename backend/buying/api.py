@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from buying import imports
-from buying.models import PurchaseOrder, PurchaseOrderLine
+from buying.models import PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
 from core import fiscal, india, numbering
 from core.api import Signed
 from core.api import _company as _visible_company
@@ -47,6 +47,7 @@ from core.price_lists import find_rate
 from core.terms import terms_for
 from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
+from tenancy.models import GstRate
 
 VIEW, CREATE, SUBMIT, CANCEL = (f"purchase.{a}" for a in ("view", "create", "submit", "cancel"))
 PAISE = Decimal("0.01")
@@ -208,6 +209,25 @@ def _line_out(ln: PurchaseOrderLine) -> dict:
     }
 
 
+def _charge_out(c: PurchaseOrderCharge) -> dict:
+    return {
+        "id": c.pk,
+        "item": c.item_id,
+        "item_name": c.item.name,
+        "sac": c.item.hsn,
+        "basis": c.basis,
+        "basis_label": c.get_basis_display(),
+        "rate": _plain(c.rate),
+        "amount": str(c.amount),
+        "gst_rate": _plain(c.gst_rate),
+        "cgst": str(c.cgst),
+        "sgst": str(c.sgst),
+        "igst": str(c.igst),
+        "add_to_stock": c.add_to_stock,
+        "add_to_stock_label": c.get_add_to_stock_display(),
+    }
+
+
 def _contact_out(c: PartyContact) -> dict:
     return {
         "id": c.pk,
@@ -304,6 +324,7 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
     }
     if lines:
         data["lines"] = [_line_out(ln) for ln in o.lines.all()]
+        data["charges"] = [_charge_out(c) for c in o.charges.all()]
         data["addresses"] = _addresses_out(o)
     return data
 
@@ -322,7 +343,7 @@ def _orders(company):
             "terms_set",
             "created_by",
         )
-        .prefetch_related("lines__item", "lines__unit")
+        .prefetch_related("lines__item", "lines__unit", "charges__item")
     )
 
 
@@ -341,6 +362,19 @@ class LineSerializer(serializers.Serializer):
     discount_pct = serializers.DecimalField(
         max_digits=5, decimal_places=2, required=False, default=Decimal("0")
     )
+
+
+class ChargeSerializer(serializers.Serializer):
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
+    basis = serializers.ChoiceField(choices=PurchaseOrderCharge.BASES)
+    # The amount for Fixed, the percent for "% of items", the rate for "Per unit".
+    rate = serializers.DecimalField(max_digits=18, decimal_places=6)
+    # Left out: the item's GST rate on the order date.
+    gst_rate = serializers.DecimalField(
+        max_digits=5, decimal_places=2, required=False, allow_null=True
+    )
+    # Left out: the item's own setting.
+    add_to_stock = serializers.ChoiceField(choices=Item.STOCK_COST, required=False)
 
 
 class OrderSerializer(serializers.Serializer):
@@ -382,6 +416,7 @@ class OrderSerializer(serializers.Serializer):
     terms = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
     lines = LineSerializer(many=True)
+    charges = ChargeSerializer(many=True, required=False)
     # true: submit straight after saving (the "Submit" button on a new order).
     submit = serializers.BooleanField(required=False, default=False)
 
@@ -541,6 +576,7 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
         )
     if line_errors:
         raise ValidationError({"lines": line_errors})
+    charges = _charges(data.get("charges") or [], rows, o, with_gst, interstate, data)
 
     o.supplier, o.branch = supplier, branch
     o.order_date, o.expected_date = data["order_date"], expected
@@ -561,11 +597,14 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     for field in ("supplier_ref", "terms", "notes"):
         setattr(o, field, data.get(field, "").strip())
     o.interstate = interstate
-    o.taxable_total = sum((r.taxable for r in rows), Decimal("0"))
-    o.cgst_total = sum((r.cgst for r in rows), Decimal("0"))
-    o.sgst_total = sum((r.sgst for r in rows), Decimal("0"))
-    o.igst_total = sum((r.igst for r in rows), Decimal("0"))
-    exact = sum((r.amount for r in rows), Decimal("0"))
+    o.taxable_total = sum((r.taxable for r in rows), Decimal("0")) + sum(
+        (c.amount for c in charges), Decimal("0")
+    )
+    both = [*rows, *charges]
+    o.cgst_total = sum((r.cgst for r in both), Decimal("0"))
+    o.sgst_total = sum((r.sgst for r in both), Decimal("0"))
+    o.igst_total = sum((r.igst for r in both), Decimal("0"))
+    exact = o.taxable_total + o.cgst_total + o.sgst_total + o.igst_total
     # A rupee order rounds to the rupee; a foreign currency order is not rounded.
     o.total = exact.quantize(RUPEE, rounding=ROUND_HALF_UP) if o.currency == "INR" else exact
     o.round_off = o.total - exact
@@ -574,6 +613,81 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     for r in rows:
         r.order = o
     PurchaseOrderLine.objects.bulk_create(rows)
+    o.charges.all().delete()
+    for c in charges:
+        c.order = o
+    PurchaseOrderCharge.objects.bulk_create(charges)
+
+
+def _charges(
+    given: list[dict], rows: list, o: PurchaseOrder, with_gst: bool, interstate: bool, data
+) -> list[PurchaseOrderCharge]:
+    """Work out the order's charges: each a service item marked as a purchase
+    charge, its amount from its basis, and GST at the rate picked (else the
+    item's own) when the supplier charges GST."""
+    items_value = sum((r.taxable for r in rows), Decimal("0"))
+    units = {r.unit_id for r in rows}
+    total_qty = sum((r.qty for r in rows), Decimal("0"))
+    allowed_rates = set(GstRate.objects.filter(is_active=True).values_list("rate", flat=True))
+    out, errors = [], []
+    for n, ch in enumerate(given, start=1):
+        item, basis, rate = ch["item"], ch["basis"], ch["rate"]
+        problems = []
+        old = o.pk and o.charges.filter(item=item).exists()
+        if not (item.purchase_charge and item.item_type == Item.SERVICE) and not old:
+            problems.append(f'{item.name} is not a service marked "Use as Purchase Charge".')
+        elif not item.is_active and not old:
+            problems.append(f"{item.name} is disabled.")
+        if rate < 0:
+            problems.append("The amount or rate cannot be below zero.")
+        amount = Decimal("0")
+        if basis == PurchaseOrderCharge.FIXED:
+            amount = _money(rate)
+        elif basis == PurchaseOrderCharge.PERCENT:
+            amount = _money(items_value * rate / 100)
+        elif len(units) > 1:
+            problems.append('"Per unit" needs every item line in the same unit.')
+        else:
+            amount = _money(total_qty * rate)
+        gst = Decimal("0")
+        if with_gst:
+            if ch.get("gst_rate") is not None:
+                gst = ch["gst_rate"]
+                if gst not in allowed_rates:
+                    problems.append(f"{gst.normalize():f}% is not a GST rate in the list.")
+            else:
+                found = gst_rate_on(item, data["order_date"])
+                if found is None:
+                    problems.append(f"{item.name} has no GST rate; pick one.")
+                else:
+                    gst = found
+        if problems:
+            errors.append(f"Charge {n}: " + " ".join(problems))
+            continue
+        tax = _money(amount * gst / 100)
+        cgst = sgst = igst = Decimal("0")
+        if interstate:
+            igst = tax
+        else:
+            cgst = _money(tax / 2)
+            sgst = tax - cgst
+        out.append(
+            PurchaseOrderCharge(
+                position=n,
+                item=item,
+                basis=basis,
+                rate=rate,
+                amount=amount,
+                gst_rate=gst,
+                cgst=cgst,
+                sgst=sgst,
+                igst=igst,
+                add_to_stock=ch.get("add_to_stock") or item.add_to_stock,
+            )
+        )
+    if errors:
+        raise ValidationError({"charges": errors})
+    return out
 
 
 def _submit(o: PurchaseOrder, user) -> None:
@@ -737,6 +851,7 @@ class OrderSetupView(APIView):
             .prefetch_related("party__contacts", "party__addresses")
             .order_by("name")
         )
+        today = timezone.localdate()
         last_import: dict[int, dict] = {}
         for o in (
             PurchaseOrder.objects.filter(company=company)
@@ -748,6 +863,23 @@ class OrderSetupView(APIView):
         return Response(
             {
                 "company_name": company.name,
+                # Service items offered under "Charges", with their GST rate today.
+                "charge_items": [
+                    {
+                        "id": i.pk,
+                        "name": i.name,
+                        "sac": i.hsn,
+                        "add_to_stock": i.add_to_stock,
+                        "gst_rate": _plain(r) if (r := gst_rate_on(i, today)) is not None else None,
+                    }
+                    for i in Item.objects.filter(
+                        purchase_charge=True, item_type=Item.SERVICE, is_active=True
+                    ).order_by("name")
+                ],
+                "gst_rates": [
+                    _plain(r)
+                    for r in GstRate.objects.filter(is_active=True).values_list("rate", flat=True)
+                ],
                 "import_choices": {
                     key: [list(c) for c in options] for key, options in imports.CHOICES.items()
                 },

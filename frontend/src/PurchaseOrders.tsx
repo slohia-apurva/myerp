@@ -11,6 +11,7 @@ import { useCreditTerms, type CreditTerm } from "./CreditTerms";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { STOCK_COST } from "./Items";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -33,6 +34,21 @@ type Line = {
   sgst: string;
   igst: string;
   amount: string;
+};
+type Charge = {
+  id: number;
+  item: number;
+  item_name: string;
+  sac: string;
+  basis: string;
+  basis_label: string;
+  rate: string;
+  amount: string;
+  gst_rate: string;
+  cgst: string;
+  sgst: string;
+  igst: string;
+  add_to_stock: string;
 };
 export type PurchaseOrder = {
   id: number;
@@ -82,6 +98,7 @@ export type PurchaseOrder = {
   created_by_name: string;
   line_count: number;
   lines?: Line[];
+  charges?: Charge[];
 };
 /** An address as the order shows and prints it. */
 type Place = {
@@ -146,6 +163,8 @@ type Setup = {
   default_terms: number | null;
   import_choices: Record<string, [string, string][]>;
   default_documents: string[];
+  charge_items: { id: number; name: string; sac: string; add_to_stock: string; gst_rate: string | null }[];
+  gst_rates: string[];
   supplier_group: number | null;
 };
 /** Shipment and payment terms of an import; `<key>_label` and `documents_labels` come
@@ -436,6 +455,18 @@ function work(line: Draft, gst: number) {
   return { taxable, tax, amount: taxable + tax };
 }
 
+/** A charge on the order (freight, packing, insurance…): a service item marked
+ * "Use as Purchase Charge". "rate" is the amount (Fixed), the percent (% of items) or
+ * the rate per unit (Per unit); "gst" is "" for the item's own rate. */
+type ChargeDraft = { key: number; item: string; basis: string; rate: string; gst: string; stock: string };
+const BASES: [string, string][] = [
+  ["fixed", "Fixed"],
+  ["percent", "% of items"],
+  ["per_unit", "Per unit"],
+];
+const blankCharge = (): ChargeDraft => ({ key: nextKey++, item: "", basis: "fixed", rate: "", gst: "", stock: "value" });
+const stockWord = (code: string) => STOCK_COST.find(([c]) => c === code)?.[1] ?? code;
+
 /** A credit term in words, part by part: "100% 30 days after the bill". */
 function termParts(term: CreditTerm | undefined): string[] {
   if (!term) return [];
@@ -528,6 +559,9 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     })),
     blankLine(),
   ]);
+  const [charges, setCharges] = useState<ChargeDraft[]>(() =>
+    (from?.charges ?? []).map((c) => ({ key: nextKey++, item: String(c.item), basis: c.basis, rate: c.rate, gst: c.gst_rate, stock: c.add_to_stock })),
+  );
   const [items, setItems] = useState<BuyItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>("");
@@ -660,14 +694,57 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   };
   const filled = lines.filter((l) => l.item);
   const worked = filled.map((l) => ({ line: l, ...work(l, gstOf(l)) }));
-  const taxable = worked.reduce((s, w) => s + w.taxable, 0);
-  const tax = worked.reduce((s, w) => s + w.tax, 0);
+  const itemsValue = worked.reduce((s, w) => s + w.taxable, 0);
+  const itemsTax = worked.reduce((s, w) => s + w.tax, 0);
+  const itemsExact = round2(itemsValue + itemsTax);
+  // Charges, worked out as the server does: "Per unit" needs every line in one unit.
+  const lineUnits = new Set(filled.map((l) => l.unit));
+  const totalQty = filled.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+  const unitName = (() => {
+    const l = filled[0];
+    const it = l && items.find((x) => String(x.id) === l.item);
+    return lineUnits.size === 1 ? (it?.units.find((u) => String(u.unit) === l.unit)?.name ?? "") : "";
+  })();
+  const chargeGst = !!sup?.charges_gst;
+  const chargeItem = (c: ChargeDraft) => setup?.charge_items.find((x) => String(x.id) === c.item);
+  const chargeRate = (c: ChargeDraft) => (chargeGst ? Number(c.gst || chargeItem(c)?.gst_rate || 0) : 0);
+  const chargeAmount = (c: ChargeDraft) => {
+    const r = Number(c.rate) || 0;
+    if (c.basis === "fixed") return round2(r);
+    if (c.basis === "percent") return round2((itemsValue * r) / 100);
+    return lineUnits.size > 1 ? 0 : round2(totalQty * r);
+  };
+  const chargesOn = charges.filter((c) => c.item);
+  const chargeRows = chargesOn.map((c) => {
+    const amount = chargeAmount(c);
+    const tax = round2((amount * chargeRate(c)) / 100);
+    return { c, amount, tax };
+  });
+  const chargesValue = chargeRows.reduce((s, r) => s + r.amount, 0);
+  const chargesTax = chargeRows.reduce((s, r) => s + r.tax, 0);
+  const taxable = itemsValue + chargesValue;
+  const tax = itemsTax + chargesTax;
   const exact = round2(taxable + tax);
   // A rupee order rounds to the rupee; a foreign currency order is not rounded.
   const sym = sup?.currency_symbol ?? "₹";
   const rounded = sup && sup.currency !== "INR" ? exact : Math.round(exact);
   const interstate = !!sup?.charges_gst && !!br && sup.state_code !== br.state_code;
-  const half = worked.reduce((s, w) => s + round2(w.tax / 2), 0);
+  const half = worked.reduce((s, w) => s + round2(w.tax / 2), 0) + chargeRows.reduce((s, r) => s + round2(r.tax / 2), 0);
+  const changeCharge = (key: number, patch: Partial<ChargeDraft>) =>
+    setCharges((cs) =>
+      cs.map((c) => {
+        if (c.key !== key) return c;
+        const next = { ...c, ...patch };
+        // A charge brings its own GST rate and stock cost choice; both can be changed here.
+        if ("item" in patch) {
+          const it = setup?.charge_items.find((x) => String(x.id) === patch.item);
+          next.gst = it?.gst_rate ?? "";
+          next.stock = it?.add_to_stock ?? "value";
+        }
+        return next;
+      }),
+    );
+  const newCharge = mayAddMasters ? creatable("item", "items", refreshSetup) : undefined;
   const chosenTerm = terms.find((t) => String(t.id) === term);
 
   const close = () =>
@@ -701,6 +778,13 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       ...(sup?.overseas ? { import_details: { ...imp, latest_shipment: imp.latest_shipment || null } } : {}),
       notes,
       lines: filled.map((l) => ({ item: Number(l.item), description: l.description, unit: Number(l.unit), qty: l.qty || "0", rate: l.rate || "0", discount_pct: l.discount || "0" })),
+      charges: chargesOn.map((c) => ({
+        item: Number(c.item),
+        basis: c.basis,
+        rate: c.rate || "0",
+        ...(chargeGst && c.gst !== "" ? { gst_rate: c.gst } : {}),
+        add_to_stock: c.stock,
+      })),
       submit,
     };
     try {
@@ -1023,11 +1107,11 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                       </td>
                       <td colSpan={4} />
                       <td className="num">
-                        <b>{money(taxable)}</b>
+                        <b>{money(itemsValue)}</b>
                       </td>
                       <td />
                       <td className="num">
-                        <b>{money(exact)}</b>
+                        <b>{money(itemsExact)}</b>
                       </td>
                       <td />
                     </tr>
@@ -1036,6 +1120,22 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               </table>
             </div>
           </Fold>
+          <ChargesFold
+            charges={charges}
+            setCharges={setCharges}
+            change={changeCharge}
+            rows={chargeRows}
+            setup={setup}
+            sym={sym}
+            withGst={chargeGst}
+            unitName={unitName}
+            mixedUnits={lineUnits.size > 1}
+            create={newCharge}
+            lines={worked.map((w) => {
+              const it = items.find((x) => String(x.id) === w.line.item);
+              return { name: it?.name ?? "", qty: Number(w.line.qty) || 0, unit: it?.units.find((u) => String(u.unit) === w.line.unit)?.name ?? "", taxable: w.taxable };
+            })}
+          />
           <Fold title="Terms and Notes" summary="Terms for the supplier, internal note" open={!!(termsText || notes)}>
             <div className="item-fields">
               <label>
@@ -1075,6 +1175,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
         </div>
         <div className="doc-foot">
           <TotalsPanel
+            items={chargesOn.length ? itemsValue : undefined}
+            charges={chargesOn.length ? chargesValue : undefined}
             taxable={taxable}
             cgst={interstate ? 0 : half}
             sgst={interstate ? 0 : tax - half}
@@ -1298,11 +1400,28 @@ function ImportView({ order }: { order: PurchaseOrder }) {
   );
 }
 
-function TotalsPanel(p: { taxable: number; cgst: number; sgst: number; igst: number; roundOff: number; total: number; note: string; symbol?: string }) {
+function TotalsPanel(p: {
+  items?: number;
+  charges?: number;
+  taxable: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  roundOff: number;
+  total: number;
+  note: string;
+  symbol?: string;
+}) {
   return (
     <SidePanel title="Totals">
       <SideRows
         rows={[
+          ...(p.charges !== undefined
+            ? ([
+                ["Items", money(p.items ?? 0)],
+                ["Charges", money(p.charges)],
+              ] as [string, string][])
+            : []),
           ["Taxable Value", money(p.taxable)],
           ...(p.cgst ? ([["CGST", money(p.cgst)]] as [string, string][]) : []),
           ...(p.sgst ? ([["SGST", money(p.sgst)]] as [string, string][]) : []),
@@ -1591,17 +1710,18 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                     </td>
                     <td colSpan={5} />
                     <td className="num">
-                      <b>{money(order.taxable_total)}</b>
+                      <b>{money(sumOf(order.lines, "taxable"))}</b>
                     </td>
                     <td />
                     <td className="num">
-                      <b>{money(order.total)}</b>
+                      <b>{money(sumOf(order.lines, "amount"))}</b>
                     </td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           </Fold>
+          {!!order.charges?.length && <ChargesView order={order} />}
           {(order.terms || order.notes) && (
             <Fold title="Terms and Notes" open>
               {order.terms && (
@@ -1621,6 +1741,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
         </div>
         <div className="doc-foot">
           <TotalsPanel
+            items={order.charges?.length ? sumOf(order.lines, "taxable") : undefined}
+            charges={order.charges?.length ? sumOf(order.charges, "amount") : undefined}
             taxable={Number(order.taxable_total)}
             cgst={Number(order.cgst_total)}
             sgst={Number(order.sgst_total)}
@@ -1637,5 +1759,295 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
         </div>
       </div>
     </section>
+  );
+}
+
+const sumOf = <K extends string>(rows: Record<K, string>[] | undefined, key: K) =>
+  round2((rows ?? []).reduce((s, r) => s + Number(r[key]), 0));
+
+/** The order's charges, with how each goes into the cost of the goods, and an estimate
+ * of the stock cost per item (the goods receipt works out the real one). */
+function ChargesFold(p: {
+  charges: ChargeDraft[];
+  setCharges: (f: (cs: ChargeDraft[]) => ChargeDraft[]) => void;
+  change: (key: number, patch: Partial<ChargeDraft>) => void;
+  rows: { c: ChargeDraft; amount: number; tax: number }[];
+  setup: Setup | null;
+  sym: string;
+  withGst: boolean;
+  unitName: string;
+  mixedUnits: boolean;
+  create?: Creatable;
+  lines: { name: string; qty: number; unit: string; taxable: number }[];
+}) {
+  const { rows, sym, withGst } = p;
+  const value = rows.reduce((s, r) => s + r.amount, 0);
+  const gst = rows.reduce((s, r) => s + r.tax, 0);
+  const byQty = rows.filter((r) => r.c.stock === "qty").reduce((s, r) => s + r.amount, 0);
+  const byValue = rows.filter((r) => r.c.stock === "value").reduce((s, r) => s + r.amount, 0);
+  const notInCost = rows.filter((r) => r.c.stock === "no");
+  const qty = p.lines.reduce((s, l) => s + l.qty, 0);
+  const items = p.lines.reduce((s, l) => s + l.taxable, 0);
+  const options = (p.setup?.charge_items ?? []).map((i) => ({ value: String(i.id), label: i.name, hint: i.sac }));
+  const summary = rows.length ? `${rows.length} ${rows.length === 1 ? "charge" : "charges"} · ${sym}${money(value)}${withGst ? " + GST" : ""}` : "None";
+  return (
+    <Fold title="Charges" open={p.charges.length > 0} summary={summary}>
+      <p className="small">
+        Extra costs on this order. Each charge is a service item from the Items master (ticked "Use as Purchase Charge");
+        {withGst ? " its GST rate and" : " its"} "Add to Stock Cost" come from the item and can be changed here.
+      </p>
+      {p.charges.length > 0 && (
+        <div className="table-scroll">
+          <table className="grid po-lines po-charges">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Charge</th>
+                <th>SAC</th>
+                <th>Basis</th>
+                <th className="num">Rate</th>
+                <th className="num">Amount {sym}</th>
+                {withGst && <th>GST %</th>}
+                {withGst && <th className="num">GST {sym}</th>}
+                <th>Add to Stock Cost</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {p.charges.map((c, i) => {
+                const it = p.setup?.charge_items.find((x) => String(x.id) === c.item);
+                const row = rows.find((r) => r.c.key === c.key);
+                return (
+                  <tr key={c.key}>
+                    <td>{i + 1}</td>
+                    <td className="po-item">
+                      <Combobox
+                        value={c.item}
+                        onChange={(v) => p.change(c.key, { item: v })}
+                        placeholder="Type to search charges…"
+                        ariaLabel={`Charge ${i + 1}`}
+                        options={options}
+                        create={p.create}
+                      />
+                    </td>
+                    <td>{it?.sac}</td>
+                    <td className="po-basis">
+                      <Combobox
+                        value={c.basis}
+                        onChange={(v) => p.change(c.key, { basis: v })}
+                        ariaLabel={`Basis ${i + 1}`}
+                        options={BASES.map(([value, label]) => ({
+                          value,
+                          label: value === "per_unit" && p.unitName ? `Per unit (${p.unitName})` : label,
+                        }))}
+                      />
+                      {c.basis === "per_unit" && p.mixedUnits && <span className="small error">Items are in different units.</span>}
+                    </td>
+                    <td className="num">
+                      {c.basis === "fixed" ? (
+                        "–"
+                      ) : (
+                        <input
+                          className="num"
+                          inputMode="decimal"
+                          aria-label={`Rate ${i + 1}`}
+                          placeholder={c.basis === "percent" ? "%" : "per unit"}
+                          value={c.rate}
+                          onChange={(e) => p.change(c.key, { rate: e.target.value })}
+                        />
+                      )}
+                    </td>
+                    <td className="num">
+                      {c.basis === "fixed" ? (
+                        <input
+                          className="num"
+                          inputMode="decimal"
+                          aria-label={`Amount ${i + 1}`}
+                          value={c.rate}
+                          onChange={(e) => p.change(c.key, { rate: e.target.value })}
+                        />
+                      ) : (
+                        money(row?.amount ?? 0)
+                      )}
+                    </td>
+                    {withGst && (
+                      <td className="po-gst">
+                        <Combobox
+                          value={c.gst}
+                          onChange={(v) => p.change(c.key, { gst: v })}
+                          ariaLabel={`GST rate ${i + 1}`}
+                          options={(p.setup?.gst_rates ?? []).map((r) => ({ value: r, label: r }))}
+                        />
+                      </td>
+                    )}
+                    {withGst && <td className="num">{money(row?.tax ?? 0)}</td>}
+                    <td className="po-stock">
+                      {STOCK_COST.map(([code, label]) => (
+                        <label key={code} className="check">
+                          <input
+                            type="radio"
+                            name={`stock-${c.key}`}
+                            checked={c.stock === code}
+                            onChange={() => p.change(c.key, { stock: code })}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link danger"
+                        aria-label={`Remove charge ${i + 1}`}
+                        onClick={() => p.setCharges((cs) => cs.filter((x) => x.key !== c.key))}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td />
+                  <td>
+                    <b>Total charges</b>
+                  </td>
+                  <td colSpan={3} />
+                  <td className="num">
+                    <b>{money(value)}</b>
+                  </td>
+                  {withGst && <td />}
+                  {withGst && (
+                    <td className="num">
+                      <b>{money(gst)}</b>
+                    </td>
+                  )}
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+      <p>
+        <button type="button" className="link" onClick={() => p.setCharges((cs) => [...cs, blankCharge()])}>
+          + Add charge
+        </button>
+      </p>
+      <p className="small">
+        "Fixed" is an amount; "% of items" is worked on the items' taxable value; "Per unit" is a rate on the total
+        quantity (only when all lines share a unit).
+      </p>
+      {rows.length > 0 && p.lines.length > 0 && (
+        <>
+          <b className="fact-label">Stock Cost per Item</b> <span className="small">(estimate; the goods receipt works out the final cost)</span>
+          <div className="table-scroll">
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="num">Taxable {sym}</th>
+                  <th className="num">By Quantity {sym}</th>
+                  <th className="num">By Value {sym}</th>
+                  <th className="num">Stock Cost {sym}</th>
+                  <th className="num">Per Unit {sym}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {p.lines.map((l, i) => {
+                  const q = qty ? round2((byQty * l.qty) / qty) : 0;
+                  const v = items ? round2((byValue * l.taxable) / items) : 0;
+                  const cost = l.taxable + q + v;
+                  return (
+                    <tr key={i}>
+                      <td>{l.name}</td>
+                      <td className="num">{money(l.taxable)}</td>
+                      <td className="num">{money(q)}</td>
+                      <td className="num">{money(v)}</td>
+                      <td className="num">{money(cost)}</td>
+                      <td className="num">{l.qty ? `${money(cost / l.qty)}${l.unit ? ` / ${l.unit}` : ""}` : ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {notInCost.length > 0 && (
+            <p className="small">
+              "No" charges are not in the stock cost:{" "}
+              {notInCost.map((r) => `${p.setup?.charge_items.find((x) => String(x.id) === r.c.item)?.name ?? ""} (${sym}${money(r.amount)})`).join(", ")} go
+              to the expense account.
+            </p>
+          )}
+        </>
+      )}
+    </Fold>
+  );
+}
+
+function ChargesView({ order }: { order: PurchaseOrder }) {
+  const sym = order.currency_symbol;
+  const charges = order.charges ?? [];
+  const withGst = charges.some((c) => Number(c.gst_rate));
+  const rateText = (c: Charge) => (c.basis === "fixed" ? "" : c.basis === "percent" ? `${c.rate}%` : c.rate);
+  return (
+    <Fold title="Charges" open>
+      <div className="table-scroll">
+        <table className="grid">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Charge</th>
+              <th>SAC</th>
+              <th>Basis</th>
+              <th className="num">Rate</th>
+              <th className="num">Amount {sym}</th>
+              {withGst && <th className="num">GST %</th>}
+              {withGst && <th className="num">GST {sym}</th>}
+              <th>Add to Stock Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {charges.map((c, i) => (
+              <tr key={c.id}>
+                <td>{i + 1}</td>
+                <td>
+                  <b>{c.item_name}</b>
+                </td>
+                <td>{c.sac}</td>
+                <td>{c.basis_label}</td>
+                <td className="num">{rateText(c)}</td>
+                <td className="num">{money(c.amount)}</td>
+                {withGst && <td className="num">{c.gst_rate}</td>}
+                {withGst && <td className="num">{money(Number(c.cgst) + Number(c.sgst) + Number(c.igst))}</td>}
+                <td>{stockWord(c.add_to_stock)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td />
+              <td>
+                <b>Total charges</b>
+              </td>
+              <td colSpan={3} />
+              <td className="num">
+                <b>{money(sumOf(charges, "amount"))}</b>
+              </td>
+              {withGst && <td />}
+              {withGst && (
+                <td className="num">
+                  <b>{money(charges.reduce((s, c) => s + Number(c.cgst) + Number(c.sgst) + Number(c.igst), 0))}</b>
+                </td>
+              )}
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </Fold>
   );
 }

@@ -897,6 +897,15 @@ class Item(models.Model):
     maintain_stock = models.BooleanField(default=True)
     allow_purchase = models.BooleanField(default=True)
     allow_sales = models.BooleanField(default=True)
+    # A service billed as an extra on purchases (Sidharth, 2026-11-14): freight
+    # inward, packing and forwarding, insurance, loading. Offered in the
+    # "Charges" section of a purchase order, which starts each line's "Add to
+    # Stock Cost" from here. A charge not added to stock cost goes to the
+    # expense account of the item's group.
+    purchase_charge = models.BooleanField(default=False)
+    NO_STOCK_COST, BY_QTY, BY_VALUE = "no", "qty", "value"
+    STOCK_COST = [(NO_STOCK_COST, "No"), (BY_QTY, "By Quantity"), (BY_VALUE, "By Value")]
+    add_to_stock = models.CharField(max_length=5, choices=STOCK_COST, default=BY_VALUE)
     # Offered to every customer and supplier even when theirs has a Products list.
     offer_to_all = models.BooleanField(default=False)
     notes = models.CharField(max_length=200, blank=True)

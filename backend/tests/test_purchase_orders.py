@@ -575,3 +575,43 @@ def test_an_import_order_keeps_its_currency_and_import_details(owner, buyer, wor
     # A domestic supplier's order has no import details and is in rupees.
     home = call(buyer, "post", url, order(world, import_details=details)).json()
     assert (home["currency"], home["import_details"]) == ("INR", {})
+
+
+def test_charges_are_service_items_with_gst_and_a_stock_cost_choice(buyer, world, alpha):
+    with use_tenant(alpha):
+        tea = Item.objects.get(pk=world["tea"])
+        more = {"hsn": "0902", "item_group": tea.item_group, "brand": tea.brand}
+        more |= {"stock_unit": tea.stock_unit, "item_type": Item.SERVICE, "maintain_stock": False}
+        freight = Item.objects.create(item_number="ITEM-81", name="Freight Inward",
+                                      purchase_charge=True, add_to_stock="qty", **more)  # fmt: skip
+        loading = Item.objects.create(item_number="ITEM-82", name="Loading",
+                                      purchase_charge=True, add_to_stock="no", **more)  # fmt: skip
+        plain = Item.objects.create(item_number="ITEM-83", name="Consulting", **more)
+        for item, rate in ((freight, "5"), (loading, "18"), (plain, "18")):
+            ItemGstRate.objects.create(item=item, valid_from=TODAY.replace(day=1), rate=rate)
+    url = f"companies/{world['company']}/purchase-orders/"
+    tea_only = [{"item": world["tea"], "unit": world["kg"], "qty": "500", "rate": "180"}]
+    charges = [
+        {"item": freight.pk, "basis": "fixed", "rate": "4500"},
+        {"item": loading.pk, "basis": "per_unit", "rate": "2.5", "gst_rate": "18"},
+        {"item": freight.pk, "basis": "percent", "rate": "2", "add_to_stock": "value"},
+    ]
+    po = call(buyer, "post", url, order(world, lines=tea_only, charges=charges))
+    assert po.status_code == 201, po.json()
+    body = po.json()
+    got = [(c["amount"], c["gst_rate"], c["cgst"], c["add_to_stock"]) for c in body["charges"]]
+    assert got == [
+        ("4500.00", "5", "112.50", "qty"),  # the item's own GST rate and stock cost choice
+        ("1250.00", "18", "112.50", "no"),  # 500 kg at 2.50
+        ("1800.00", "5", "45.00", "value"),  # 2% of 90,000
+    ]
+    # Items 90,000 + charges 7,550; GST 4,500 on tea + 540 on charges.
+    assert (body["taxable_total"], body["cgst_total"], body["total"]) == (
+        "97550.00", "2520.00", "102590.00",
+    )  # fmt: skip
+    mixed = order(world, charges=[{"item": loading.pk, "basis": "per_unit", "rate": "1"}])
+    assert "same unit" in str(call(buyer, "post", url, mixed).json()["charges"])
+    bad = order(world, lines=tea_only, charges=[{"item": plain.pk, "basis": "fixed", "rate": "1"}])
+    assert "Use as Purchase Charge" in str(call(buyer, "post", url, bad).json()["charges"])
+    odd = [{"item": freight.pk, "basis": "fixed", "rate": "1", "gst_rate": "7"}]
+    assert "not a GST rate" in str(call(buyer, "post", url, order(world, charges=odd)).json())

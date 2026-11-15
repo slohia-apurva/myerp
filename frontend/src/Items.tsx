@@ -68,6 +68,8 @@ export type Item = {
   default_request_type: string;
   maintain_stock: boolean;
   allow_purchase: boolean;
+  purchase_charge: boolean;
+  add_to_stock: string;
   allow_sales: boolean;
   offer_to_all: boolean;
   notes: string;
@@ -99,6 +101,13 @@ const USED_FOR: [string, string][] = [
   ["stock", "Stock"],
   ["production", "Production"],
 ];
+/** How a purchase charge is spread into the cost of the goods received. */
+export const STOCK_COST: [string, string][] = [
+  ["no", "No"],
+  ["qty", "By Quantity"],
+  ["value", "By Value"],
+];
+const stockCostLabel = (code: string) => STOCK_COST.find(([c]) => c === code)?.[1] ?? code;
 const typeLabel = (code: string) => TYPES.find(([c]) => c === code)?.[1] ?? code;
 const usedLabel = (code: string) => USED_FOR.find(([c]) => c === code)?.[1] ?? code;
 const plain = (v: string | null) => (v === null || v === "" ? "" : String(Number(v)));
@@ -667,6 +676,12 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 rows={[
                   ["Disabled", i.is_active ? "No" : "Yes"],
                   ["Allow purchase", i.allow_purchase ? "Yes" : "No"],
+                  ...(i.item_type === "service"
+                    ? ([
+                        ["Use as Purchase Charge", i.purchase_charge ? "Yes" : "No"],
+                        ...(i.purchase_charge ? [["Add to Stock Cost", stockCostLabel(i.add_to_stock)]] : []),
+                      ] as [string, string][])
+                    : []),
                   ["Allow sales", i.allow_sales ? "Yes" : "No"],
                   ["Offer to all", i.offer_to_all ? "Yes" : "No"],
                   ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
@@ -751,6 +766,8 @@ function ItemForm(props: {
   const [stocked, setStocked] = useState(from?.maintain_stock ?? true); // "Maintain stock", whatever the type
   const [disabled, setDisabled] = useState(it ? !it.is_active : false);
   const [allowPurchase, setAllowPurchase] = useState(from?.allow_purchase ?? true);
+  const [purchaseCharge, setPurchaseCharge] = useState(from?.purchase_charge ?? false);
+  const [addToStock, setAddToStock] = useState(from?.add_to_stock ?? "value");
   const [allowSales, setAllowSales] = useState(from?.allow_sales ?? true);
   const [offerAll, setOfferAll] = useState(from?.offer_to_all ?? false);
   const [stock, setStock] = useState(from ? String(from.stock_unit) : "");
@@ -913,6 +930,8 @@ function ItemForm(props: {
       item_type: type,
       maintain_stock: stocked,
       allow_purchase: allowPurchase,
+      purchase_charge: type === "service" && purchaseCharge,
+      add_to_stock: addToStock,
       allow_sales: allowSales,
       offer_to_all: offerAll,
       is_active: !disabled,
@@ -1652,6 +1671,22 @@ function ItemForm(props: {
                 <input type="checkbox" checked={allowPurchase} onChange={(e) => setAllowPurchase(e.target.checked)} />
                 Allow purchase
               </label>
+              {type === "service" && (
+                <label className="check">
+                  <input type="checkbox" checked={purchaseCharge} onChange={(e) => setPurchaseCharge(e.target.checked)} />
+                  Use as Purchase Charge
+                </label>
+              )}
+              {type === "service" && purchaseCharge && (
+                <label>
+                  Add to Stock Cost
+                  <Combobox
+                    value={addToStock}
+                    onChange={setAddToStock}
+                    options={STOCK_COST.map(([value, label]) => ({ value, label }))}
+                  />
+                </label>
+              )}
               <label className="check">
                 <input type="checkbox" checked={allowSales} onChange={(e) => setAllowSales(e.target.checked)} />
                 Allow sales

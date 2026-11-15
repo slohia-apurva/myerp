@@ -642,6 +642,11 @@ export const MANUAL: Chapter[] = [
             bill, while the "HSN code" above (the service code) goes on the
             invoice and e-invoice. The boxes disappear when the item is goods
             or does not keep stock. "Notes" are in the box below.
+            For a service, "Use as Purchase Charge" in the "Switches" panel
+            offers it under "Charges" on a purchase order (freight, packing,
+            insurance and the like), and "Add to Stock Cost" ("No", "By
+            Quantity" or "By Value") is how it is spread into the cost of the
+            goods unless changed on the order.
           </li>
           <li>
             On the "Sales" tab, write the "Sales description" customers should
@@ -2074,6 +2079,21 @@ export const MANUAL: Chapter[] = [
             "Buying" price list, and the line under it says which; type over it
             to use another rate. Add a "Disc %" if the supplier gives one. A new
             empty row appears for the next item; "✕" removes a line.
+          </li>
+          <li>
+            Under "Charges", click "+ Add charge" for an extra the supplier
+            bills on the order, such as freight, packing or insurance. Each
+            charge is a service item ticked "Use as Purchase Charge" in the
+            Items master. Pick its "Basis": "Fixed" (type the "Amount"), "% of
+            items" (a percent of the items' taxable value) or "Per unit" (a
+            rate on the total quantity, only when every line is in the same
+            unit). The "GST %" starts as the item's rate and can be changed; an
+            import has no GST column. "Add to Stock Cost" says how the charge is
+            spread into the cost of the goods: "By Quantity", "By Value", or
+            "No" for an expense that is not part of stock cost. "Stock Cost per
+            Item" below shows an estimate; the goods receipt works out the
+            final cost. The "Totals" show "Items", "Charges" and the "Taxable
+            Value".
           </li>
           <li>
             Under "Terms and Notes", "Terms and Conditions" starts with the
