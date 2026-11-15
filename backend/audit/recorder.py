@@ -174,7 +174,13 @@ TRACKED: dict[type[models.Model], Tracked] = {}
 
 def _register() -> None:
     from accounts.models import Role, User
-    from buying.models import GoodsReceipt, PurchaseInvoice, PurchaseOrder
+    from buying.models import (
+        DebitNote,
+        GoodsReceipt,
+        PurchaseInvoice,
+        PurchaseOrder,
+        PurchaseReturn,
+    )
     from core import india
     from core import modules as company_modules
     from core.models import (
@@ -403,6 +409,48 @@ def _register() -> None:
                         lambda r: "; ".join(
                             f"{ln.item} {_number(ln.accepted_qty)} {ln.unit.short_name}"
                             for ln in r.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            PurchaseReturn: Tracked(
+                "purchase_return",
+                "Purchase return",
+                by_company,
+                labels={
+                    "lr_no": "LR / docket no",
+                    "eway_bill_no": "E-way bill no",
+                    "branch": "Branch",
+                },
+                extras={
+                    "return_status": ("Status", lambda r: r.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda r: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            for ln in r.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            DebitNote: Tracked(
+                "debit_note",
+                "Debit note",
+                by_company,
+                labels={
+                    "supplier_note_no": "Supplier's credit note no",
+                    "supplier_note_date": "Supplier's credit note date",
+                    "branch": "Branch",
+                },
+                extras={
+                    "note_status": ("Status", lambda n: n.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda n: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} @ {_number(ln.rate)}"
+                            for ln in n.lines.select_related("item")
                         )
                         or None,
                     ),

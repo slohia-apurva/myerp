@@ -2078,7 +2078,7 @@ export const MANUAL: Chapter[] = [
         <p>
           A purchase order says what you asked a supplier for, at what rate and
           by when. It is the first step of purchase: the goods receipt (GRN), the
-          purchase invoice and the purchase return come next and will be made
+          purchase invoice, the purchase return and the debit note follow
           from it. A purchase order posts nothing to the books or to stock.
         </p>
         <h3>Find the purchase orders</h3>
@@ -2342,7 +2342,10 @@ export const MANUAL: Chapter[] = [
           how much was rejected, and which bins and batches the rest went into.
           Open it from "Entry" in the top menu, then "Purchase", then "Goods
           Receipt", or from a purchase order's "Create ▾" button. The Purchase
-          team and the stores (Storekeeper) can both make receipts.
+          team and the stores (Storekeeper) can both make receipts. A submitted
+          receipt's "Create ▾" button makes the "Purchase Invoice (supplier's
+          bill)" or a "Purchase Return (goods sent back)". A receipt with goods
+          sent back cannot be cancelled until the return is.
         </p>
         <h3>Make a receipt</h3>
         <ol>
@@ -2580,7 +2583,13 @@ export const MANUAL: Chapter[] = [
             "Cancel invoice" asks why, reverses the entries and makes the goods
             "not billed" again. It is refused once stock it revalued has been
             used since. A billed goods receipt cannot be cancelled until its
-            invoice is.
+            invoice is, and an invoice with a debit note against it cannot be
+            cancelled until the debit note is.
+          </li>
+          <li>
+            "Create ▾" on a submitted invoice makes a "Debit Note (goods sent
+            back)" for goods returned on a Purchase Return and billed on this
+            invoice.
           </li>
           <li>
             The "Attachments" box keeps the supplier's bill (PDF or photo) and any
@@ -2596,6 +2605,131 @@ export const MANUAL: Chapter[] = [
         <Note>
           Invoices are made and submitted by the Purchase role; cancelling needs
           an Owner or a role with "cancel" for purchase. The posting date must
+          fall in an open month of a fiscal year.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "purchase-returns",
+    title: "Purchase returns",
+    summary:
+      "Goods sent back to the supplier against a goods receipt. Submit takes them out of stock.",
+    body: (
+      <>
+        <p>
+          A purchase return records goods sent back to the supplier, for
+          example 3 of 200 boxes that came damaged. Open it from "Entry" in the
+          top menu, then "Purchase", then "Purchase Return"; or from a submitted
+          goods receipt's "Create ▾" button, "Purchase Return (goods sent
+          back)". The Purchase team and the stores can both make returns.
+        </p>
+        <ul>
+          <li>
+            "Return Details": pick the "Goods Receipt" (the supplier comes from
+            it), the "Return Date", the "Reason" ("Damaged in transit", "Short
+            supplied", "Quality rejected", "Wrong item" or "Other"), and how the
+            goods go back: "Transporter" ("By Supplier" when the supplier
+            collects), "Vehicle No", "LR / Docket No" and "E-way Bill No".
+          </li>
+          <li>
+            "Items Going Back" lists every line of the receipt, one row for each
+            bin and batch it was put in, at 0. Type the "Return Qty". It cannot be
+            more than was received less what went back before, nor more than is
+            still in that bin. "Value ₹" is the quantity at the receipt's rate.
+          </li>
+          <li>
+            "Save" keeps a draft and shows "Entries on Submit". "Submit" gives
+            the return its number, takes the goods out of the bin (from the
+            receipt's own stock first) and moves their value out of "Goods
+            Received but Bills not Received" and the item group's stock ledger.
+            If the goods' cost has changed since they came in, the difference
+            goes to "Purchase Price Difference". The supplier's account and GST
+            are not touched: the Debit Note does that.
+          </li>
+          <li>
+            Once the supplier's bill is in, "Create ▾" › "Debit Note" makes the
+            debit note for these goods. If the bill leaves the returned goods
+            out (it was made for 197, say), no debit note is needed and the
+            receipt is settled when that bill is entered.
+          </li>
+          <li>
+            "Cancel return" asks why, puts the goods back into the bins they
+            left and reverses the entries. It is refused while a debit note
+            settles the return; cancel the debit note first.
+          </li>
+          <li>
+            The "Attachments" box keeps photos of the damage, the return challan
+            and other papers, on the draft and after Submit.
+          </li>
+          <li>
+            "Print ▾" › "Return Challan" prints the page to go with the goods, or
+            saves it as a PDF.
+          </li>
+        </ul>
+        <Note>
+          The return date cannot be before the receipt date and must fall in an
+          open month of a fiscal year. Cancelling needs an Owner or a role with
+          "cancel" for purchase or stock.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "debit-notes",
+    title: "Debit notes",
+    summary:
+      "Goods sent back, debited against the supplier's bill at the bill's rate and GST.",
+    body: (
+      <>
+        <p>
+          A debit note takes off the supplier's bill the goods you sent back on a
+          purchase return. For example: 200 boxes received, 3 damaged and
+          returned, the supplier bills all 200: enter the bill for 200, then a
+          debit note for the 3. Open it from "Entry" in the top menu, then
+          "Purchase", then "Debit Note"; or from "Create ▾" on a submitted
+          purchase invoice or purchase return.
+        </p>
+        <ul>
+          <li>
+            "Debit Note Details": "Against Invoice" is the supplier's bill (the
+            supplier comes from it), the "Debit Note Date", the "Reason" ("Goods
+            returned") and, if the supplier sends its own credit note, "Supplier's
+            Credit Note No" and "Supplier's Credit Note Date".
+          </li>
+          <li>
+            "Items" lists each returned line billed on that invoice and not yet
+            debited ("Returned, Not Debited"). "Qty" starts at all of it; it can
+            be lowered, not raised. Rate and GST come from the bill.
+          </li>
+          <li>
+            "Totals" works out GST line by line and rounds the total to the rupee.
+          </li>
+          <li>
+            "Save" keeps a draft and shows "Entries on Submit" and "Bill Due After
+            This Note". "Submit" gives the note its number and posts it: the
+            supplier is debited (what we owe on that bill goes down), "Goods
+            Received but Bills not Received" is cleared for the returned goods,
+            and "Input CGST", "Input SGST" or "Input IGST" is reversed. If the
+            bill's rate differs from the receipt's, the difference goes to
+            "Purchase Price Difference". No stock moves: the return already took
+            the goods out.
+          </li>
+          <li>
+            "Bill Due After This Note" shows the bill's due dates less its debit
+            notes, taken off the latest due date first.
+          </li>
+          <li>
+            "Cancel debit note" asks why and reverses the entries; the returned
+            goods show as not debited again.
+          </li>
+          <li>
+            The "Attachments" box keeps the supplier's credit note and other
+            papers. "Print ▾" prints the page or saves it as a PDF.
+          </li>
+        </ul>
+        <Note>
+          Debit notes are made and submitted by the Purchase role. The date must
           fall in an open month of a fiscal year.
         </Note>
       </>

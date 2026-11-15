@@ -31,6 +31,8 @@ import { PurchaseOrdersPage } from "./PurchaseOrders";
 import { BinContentsPage } from "./BinContents";
 import { GoodsReceiptsPage } from "./GoodsReceipts";
 import { PurchaseInvoicesPage } from "./PurchaseInvoices";
+import { PurchaseReturnsPage } from "./PurchaseReturns";
+import { DebitNotesPage } from "./DebitNotes";
 import { NotificationBell } from "./Notifications";
 import { SupplierReplyPage } from "./SupplierReply";
 
@@ -125,14 +127,14 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             />
           )}
           {canReceive && current.company?.modules.includes("purchase") && (
-            <EntryMenu active={page === "companies" && (sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices")} company={current.company} orders={canSeePurchase} />
+            <EntryMenu active={page === "companies" && (sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes")} company={current.company} orders={canSeePurchase} />
           )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices"].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes"].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -167,6 +169,10 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <PurchaseOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "purchase-invoices" && canSeePurchase ? (
           <PurchaseInvoicesPage key={id} companyId={id} session={session} />
+        ) : page === "companies" && id && sub === "debit-notes" && canSeePurchase ? (
+          <DebitNotesPage key={id} companyId={id} session={session} />
+        ) : page === "companies" && id && sub === "purchase-returns" && canReceive ? (
+          <PurchaseReturnsPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "goods-receipts" && canReceive ? (
           <GoodsReceiptsPage key={id} companyId={id} session={session} />
         ) : page === "companies" && canSeeMasters ? (

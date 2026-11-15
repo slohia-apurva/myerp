@@ -42,6 +42,7 @@ DOCUMENT_TYPES = [
     ("purchase_order", "Purchase order", "PO", False),
     ("goods_receipt", "Goods receipt (GRN)", "GRN", False),
     ("purchase_invoice", "Purchase invoice", "PI", False),
+    ("purchase_return", "Purchase return", "PR", False),
     ("payment", "Payment", "PAY", False),
     ("receipt", "Receipt", "RCT", False),
     ("journal", "Journal voucher", "JV", False),

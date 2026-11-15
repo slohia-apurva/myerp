@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Attachments, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -42,7 +42,7 @@ type Line = {
   price_difference?: string;
 };
 type Charge = { item: number; item_name: string; sac: string; amount: string; gst_rate: string; in_stock_cost: boolean; cgst?: string; sgst?: string; igst?: string };
-type Entry = { ledger: string; why: string; debit: string; credit: string };
+export type Entry = { ledger: string; why: string; debit: string; credit: string };
 type Invoice = {
   id: number;
   company: number;
@@ -444,11 +444,6 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
       setInterstate(got.interstate);
       if (!charges.length) setCharges(got.charges.map((c) => ({ key: nextKey++, item: String(c.item), amount: c.amount, gst_rate: c.gst_rate, in_stock_cost: c.in_stock_cost })));
     } catch (err) {
-      const kept = keptDraft(err);
-      if (kept && !draftId) {
-        setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
-      }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -524,7 +519,13 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
       setSaved(done);
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
     } catch (err) {
+      const kept = keptDraft(err);
+      if (kept && !draftId) {
+        setDraftId(kept);
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+      }
       setError(err);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
     setBusy(false);
   };
@@ -770,7 +771,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
   );
 }
 
-function Totals(t: { taxable: number | string; cgst: number | string; sgst: number | string; igst: number | string; roundOff: number | string; total: number | string }) {
+export function Totals(t: { taxable: number | string; cgst: number | string; sgst: number | string; igst: number | string; roundOff: number | string; total: number | string }) {
   const rows: [string, number | string][] = [
     ["Taxable", t.taxable],
     ["CGST", t.cgst],
@@ -803,7 +804,7 @@ function Totals(t: { taxable: number | string; cgst: number | string; sgst: numb
 }
 
 /** "Entries on Submit" and "Due Dates": what a draft would post (as last saved), or what was posted. */
-function EntriesBox({ entries, dues, draft }: { entries: Entry[]; dues: { due_date: string; amount: string }[]; draft?: boolean }) {
+export function EntriesBox({ entries, dues, draft, children }: { entries: Entry[]; dues: { due_date: string; amount: string }[]; draft?: boolean; children?: ReactNode }) {
   const dr = entries.reduce((s, e) => s + num(e.debit), 0);
   const cr = entries.reduce((s, e) => s + num(e.credit), 0);
   return (
@@ -843,6 +844,7 @@ function EntriesBox({ entries, dues, draft }: { entries: Entry[]; dues: { due_da
             </tfoot>
           </table>
         )}
+        {children}
       </Fold>
       {dues.length > 0 && (
         <Fold title="Due Dates" open>
@@ -938,7 +940,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
               </button>
             )}
             {inv.status === "submitted" && (
-              <ActionsMenu label="Create" main items={[{ label: "Purchase Return / Debit Note", disabled: true }]} note="Comes with a later piece of work" />
+              <ActionsMenu label="Create" main items={[{ label: "Debit Note (goods sent back)", onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}`) }]} />
             )}
           </>
         }

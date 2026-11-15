@@ -18,6 +18,8 @@ export function helpTopicFor(hash: string): string {
   if (sub === "purchase-orders") return "purchase-orders";
   if (sub === "goods-receipts") return "goods-receipts";
   if (sub === "purchase-invoices") return "purchase-invoices";
+  if (sub === "purchase-returns") return "purchase-returns";
+  if (sub === "debit-notes") return "debit-notes";
   if (sub === "couriers") return "transporters";
   if (sub === "years") return "fiscal-years";
   if (sub === "warehouses") return "warehouses";

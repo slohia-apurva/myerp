@@ -297,6 +297,12 @@ class GoodsReceiptLine(models.Model):
     # they took out of "Goods Received but Bills not Received".
     billed_qty = models.DecimalField(**QTY, default=Decimal("0"))
     billed_value = models.DecimalField(**MONEY, default=Decimal("0"))
+    # Sent back to the supplier by purchase returns, and settled by debit notes,
+    # with the receipt value each moved in or out of that ledger.
+    returned_qty = models.DecimalField(**QTY, default=Decimal("0"))
+    returned_value = models.DecimalField(**MONEY, default=Decimal("0"))
+    debited_qty = models.DecimalField(**QTY, default=Decimal("0"))
+    debited_value = models.DecimalField(**MONEY, default=Decimal("0"))
 
     class Meta:
         ordering = ["position"]
@@ -502,3 +508,172 @@ class PurchaseInvoiceDue(models.Model):
 
     def __str__(self) -> str:
         return f"{self.due_date}: {self.amount}"
+
+
+class PurchaseReturn(models.Model):
+    """Goods sent back to the supplier from one goods receipt (Sidharth,
+    2026-11-15, preview 74): damaged, short, rejected. Submit takes them out of
+    stock at the receipt's cost and back out of "Goods Received but Bills not
+    Received"; the supplier's account is touched only by the Debit Note."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+    REASONS = [
+        ("damaged", "Damaged in transit"),
+        ("short", "Short supplied"),
+        ("quality", "Quality rejected"),
+        ("wrong", "Wrong item"),
+        ("other", "Other"),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="purchase_returns")
+    supplier = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="purchase_returns")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="purchase_returns")
+    receipt = models.ForeignKey(GoodsReceipt, on_delete=models.PROTECT, related_name="returns")
+    number = models.CharField(max_length=30, blank=True)
+    return_date = models.DateField()
+    reason = models.CharField(max_length=10, choices=REASONS, default="damaged")
+    transporter = models.ForeignKey(
+        CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    lr_no = models.CharField(max_length=40, blank=True)
+    vehicle_no = models.CharField(max_length=20, blank=True)
+    eway_bill_no = models.CharField(max_length=20, blank=True)
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    value = models.DecimalField(**MONEY, default=Decimal("0"))  # receipt value sent back
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-return_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company", "number", condition=~models.Q(number=""), name="pret_number_unique"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft return {self.pk}"
+
+
+class PurchaseReturnLine(models.Model):
+    """A quantity of one receipt line going back, from one bin and batch, in
+    the receipt line's unit."""
+
+    ret = models.ForeignKey(PurchaseReturn, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    receipt_line = models.ForeignKey(
+        GoodsReceiptLine, on_delete=models.PROTECT, related_name="return_lines"
+    )
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(
+        "core.WarehouseLocation", on_delete=models.PROTECT, related_name="+"
+    )
+    batch = models.ForeignKey(
+        "core.Batch", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+    # Set on Submit: the receipt value out of "Goods Received but Bills not
+    # Received", and the stock value taken out (they differ once a bill has
+    # revalued the lot; the difference is "Purchase Price Difference").
+    value = models.DecimalField(**MONEY, default=Decimal("0"))
+    stock_value = models.DecimalField(**MONEY, default=Decimal("0"))
+    debited_qty = models.DecimalField(**QTY, default=Decimal("0"))
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item_id} × {self.qty}"
+
+
+class DebitNote(models.Model):
+    """Our debit note to the supplier against one purchase invoice, for goods
+    sent back on purchase returns (Sidharth, 2026-11-15, preview 75): at the
+    bill's rate and GST. Submit debits the supplier against that bill, clears
+    the returned goods from "Goods Received but Bills not Received" and
+    reverses the input GST."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+    REASONS = [("returned", "Goods returned")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="debit_notes")
+    supplier = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="debit_notes")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="debit_notes")
+    invoice = models.ForeignKey(
+        PurchaseInvoice, on_delete=models.PROTECT, related_name="debit_notes"
+    )
+    number = models.CharField(max_length=30, blank=True)
+    note_date = models.DateField()
+    reason = models.CharField(max_length=10, choices=REASONS, default="returned")
+    supplier_note_no = models.CharField(max_length=40, blank=True)
+    supplier_note_date = models.DateField(null=True, blank=True)
+    interstate = models.BooleanField(default=False)
+    taxable_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    cgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    round_off = models.DecimalField(**MONEY, default=Decimal("0"))
+    total = models.DecimalField(**MONEY, default=Decimal("0"))
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-note_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company", "number", condition=~models.Q(number=""), name="dn_number_unique"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft debit note {self.pk}"
+
+
+class DebitNoteLine(models.Model):
+    """A returned quantity debited at the bill line's rate and GST."""
+
+    note = models.ForeignKey(DebitNote, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    invoice_line = models.ForeignKey(
+        PurchaseInvoiceLine, on_delete=models.PROTECT, related_name="debit_lines"
+    )
+    return_line = models.ForeignKey(
+        PurchaseReturnLine, on_delete=models.PROTECT, related_name="debit_lines"
+    )
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+    rate = models.DecimalField(**QTY)
+    taxable = models.DecimalField(**MONEY)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY)
+    receipt_value = models.DecimalField(**MONEY, default=Decimal("0"))  # set on Submit
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item_id}: {self.qty} @ {self.rate}"

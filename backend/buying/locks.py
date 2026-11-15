@@ -2,12 +2,14 @@
 draft is not yet an entry; a submitted order (even one cancelled later) is."""
 
 from buying.models import (
+    DebitNote,
     GoodsReceipt,
     GoodsReceiptPutaway,
     PurchaseInvoice,
     PurchaseOrder,
     PurchaseOrderCharge,
     PurchaseOrderLine,
+    PurchaseReturn,
 )
 from core import locks
 
@@ -69,3 +71,23 @@ locks.register("ledger", lambda ledger: _invoices(supplier=ledger))
 locks.register("branch", lambda branch: _invoices(branch=branch))
 locks.register("item", lambda item: _invoices(lines__item=item))
 locks.register("item", lambda item: _invoices(charges__item=item))
+
+
+def _returns(**where) -> str:
+    rows = PurchaseReturn.objects.filter(**where).exclude(status=PurchaseReturn.DRAFT)
+    return locks._count(rows.distinct(), "purchase return")
+
+
+def _notes(**where) -> str:
+    rows = DebitNote.objects.filter(**where).exclude(status=DebitNote.DRAFT)
+    return locks._count(rows.distinct(), "debit note")
+
+
+locks.register("ledger", lambda ledger: _returns(supplier=ledger))
+locks.register("branch", lambda branch: _returns(branch=branch))
+locks.register("item", lambda item: _returns(lines__item=item))
+locks.register("courier_account", lambda account: _returns(transporter=account))
+locks.register("warehouse_location", lambda loc: _returns(lines__location=loc))
+locks.register("ledger", lambda ledger: _notes(supplier=ledger))
+locks.register("branch", lambda branch: _notes(branch=branch))
+locks.register("item", lambda item: _notes(lines__item=item))

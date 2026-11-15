@@ -79,7 +79,35 @@ def _receipt_rate(rl: GoodsReceiptLine) -> Decimal:
 
 
 def _unbilled(rl: GoodsReceiptLine) -> Decimal:
+    """What a bill may still take: a supplier may bill goods we sent back
+    (a debit note then settles them), so returns do not lower this."""
     return max(rl.accepted_qty - rl.billed_qty, ZERO)
+
+
+def _to_bill(rl: GoodsReceiptLine) -> Decimal:
+    """What a new bill is offered: received, less billed and sent back."""
+    return max(rl.accepted_qty - rl.billed_qty - rl.returned_qty, ZERO)
+
+
+def open_qty(rl: GoodsReceiptLine) -> Decimal:
+    """Received goods still waiting in "Goods Received but Bills not
+    Received": not billed, not sent back (a debit note puts back what it
+    settles of a return that had been billed)."""
+    return rl.accepted_qty - rl.billed_qty - rl.returned_qty + rl.debited_qty
+
+
+def open_value(rl: GoodsReceiptLine) -> Decimal:
+    return rl.value - rl.billed_value - rl.returned_value + rl.debited_value
+
+
+def grni_value(rl: GoodsReceiptLine, qty: Decimal, sign: int = -1) -> Decimal:
+    """The receipt value `qty` moves in or out of "Goods Received but Bills not
+    Received" (sign -1 for a bill or a return, +1 for a debit note). The
+    document that brings the line's open quantity to nil takes exactly what is
+    left, so no paisa stays behind."""
+    if open_qty(rl) + sign * qty == 0:
+        return abs(open_value(rl))
+    return money(rl.value * qty / rl.accepted_qty) if rl.accepted_qty else ZERO
 
 
 def _gst(taxable: Decimal, rate: Decimal, interstate: bool) -> tuple[Decimal, Decimal, Decimal]:
@@ -430,11 +458,8 @@ def _side(ledger: Ledger, value: Decimal, remarks: str) -> GLLine:
 
 
 def _receipt_value(rl: GoodsReceiptLine, qty: Decimal) -> Decimal:
-    """The share of the receipt line's stock value this quantity clears; the
-    last bill takes exactly what is left, so no paisa stays behind."""
-    if rl.billed_qty + qty >= rl.accepted_qty:
-        return rl.value - rl.billed_value
-    return money(rl.value * qty / rl.accepted_qty)
+    """The share of the receipt line's stock value this bill clears."""
+    return grni_value(rl, qty)
 
 
 def _lots(rl: GoodsReceiptLine) -> list[StockLot]:
@@ -611,6 +636,12 @@ def _submit(inv: PurchaseInvoice, user) -> None:
 
 
 def _cancel(inv: PurchaseInvoice, user, reason: str) -> None:
+    from buying.debit_notes import invoice_debited
+
+    if notes := invoice_debited(inv):
+        raise ValidationError(
+            {"detail": f"Debit note {notes} is against this bill; cancel it first."}
+        )
     if inv.status == PurchaseInvoice.SUBMITTED:
         service.cancel(KIND, inv.pk, user)
         for ln in inv.lines.all():
@@ -645,7 +676,7 @@ def _draft_from(company, receipt_lines: list[GoodsReceiptLine]) -> dict:
             "unit": rl.unit_id,
             "unit_name": rl.unit.short_name or rl.unit.name,
             "unbilled_qty": _plain(_unbilled(rl)),
-            "qty": _plain(_unbilled(rl)),
+            "qty": _plain(_to_bill(rl)),
             "receipt_rate": _plain(_receipt_rate(rl)),
             "rate": _plain(_receipt_rate(rl)),
             "gst_rate": _plain(rl.order_line.gst_rate),
@@ -658,7 +689,7 @@ def _draft_from(company, receipt_lines: list[GoodsReceiptLine]) -> dict:
     for rl in receipt_lines:
         o = rl.order_line.order
         orders[o.pk] = o
-        by_order[o.pk] += _receipt_rate(rl) * _unbilled(rl)
+        by_order[o.pk] += _receipt_rate(rl) * _to_bill(rl)
     for oid, billed in by_order.items():
         o = orders[oid]
         goods = sum((ln.taxable for ln in o.lines.all()), ZERO)
@@ -692,7 +723,9 @@ def _open_receipt_lines(company, **where) -> list[GoodsReceiptLine]:
     rows = _receipt_lines().filter(receipt__company=company, **where)
     return [
         rl
-        for rl in rows.filter(accepted_qty__gt=F("billed_qty")).order_by("receipt_id", "position")
+        for rl in rows.filter(accepted_qty__gt=F("billed_qty") + F("returned_qty")).order_by(
+            "receipt_id", "position"
+        )
     ]
 
 
@@ -865,7 +898,7 @@ class UnbilledView(APIView):
             )
             row["orders"].add(rl.order_line.order.number)
             row["lines"] += 1
-            row["value"] += rl.value - rl.billed_value
+            row["value"] += grni_value(rl, _to_bill(rl))
         rows = []
         for row in by_receipt.values():
             row["orders"] = ", ".join(sorted(row["orders"]))

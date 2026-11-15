@@ -1,6 +1,6 @@
 from django.urls import path
 
-from buying import api, invoices, receipts, supplier_link, supplier_mail
+from buying import api, debit_notes, invoices, receipts, returns, supplier_link, supplier_mail
 
 urlpatterns = [
     # The supplier's page: no sign-in, reached by the private code in the mail.
@@ -107,5 +107,38 @@ urlpatterns = [
         "purchase-invoices/<int:pk>/cancel/",
         invoices.InvoiceCancelView.as_view(),
         name="purchase-invoice-cancel",
+    ),
+    path(
+        "companies/<int:pk>/purchase-returns/",
+        returns.ReturnListView.as_view(),
+        name="purchase-returns",
+    ),
+    path(
+        "companies/<int:pk>/purchase-returns/draft-from/",
+        returns.ReturnDraftFromView.as_view(),
+        name="purchase-return-draft-from",
+    ),
+    path(
+        "companies/<int:pk>/purchase-returns/returnable/",
+        returns.ReturnableView.as_view(),
+        name="purchase-return-returnable",
+    ),
+    path("purchase-returns/<int:pk>/", returns.ReturnDetailView.as_view(), name="purchase-return"),
+    path(
+        "purchase-returns/<int:pk>/cancel/",
+        returns.ReturnCancelView.as_view(),
+        name="purchase-return-cancel",
+    ),
+    path("companies/<int:pk>/debit-notes/", debit_notes.NoteListView.as_view(), name="debit-notes"),
+    path(
+        "companies/<int:pk>/debit-notes/draft-from/",
+        debit_notes.NoteDraftFromView.as_view(),
+        name="debit-note-draft-from",
+    ),
+    path("debit-notes/<int:pk>/", debit_notes.NoteDetailView.as_view(), name="debit-note"),
+    path(
+        "debit-notes/<int:pk>/cancel/",
+        debit_notes.NoteCancelView.as_view(),
+        name="debit-note-cancel",
     ),
 ]

@@ -733,6 +733,12 @@ def _cancel(r: GoodsReceipt, user, reason: str) -> None:
         raise ValidationError(
             {"detail": f"This receipt is billed by {billed}; cancel the invoice first."}
         )
+    from buying.returns import receipt_returned
+
+    if returned := receipt_returned(r):
+        raise ValidationError(
+            {"detail": f"Goods of this receipt went back on {returned}; cancel the return first."}
+        )
     if r.status == GoodsReceipt.SUBMITTED:
         service.cancel(KIND, r.pk, user)
         Package.objects.filter(voucher_type=KIND, voucher_id=r.pk).update(
