@@ -8,13 +8,14 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { GrnPrint, type PrintKind } from "./GrnPrint";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 
 /** Entry > Purchase > Goods Receipt: what arrived against a supplier's purchase orders, and
  * which bins and batches it went into. Submit posts the stock (Dr Stock, Cr Goods Received
  * but Bills not Received) at the order rates plus the order's charges to stock. */
 
-type Putaway = {
+export type Putaway = {
   location: number;
   location_name: string;
   batch: number | null;
@@ -28,13 +29,16 @@ type Putaway = {
   package_type_label: string;
   package_qty: string | null;
 };
-type PackageRow = {
+export type PackageRow = {
   id: number;
+  seq: number;
   number: string;
   kind_label: string;
   item_name: string;
   item_number: string;
   batch: string;
+  expiry_date: string | null;
+  location: number;
   location_name: string;
   qty: string;
   left_qty: string;
@@ -44,7 +48,7 @@ type PackageRow = {
   position: number;
   of_count: number;
 };
-type LineInfo = {
+export type LineInfo = {
   order_line: number;
   order: number;
   order_number: string;
@@ -60,7 +64,7 @@ type LineInfo = {
   ordered: string;
   earlier: string;
 };
-type ReceiptLine = LineInfo & {
+export type ReceiptLine = LineInfo & {
   received_qty: string;
   rejected_qty: string;
   accepted_qty: string;
@@ -190,15 +194,31 @@ export function GoodsReceiptsPage({ companyId, session }: { companyId: number; s
   const view = Number(hashParam("view"));
   const can = (p: string) => session.permissions.includes(`purchase.${p}`) || session.permissions.includes(`stock.${p}`);
   if (form && can("create")) return <ReceiptFormTab companyId={companyId} form={form} />;
-  if (view > 0) return <ReceiptView companyId={companyId} id={view} printing={hashParam("print") === "1"} />;
+  const print = Number(hashParam("print"));
+  if (print > 0) {
+    const layout = (hashParam("layout") ?? "note") as PrintKind;
+    const only = (hashParam("only") ?? "").split(",").map(Number).filter(Boolean);
+    return <GrnPrint id={print} kind={["note", "bins", "labels", "sheet"].includes(layout) ? layout : "note"} only={only} />;
+  }
+  if (view > 0) return <ReceiptView companyId={companyId} id={view} />;
   return <ReceiptList companyId={companyId} canCreate={can("create")} />;
 }
 
-function printMenu(companyId: number, id: number | null) {
-  const open = () => id && openTab(`${base(companyId)}?view=${id}&print=1`);
+/** "Print ▾": the receipt's layouts (Sidharth, 2026-11-15). Labels print the ticked bags,
+ * else all of them. */
+function printMenu(companyId: number, id: number | null, opts: { submitted?: boolean; bags?: number[] } = {}) {
+  const open = (layout: PrintKind) => () => {
+    if (!id) return;
+    const only = layout === "labels" || layout === "sheet" ? (opts.bags ?? []) : [];
+    openTab(`${base(companyId)}?print=${id}&layout=${layout}${only.length ? `&only=${only.join(",")}` : ""}`);
+  };
+  const noBags = opts.submitted ? undefined : "Bags get their numbers on Submit";
   return [
-    { label: "Goods receipt", onClick: open },
-    { label: "Download PDF", onClick: open },
+    { label: "Goods Receipt Note", onClick: open("note") },
+    { label: "Bin Sheets (A4)", onClick: open("bins") },
+    { label: "Bag Labels (label printer, 100 × 50 mm)", onClick: open("labels"), disabled: !opts.submitted, title: noBags },
+    { label: "Bag Labels (A4 sheet, 24 per page)", onClick: open("sheet"), disabled: !opts.submitted, title: noBags },
+    { label: "Download PDF", onClick: open("note") },
   ];
 }
 
@@ -379,7 +399,7 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?view=${selected.id}&print=1`)}>
+                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?print=${selected.id}&layout=note`)}>
                   Print
                 </button>
               </div>
@@ -1043,7 +1063,7 @@ function PutawayBox(props: {
 }
 
 /** After Submit every bag or box has its own number, for stickers and tracing (Sidharth, 2026-11-15). */
-function PackagesBox({ rows }: { rows: PackageRow[] }) {
+function PackagesBox({ rows, ticked, onTick }: { rows: PackageRow[]; ticked: number[]; onTick: (ids: number[]) => void }) {
   const kinds = new Set(rows.map((k) => k.kind_label));
   const name = kinds.size === 1 ? [...kinds][0].toLowerCase() : "package";
   const units = new Set(rows.map((k) => k.unit_name));
@@ -1054,6 +1074,9 @@ function PackagesBox({ rows }: { rows: PackageRow[] }) {
         <table className="grid grn-packages">
           <thead>
             <tr>
+              <th className="no-print">
+                <input type="checkbox" aria-label="Tick all bags" checked={ticked.length === rows.length} onChange={(e) => onTick(e.target.checked ? rows.map((k) => k.id) : [])} />
+              </th>
               <th>Package No</th>
               <th>Type</th>
               <th>Item</th>
@@ -1068,6 +1091,14 @@ function PackagesBox({ rows }: { rows: PackageRow[] }) {
           <tbody>
             {rows.map((k) => (
               <tr key={k.id}>
+                <td className="no-print">
+                  <input
+                    type="checkbox"
+                    aria-label={`Tick ${k.number}`}
+                    checked={ticked.includes(k.id)}
+                    onChange={(e) => onTick(e.target.checked ? [...ticked, k.id] : ticked.filter((x) => x !== k.id))}
+                  />
+                </td>
                 <td>
                   <b>{k.number}</b> <span className="small-inline">{k.position} of {k.of_count}</span>
                 </td>
@@ -1086,14 +1117,16 @@ function PackagesBox({ rows }: { rows: PackageRow[] }) {
           </tbody>
         </table>
       </div>
-      <p className="small">Each bag or box has its own number, which a sticker and barcode will carry later. When stock is issued, the bags taken will be picked by these numbers.</p>
+      <p className="small">
+        Each bag or box has its own number, printed with a barcode on its label ("Print ▾", then "Bag Labels"). Tick bags to print only their labels, for example to replace a torn one{ticked.length ? ` (${ticked.length} ticked)` : ""}. When stock is issued, the bags taken will be picked by these numbers.
+      </p>
     </Fold>
   );
 }
 
 // The receipt's own page (read only) -------------------------------------------------
 
-function ReceiptView({ companyId, id, printing }: { companyId: number; id: number; printing: boolean }) {
+function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
   const setup = useSetup(companyId);
   const [r, setR] = useState<GoodsReceipt | null>(null);
   const [postings, setPostings] = useState<Postings | null>(null);
@@ -1101,6 +1134,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
+  const [ticked, setTicked] = useState<number[]>([]); // bags picked for labels
   const reload = useCallback(() => {
     api<GoodsReceipt>(`v1/goods-receipts/${id}/`).then(setR, setError);
     api<Postings>(`v1/postings/?voucher_type=goods_receipt&voucher_id=${id}`).then(setPostings, () => setPostings(null));
@@ -1109,9 +1143,6 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
   useCreated("goods_receipt_saved", (c) => {
     if (c.id === id) reload();
   });
-  useEffect(() => {
-    if (printing && r) setTimeout(() => window.print(), 300);
-  }, [printing, r]);
   const close = () =>
     closeThisTab(() => {
       window.location.hash = base(companyId);
@@ -1163,7 +1194,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
                 Cancel receipt
               </button>
             )}
-            <ActionsMenu label="Print" items={printMenu(companyId, r.id)} />
+            <ActionsMenu label="Print" items={printMenu(companyId, r.id, { submitted: r.status === "submitted", bags: ticked })} />
             {draft && setup?.can_submit && (
               <button type="button" onClick={() => act("submit")}>
                 Submit
@@ -1323,7 +1354,7 @@ function ReceiptView({ companyId, id, printing }: { companyId: number; id: numbe
               </table>
             </div>
           </Fold>
-          {!!r.packages?.length && <PackagesBox rows={r.packages} />}
+          {!!r.packages?.length && <PackagesBox rows={r.packages} ticked={ticked} onTick={setTicked} />}
           {(r.qc_cartons || r.qc_batch_print || r.qc_by_name) && (
             <Fold title="Quality Check" open>
               <dl className="kv">

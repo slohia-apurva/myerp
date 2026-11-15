@@ -211,7 +211,7 @@ function cellText(cell: Element): string {
   return parts.join(" · ");
 }
 
-export type MenuItem = { label: string; onClick?: () => void; href?: string; disabled?: boolean };
+export type MenuItem = { label: string; onClick?: () => void; href?: string; disabled?: boolean; title?: string };
 
 /** One "Actions" button whose list holds a screen's Import, Export, Print
  * and PDF. The same button on every screen. Entry screens use the same
@@ -273,6 +273,7 @@ export function ActionsMenu({
                 type="button"
                 role="menuitem"
                 disabled={item.disabled}
+                title={item.title}
                 onClick={() => {
                   setOpen(false);
                   item.onClick?.();

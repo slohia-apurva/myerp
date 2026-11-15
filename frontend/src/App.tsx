@@ -28,10 +28,11 @@ import { RequestAdditionPage } from "./RequestAddition";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { AdminMenu, CompanyPicker, EntryMenu, MastersMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
 import { PurchaseOrdersPage } from "./PurchaseOrders";
+import { BinContentsPage } from "./BinContents";
 import { GoodsReceiptsPage } from "./GoodsReceipts";
 import { NotificationBell } from "./Notifications";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -39,6 +40,7 @@ function routeFromHash(): Route {
   if (page === "companies")
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
+  if (page === "bins") return { page, id: Number(id) || undefined };
   return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "batches" || page === "hsn" || page === "items" || page === "reset" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
 }
 
@@ -150,6 +152,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
       <main>
         {page === "help" ? (
           <HelpPage topic={topic} />
+        ) : page === "bins" && id && canSeeMasters ? (
+          <BinContentsPage key={id} id={id} />
         ) : page === "companies" && id && sub === "purchase-orders" && canSeePurchase ? (
           <PurchaseOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "goods-receipts" && canReceive ? (

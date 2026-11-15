@@ -2332,8 +2332,8 @@ export const MANUAL: Chapter[] = [
             Gives every bag or box its own number, PK-000241 and on, shown in
             the receipt's "Packages" box with its item, batch, bin, the
             quantity received and left, and its status ("In stock"). The number
-            is what a sticker with a barcode will carry, and the bags taken
-            will be picked by it when stock is issued (both to come). A
+            is what the bag's sticker carries as a barcode, and the bags taken
+            will be picked by it when stock is issued (to come). A
             cancelled receipt keeps its bags, marked "Cancelled".
           </li>
           <li>
@@ -2345,11 +2345,58 @@ export const MANUAL: Chapter[] = [
         </ul>
         <p>
           A submitted receipt shows "Submitted as … on … at …", its "Postings"
-          (the book entries) and its "Activity". "Print ▾" prints the receipt.
+          (the book entries) and its "Activity".
           A submitted receipt cannot be changed: click "Cancel receipt" and say
           why. Cancelling reverses the stock and the book entries and shows the
           goods as pending on the orders again. It is refused if any of the
           goods have since been issued or moved.
+        </p>
+        <h3>Printing the receipt, bin sheets and bag labels</h3>
+        <p>
+          "Print ▾" on a receipt lists its print layouts; each opens in a new
+          tab and asks the printer straight away.
+        </p>
+        <ul>
+          <li>
+            "Goods Receipt Note": one A4 page with the supplier, order,
+            challan and transporter, the "Items Received" (ordered, received,
+            rejected, accepted, packages), the "Bin-wise Storage" (each bin
+            with its item, batch, bags and bag numbers, such as "PK-000001 to
+            PK-000005"), the quality check, and four places to sign. No rates
+            or values are printed.
+          </li>
+          <li>
+            "Bin Sheets (A4)": one A4 page for each bin the receipt put goods
+            into, to stick on or hang at the bin. The bin's name is printed
+            large with its barcode and a QR code, then what this receipt put
+            there and a list of its bags with a blank "Taken out (write in)"
+            column.
+          </li>
+          <li>
+            "Bag Labels (label printer, 100 × 50 mm)": one sticker per bag or
+            box with the company, the bag number as text and as a barcode, the
+            quantity, "Bag n of m", item, batch, expiry, bin, date and receipt
+            number.
+          </li>
+          <li>
+            "Bag Labels (A4 sheet, 24 per page)": the same stickers, smaller,
+            on A4 label sheets of 3 × 8.
+          </li>
+        </ul>
+        <p>
+          The bin sheets and bag labels come once the receipt is submitted,
+          because the bags get their numbers then. To reprint only some
+          stickers (a torn one, say), tick those bags in the "Packages" box and
+          then choose a bag label layout: only the ticked bags print.
+          "Download PDF" saves the receipt as a file.
+        </p>
+        <p>
+          Scanning a bin sheet's QR code with a phone opens the "Bin contents"
+          page (after signing in): the bin's name and branch, "In This Bin
+          Now" (each item and batch with its quantity at that moment, after
+          all later receipts and issues) and "Bags And Boxes Here" (the bags
+          still in it). Scanning the barcode with a scanner gives the bin's
+          code, such as "LOC-000003".
         </p>
         <h3>Attachments</h3>
         <p>
