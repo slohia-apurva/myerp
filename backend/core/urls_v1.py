@@ -2,6 +2,7 @@ from django.urls import path
 
 from core import (
     api,
+    attachments,
     batches,
     brands,
     central,
@@ -167,6 +168,8 @@ urlpatterns = [
         notifications.NotificationReadView.as_view(),
         name="notifications-read",
     ),
+    path("attachments/", attachments.AttachmentListView.as_view(), name="attachments"),
+    path("attachments/<int:pk>/", attachments.AttachmentDetailView.as_view(), name="attachment"),
     path("batches/", batches.BatchListView.as_view(), name="batches"),
     path("batches/<int:pk>/", batches.BatchDetailView.as_view(), name="batch"),
     path("brands/", brands.BrandListView.as_view(), name="brands"),
