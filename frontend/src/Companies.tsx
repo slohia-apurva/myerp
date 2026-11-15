@@ -621,6 +621,7 @@ function CompanyForm(props: {
     from?.multi_currency ?? false,
   );
   const [printGanesha, setPrintGanesha] = useState(from?.print_ganesha ?? false);
+  const mailbox = useMailAccount(c?.id);
   const allModules = useModules();
   const [modules, setModules] = useState<string[] | null>(
     props.copyOf?.modules ?? null,
@@ -657,11 +658,11 @@ function CompanyForm(props: {
       ...(c ? {} : abbr ? { abbr } : {}),
     };
     try {
-      props.onDone(
-        c
-          ? await api<Company>(`v1/companies/${c.id}/`, body, "PATCH")
-          : await api<Company>("v1/companies/", body),
-      );
+      const saved = c
+        ? await api<Company>(`v1/companies/${c.id}/`, body, "PATCH")
+        : await api<Company>("v1/companies/", body);
+      await mailbox.save();
+      props.onDone(saved);
     } catch (err) {
       setError(err);
     }
@@ -820,6 +821,7 @@ function CompanyForm(props: {
           </p>
         )}
       </Section>
+      {c && <MailAccountFields box={mailbox} onError={setError} />}
       {!c && (
         <fieldset>
           <legend>
@@ -1707,5 +1709,130 @@ function CertificateForm(props: {
         </button>
       </div>
     </form>
+  );
+}
+
+// The company's mailbox ------------------------------------------------------------
+
+type MailAccount = {
+  set_up: boolean;
+  from_name: string;
+  address: string;
+  host: string;
+  port: number;
+  username: string;
+  has_password: boolean;
+  updated_by_name: string;
+  updated_at: string | null;
+  last_test_ok_at: string | null;
+  sent_to?: string;
+};
+
+/** The "Mail Account" box's state; the company form's Save saves it too. */
+function useMailAccount(companyId?: number) {
+  const [saved, setSaved] = useState<MailAccount | null>(null);
+  const [form, setForm] = useState({ from_name: "", address: "", host: "smtp.gmail.com", port: "587", username: "", password: "" });
+  const url = companyId ? `v1/companies/${companyId}/mail-account/` : "";
+  const take = (a: MailAccount) => {
+    setSaved(a);
+    setForm({ from_name: a.from_name, address: a.address, host: a.host, port: String(a.port), username: a.username, password: "" });
+  };
+  useEffect(() => {
+    if (url) api<MailAccount>(url).then(take, () => setSaved(null));
+  }, [url]);
+  const dirty =
+    !!saved &&
+    (form.password !== "" ||
+      form.from_name !== saved.from_name ||
+      form.address !== saved.address ||
+      form.host !== saved.host ||
+      form.port !== String(saved.port) ||
+      form.username !== saved.username);
+  const save = async () => {
+    if (!url || !dirty || (!form.address && !saved?.address)) return;
+    take(await api<MailAccount>(url, { ...form, port: Number(form.port) || 587 }, "PUT"));
+  };
+  return { url, saved, form, setForm, dirty, save, take };
+}
+
+function MailAccountFields({ box, onError }: { box: ReturnType<typeof useMailAccount>; onError: (e: unknown) => void }) {
+  const { form, setForm, saved } = box;
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState("");
+  if (!saved) return null;
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
+  const test = async () => {
+    setBusy(true);
+    setSent("");
+    onError("");
+    try {
+      const done = await api<MailAccount>(`${box.url}test/`, {});
+      box.take(done);
+      setSent(`A test mail was sent to ${done.sent_to}.`);
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Mail Account">
+      <p className="small">
+        The shared mailbox MyERP sends mail from, such as mail to suppliers. Replies go to the person who sent it. For
+        Google Workspace, sign in to that mailbox, turn on 2-Step Verification, and make an app password under Google
+        Account › Security › App passwords; paste it below.
+      </p>
+      <div className="row">
+        <label>
+          From Name
+          <input value={form.from_name} onChange={set("from_name")} placeholder="e.g. Apurvam Purchase" />
+        </label>
+        <label>
+          Mailbox Address <span className="req" />
+          <input type="email" value={form.address} onChange={set("address")} placeholder="e.g. purchase@apurva.org.in" />
+        </label>
+      </div>
+      <div className="row">
+        <label>
+          App Password {!saved.has_password && <span className="req" />}
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={form.password}
+            onChange={set("password")}
+            placeholder={saved.has_password ? "Saved (leave blank to keep it)" : "16 letters from Google"}
+          />
+        </label>
+        <label>
+          Mail Server
+          <input value={form.host} onChange={set("host")} />
+        </label>
+      </div>
+      <div className="row">
+        <label>
+          Port
+          <input inputMode="numeric" value={form.port} onChange={set("port")} />
+        </label>
+        <label>
+          Login (if not the address)
+          <input value={form.username} onChange={set("username")} />
+        </label>
+      </div>
+      <div className="buttons">
+        <button type="button" className="link" disabled={busy || box.dirty || !saved.set_up} onClick={test} title={box.dirty ? "Save first" : undefined}>
+          Send Test Mail
+        </button>
+        <span className="small">
+          {box.dirty
+            ? "Click Save, then send a test mail."
+            : saved.last_test_ok_at
+              ? `Working: last test mail sent ${new Date(saved.last_test_ok_at).toLocaleString("en-IN")}.`
+              : saved.set_up
+                ? "Saved. Send a test mail to check it works."
+                : "Not set up yet."}
+        </span>
+      </div>
+      {sent && <p className="small">{sent} Check your inbox.</p>}
+    </Section>
   );
 }
