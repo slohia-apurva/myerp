@@ -984,6 +984,51 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "batches",
+    title: "Batches",
+    summary:
+      "The batches (lots) of batch-tracked items, with their mfg and expiry dates and quality status.",
+    body: (
+      <>
+        <p>
+          An item keeps batches when "Track batches" is ticked on its form.
+          Each batch belongs to one item, and its "Batch No" only has to be
+          different from the other batches of that item: two different items
+          may both have batch 1234. Batches are shared by every company in the
+          group, like items.
+        </p>
+        <h3>Add a batch</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Batches".</li>
+          <li>
+            Click "Add batch". The form opens in a new browser tab. Pick the
+            "Item" (only items that track batches are listed) and give the
+            "Batch No". If you like, add the "Supplier's Batch No", "Mfg Date",
+            "Expiry" and "Notes".
+          </li>
+          <li>
+            Leave "Expiry" blank to have it worked out: the mfg date plus the
+            item's "Best before" period.
+          </li>
+          <li>
+            "Status" is "Released" (free to use), "Quarantine" (held for a
+            quality check) or "Rejected".
+          </li>
+          <li>Click "Save"; the tab closes and the batch is selected in the list.</li>
+        </ol>
+        <p>
+          A goods receipt will also make a new batch from its line as goods are
+          received. Pick an item in the box above the list to see only its
+          batches. Click a batch to see its details and activity on the right;
+          "Edit" (or a double-click) and "Duplicate" open in a new tab. Once a
+          batch is used in an entry its item can no longer change. Batches are
+          never deleted: tick "Disabled" under "Switches" instead. To change
+          many batches at once, use "Actions" (see "Import, export and print").
+        </p>
+      </>
+    ),
+  },
+  {
     id: "brands",
     title: "Brands",
     summary:

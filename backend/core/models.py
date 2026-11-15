@@ -942,6 +942,40 @@ def validate_used_for(value):
         raise ValidationError("Pick from purchase, sales, stock and production, each once.")
 
 
+class Batch(models.Model):
+    """A batch (lot) of a batch-tracked item, with its manufacturing date,
+    expiry and quality status (design rule 12). Made in the Batches master or
+    right on a goods receipt line; its number is unique for the item. Never
+    deleted, only made inactive."""
+
+    QUARANTINE, RELEASED, REJECTED = "quarantine", "released", "rejected"
+    STATUSES = [(QUARANTINE, "Quarantine"), (RELEASED, "Released"), (REJECTED, "Rejected")]
+
+    item = models.ForeignKey("Item", on_delete=models.PROTECT, related_name="batches")
+    number = models.CharField(max_length=60)
+    supplier_batch_no = models.CharField(max_length=60, blank=True)
+    mfg_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=RELEASED)
+    notes = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["item__name", "number"]
+        verbose_name_plural = "batches"
+        constraints = [
+            models.UniqueConstraint("item", Lower("number"), name="batch_number_unique_per_item")
+        ]
+
+    def __str__(self) -> str:
+        return self.number
+
+    def clean(self):
+        if self.mfg_date and self.expiry_date and self.expiry_date < self.mfg_date:
+            raise ValidationError({"expiry_date": ["The expiry cannot be before the mfg date."]})
+
+
 class ItemUnit(models.Model):
     """One unit of an item. The stock unit's row holds 1; every other row
     says how many of another row's unit it contains, and `factor` (how many
