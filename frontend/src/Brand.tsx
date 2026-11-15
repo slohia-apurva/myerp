@@ -54,9 +54,32 @@ export function PageHeader(props: {
     const watch = new ResizeObserver(measure);
     if (band.current) watch.observe(band.current);
     if (top) watch.observe(top);
+    // A list's column headings stick just under the search row above it, so the page also tells
+    // the styles how tall that row is (Sidharth, 2026-11-15). The row can come and go as the
+    // page changes, so look for it again whenever the page redraws.
+    const page = band.current?.closest("section.page") ?? band.current?.parentElement;
+    let bar: Element | null = null;
+    const sizeBar = () => root.style.setProperty("--list-bar-h", `${(bar as HTMLElement | null)?.offsetHeight ?? 0}px`);
+    const barWatch = new ResizeObserver(sizeBar);
+    const findBar = () => {
+      const now = page?.querySelector(
+        ".side-main > .filters, .side-main > .page-head, .side-main > input[type='search']",
+      ) ?? null;
+      if (now === bar) return;
+      if (bar) barWatch.unobserve(bar);
+      bar = now;
+      if (bar) barWatch.observe(bar);
+      sizeBar();
+    };
+    findBar();
+    const pageWatch = new MutationObserver(findBar);
+    if (page) pageWatch.observe(page, { childList: true, subtree: true });
     return () => {
       watch.disconnect();
+      barWatch.disconnect();
+      pageWatch.disconnect();
       root.style.removeProperty("--stick-top");
+      root.style.removeProperty("--list-bar-h");
     };
   }, []);
   return (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { PageHeader } from "./Brand";
+import { ColumnSearch } from "./ColumnSearch";
 import { usePrintMenu } from "./Exchange";
 import { SidePanel, SideRows } from "./Master";
 import { type PinInfo, type PinRow, searchPins } from "./Pin";
@@ -11,13 +12,15 @@ import { openRequestAddition } from "./RequestAddition";
  * the right. Nobody changes a PIN here: MyERP keeps the list. */
 export function PinCodesPage({ session }: { session: SignedIn }) {
   const [q, setQ] = useState("");
+  const [cols, setCols] = useState<string[]>([]);
   const [found, setFound] = useState<{ total: number; results: PinRow[] }>({ total: 0, results: [] });
   const [selectedId, setSelected] = useState<number | null>(null);
   const [info, setInfo] = useState<PinInfo | null>(null);
   useEffect(() => {
-    const t = setTimeout(() => searchPins(q, false).then(setFound), 200);
+    const t = setTimeout(() => searchPins(q, false, cols).then(setFound), 200);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, cols]);
+  const searching = q !== "" || cols.some((c) => c.trim() !== "");
   const selected = found.results.find((r) => r.id === selectedId) ?? null;
   const pin = selected?.pin;
   useEffect(() => {
@@ -58,6 +61,7 @@ export function PinCodesPage({ session }: { session: SignedIn }) {
                 <th>City</th>
                 <th>State</th>
               </tr>
+              <ColumnSearch onSearch={setCols} />
             </thead>
             <tbody>
               {found.results.map((r) => (
@@ -77,14 +81,14 @@ export function PinCodesPage({ session }: { session: SignedIn }) {
               {found.results.length === 0 && (
                 <tr>
                   <td colSpan={3} className="small">
-                    {found.total === 0 && q === "" ? "The list has not been loaded yet." : "Nothing matches."}
+                    {found.total === 0 && !searching ? "The list has not been loaded yet." : "Nothing matches."}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          {found.total > found.results.length && q === "" && (
-            <p className="small">Showing the first {found.results.length}. Type in the search box to find others.</p>
+          {found.total > found.results.length && !searching && (
+            <p className="small">Showing the first {found.results.length}. Type in a search box to find others.</p>
           )}
         </div>
         <div className="side-col">

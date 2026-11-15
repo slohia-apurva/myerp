@@ -106,6 +106,27 @@ export const MANUAL: Chapter[] = [
           way, including two rows of the same file.
         </p>
 
+        <h3>Searching a list</h3>
+        <p>
+          On the masters lists ("Items", "Units", "Brands", "Credit terms",
+          "Price lists", "Terms", "Batches", "Transporters", "HSN codes",
+          "Countries" and "PIN codes") there is a search box under each column
+          heading. Type in one or more of them: the list keeps only the lines
+          that match every box (and the search box above the list, if you used
+          it too). Words can be in any order and capitals do not matter. Click
+          the small cross in a box to empty it. If nothing is left, the list
+          says "Nothing matches the column searches." "Print" and "Download PDF"
+          under "Actions" print only the lines you can see.
+        </p>
+        <p>
+          As you scroll down a long list, the search box, the column headings
+          and the column search boxes stay at the top of the window, just under
+          the green title band, so you always see which column is which. The
+          tree lists ("Ledger groups", "Ledgers", "Item groups") keep their
+          headings at the top too, but fold by level instead of having column
+          search boxes.
+        </p>
+
         <h3>The screen</h3>
         <ul>
           <li>
@@ -759,7 +780,9 @@ export const MANUAL: Chapter[] = [
           same in every company and is looked after centrally. You cannot change
           it, but you can search it: click "Masters" in the top menu, then "HSN
           codes", and type a few digits of the code or words from the
-          description. Click a code in the list to see its details on the
+          description. To search one column only, type in the box under
+          "HSN code" (the first digits of the code) or under "Description"
+          (words from it). Click a code in the list to see its details on the
           right.
         </p>
         <p>
@@ -801,7 +824,9 @@ export const MANUAL: Chapter[] = [
           MyERP keeps one list of countries and one of PIN codes for everyone,
           so they are the same in every company. You cannot change them, but
           you can search them: click "Masters" in the top menu, then
-          "Countries" or "PIN codes", and type in the search box. Click a line
+          "Countries" or "PIN codes", and type in the search box, or in the
+          box under a column heading ("PIN Code", "City", "State") to search
+          that column only. Click a line
           to see its details on the right; for a PIN code that includes the
           couriers that deliver there.
         </p>

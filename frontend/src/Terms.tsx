@@ -9,6 +9,7 @@ import { useExchange } from "./Exchange";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { ColumnSearch } from "./ColumnSearch";
 
 /** Terms and conditions: named sets of the terms printed on orders, for purchase or sales. */
 export type TermsSet = {
@@ -109,6 +110,7 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; sets: TermsSet[]
                 <th className="num">Used By</th>
                 <ActionHeads />
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody>
               {sets.map((s) => (

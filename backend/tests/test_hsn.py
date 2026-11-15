@@ -79,6 +79,13 @@ def test_import_adds_updates_and_searches(accountant, company):
     assert [r["hsn_code"] for r in results(accountant, "q=carton%20corrugated")] == ["4819"]
     assert call(accountant, "get", "hsn/").json()["total"] == 4
 
+    # The search box under each column narrows by that column alone, with the top box too.
+    assert [r["hsn_code"] for r in results(accountant, "code=17")] == ["1701", "170199"]
+    assert [r["hsn_code"] for r in results(accountant, "desc=sugar%20solid")] == ["170199"]
+    assert [r["hsn_code"] for r in results(accountant, "code=09&desc=sugar")] == []
+    assert [r["hsn_code"] for r in results(accountant, "q=sugar&code=1701")] == ["1701", "170199"]
+    assert [r["hsn_code"] for r in results(accountant, "q=jaggery&code=1701")] == ["170199"]
+
 
 def test_every_tenant_sees_the_same_central_list(accountant, company):
     hsn_import.load(ROWS)

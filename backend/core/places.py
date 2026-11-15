@@ -28,7 +28,8 @@ LIST_LIMIT = 500
 
 class PinCodeListView(APIView):
     """GET ?q=text&limit=pick: PIN codes to search (a PIN's first digits, or words of the
-    city or state), 30 rows for the picker, else 500."""
+    city or state), 30 rows for the picker, else 500; &pin=, &city= and &state= narrow the list
+    by its columns."""
 
     permission_classes = [Signed]
 
@@ -44,6 +45,14 @@ class PinCodeListView(APIView):
         else:
             for word in q.split():
                 rows = rows.filter(Q(city__icontains=word) | Q(state__name__icontains=word))
+        # The search box under each column of the list (Sidharth, 2026-11-15).
+        pin = request.query_params.get("pin", "").replace(" ", "")
+        if pin:
+            rows = rows.filter(pin__startswith=pin)
+        for word in request.query_params.get("city", "").split():
+            rows = rows.filter(city__icontains=word)
+        for word in request.query_params.get("state", "").split():
+            rows = rows.filter(state__name__icontains=word)
         return Response(
             {
                 "total": PinCode.objects.count(),

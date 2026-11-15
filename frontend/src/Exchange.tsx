@@ -162,7 +162,8 @@ export function readTables(page: Element, title: string): PrintSheet["sheets"] {
     const rows: string[][] = [];
     for (const tr of Array.from(table.querySelectorAll(":scope > tbody > tr"))) {
       const cells = Array.from(tr.children);
-      if (cells.length !== heads.length || tr.querySelector("form")) continue;
+      // Rows hidden by the search boxes under the headings are left out too.
+      if (cells.length !== heads.length || tr.querySelector("form") || (tr as HTMLElement).hidden) continue;
       rows.push(cells.map(cellText).filter((_, i) => keep[i]));
     }
     const heading = table.closest(".panel-card")?.querySelector(":scope > h4")?.textContent;

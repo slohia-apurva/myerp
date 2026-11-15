@@ -8,6 +8,7 @@ import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { ColumnSearch } from "./ColumnSearch";
 
 /** Credit terms: how a party's bills are paid, split into parts. */
 export type TermPart = { percent: string; event: string; days: number };
@@ -98,6 +99,7 @@ function TermList(props: { session: SignedIn; canEdit: boolean; terms: CreditTer
                 <th className="num">Parties</th>
                 <ActionHeads />
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody>
               {terms.map((t) => (

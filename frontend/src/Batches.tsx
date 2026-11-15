@@ -9,6 +9,7 @@ import { useExchange } from "./Exchange";
 import type { Item } from "./Items";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { ColumnSearch } from "./ColumnSearch";
 
 /** Batches (lots) of batch-tracked items. A batch number is unique within its
  * item only: two items may both have batch 1234 (Sidharth, 2026-11-15). */
@@ -124,6 +125,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
                 <th>Status</th>
                 <ActionHeads />
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody>
               {shown.map((b) => (

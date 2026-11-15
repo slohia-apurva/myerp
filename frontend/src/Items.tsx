@@ -15,6 +15,7 @@ import { Fold, hashParam, SidePanel, SideRows } from "./Master";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 import { longDate } from "./Companies";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
+import { ColumnSearch } from "./ColumnSearch";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -307,6 +308,7 @@ function ItemList({ session }: { session: SignedIn }) {
                 <th>Stock Unit</th>
                 <th className="num">GST Rate</th>
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody onKeyDown={onListKey}>
               {shown.length === 0 && (

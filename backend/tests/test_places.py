@@ -110,3 +110,17 @@ def test_pin_lookup(viewer):
 def test_countries_list(viewer):
     rows = viewer.get("/api/v1/countries/", HTTP_HOST=HOST).json()
     assert {"code": "IN", "name": "India"} in rows
+
+
+def test_pin_list_searches_each_column(viewer):
+    pin_import.load(pin_import.parse(CSV), "Delhivery")
+
+    def pins(query):
+        found = viewer.get(f"/api/v1/pin-codes/?{query}", HTTP_HOST=HOST).json()
+        return [r["pin"] for r in found["results"]]
+
+    assert pins("pin=75") == ["751001"]
+    assert pins("city=srin") == ["190001"]
+    assert pins("state=tamil") == ["605755"]
+    assert pins("state=odisha&city=srinagar") == []
+    assert pins("q=6&state=tamil") == ["605755"]

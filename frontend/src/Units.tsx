@@ -9,6 +9,7 @@ import { useExchange } from "./Exchange";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ActionCells, ActionHeads } from "./RowActions";
+import { ColumnSearch } from "./ColumnSearch";
 
 /** Units of measure: one list for every company in the group. */
 export type Unit = {
@@ -115,6 +116,7 @@ function UnitList(props: { session: SignedIn; canEdit: boolean; units: Unit[]; r
                 <th>Whole numbers only</th>
                 <ActionHeads />
               </tr>
+              <ColumnSearch />
             </thead>
             <tbody>
               {units.map((u) => (
