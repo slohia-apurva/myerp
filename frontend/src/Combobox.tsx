@@ -12,7 +12,11 @@ const CREATE = "\u0000create";
  *
  * `create` (pass it only when the person may add that master) adds
  * 'Create "<typed>"' when no name matches exactly: it opens the master's
- * screen in a new tab, and the record saved there is picked here (Create.tsx). */
+ * screen in a new tab, and the record saved there is picked here (Create.tsx).
+ *
+ * `createHere` is the one exception (Sidharth, 2026-11-15): a record made on the
+ * line itself, such as a new batch on a goods receipt. It offers 'New "<typed>"'
+ * and hands the typed text back instead of opening a tab. */
 export function Combobox(props: {
   options: Option[];
   value: string;
@@ -22,6 +26,7 @@ export function Combobox(props: {
   placeholder?: string;
   ariaLabel?: string;
   create?: Creatable;
+  createHere?: { label: string; pick: (typed: string) => void };
 }) {
   const { options, value } = props;
   const all = useMemo(
@@ -46,8 +51,9 @@ export function Combobox(props: {
     });
     const exact = all.some((o) => o.label.toLowerCase() === typedName.toLowerCase());
     if (props.create && typedName && !exact) found.push({ value: CREATE, label: `Create "${typedName}"` });
+    if (props.createHere && typedName && !exact) found.push({ value: CREATE, label: `${props.createHere.label} "${typedName}"` });
     return found;
-  }, [all, typedName, typed, props.create]);
+  }, [all, typedName, typed, props.create, props.createHere]);
 
   // A record saved in the tab that "Create …" opened: reload the list, pick it.
   const waiting = useRef(false);
@@ -67,7 +73,8 @@ export function Combobox(props: {
     setTyped(false);
   };
   const pick = (o: Option) => {
-    if (o.value === CREATE && props.create) {
+    if (o.value === CREATE && props.createHere) props.createHere.pick(typedName);
+    else if (o.value === CREATE && props.create) {
       waiting.current = true;
       openCreate(props.create, typedName);
     } else props.onChange(o.value);

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from buying import api
+from buying import api, receipts
 
 urlpatterns = [
     path(
@@ -31,5 +31,31 @@ urlpatterns = [
         "purchase-orders/<int:pk>/cancel/",
         api.OrderCancelView.as_view(),
         name="purchase-order-cancel",
+    ),
+    path(
+        "companies/<int:pk>/goods-receipts/",
+        receipts.ReceiptListView.as_view(),
+        name="goods-receipts",
+    ),
+    path(
+        "companies/<int:pk>/goods-receipts/setup/",
+        receipts.ReceiptSetupView.as_view(),
+        name="goods-receipt-setup",
+    ),
+    path(
+        "companies/<int:pk>/goods-receipts/pending/",
+        receipts.PendingOrdersView.as_view(),
+        name="goods-receipt-pending",
+    ),
+    path("goods-receipts/<int:pk>/", receipts.ReceiptDetailView.as_view(), name="goods-receipt"),
+    path(
+        "goods-receipts/<int:pk>/submit/",
+        receipts.ReceiptSubmitView.as_view(),
+        name="goods-receipt-submit",
+    ),
+    path(
+        "goods-receipts/<int:pk>/cancel/",
+        receipts.ReceiptCancelView.as_view(),
+        name="goods-receipt-cancel",
     ),
 ]

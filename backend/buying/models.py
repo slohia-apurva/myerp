@@ -188,3 +188,121 @@ class PurchaseOrderCharge(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item} {self.amount}"
+
+
+class GoodsReceipt(models.Model):
+    """A goods receipt (GRN): what arrived at one of our warehouses against one
+    or more purchase orders of a supplier, and which bins and batches it was
+    put into. On Submit it posts the stock (one move per bin and batch, each a
+    FIFO lot) and Dr Stock / Cr Goods Received but Bills not Received at order
+    rates plus the order's charges added to stock (decision 0017, rule 11)."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+    OK, DAMAGED, MATCHES, WRONG = "ok", "damaged", "matches", "wrong"
+    CARTONS = [(OK, "OK"), (DAMAGED, "Damaged")]
+    PRINTS = [(MATCHES, "Matches"), (WRONG, "Wrong / Missing")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="goods_receipts")
+    supplier = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="goods_receipts")
+    # The receiving warehouse: our branch the goods came into.
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="goods_receipts")
+    orders = models.ManyToManyField(PurchaseOrder, related_name="receipts", blank=True)
+    number = models.CharField(max_length=30, blank=True)
+    receipt_date = models.DateField()
+    challan_no = models.CharField(max_length=40, blank=True)
+    challan_date = models.DateField(null=True, blank=True)
+    transporter = models.ForeignKey(
+        CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    lr_no = models.CharField(max_length=40, blank=True)
+    vehicle_no = models.CharField(max_length=20, blank=True)
+    eway_bill_no = models.CharField(max_length=20, blank=True)
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Orders in a foreign currency: rupees per unit of it, for the stock value.
+    currency = models.CharField(max_length=3, default="INR")
+    exchange_rate = models.DecimalField(max_digits=18, decimal_places=9, null=True, blank=True)
+    # Quality check (optional add-on; for items marked "QC required").
+    qc_cartons = models.CharField(max_length=8, choices=CARTONS, blank=True)
+    qc_batch_print = models.CharField(max_length=8, choices=PRINTS, blank=True)
+    qc_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    stock_value = models.DecimalField(**MONEY, default=Decimal("0"))
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-receipt_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company", "number", condition=~models.Q(number=""), name="grn_number_unique"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft goods receipt {self.pk}"
+
+
+class GoodsReceiptLine(models.Model):
+    """One item received, against one order line, in that line's unit.
+    Accepted = received - rejected; only the accepted quantity goes into stock."""
+
+    receipt = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    order_line = models.ForeignKey(
+        PurchaseOrderLine, on_delete=models.PROTECT, related_name="receipt_lines"
+    )
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    received_qty = models.DecimalField(**QTY, validators=[MinValueValidator(0)])
+    rejected_qty = models.DecimalField(
+        **QTY, default=Decimal("0"), validators=[MinValueValidator(0)]
+    )
+    accepted_qty = models.DecimalField(**QTY, default=Decimal("0"))
+    # Set on Submit: the rupee value posted (order rate + charges to stock).
+    value = models.DecimalField(**MONEY, default=Decimal("0"))
+    charges_value = models.DecimalField(**MONEY, default=Decimal("0"))
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item} × {self.accepted_qty}"
+
+
+class GoodsReceiptPutaway(models.Model):
+    """Where part of a line's accepted quantity went: a bin or an area of the
+    receiving warehouse, and its batch. A new batch is typed here with its
+    dates and added to the Batches master on Submit (Sidharth, 2026-11-15)."""
+
+    line = models.ForeignKey(GoodsReceiptLine, on_delete=models.CASCADE, related_name="putaways")
+    position = models.PositiveSmallIntegerField()
+    location = models.ForeignKey(
+        "core.WarehouseLocation", on_delete=models.PROTECT, related_name="+"
+    )
+    batch = models.ForeignKey(
+        "core.Batch", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # A new batch, until Submit makes it.
+    batch_number = models.CharField(max_length=60, blank=True)
+    mfg_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.location_id}: {self.qty}"

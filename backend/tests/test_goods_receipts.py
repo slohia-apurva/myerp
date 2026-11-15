@@ -1,0 +1,267 @@
+"""Goods receipts: put-away into bins and batches, posting, over-receipt alerts, cancel."""
+
+from decimal import Decimal as D
+
+import pytest
+
+from accounts.models import User
+from audit.models import AuditEntry
+from buying.models import GoodsReceipt, PurchaseOrder, PurchaseOrderLine
+from core.models import (
+    Batch,
+    Item,
+    ItemGroupAccount,
+    Ledger,
+    LedgerGroup,
+    Notification,
+    WarehouseLocation,
+)
+from posting import accounts
+from posting.models import GLEntry, StockMove
+from posting.service import gl_balance, on_hand
+from tenancy.context import use_tenant
+from tests.test_purchase_orders import (  # noqa: F401  (fixtures)
+    TODAY,
+    buyer,
+    call,
+    client_for,
+    order,
+    owner,
+    world,
+)
+
+pytestmark = [pytest.mark.django_db(databases="__all__"), pytest.mark.usefixtures("hsn_list")]
+
+
+@pytest.fixture
+def store(alpha):
+    return client_for(alpha, "stores@x.in", "storekeeper")
+
+
+@pytest.fixture
+def grn(alpha, world, owner, buyer):  # noqa: F811
+    """A submitted order for 600 Kg of tea and 30 packets, with freight to stock by
+    quantity, and the places and accounts a receipt needs."""
+    with use_tenant(alpha):
+        tea = Item.objects.get(pk=world["tea"])
+        tea.batch_tracked = True
+        tea.best_before_value, tea.best_before_unit = 24, Item.MONTHS
+        tea.save()
+        inventories = LedgerGroup.objects.get(company_id=world["company"], code="stock_in_hand")
+        stock = Ledger.objects.create(company_id=world["company"], group=inventories, name="Stock")
+        ItemGroupAccount.objects.create(
+            group=tea.item_group, company_id=world["company"], stock_ledger=stock
+        )
+        rack = WarehouseLocation.objects.create(branch_id=world["branch"], kind="rack", name="F01")
+        bin1 = WarehouseLocation.objects.create(
+            branch_id=world["branch"], kind="bin", name="A-02", parent=rack
+        )
+        bin2 = WarehouseLocation.objects.create(
+            branch_id=world["branch"], kind="bin", name="A-06", parent=rack
+        )
+        store_area = WarehouseLocation.objects.get(branch_id=world["branch"], is_default=True)
+        more = {"hsn": "0902", "item_group": tea.item_group, "brand": tea.brand}
+        more |= {"stock_unit": tea.stock_unit, "item_type": Item.SERVICE, "maintain_stock": False}
+        freight = Item.objects.create(item_number="ITEM-81", name="Freight Inward",
+                                      purchase_charge=True, add_to_stock="qty", **more)  # fmt: skip
+    lines = [
+        {"item": world["tea"], "unit": world["kg"], "qty": "600", "rate": "250"},
+        {"item": world["box"], "unit": world["pack"], "qty": "30", "rate": "20"},
+    ]
+    charges = [{"item": freight.pk, "basis": "fixed", "rate": "6300", "gst_rate": "18"}]
+    po = call(
+        buyer,
+        "post",
+        f"companies/{world['company']}/purchase-orders/",
+        order(world, lines=lines, charges=charges, submit=True),
+    )
+    assert po.status_code == 201, po.json()
+    po = po.json()
+    return {
+        **world,
+        "po": po["id"],
+        "po_number": po["number"],
+        "tea_line": po["lines"][0]["id"],
+        "box_line": po["lines"][1]["id"],
+        "bin1": bin1.pk,
+        "bin2": bin2.pk,
+        "rack": rack.pk,
+        "area": store_area.pk,
+        "stock": stock.pk,
+    }
+
+
+def receipt(g, lines, **more):
+    return {
+        "supplier": g["local"],
+        "branch": g["branch"],
+        "receipt_date": TODAY.isoformat(),
+        "orders": [g["po"]],
+        "challan_no": "DTT/1187",
+        "vehicle_no": "wb 23 c 4471",
+        "lines": lines,
+        **more,
+    }
+
+
+def tea_line(g, received="600", rejected="0", puts=None):
+    return {
+        "order_line": g["tea_line"],
+        "received_qty": received,
+        "rejected_qty": rejected,
+        "putaways": puts
+        if puts is not None
+        else [
+            {"location": g["bin1"], "batch_number": "DTT-26-118", "mfg_date": "2026-11-02",
+             "qty": "300"},
+            {"location": g["bin2"], "batch_number": "DTT-26-118", "qty": "300"},
+        ],
+    }  # fmt: skip
+
+
+def box_line(g, received="30", puts=None):
+    return {
+        "order_line": g["box_line"],
+        "received_qty": received,
+        "putaways": puts if puts is not None else [{"location": g["area"], "qty": received}],
+    }
+
+
+def url(g):
+    return f"companies/{g['company']}/goods-receipts/"
+
+
+def test_pending_orders_bring_the_lines_still_to_come(store, grn):
+    rows = call(store, "get", f"{url(grn)}pending/?supplier={grn['local']}").json()
+    assert [o["number"] for o in rows] == [grn["po_number"]]
+    got = [(x["item_name"], x["pending"], x["batch_tracked"]) for x in rows[0]["lines"]]
+    assert got == [("CTC Tea", "600.000000", True), ("Tea Box", "30.000000", False)]
+
+
+def test_a_storekeeper_saves_a_draft_then_submits_it(store, grn, alpha):
+    made = call(store, "post", url(grn), receipt(grn, [tea_line(grn), box_line(grn)]))
+    assert made.status_code == 201, made.json()
+    draft = made.json()
+    assert draft["status"] == "draft" and draft["number"] == ""
+    assert draft["vehicle_no"] == "WB 23 C 4471"
+    assert draft["lines"][0]["putaways"][0]["new_batch"] is True
+    done = call(store, "post", f"goods-receipts/{draft['id']}/submit/")
+    assert done.status_code == 200, done.json()
+    body = done.json()
+    assert body["status"] == "submitted" and "GRN" in body["number"]
+    # Tea 600 x 250 = 1,50,000 + freight 6,300 (all on stock lines by quantity: 600 of 630).
+    # Box 30 x 20 = 600 + 300 freight.
+    assert body["stock_value"] == "156900.00"
+    tea, box = body["lines"]
+    assert (tea["value"], tea["charges_value"]) == ("156000.00", "6000.00")
+    assert (box["value"], box["charges_value"]) == ("900.00", "300.00")
+    with use_tenant(alpha):
+        batch = Batch.objects.get(item_id=grn["tea"], number="DTT-26-118")
+        assert str(batch.expiry_date) == "2028-11-02"  # from the item's 24 months
+        tea_item = Item.objects.get(pk=grn["tea"])
+        assert on_hand(tea_item, WarehouseLocation.objects.get(pk=grn["bin1"]), batch) == 300
+        assert StockMove.objects.filter(voucher_type="goods_receipt").count() == 3
+        assert gl_balance(Ledger.objects.get(pk=grn["stock"])) == D("156900.00")
+        company = Ledger.objects.get(pk=grn["stock"]).company
+        grni = accounts.system_ledger(company, accounts.GRNI)
+        assert gl_balance(grni) == D("-156900.00")
+        po = PurchaseOrder.objects.get(pk=grn["po"])
+        assert po.status == PurchaseOrder.RECEIVED
+        assert PurchaseOrderLine.objects.get(pk=grn["tea_line"]).received_qty == 600
+
+
+def test_rejected_goods_stay_out_and_the_order_is_part_received(store, grn, alpha):
+    puts = [{"location": grn["bin1"], "batch_number": "B1", "qty": "590"}]
+    body = receipt(grn, [tea_line(grn, "600", "10", puts)], submit=True)
+    done = call(store, "post", url(grn), body)
+    assert done.status_code == 201, done.json()
+    assert done.json()["lines"][0]["accepted_qty"] == "590.000000"
+    with use_tenant(alpha):
+        assert PurchaseOrder.objects.get(pk=grn["po"]).status == PurchaseOrder.PART_RECEIVED
+    later = call(store, "get", f"{url(grn)}pending/?supplier={grn['local']}").json()
+    assert later[0]["lines"][0]["pending"] == "10.000000"
+
+
+def test_everything_accepted_must_be_put_away_with_its_batch(store, grn):
+    short = [{"location": grn["bin1"], "batch_number": "B1", "qty": "500"}]
+    res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=short)], submit=True))
+    assert res.status_code == 400 and "500 of 600 kg put away" in str(res.json())
+    nobatch = [{"location": grn["bin1"], "qty": "600"}]
+    res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=nobatch)], submit=True))
+    assert "give the batch" in str(res.json())
+    rack = [{"location": grn["rack"], "batch_number": "B1", "qty": "600"}]
+    res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=rack)]))
+    assert "pick a bin or area" in str(res.json())
+
+
+def test_an_existing_batch_is_reused_by_its_number(store, grn, alpha):
+    with use_tenant(alpha):
+        old = Batch.objects.create(item_id=grn["tea"], number="DTT-1")
+    puts = [{"location": grn["bin1"], "batch_number": "dtt-1", "qty": "600"}]
+    done = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=puts)], submit=True))
+    assert done.status_code == 201, done.json()
+    assert done.json()["lines"][0]["putaways"][0]["batch"] == old.pk
+
+
+def test_over_receipt_tells_purchase_and_the_owner(store, buyer, grn, alpha):  # noqa: F811
+    puts = [{"location": grn["bin1"], "batch_number": "B1", "qty": "650"}]
+    body = receipt(grn, [tea_line(grn, "650", puts=puts)], submit=True)
+    done = call(store, "post", url(grn), body)
+    assert done.status_code == 201, done.json()
+    with use_tenant(alpha):
+        told = set(Notification.objects.values_list("user__email", flat=True))
+        assert {"buyer@x.in", "owner@x.in"} <= told and "stores@x.in" not in told
+        note = Notification.objects.filter(user__email="buyer@x.in").get()
+        assert "650 kg received against 600 ordered" in note.body and "50 over" in note.body
+        po_log = AuditEntry.objects.filter(record_type="purchase_order", record_id=grn["po"])
+        assert any(c["field"] == "over_receipt" for e in po_log for c in e.changes)
+    mine = call(buyer, "get", "notifications/").json()
+    assert mine["unread"] == 1 and mine["rows"][0]["title"].startswith("Over-receipt")
+    call(buyer, "post", "notifications/read/", {})
+    assert call(buyer, "get", "notifications/").json()["unread"] == 0
+
+
+def test_cancel_reverses_stock_gl_and_the_order(owner, store, grn, alpha):  # noqa: F811
+    made = call(
+        store, "post", url(grn), receipt(grn, [tea_line(grn), box_line(grn)], submit=True)
+    ).json()
+    cancel = f"goods-receipts/{made['id']}/cancel/"
+    assert call(store, "post", cancel, {"reason": "x"}).status_code == 403
+    res = call(owner, "post", f"goods-receipts/{made['id']}/cancel/", {"reason": "Wrong supplier"})
+    assert res.status_code == 200, res.json()
+    assert res.json()["status"] == "cancelled"
+    with use_tenant(alpha):
+        assert gl_balance(Ledger.objects.get(pk=grn["stock"])) == 0
+        assert PurchaseOrder.objects.get(pk=grn["po"]).status == PurchaseOrder.ORDERED
+        assert PurchaseOrderLine.objects.get(pk=grn["tea_line"]).received_qty == 0
+        assert GLEntry.objects.filter(voucher_type="goods_receipt", is_reversal=True).exists()
+
+
+def test_orders_must_be_the_suppliers_and_open(store, grn, owner):  # noqa: F811
+    res = call(store, "post", url(grn), receipt(grn, [], supplier=grn["far"]))
+    assert "is not an order of" in str(res.json())
+    draft = call(owner, "post", f"companies/{grn['company']}/purchase-orders/", order(grn)).json()
+    res = call(store, "post", url(grn), receipt(grn, [], orders=[draft["id"]]))
+    assert "is draft" in str(res.json())
+
+
+def test_a_submitted_receipt_is_fixed_and_puts_places_in_use(store, grn, alpha):
+    from core import locks
+
+    made = call(store, "post", url(grn), receipt(grn, [box_line(grn)], submit=True)).json()
+    res = call(store, "patch", f"goods-receipts/{made['id']}/", receipt(grn, [box_line(grn)]))
+    assert res.status_code == 400 and "cannot be changed" in str(res.json())
+    with use_tenant(alpha):
+        area = WarehouseLocation.objects.get(pk=grn["area"])
+        assert "1 goods receipt" in locks.uses("warehouse_location", area)
+        user = User.objects.get(email="stores@x.in")
+        assert AuditEntry.objects.filter(record_type="goods_receipt", user=user).exists()
+
+
+def test_a_missing_stock_ledger_stops_the_submit(store, grn, alpha):
+    with use_tenant(alpha):
+        ItemGroupAccount.objects.all().delete()
+    res = call(store, "post", url(grn), receipt(grn, [box_line(grn)], submit=True))
+    assert res.status_code == 400 and 'Set the "Stock Ledger"' in str(res.json())
+    with use_tenant(alpha):
+        assert not GoodsReceipt.objects.filter(status="submitted").exists()

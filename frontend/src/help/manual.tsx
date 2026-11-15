@@ -2193,9 +2193,11 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             A submitted order has a "Create ▾" button for the documents that
-            follow from it: "Purchase Receipt" (goods received) and "Purchase
-            Invoice" (the supplier's bill). They are greyed out until those
-            screens are built.
+            follow from it: "Goods Receipt (goods received)" opens a new goods
+            receipt for this order with its items filled in (see "Goods
+            receipts"). "Purchase Invoice" (the supplier's bill) is greyed out
+            until that screen is built. As goods are received the order's status
+            becomes "Part received", then "Received".
           </li>
           <li>
             To change a submitted order, open it, click "Cancel order", say why,
@@ -2212,6 +2214,110 @@ export const MANUAL: Chapter[] = [
           Who may do what follows the role: "Purchase" may make, change and
           submit orders; cancelling needs an Owner or a role with "cancel" for
           purchase. People who may only look see "Open", never "Edit".
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "goods-receipts",
+    title: "Goods receipts",
+    summary:
+      "What arrived against purchase orders, put away into bins and batches. Submit puts it into stock and the books.",
+    body: (
+      <>
+        <p>
+          A goods receipt (GRN) records the goods that came into one of your
+          warehouses against a supplier's purchase orders: how much arrived,
+          how much was rejected, and which bins and batches the rest went into.
+          Open it from "Entry" in the top menu, then "Purchase", then "Goods
+          Receipt", or from a purchase order's "Create ▾" button. The Purchase
+          team and the stores (Storekeeper) can both make receipts.
+        </p>
+        <h3>Make a receipt</h3>
+        <ol>
+          <li>
+            Click "New goods receipt". The form opens in a new tab. Pick the
+            "Supplier" (only suppliers with open orders are listed), the
+            "Receipt Date" and the "Receiving Warehouse" (the branch the goods
+            came into).
+          </li>
+          <li>
+            The supplier's open orders for that warehouse are listed under
+            "Purchase Orders". Tick the ones the goods came against and click
+            "Get items": each item still pending comes in with its pending
+            quantity.
+          </li>
+          <li>
+            Fill in the supplier's challan or invoice number and date, the
+            "Transporter", "LR / Docket No", "Vehicle No", "E-way Bill No" and
+            who received the goods.
+          </li>
+          <li>
+            On each item, change "Received" to what actually came and put any
+            damaged or short quantity in "Rejected". "Accepted" is the
+            difference; only that goes into stock.
+          </li>
+          <li>
+            Under the item, "Put away into bins" says where the accepted
+            quantity went. Pick a "Bin" (or an area such as "AC Store") and,
+            for a batch-tracked item, its "Batch No". Click "+ Add bin" to
+            split it, for example 300 Kg in one bin and 300 Kg in another. The
+            line says "600 of 600 Kg put away" once it all has a place.
+          </li>
+          <li>
+            "Batch No" lists the item's batches. For a new batch, type its
+            number and pick 'New batch "…"', then give its "Mfg Date" and
+            "Expiry" (leave Expiry blank to have it worked out from the item's
+            best-before). New batches are added to the Batches master on
+            Submit. Batch numbers only need to be different within one item.
+          </li>
+          <li>
+            "Save" keeps a draft to finish later. "Submit" gives the receipt
+            its number from the "Goods receipt (GRN)" series and posts it.
+          </li>
+        </ol>
+        <h3>What Submit does</h3>
+        <ul>
+          <li>
+            Puts the accepted goods into stock: one entry for each bin and
+            batch, at the order's rate after discount, plus the order's charges
+            marked "Add to Stock Cost" (spread by quantity or value).
+          </li>
+          <li>
+            Books the value: "Stock" (the item group's Stock Ledger) Dr, "Goods
+            Received but Bills not Received" Cr. No GST is booked; that comes
+            with the supplier's bill. If an item group has no Stock Ledger for
+            the company, Submit says which one to set in Masters › Item groups.
+          </li>
+          <li>
+            Adds the accepted quantities to the orders, which become "Part
+            received" or "Received".
+          </li>
+          <li>
+            More than ordered may be accepted. The line turns amber with a
+            warning, and on Submit the Purchase team and the Owner get a
+            notification (the bell at the top right) naming the order, item,
+            quantities and who received it; the order's Activity notes it too.
+          </li>
+          <li>
+            New batches of items marked "QC required" start as "Quarantine";
+            release them on the Batches screen once checked. The "Quality
+            Check" box records the carton (CFC) condition, whether the batch
+            code printed on the packs matches, and who checked.
+          </li>
+        </ul>
+        <p>
+          A submitted receipt shows "Submitted as … on … at …", its "Postings"
+          (the book entries) and its "Activity". "Print ▾" prints the receipt.
+          A submitted receipt cannot be changed: click "Cancel receipt" and say
+          why. Cancelling reverses the stock and the book entries and shows the
+          goods as pending on the orders again. It is refused if any of the
+          goods have since been issued or moved.
+        </p>
+        <Note>
+          Receipts are made and submitted by the Purchase or Storekeeper roles;
+          cancelling needs an Owner or a role with "cancel" for purchase or
+          stock. The date must fall in an open month of a fiscal year.
         </Note>
       </>
     ),

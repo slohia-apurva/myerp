@@ -17,6 +17,7 @@ from core import (
     item_groups,
     items,
     ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
+    notifications,
     numbering_api,
     party_documents,
     places,
@@ -160,6 +161,12 @@ urlpatterns = [
     ),
     path("fiscal-years/<int:pk>/", fiscal.FiscalYearDetailView.as_view(), name="fiscal-year"),
     path("fiscal-periods/<int:pk>/", fiscal.PeriodDetailView.as_view(), name="fiscal-period"),
+    path("notifications/", notifications.NotificationListView.as_view(), name="notifications"),
+    path(
+        "notifications/read/",
+        notifications.NotificationReadView.as_view(),
+        name="notifications-read",
+    ),
     path("batches/", batches.BatchListView.as_view(), name="batches"),
     path("batches/<int:pk>/", batches.BatchDetailView.as_view(), name="batch"),
     path("brands/", brands.BrandListView.as_view(), name="brands"),

@@ -1505,8 +1505,8 @@ function printMenu(companyId: number, id: number | null) {
 }
 
 /** "Create ▾" on a submitted order: the documents that follow from it. */
-const CREATE_FROM_ORDER = [
-  { label: "Purchase Receipt (goods received)", disabled: true },
+const createFromOrder = (companyId: number, id: number) => [
+  { label: "Goods Receipt (goods received)", onClick: () => openTab(`#/companies/${companyId}/goods-receipts?form=new&order=${id}`) },
   { label: "Purchase Invoice (supplier's bill)", disabled: true },
 ];
 
@@ -1589,13 +1589,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Submit
               </button>
             )}
-            {order.status === "ordered" && (
-              <ActionsMenu
-                label="Create"
-                main
-                items={CREATE_FROM_ORDER}
-                note="Both come with the next pieces of work"
-              />
+            {(order.status === "ordered" || order.status === "part_received") && (
+              <ActionsMenu label="Create" main items={createFromOrder(companyId, order.id)} note="Purchase Invoice comes with the next piece of work" />
             )}
           </>
         }
