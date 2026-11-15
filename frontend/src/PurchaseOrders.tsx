@@ -14,6 +14,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { STOCK_COST } from "./Items";
 import { PoPrint } from "./PoPrint";
+import { SupplierMail } from "./SupplierMail";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -1528,6 +1529,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
+  const [mailing, setMailing] = useState(!!hashParam("mail"));
+  const [mailed, setMailed] = useState("");
   const { terms } = useCreditTerms();
   const reload = useCallback(() => {
     api<PurchaseOrder>(`v1/purchase-orders/${id}/`)
@@ -1592,6 +1595,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Cancel order
               </button>
             )}
+            {can("submit") && !draft && order.status !== "cancelled" && !mailing && (
+              <button type="button" className="link" onClick={() => setMailing(true)}>
+                Email Supplier
+              </button>
+            )}
             {/* The order prints in its own tab, laid out for the supplier. */}
             <ActionsMenu label="Print" items={printMenu(companyId, order.id)} />
             {draft && can("submit") && (
@@ -1633,6 +1641,19 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             </div>
           )}
           <ErrorNote error={error} />
+          {mailed && <p className="use-note">{mailed}</p>}
+          {mailing && (
+            <SupplierMail
+              orderId={order.id}
+              grn={hashParam("grn") ?? ""}
+              onClose={() => setMailing(false)}
+              onSent={(to) => {
+                setMailing(false);
+                setMailed(`Mail sent to ${to.join(", ")}. A copy is in the order's Activity.`);
+                setFiles((n) => n + 1);
+              }}
+            />
+          )}
           <Fold title="Supplier and Dates" open>
             <dl className="kv">
               {(

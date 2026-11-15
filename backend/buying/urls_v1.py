@@ -1,6 +1,6 @@
 from django.urls import path
 
-from buying import api, receipts
+from buying import api, receipts, supplier_mail
 
 urlpatterns = [
     path(
@@ -22,6 +22,11 @@ urlpatterns = [
         name="purchase-order-rate",
     ),
     path("purchase-orders/<int:pk>/", api.OrderDetailView.as_view(), name="purchase-order"),
+    path(
+        "purchase-orders/<int:pk>/supplier-mail/",
+        supplier_mail.SupplierMailView.as_view(),
+        name="purchase-order-supplier-mail",
+    ),
     path(
         "purchase-orders/<int:pk>/lines/<int:line>/close/",
         api.OrderLineCloseView.as_view(),

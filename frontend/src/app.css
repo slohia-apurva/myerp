@@ -3615,3 +3615,59 @@ td.nowrap {
 .close-line .buttons {
   margin-top: 6px;
 }
+
+/* "Email Supplier" on a purchase order: the fields beside the mail as it will go. */
+.supplier-mail {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 20px;
+}
+@media (max-width: 900px) {
+  .supplier-mail {
+    grid-template-columns: 1fr;
+  }
+}
+.supplier-mail .field {
+  display: block;
+  margin-bottom: 12px;
+}
+.supplier-mail .field input:not([type="checkbox"]) {
+  display: block;
+  width: 100%;
+}
+.supplier-mail .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+.supplier-mail .chip {
+  background: var(--mint);
+  color: var(--deep-green);
+  border-radius: 999px;
+  padding: 2px 4px 2px 10px;
+  font-size: 13px;
+}
+.supplier-mail .chip button {
+  border: 0;
+  background: none;
+  color: var(--slate);
+  padding: 0 6px;
+  cursor: pointer;
+}
+.mail-preview {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fff;
+}
+.mail-preview textarea {
+  width: 100%;
+}
+.mail-preview .mail-grid {
+  margin: 8px 0 12px;
+}
+.supplier-mail input,
+.mail-preview textarea {
+  box-sizing: border-box;
+}

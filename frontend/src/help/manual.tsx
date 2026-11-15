@@ -2225,6 +2225,20 @@ export const MANUAL: Chapter[] = [
             submit purchase orders.
           </li>
           <li>
+            "Email Supplier" on a submitted order writes one mail to the
+            supplier about every line that came short ("Short"), did not come
+            ("Not received") or came in excess ("Excess"), all ticked; untick a
+            line under "Lines" to leave it out. "To" starts with the contacts
+            the order was mailed to and "CC" with you; type to add a supplier
+            contact, a colleague or any address, and click "×" to take one
+            off. The "Subject" follows the ticked lines ("Short and Excess
+            Supply against PO No : …") and can be changed, as can the opening
+            and closing words. The lines go in a grid. "Attach" adds the goods
+            receipt as a PDF. "Send" sends it from the company's mail account
+            (set under the company's "Mail Account"); replies come to you, and
+            the order's Activity keeps a note of what was sent and to whom.
+          </li>
+          <li>
             To change a submitted order, open it, click "Cancel order", say why,
             and click "Cancel order" again; then click "Duplicate", change the
             copy and submit it. A cancelled order stays in the list with its
