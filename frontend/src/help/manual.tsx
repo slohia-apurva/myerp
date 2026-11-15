@@ -2010,7 +2010,7 @@ export const MANUAL: Chapter[] = [
           in the box above the list. Every column has its own "Search" box under
           its heading: type in as many as you like, and only orders matching all
           of them stay. "Clear searches" empties them. Click an order to see its
-          details and activity at the right, with "Open"; click it again to
+          details and activity at the right, with "Open" and "Print"; click it again to
           close the panel. With a draft clicked, "Edit" beside "New purchase
           order" at the top opens it for changes. Double-click an order or
           press Enter to open it. "Duplicate" is on the order's own page. Print
@@ -2116,7 +2116,8 @@ export const MANUAL: Chapter[] = [
             it has any items. Click "Close" to leave it for later; open it
             again from the list ("Edit") to finish it. Click "Submit" to give
             the order its number and send it; an order needs at least one item
-            to be submitted.
+            to be submitted. After "Submit" the page stays open on the submitted
+            order, saying "Submitted as …" with the time; "Close" closes it.
           </li>
         </ol>
         <p>
@@ -2130,7 +2131,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Print and PDF</h3>
         <p>
-          On an open order, "Actions" then "Print" opens the order as the supplier gets it, in a new tab, with the print
+          Every entry screen has a "Print ▾" button with its other buttons; its list holds the print layouts ("Purchase order" for now; more layouts join this list). On the order, or on the entry form once the order is saved, "Print ▾" then "Purchase order" opens the order as the supplier gets it, in a new tab, with the print
           window: your letterhead, the "Supplier", "Bill To" and "Ship To" addresses, the dates, credit term and
           transporter, the items with their descriptions, the charges, a "Tax Summary" by HSN / SAC code, the totals, the
           amount in words, the terms and conditions and the signature. An import shows its shipment and payment terms,
@@ -2144,6 +2145,12 @@ export const MANUAL: Chapter[] = [
             "Submit" gives the order its number from the "Purchase order"
             series (see "Numbering") and makes it final: it can no longer be
             changed. Its date must fall in an open month of a fiscal year.
+          </li>
+          <li>
+            A submitted order has a "Create ▾" button for the documents that
+            follow from it: "Purchase Receipt" (goods received) and "Purchase
+            Invoice" (the supplier's bill). They are greyed out until those
+            screens are built.
           </li>
           <li>
             To change a submitted order, open it, click "Cancel order", say why,
