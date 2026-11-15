@@ -116,6 +116,18 @@ class PurchaseOrder(models.Model):
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # Where the supplier's reply stands (buying/supplier_link.py): blank until
+    # the order is mailed with its link. Kept here for the orders list.
+    SUPPLIER_STATUSES = [
+        ("", "Not sent"),
+        ("sent", "Sent"),
+        ("opened", "Opened"),
+        ("accepted", "Accepted"),
+        ("issue", "Issue"),
+    ]
+    supplier_status = models.CharField(
+        max_length=10, choices=SUPPLIER_STATUSES, blank=True, default=""
+    )
 
     class Meta:
         ordering = ["-order_date", "-id"]
@@ -317,3 +329,49 @@ class GoodsReceiptPutaway(models.Model):
 
     def __str__(self) -> str:
         return f"{self.location_id}: {self.qty}"
+
+
+class SupplierLink(models.Model):
+    """The private link mailed with a purchase order (Sidharth, 2026-11-15):
+    the supplier opens it without signing in to accept the order or report an
+    issue. Only a hash of the code is kept, so the code itself lives only in
+    the mail. Each mailing makes a new link; each stays valid until it expires
+    or the order is cancelled."""
+
+    order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="links")
+    token_hash = models.CharField(max_length=64, unique=True)
+    mailed_to = models.CharField(max_length=500, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    opened_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:
+        return f"Link for {self.order}"
+
+
+class SupplierResponse(models.Model):
+    """What the supplier said through a link: accepted, an issue, or a later
+    comment. Never changed after it is made."""
+
+    ACCEPTED, ISSUE, COMMENT = "accepted", "issue", "comment"
+    KINDS = [(ACCEPTED, "Accepted"), (ISSUE, "Issue"), (COMMENT, "Comment")]
+
+    link = models.ForeignKey(SupplierLink, on_delete=models.CASCADE, related_name="responses")
+    order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="responses")
+    kind = models.CharField(max_length=10, choices=KINDS)
+    name = models.CharField(max_length=100)
+    dispatch_date = models.DateField(null=True, blank=True)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} by {self.name}"

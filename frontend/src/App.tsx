@@ -31,6 +31,7 @@ import { PurchaseOrdersPage } from "./PurchaseOrders";
 import { BinContentsPage } from "./BinContents";
 import { GoodsReceiptsPage } from "./GoodsReceipts";
 import { NotificationBell } from "./Notifications";
+import { SupplierReplyPage } from "./SupplierReply";
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -45,6 +46,13 @@ function routeFromHash(): Route {
 }
 
 export function App() {
+  // The supplier's page from a mailed order: no sign-in (SupplierReply.tsx).
+  const reply = window.location.hash.match(/^#\/po-reply\/([\w-]+)/);
+  if (reply) return <SupplierReplyPage token={reply[1]} />;
+  return <Signed />;
+}
+
+function Signed() {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState("");
 

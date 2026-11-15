@@ -2276,6 +2276,24 @@ export const MANUAL: Chapter[] = [
             come to you and the order's Activity notes it.
           </li>
           <li>
+            Every order mailed with "Email PO" carries a "View and Accept
+            Order" button: a private link made for that mailing, which the
+            supplier opens without signing in (on a phone or a computer). It
+            works for 90 days, and not once the order is cancelled. The
+            supplier sees the order and its PDF, gives their name, and clicks
+            "Accept Order" (with an expected dispatch date if they like) or
+            "Report an Issue" with a comment; they can come back to the same
+            link to add a comment. They can never change the order.
+          </li>
+          <li>
+            Each reply comes to you, the Purchase team and the Owner as a
+            notice under the bell ("Supplier accepted …", "Supplier issue on
+            …"), which opens the order. The order's "Supplier Response" box
+            lists each mailing (to whom, by whom, and when the link was
+            opened) and each reply, and the orders list has a "Supplier Reply"
+            column: "Not sent", "Sent", "Opened", "Accepted" or "Issue".
+          </li>
+          <li>
             To change a submitted order, open it, click "Cancel order", say why,
             and click "Cancel order" again; then click "Duplicate", change the
             copy and submit it. A cancelled order stays in the list with its

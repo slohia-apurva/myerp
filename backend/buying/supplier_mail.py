@@ -20,9 +20,11 @@ from audit.models import AuditEntry
 from buying.api import SUBMIT, VIEW, _check, _fresh, _order, _plain
 from buying.models import GoodsReceipt, PurchaseOrder
 from buying.po_pdf import order_pdf
+from buying.supplier_link import make_link
 from core import mail, print_mark, printout
 from core.api import Signed
 from core.models import PartyContact
+from tenancy.context import tenant_atomic
 
 SHORT, MISSING, OVER = "short", "not_received", "over"
 KIND_LABELS = {SHORT: "Short", MISSING: "Not received", OVER: "Excess"}
@@ -448,6 +450,8 @@ class OrderMailView(APIView):
             }
         )
 
+    # One transaction: if the mail fails, its link is not kept.
+    @tenant_atomic()
     def post(self, request, pk: int):
         _check(request, SUBMIT)
         o = _order(request, pk)
@@ -465,15 +469,33 @@ class OrderMailView(APIView):
         names = {c.email.lower(): c.name for c in _supplier_contacts(o)}
         greeting = names.get(to[0].lower(), "Sir/Madam")
         signature = _signature(request.user, o)
-        text = f"Dear {greeting},\n\n{message}\n\nRegards,\n{signature}\n"
+        # The private link for the supplier to accept the order or report an
+        # issue (buying/supplier_link.py); a new one for each mailing.
+        _link, url = make_link(o, request.user, to, request.build_absolute_uri("/"))
+        text = (
+            f"Dear {greeting},\n\n{message}\n\n"
+            f"To accept the order or report an issue, open:\n{url}\n"
+            "(this link is for your firm only and works without signing in)\n\n"
+            f"Regards,\n{signature}\n"
+        )
         e = html.escape
+        para = '<p style="margin:0 0 10px">{}</p>'
+        button = (
+            f'<p style="margin:14px 0"><a href="{e(url)}" style="background:#2f8f55;'
+            "color:#ffffff;padding:10px 18px;border-radius:6px;text-decoration:none;"
+            'font-weight:bold;display:inline-block">View and Accept Order</a></p>'
+            f'<p style="margin:0 0 10px;font-size:12px;color:#56636e">Or open: {e(url)} '
+            "(this link is for your firm only and works without signing in)</p>"
+        )
         body = (
             '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2933">'
             + "".join(
-                f'<p style="margin:0 0 10px">{e(p).replace(chr(10), "<br>")}</p>'
-                for p in [f"Dear {greeting},", *message.split("\n\n"), f"Regards,\n{signature}"]
+                para.format(e(p).replace(chr(10), "<br>"))
+                for p in [f"Dear {greeting},", *message.split("\n\n")]
                 if p.strip()
             )
+            + button
+            + para.format(e(f"Regards,\n{signature}").replace(chr(10), "<br>"))
             + "</div>"
         )
         try:

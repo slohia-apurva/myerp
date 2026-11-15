@@ -1,8 +1,15 @@
 from django.urls import path
 
-from buying import api, receipts, supplier_mail
+from buying import api, receipts, supplier_link, supplier_mail
 
 urlpatterns = [
+    # The supplier's page: no sign-in, reached by the private code in the mail.
+    path("public/po/<str:token>/", supplier_link.PublicOrderView.as_view(), name="public-po"),
+    path(
+        "public/po/<str:token>/pdf/",
+        supplier_link.PublicOrderPdfView.as_view(),
+        name="public-po-pdf",
+    ),
     path(
         "companies/<int:pk>/purchase-orders/", api.OrderListView.as_view(), name="purchase-orders"
     ),

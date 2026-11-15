@@ -3699,3 +3699,110 @@ td.nowrap {
 .supplier-mail .field > .fact-label {
   display: block;
 }
+
+/* The supplier's page from the link in a mailed order (SupplierReply.tsx). */
+.reply-page {
+  max-width: 680px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+.reply-card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+  padding: 18px 20px;
+}
+.reply-card h1 {
+  font-size: 18px;
+  margin: 0;
+}
+.reply-top {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 3px solid var(--green);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+.reply-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.reply-order {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.reply-form {
+  margin-top: 14px;
+}
+.reply-card .grid {
+  width: 100%;
+}
+.reply-form .field {
+  display: block;
+  margin-bottom: 10px;
+}
+.reply-form input,
+.reply-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+}
+.reply-form input.reply-date {
+  width: 200px;
+}
+.reply-done {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.replies {
+  margin: 10px 0;
+}
+.reply {
+  border-left: 3px solid var(--green);
+  padding: 4px 10px;
+  margin: 6px 0;
+  font-size: 14px;
+}
+.reply.issue {
+  border-left-color: var(--amber);
+}
+.reply.mailed {
+  border-left-color: var(--line);
+}
+.mail-button {
+  display: inline-block;
+  background: var(--green);
+  color: #fff;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+@media (max-width: 560px) {
+  .reply-page {
+    margin: 12px auto;
+    padding: 0 8px;
+  }
+  .reply-card {
+    padding: 14px 12px;
+  }
+  .reply-card .grid {
+    font-size: 13px;
+  }
+  .reply-card .grid .rate {
+    display: none;
+  }
+}
