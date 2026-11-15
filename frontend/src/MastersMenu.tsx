@@ -174,9 +174,9 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
 }
 
 /** "Entry" in the top menu: the entry screens, grouped. "Purchase ▸" opens its own list
- * to the right on hover (or on a click, for touch screens). Goods Receipt, Purchase
+ * to the right on hover (or on a click, for touch screens). Purchase
  * Invoice and Purchase Return are shown as coming next until they are built. */
-export function EntryMenu(props: { active: boolean; company: Company }) {
+export function EntryMenu(props: { active: boolean; company: Company; orders: boolean }) {
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -216,10 +216,14 @@ export function EntryMenu(props: { active: boolean; company: Company }) {
               Purchase <span aria-hidden="true">▸</span>
             </button>
             <div className="menu-flyout" role="menu" aria-label="Purchase">
-              <a role="menuitem" href={`#/companies/${id}/purchase-orders`} onClick={() => setOpen(false)}>
-                Purchase Order
+              {props.orders && (
+                <a role="menuitem" href={`#/companies/${id}/purchase-orders`} onClick={() => setOpen(false)}>
+                  Purchase Order
+                </a>
+              )}
+              <a role="menuitem" href={`#/companies/${id}/goods-receipts`} onClick={() => setOpen(false)}>
+                Goods Receipt
               </a>
-              <span className="soon">Goods Receipt · next</span>
               <span className="soon">Purchase Invoice · next</span>
               <span className="soon">Purchase Return · later</span>
             </div>

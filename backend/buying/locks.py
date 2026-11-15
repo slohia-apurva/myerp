@@ -1,7 +1,13 @@
 """When a master counts as in use because of purchase orders (core.locks). A
 draft is not yet an entry; a submitted order (even one cancelled later) is."""
 
-from buying.models import PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
+from buying.models import (
+    GoodsReceipt,
+    GoodsReceiptPutaway,
+    PurchaseOrder,
+    PurchaseOrderCharge,
+    PurchaseOrderLine,
+)
 from core import locks
 
 
@@ -32,3 +38,22 @@ locks.register("ledger", lambda ledger: _orders(agent=ledger))
 locks.register("courier_account", lambda account: _orders(transporter=account))
 locks.register("branch", lambda branch: _orders(bill_to=branch))
 locks.register("terms", lambda terms: _orders(terms_set=terms))
+
+
+def _receipts(**where) -> str:
+    rows = GoodsReceipt.objects.filter(**where).exclude(status=GoodsReceipt.DRAFT)
+    return locks._count(rows.distinct(), "goods receipt")
+
+
+locks.register("ledger", lambda ledger: _receipts(supplier=ledger))
+locks.register("branch", lambda branch: _receipts(branch=branch))
+locks.register("courier_account", lambda account: _receipts(transporter=account))
+locks.register(
+    "warehouse_location",
+    lambda loc: locks._count(
+        GoodsReceipt.objects.filter(
+            pk__in=GoodsReceiptPutaway.objects.filter(location=loc).values("line__receipt")
+        ).exclude(status=GoodsReceipt.DRAFT),
+        "goods receipt",
+    ),
+)

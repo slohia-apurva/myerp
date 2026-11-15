@@ -28,6 +28,8 @@ import { RequestAdditionPage } from "./RequestAddition";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { AdminMenu, CompanyPicker, EntryMenu, MastersMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
 import { PurchaseOrdersPage } from "./PurchaseOrders";
+import { GoodsReceiptsPage } from "./GoodsReceipts";
+import { NotificationBell } from "./Notifications";
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -82,6 +84,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
   const canSeeMasters = session.permissions.includes("masters.view");
   const canSeeShipments = session.permissions.some((p) => p === "sales.view" || p === "stock.view");
   const canSeePurchase = session.permissions.includes("purchase.view");
+  // Goods are received by purchase or by the stores (stock rights).
+  const canReceive = canSeePurchase || session.permissions.includes("stock.view");
   const current = useCurrentCompany(page === "companies" ? id : undefined, canSeeMasters);
   const signOut = () => {
     // Stop Google from signing the person straight back in on this browser.
@@ -109,15 +113,15 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
               canSeeMasters={canSeeMasters}
             />
           )}
-          {canSeePurchase && current.company?.modules.includes("purchase") && (
-            <EntryMenu active={page === "companies" && sub === "purchase-orders"} company={current.company} />
+          {canReceive && current.company?.modules.includes("purchase") && (
+            <EntryMenu active={page === "companies" && (sub === "purchase-orders" || sub === "goods-receipts")} company={current.company} orders={canSeePurchase} />
           )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments", "purchase-orders"].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments", "purchase-orders", "goods-receipts"].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -126,6 +130,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         </nav>
         <span className="who">
           <CompanyPicker companies={current.companies} company={current.company} onChoose={current.choose} />
+          <NotificationBell />
           <a
             href={page === "help" ? "#/help" : `#/help/${helpTopicFor(window.location.hash)}`}
             className={`help-link${page === "help" ? " active" : ""}`}
@@ -147,6 +152,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <HelpPage topic={topic} />
         ) : page === "companies" && id && sub === "purchase-orders" && canSeePurchase ? (
           <PurchaseOrdersPage key={id} companyId={id} session={session} />
+        ) : page === "companies" && id && sub === "goods-receipts" && canReceive ? (
+          <GoodsReceiptsPage key={id} companyId={id} session={session} />
         ) : page === "companies" && canSeeMasters ? (
           id && sub === "shipments" && canSeeShipments ? (
             <ShipmentsPage key={id} companyId={id} session={session} />

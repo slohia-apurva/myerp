@@ -165,6 +165,8 @@ class Tracked:
     # e.g. a ledger's opening bills: field -> (label, function giving its value).
     extras: dict[str, tuple[str, Callable[[Any], Any]]] = field(default_factory=dict)
     formats: dict[str, Callable[[Any], Any]] = field(default_factory=dict)
+    # Labels for this model's fields where the shared LABELS do not suit.
+    labels: dict[str, str] = field(default_factory=dict)
 
 
 TRACKED: dict[type[models.Model], Tracked] = {}
@@ -172,7 +174,7 @@ TRACKED: dict[type[models.Model], Tracked] = {}
 
 def _register() -> None:
     from accounts.models import Role, User
-    from buying.models import PurchaseOrder
+    from buying.models import GoodsReceipt, PurchaseOrder
     from core import india
     from core import modules as company_modules
     from core.models import (
@@ -372,6 +374,32 @@ def _register() -> None:
                 extras={"customer": ("Customer", lambda s: s.party.name if s.party else None)},
                 formats={"carrier_id": carrier_name},
             ),
+            GoodsReceipt: Tracked(
+                "goods_receipt",
+                "Goods receipt",
+                by_company,
+                labels={
+                    "branch": "Receiving warehouse",
+                    "challan_no": "Supplier's challan / invoice no",
+                    "challan_date": "Challan / invoice date",
+                    "lr_no": "LR / docket no",
+                    "eway_bill_no": "E-way bill no",
+                    "qc_cartons": "Cartons (CFC) condition",
+                    "qc_batch_print": "Batch code printed on packs",
+                    "qc_by": "Quality checked by",
+                },
+                extras={
+                    "receipt_status": ("Status", lambda r: r.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda r: "; ".join(
+                            f"{ln.item} {_number(ln.accepted_qty)} {ln.unit.short_name}"
+                            for ln in r.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                },
+            ),
             PurchaseOrder: Tracked(
                 "purchase_order",
                 "Purchase order",
@@ -472,7 +500,8 @@ def snapshot(record: models.Model) -> Snapshot:
     for f in record._meta.concrete_fields:
         if f.name in SKIP or (f.is_relation and f.name == "company"):
             continue
-        label = LABELS.get(f.name) or str(f.verbose_name)[:1].upper() + str(f.verbose_name)[1:]
+        plain = str(f.verbose_name)[:1].upper() + str(f.verbose_name)[1:]
+        label = spec.labels.get(f.name) or LABELS.get(f.name) or plain
         out[f.name] = (label, _shown(f, record, spec.formats))
     if record.pk is not None:
         for name, (label, read) in spec.extras.items():

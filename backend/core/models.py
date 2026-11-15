@@ -1441,3 +1441,28 @@ class NumberCounter(models.Model):
 
     def __str__(self) -> str:
         return f"{self.format} {self.year}: {self.last}"
+
+
+class Notification(models.Model):
+    """A message for one person, shown under the bell in the top menu: for
+    example an over-receipt on a goods receipt, for the Purchase team and the
+    Owner (Sidharth, 2026-11-07)."""
+
+    user = models.ForeignKey(
+        "accounts.User", on_delete=models.CASCADE, related_name="notifications"
+    )
+    company = models.ForeignKey(
+        Company, null=True, blank=True, on_delete=models.CASCADE, related_name="+"
+    )
+    title = models.CharField(max_length=150)
+    body = models.TextField(blank=True)
+    link = models.CharField(max_length=200, blank=True)  # a screen, e.g. #/companies/1/...
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "read_at"])]
+
+    def __str__(self) -> str:
+        return self.title

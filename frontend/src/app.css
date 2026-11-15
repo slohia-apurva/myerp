@@ -3143,3 +3143,126 @@ td.nowrap {
   max-width: 240px;
   display: block;
 }
+
+/* Goods receipt: each line's put-away into bins and batches */
+.small-inline {
+  color: var(--slate);
+  font-size: 13px;
+}
+.grn-orders {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.grn-orders label.tick {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-weight: 400;
+  color: var(--ink);
+}
+.grn-lines > tbody + tbody {
+  border-top: 1px solid var(--mint-line);
+}
+.grn-lines tbody.grn-over > tr:first-child {
+  background: #fff8e6;
+}
+.grn-put-row > td {
+  padding-top: 0;
+}
+.grn-put {
+  background: var(--mint-bg, #f4faf6);
+  border: 1px solid var(--mint-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.grn-put table.grid {
+  width: 100%;
+  margin: 6px 0;
+}
+.grn-put .grn-bin {
+  min-width: 200px;
+}
+.grn-put .grn-batch {
+  min-width: 200px;
+}
+.grn-put td.num input {
+  min-width: 80px;
+  text-align: right;
+}
+.grn-put-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+.ok-note {
+  color: var(--green);
+  font-weight: 700;
+}
+
+/* The bell in the top menu */
+.bell {
+  position: relative;
+}
+.bell-button {
+  position: relative;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.bell-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #c0392b;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 5px;
+}
+.bell-panel {
+  left: auto;
+  right: 0;
+  width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+  border-radius: 10px;
+}
+.bell-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 14px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.bell-empty {
+  padding: 10px 14px;
+}
+.topbar .bell-panel a.bell-row {
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.bell-row.unread {
+  background: #fffaf0;
+}
+.doc-page .fold-body .grn-orders label.tick {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: baseline;
+  font-weight: 400;
+}
+.doc-page .fold-body .grn-orders label.tick input {
+  width: auto;
+}
