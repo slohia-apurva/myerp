@@ -192,8 +192,6 @@ class ItemSerializer(serializers.ModelSerializer):
             "max_stock_qty",
             "batch_tracked",
             "qc_required",
-            "pack_type",
-            "pack_qty",
             "default_request_type",
             "maintain_stock",
             "allow_purchase",
@@ -308,14 +306,6 @@ def _save_item(item: Item, data: dict) -> Item:
             kind="item",
             message='There is already an item named "{name}".',
         )
-    pack_type = data.get("pack_type", item.pack_type)
-    pack_qty = data.get("pack_qty", item.pack_qty)
-    if pack_qty is not None and pack_qty <= 0:
-        raise ValidationError({"pack_qty": ["Give the quantity in one package."]})
-    if bool(pack_type) != (pack_qty is not None):
-        raise ValidationError(
-            {"pack_qty": ['Give both the package ("Bag") and the quantity in it, or neither.']}
-        )
     brand = data.get("brand")
     if brand is not None and not brand.is_active and brand.pk != item.brand_id:
         raise ValidationError({"brand": [f"{brand.name} is disabled."]})
@@ -349,8 +339,6 @@ def _save_item(item: Item, data: dict) -> Item:
         "max_stock_qty",
         "batch_tracked",
         "qc_required",
-        "pack_type",
-        "pack_qty",
         "default_request_type",
         "maintain_stock",
         "allow_purchase",
@@ -598,8 +586,6 @@ exchange.register(
             "purchase_description": "Purchase description",
             "purchase_unit": "Default purchase unit",
             "batch_tracked": "Track batches",
-            "pack_type": "Usually packed in",
-            "pack_qty": "Qty per package",
             "default_request_type": "Default material request type",
             "maintain_stock": "Maintain stock",
             "allow_purchase": "Allow purchase",
@@ -630,7 +616,6 @@ exchange.register(
             "safety_stock_qty": "In the default unit",
             "min_order_qty": "In the default unit",
             "max_stock_qty": "In the default unit",
-            "pack_qty": "In the default unit, e.g. 20 for a bag of 20 kg",
             "units.contains_qty": "Leave empty on the stock unit's row",
             "units.contains_unit": "Leave empty on the stock unit's row",
         },

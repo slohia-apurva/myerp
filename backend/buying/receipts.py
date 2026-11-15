@@ -152,7 +152,6 @@ def _line_out(ln: GoodsReceiptLine) -> dict:
         "value": ln.value,
         "charges_value": ln.charges_value,
         "putaways": [_putaway_out(p) for p in ln.putaways.all()],
-        **_usual_pack(ln.item, ln.unit_id),
     }
 
 
@@ -202,15 +201,6 @@ def _fresh(r: GoodsReceipt) -> dict:
     return _text(_receipt_out(_receipts(r.company).get(pk=r.pk)))
 
 
-def _usual_pack(item: Item, unit_id: int) -> dict:
-    """The item's usual packing, when the line is in its stock unit."""
-    same = unit_id == item.stock_unit_id and item.pack_qty
-    return {
-        "pack_type": item.pack_type if same else "",
-        "pack_qty": item.pack_qty if same else None,
-    }
-
-
 def pending_lines(order: PurchaseOrder) -> list[dict]:
     """Stock lines of an order with what is still to come, for "Get items"."""
     out = []
@@ -234,7 +224,6 @@ def pending_lines(order: PurchaseOrder) -> list[dict]:
                 "ordered": ol.qty,
                 "earlier": ol.received_qty,
                 "pending": max(ol.qty - ol.received_qty, ZERO),
-                **_usual_pack(ol.item, ol.unit_id),
             }
         )
     return out

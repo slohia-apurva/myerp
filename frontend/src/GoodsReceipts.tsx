@@ -59,9 +59,6 @@ type LineInfo = {
   rate: string;
   ordered: string;
   earlier: string;
-  /** The item's usual packing ("Bag" of 20), when the line is in its stock unit. */
-  pack_type: string;
-  pack_qty: string | null;
 };
 type ReceiptLine = LineInfo & {
   received_qty: string;
@@ -520,7 +517,7 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
       rejected: "",
       puts: [
         fitPacks(
-          { key: nextKey++, location: defaultPlace ? String(defaultPlace.id) : "", batch: "", mfg: "", expiry: "", qty: "", pkgs: "", pkgType: l.pack_type, pkgQty: l.pack_qty ? qty(l.pack_qty) : "" },
+          { key: nextKey++, location: defaultPlace ? String(defaultPlace.id) : "", batch: "", mfg: "", expiry: "", qty: "", pkgs: "", pkgType: "", pkgQty: "" },
           open,
         ),
       ],
@@ -574,7 +571,7 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
       puts: [
         ...l.puts,
         fitPacks(
-          { key: nextKey++, location: "", batch: last?.batch ?? "", mfg: last?.mfg ?? "", expiry: last?.expiry ?? "", qty: "", pkgs: "", pkgType: last?.pkgType ?? l.info.pack_type, pkgQty: last?.pkgQty ?? "" },
+          { key: nextKey++, location: "", batch: last?.batch ?? "", mfg: last?.mfg ?? "", expiry: last?.expiry ?? "", qty: "", pkgs: "", pkgType: last?.pkgType ?? "", pkgQty: last?.pkgQty ?? "" },
           rest > 0 ? rest : 0,
         ),
       ],

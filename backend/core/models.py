@@ -917,10 +917,6 @@ class Item(models.Model):
     max_stock_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
-    # How it usually comes packed ("Bag of 20 kg", in the stock unit): fills in
-    # the packages on a goods receipt (Sidharth, 2026-11-15).
-    pack_type = models.CharField(max_length=10, choices=PACKAGE_TYPES, blank=True)
-    pack_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     # What a material request for this item is raised as, unless changed on it.
     default_request_type = models.CharField(max_length=20, choices=REQUEST_TYPES, blank=True)
     maintain_stock = models.BooleanField(default=True)

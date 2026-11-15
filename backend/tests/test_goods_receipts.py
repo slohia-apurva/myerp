@@ -269,13 +269,6 @@ def test_a_missing_stock_ledger_stops_the_submit(store, grn, alpha):
 
 def test_bags_in_bins_get_their_own_numbers_on_submit(store, grn, alpha):
     """Sidharth's example: 5 bags of 20 in one bin, 1 bag of 10 in another."""
-    with use_tenant(alpha):
-        Item.objects.filter(pk=grn["tea"]).update(pack_type="bag", pack_qty=D("20"))
-    pending = call(store, "get", f"{url(grn)}pending/?supplier={grn['local']}").json()
-    assert (pending[0]["lines"][0]["pack_type"], pending[0]["lines"][0]["pack_qty"]) == (
-        "bag",
-        "20.000000",
-    )
     puts = [
         {"location": grn["bin1"], "batch_number": "DTT-9", "qty": "0",
          "packages": 5, "package_type": "bag", "package_qty": "20"},

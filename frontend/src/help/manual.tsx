@@ -687,11 +687,8 @@ export const MANUAL: Chapter[] = [
             what a material request for the item starts as, and can be left
             "Not set"). In the "Switches" box tick "Track batches"
             if you must follow batch numbers, and tick "Quality check on
-            receipt" if goods must be checked when they arrive. "Usually
-            Packed In" and "Qty per Package" say how the item normally comes,
-            for example a Bag of 20 (in the default unit); goods receipts fill
-            in their packages from it. On every tab a red * marks a field that
-            must be filled in.
+            receipt" if goods must be checked when they arrive. On every tab a
+            red * marks a field that must be filled in.
           </li>
           <li>
             In the "Units Of Measure" section, each unit the item is bought,
@@ -2292,9 +2289,9 @@ export const MANUAL: Chapter[] = [
             Package". The quantity is then worked out: 5 bags of 20 Kg in bin
             B1 make 100 Kg. Bags of another size, or in another bin, take a row
             of their own ("+ Add bin"), for example 1 bag of 10 Kg in bin B2;
-            the line then says "110 of 110 Kg put away · 6 bags". The item's
-            usual packing (on the item's "Stock And Quality" box) fills these
-            in. Leave "Packages" blank for loose goods.
+            the line then says "110 of 110 Kg put away · 6 bags". The packing
+            differs from one receipt to the next, so it is typed on each
+            receipt. Leave "Packages" blank for loose goods.
           </li>
           <li>
             "Batch No" lists the item's batches. For a new batch, type its
