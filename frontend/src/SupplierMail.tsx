@@ -46,7 +46,7 @@ function wording(lines: DiffLine[], number: string, d: Draft): [string, string] 
   return [`${what} against PO No : ${number}`, [short && d.short_ask, over && d.over_ask].filter(Boolean).join(" ")];
 }
 
-function People({ label, value, options, onChange }: { label: string; value: Person[]; options: Person[]; onChange: (p: Person[]) => void }) {
+export function People({ label, value, options, onChange }: { label: string; value: Person[]; options: Person[]; onChange: (p: Person[]) => void }) {
   const left = options.filter((o) => !value.some((v) => v.email.toLowerCase() === o.email.toLowerCase()));
   return (
     <div className="field mail-people">
@@ -95,6 +95,7 @@ export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: numbe
   const [closing, setClosing] = useState<string | null>(null);
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
+  const [withOrder, setWithOrder] = useState(false);
   const link = `v1/purchase-orders/${orderId}/supplier-mail/`;
   useEffect(() => {
     api<Draft>(`${link}?grn=${grn}`).then((d) => {
@@ -129,6 +130,7 @@ export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: numbe
         closing: shownClosing,
         lines: ticked,
         grn: receipt ? Number(receipt) : null,
+        attach_order: withOrder,
       });
       onSent(done.sent_to);
     } catch (err) {
@@ -180,6 +182,10 @@ export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: numbe
                 empty="No attachment"
                 options={draft.receipts.map((r) => ({ value: String(r.id), label: `Goods Receipt Note ${r.number} (PDF)`, hint: r.date }))}
               />
+              <label className="check">
+                <input type="checkbox" checked={withOrder} onChange={(e) => setWithOrder(e.target.checked)} />
+                Purchase order {draft.order_number} (PDF)
+              </label>
             </div>
           </div>
           <div className="mail-preview">
@@ -235,6 +241,100 @@ export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: numbe
             {busy ? "Sending…" : "Send"}
           </button>
         )}
+      </div>
+    </Fold>
+  );
+}
+
+type OrderDraft = {
+  order_number: string;
+  mail_ready: boolean;
+  from: string;
+  to: Person[];
+  to_options: Person[];
+  cc: Person[];
+  cc_options: Person[];
+  subject: string;
+  message: string;
+  signature: string;
+  attachment: string;
+};
+
+/** "Email PO": the submitted order to the supplier, its PDF attached. */
+export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClose: () => void; onSent: (to: string[]) => void }) {
+  const [draft, setDraft] = useState<OrderDraft | null>(null);
+  const [to, setTo] = useState<Person[]>([]);
+  const [cc, setCc] = useState<Person[]>([]);
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState<unknown>("");
+  const [busy, setBusy] = useState(false);
+  const link = `v1/purchase-orders/${orderId}/mail/`;
+  useEffect(() => {
+    api<OrderDraft>(link).then((d) => {
+      setDraft(d);
+      setTo(d.to);
+      setCc(d.cc);
+      setSubject(d.subject);
+      setMessage(d.message);
+    }, setError);
+  }, [link]);
+  if (!draft)
+    return (
+      <Fold title="Email PO" open>
+        <ErrorNote error={error} />
+      </Fold>
+    );
+  const greeting = draft.to_options.find((o) => o.email === to[0]?.email)?.name || "Sir/Madam";
+  const send = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const done = await api<{ sent_to: string[] }>(link, { to: to.map((p) => p.email), cc: cc.map((p) => p.email), subject, message });
+      onSent(done.sent_to);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Fold title="Email PO" open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
+      {!draft.mail_ready && (
+        <p className="use-note">
+          The company's mail account is not set up yet. An Owner sets it under Admin › Company › Edit › "Mail Account".
+        </p>
+      )}
+      <div className="supplier-mail">
+        <div>
+          <People label="To" value={to} options={draft.to_options} onChange={setTo} />
+          <People label="CC" value={cc} options={draft.cc_options} onChange={setCc} />
+          <label className="field">
+            <span className="fact-label">Subject</span>
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </label>
+          <div className="field">
+            <span className="fact-label">Attached</span>
+            <a href={`/api/v1/purchase-orders/${orderId}/pdf/`} target="_blank" rel="noreferrer">
+              {draft.attachment}
+            </a>
+          </div>
+        </div>
+        <div className="mail-preview">
+          <span className="fact-label">The Mail (the text box can be changed)</span>
+          <p>Dear {greeting},</p>
+          <textarea rows={5} value={message} onChange={(e) => setMessage(e.target.value)} aria-label="Message" />
+          <p className="pre">Regards,{"\n" + draft.signature}</p>
+        </div>
+      </div>
+      <ErrorNote error={error} />
+      <div className="buttons">
+        <button type="button" className="link" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" disabled={busy || !draft.mail_ready || !to.length} onClick={send}>
+          {busy ? "Sending…" : "Send"}
+        </button>
       </div>
     </Fold>
   );

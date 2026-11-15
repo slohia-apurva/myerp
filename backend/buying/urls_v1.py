@@ -23,6 +23,16 @@ urlpatterns = [
     ),
     path("purchase-orders/<int:pk>/", api.OrderDetailView.as_view(), name="purchase-order"),
     path(
+        "purchase-orders/<int:pk>/pdf/",
+        supplier_mail.OrderPdfView.as_view(),
+        name="purchase-order-pdf",
+    ),
+    path(
+        "purchase-orders/<int:pk>/mail/",
+        supplier_mail.OrderMailView.as_view(),
+        name="purchase-order-mail",
+    ),
+    path(
         "purchase-orders/<int:pk>/supplier-mail/",
         supplier_mail.SupplierMailView.as_view(),
         name="purchase-order-supplier-mail",

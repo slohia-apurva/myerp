@@ -2262,6 +2262,18 @@ export const MANUAL: Chapter[] = [
             receipt as a PDF. "Send" sends it from the company's mail account
             (set under the company's "Mail Account"); replies come to you, and
             the order's Activity keeps a note of what was sent and to whom.
+            Tick "Purchase order … (PDF)" under "Attach" to send the order
+            with it too.
+          </li>
+          <li>
+            "Email PO" on a submitted order sends the order itself to the
+            supplier, as a PDF in the printed layout. "To" starts with the
+            contacts ticked "Mail" on the order (and the agent, if ticked),
+            "CC" with you; add or remove people as in "Email Supplier". The
+            "Subject" reads "Purchase Order No : …" and the message can be
+            changed. Click the file name beside "Attached" to see the PDF
+            first. "Send" sends it from the company's mail account; replies
+            come to you and the order's Activity notes it.
           </li>
           <li>
             To change a submitted order, open it, click "Cancel order", say why,
