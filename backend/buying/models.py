@@ -152,6 +152,13 @@ class PurchaseOrderLine(models.Model):
     amount = models.DecimalField(**MONEY)
     # Filled by goods receipts, when they are built.
     received_qty = models.DecimalField(**QTY, default=Decimal("0"))
+    # "Close Line" (Sidharth, 2026-11-15): the rest will not come. A closed line
+    # has nothing pending; "Reopen Line" clears these.
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    close_reason = models.CharField(max_length=200, blank=True)
 
     class Meta:
         ordering = ["position"]

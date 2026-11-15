@@ -23,6 +23,11 @@ urlpatterns = [
     ),
     path("purchase-orders/<int:pk>/", api.OrderDetailView.as_view(), name="purchase-order"),
     path(
+        "purchase-orders/<int:pk>/lines/<int:line>/close/",
+        api.OrderLineCloseView.as_view(),
+        name="purchase-order-line-close",
+    ),
+    path(
         "purchase-orders/<int:pk>/submit/",
         api.OrderSubmitView.as_view(),
         name="purchase-order-submit",

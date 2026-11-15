@@ -555,6 +555,14 @@ table.modules input[type="checkbox"] {
   background: var(--mint);
   color: var(--deep-green);
 }
+.pill.warn {
+  background: #fff4e0;
+  color: var(--amber);
+}
+.pill.bad {
+  background: #fde8e7;
+  color: var(--red);
+}
 
 .sch3 {
   color: var(--slate);
@@ -3589,4 +3597,21 @@ td.nowrap {
 }
 .grn-doc .po-band > div:first-child {
   max-width: 41%;
+}
+
+/* A purchase order's "Received" box: lines that differ from a receipt, and the
+   reason asked when closing one. */
+.grid tr.differs td {
+  background: #fffbea;
+}
+.close-line {
+  margin-top: 8px;
+}
+.close-line input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+.close-line .buttons {
+  margin-top: 6px;
 }

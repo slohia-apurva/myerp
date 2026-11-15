@@ -205,7 +205,7 @@ def pending_lines(order: PurchaseOrder) -> list[dict]:
     """Stock lines of an order with what is still to come, for "Get items"."""
     out = []
     for ol in order.lines.select_related("item", "unit"):
-        if not ol.item.maintain_stock:
+        if not ol.item.maintain_stock or ol.closed_at:
             continue
         out.append(
             {
@@ -483,49 +483,78 @@ def _new_batch(item: Item, p: GoodsReceiptPutaway) -> Batch:
     )
 
 
-def _over_receipts(r: GoodsReceipt, user) -> None:
-    """Tell the Purchase team and the Owner about lines accepted beyond their
-    order, and note it in each order's activity."""
-    rows = []
-    for ln in r.lines.select_related("order_line__order", "item", "unit"):
-        ol = ln.order_line
-        if ol.received_qty > ol.qty:
-            rows.append((ol, ln))
-    if not rows:
-        return
+_DIFFERENCES = {
+    "over_receipt": "Over-receipt",
+    "short_receipt": "Short receipt",
+    "not_received": "Not received",
+}
+
+
+def _note_on_order(r: GoodsReceipt, user, o: PurchaseOrder, key: str, text: str) -> None:
+    label = _DIFFERENCES[key]
+    notify(
+        people_with_roles(r.company, "purchase", "owner"),
+        r.company,
+        f"{label} on {o.number}",
+        text,
+        f"#/companies/{r.company_id}/purchase-orders?view={o.pk}&grn={r.pk}",
+    )
+    AuditEntry.objects.create(
+        user=user,
+        user_name=user.display_name[:150],
+        company=r.company,
+        record_type="purchase_order",
+        record_id=o.pk,
+        record_name=str(o)[:200],
+        action=AuditEntry.UPDATE,
+        changes=[{"field": key, "label": label, "old": None, "new": text}],
+    )
+
+
+def _differences(r: GoodsReceipt, user) -> None:
+    """Tell the Purchase team and the Owner where a receipt differs from its
+    orders (Sidharth, 2026-11-07 and 2026-11-15): a line accepted beyond its
+    order, a line still short after this receipt, and the order's open lines
+    that did not come at all. Each notice opens the order; each is noted in the
+    order's activity."""
     who = r.received_by.display_name if r.received_by_id else user.display_name
-    for ol, ln in rows:
-        o = ol.order
-        text = (
-            f"{ln.item.name}: {_num(ol.received_qty)} {ln.unit.short_name} received against "
-            f"{_num(ol.qty)} ordered on {o.number} ({_num(ol.received_qty - ol.qty)} over), "
-            f"by {r.number}, received by {who}."
-        )
-        notify(
-            people_with_roles(r.company, "purchase", "owner"),
-            r.company,
-            f"Over-receipt on {o.number}",
-            text,
-            f"#/companies/{r.company_id}/goods-receipts?open={r.pk}",
-        )
-        AuditEntry.objects.create(
-            user=user,
-            user_name=user.display_name[:150],
-            company=r.company,
-            record_type="purchase_order",
-            record_id=o.pk,
-            record_name=str(o)[:200],
-            action=AuditEntry.UPDATE,
-            changes=[{"field": "over_receipt", "label": "Over-receipt", "old": None, "new": text}],
-        )
+    came = set(r.lines.values_list("order_line_id", flat=True))
+    for o in r.orders.all():
+        missing = []
+        for ol in o.lines.select_related("item", "unit"):
+            if not ol.item.maintain_stock:
+                continue
+            unit = ol.unit.short_name
+            got, wanted = ol.received_qty, ol.qty
+            if ol.pk not in came:
+                if not ol.closed_at and got < wanted:
+                    missing.append(f"{ol.item.name} ({_num(wanted - got)} {unit})")
+                continue
+            if got > wanted:
+                key, gap = "over_receipt", f"{_num(got - wanted)} over"
+            elif got < wanted and not ol.closed_at:
+                key, gap = "short_receipt", f"{_num(wanted - got)} short"
+            else:
+                continue
+            text = (
+                f"{ol.item.name}: {_num(got)} {unit} received against {_num(wanted)} ordered "
+                f"on {o.number} ({gap}), by {r.number}, received by {who}."
+            )
+            _note_on_order(r, user, o, key, text)
+        if missing:
+            text = f"Still to come on {o.number}, none came with {r.number}: {', '.join(missing)}."
+            _note_on_order(r, user, o, "not_received", text)
 
 
-def _order_status(o: PurchaseOrder) -> None:
+def order_status(o: PurchaseOrder) -> None:
+    """Received when every stock line has all it ordered; Closed when every line
+    is received or closed and some were closed short."""
     lines = [ol for ol in o.lines.select_related("item") if ol.item.maintain_stock]
-    got = [ol.received_qty for ol in lines]
     if lines and all(ol.received_qty >= ol.qty for ol in lines):
         o.status = PurchaseOrder.RECEIVED
-    elif any(g > 0 for g in got):
+    elif lines and all(ol.received_qty >= ol.qty or ol.closed_at for ol in lines):
+        o.status = PurchaseOrder.CLOSED
+    elif any(ol.received_qty > 0 for ol in lines):
         o.status = PurchaseOrder.PART_RECEIVED
     else:
         o.status = PurchaseOrder.ORDERED
@@ -627,8 +656,8 @@ def _submit(r: GoodsReceipt, user) -> None:
     r.submitted_by = user
     r.save()
     for o in r.orders.all():
-        _order_status(o)
-    _over_receipts(r, user)
+        order_status(o)
+    _differences(r, user)
 
 
 def _make_packages(r: GoodsReceipt, lines: list[GoodsReceiptLine]) -> None:
@@ -707,7 +736,7 @@ def _cancel(r: GoodsReceipt, user, reason: str) -> None:
             ol.received_qty -= ln.accepted_qty
             ol.save(update_fields=["received_qty"])
         for o in r.orders.all():
-            _order_status(o)
+            order_status(o)
     r.status = GoodsReceipt.CANCELLED
     r.cancel_reason = reason[:200]
     r.save()
