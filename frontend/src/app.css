@@ -2661,3 +2661,16 @@ td.nowrap {
 .address-block dd {
   margin: 0;
 }
+/* Terms and conditions as printed: a line ending in ":" is a heading */
+.terms-text {
+  white-space: pre-line;
+  line-height: 1.5;
+}
+.terms-text b {
+  display: block;
+  color: var(--deep-green);
+  margin-top: 8px;
+}
+.terms-text b:first-child {
+  margin-top: 0;
+}

@@ -31,6 +31,7 @@ from core.models import (
     PartyItemName,
     PartyProduct,
     PriceList,
+    TermsSet,
 )
 from core.numbering import next_number
 from shipping.models import CourierAccount
@@ -139,6 +140,14 @@ class PartySerializer(serializers.ModelSerializer):
         queryset=PriceList.objects.all(), allow_null=True, required=False
     )
     buying_price_list_name = serializers.CharField(source="buying_price_list.name", read_only=True)
+    purchase_terms = serializers.PrimaryKeyRelatedField(
+        queryset=TermsSet.objects.all(), allow_null=True, required=False
+    )
+    purchase_terms_name = serializers.CharField(source="purchase_terms.name", read_only=True)
+    sales_terms = serializers.PrimaryKeyRelatedField(
+        queryset=TermsSet.objects.all(), allow_null=True, required=False
+    )
+    sales_terms_name = serializers.CharField(source="sales_terms.name", read_only=True)
     # Given on Save when blank; may be typed over, but stay unique.
     customer_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
     vendor_number = serializers.CharField(max_length=20, allow_blank=True, required=False)
@@ -172,6 +181,10 @@ class PartySerializer(serializers.ModelSerializer):
             "price_list_name",
             "buying_price_list",
             "buying_price_list_name",
+            "purchase_terms",
+            "purchase_terms_name",
+            "sales_terms",
+            "sales_terms_name",
             "salesman",
             "preferred_transporter",
             "addresses",
@@ -199,6 +212,9 @@ class PartySerializer(serializers.ModelSerializer):
         return sorted(rows, key=lambda r: r["name"].casefold())
 
 
+# Links that may be empty (None); other blank fields are saved as "".
+NULLABLE = ("credit_term", "price_list", "buying_price_list", "purchase_terms", "sales_terms")
+
 _NOT_PARTY_FIELDS = (
     "id",
     "name",
@@ -209,6 +225,8 @@ _NOT_PARTY_FIELDS = (
     "credit_term_name",
     "price_list_name",
     "buying_price_list_name",
+    "purchase_terms_name",
+    "sales_terms_name",
     "addresses",
     "contacts",
     "products",
@@ -320,6 +338,18 @@ def save_party(
             or (not plist.is_active and plist.pk != getattr(party, field + "_id"))
         ):
             raise ValidationError({"party": {field: [f"Pick an active {word} price list."]}})
+    for field, kind, word in (
+        ("purchase_terms", TermsSet.PURCHASE, "Purchase"),
+        ("sales_terms", TermsSet.SALES, "Sales"),
+    ):
+        terms = data.get(field)
+        if terms is not None and (
+            terms.kind != kind
+            or (not terms.is_active and terms.pk != getattr(party, field + "_id"))
+        ):
+            raise ValidationError(
+                {"party": {field: [f"Pick an active {word} set of terms and conditions."]}}
+            )
     if party.pk:
         try:
             refuse_key_changes("party", party, data)
@@ -328,7 +358,7 @@ def save_party(
     for field in PARTY_FIELDS:
         if field in data:
             value = data[field]
-            if value is None and field not in ("credit_term", "price_list", "buying_price_list"):
+            if value is None and field not in NULLABLE:
                 value = ""
             setattr(party, field, value)
     try:

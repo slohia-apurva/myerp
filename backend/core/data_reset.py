@@ -53,6 +53,7 @@ from core.models import (
     PartyItemName,
     PartyProduct,
     PriceList,
+    TermsSet,
     Unit,
     WarehouseLocation,
 )
@@ -133,6 +134,7 @@ def _plan(level: str, company):
             ("Item groups", ItemGroup.objects.all()),
             ("Brands", Brand.objects.all()),
             ("Price lists", PriceList.objects.all()),
+            ("Terms and conditions", TermsSet.objects.all()),
             ("Credit terms you added", _custom_terms()),
             ("Units you added", _custom_units()),
         ]

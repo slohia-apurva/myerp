@@ -30,6 +30,9 @@ from django.db.models.signals import m2m_changed, post_delete, post_save, pre_de
 # Field labels as the screens show them, where Django's default
 # (the field name with spaces) would read oddly.
 LABELS = {
+    "terms_set": "Terms and conditions",
+    "purchase_terms": "Purchase terms",
+    "sales_terms": "Sales terms",
     "credentials_updated_at": "API credentials saved on",
     "abbr": "Short code",
     "gstin": "GSTIN",
@@ -181,6 +184,7 @@ def _register() -> None:
         NumberFormat,
         PartyContact,
         PriceList,
+        TermsSet,
         Unit,
         WarehouseLocation,
     )
@@ -279,6 +283,23 @@ def _register() -> None:
                 "Price list",
                 lambda r: None,
                 extras={"prices": ("Prices", lambda p: f"{p.lines.count()} lines")},
+            ),
+            TermsSet: Tracked(
+                "terms",
+                "Terms and conditions",
+                lambda r: None,
+                extras={
+                    "default_for": (
+                        "Default for",
+                        lambda t: ", ".join(
+                            c.name
+                            for c in Company.objects.filter(
+                                **{"purchase_terms" if t.kind == "purchase" else "sales_terms": t}
+                            )
+                        )
+                        or None,
+                    )
+                },
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),
             ItemGroup: Tracked("item_group", "Item group", lambda r: None),

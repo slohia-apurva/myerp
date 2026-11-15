@@ -459,3 +459,64 @@ def test_bill_to_ship_to_and_the_suppliers_address(buyer, world, alpha):
         PartyAddress.objects.filter(party=party).delete()
     kept = call(buyer, "get", f"purchase-orders/{po['id']}/").json()
     assert kept["addresses"]["supplier"]["address"] == "4 Hill Cart Road"
+
+
+def test_terms_come_from_the_supplier_else_the_company_default(owner, buyer, world, alpha):
+    from core.models import Company, TermsSet
+
+    general = {"name": "Purchase - general", "kind": "purchase", "text": "Delivery:"}
+    made = call(owner, "post", "terms/", {**general, "default_for": [world["company"]]})
+    assert made.status_code == 201, made.json()
+    base = made.json()
+    assert base["default_companies"][0]["id"] == world["company"]
+    own = call(owner, "post", "terms/", {"name": "Tea estates", "kind": "purchase",
+               "text": "Invoices:\nOriginal bills with the goods."}).json()  # fmt: skip
+    sales = call(owner, "post", "terms/", {"name": "Sales - general", "kind": "sales",
+                 "text": "Goods once sold are not taken back."}).json()  # fmt: skip
+    with use_tenant(alpha):
+        party = Ledger.objects.get(pk=world["far"]).party
+        party.purchase_terms_id = own["id"]
+        party.save()
+    url = f"companies/{world['company']}/purchase-orders/"
+    # Left out: the supplier's own set, else the company's default, with its text.
+    po = call(buyer, "post", url, order(world)).json()
+    assert "terms_set_name" in po, po
+    assert (po["terms_set_name"], po["terms"]) == (
+        "Purchase - general",
+        "Delivery:",
+    )
+    po = call(buyer, "post", url, order(world, supplier="far")).json()
+    assert po["terms_set_name"] == "Tea estates"
+    assert po["terms"] == "Invoices:\nOriginal bills with the goods."
+    # The text is the order's own: changed here, the set stays as it is.
+    po = call(buyer, "post", url, order(world, terms_set=own["id"], terms="Our own words")).json()
+    assert (po["terms_set"], po["terms"]) == (own["id"], "Our own words")
+    wrong = call(buyer, "post", url, order(world, terms_set=sales["id"])).json()
+    assert wrong["terms_set"] == ["Pick a set of purchase terms."]
+    # A second default takes the company off the first; a submitted order locks the type.
+    call(owner, "patch", f"terms/{own['id']}/", {"default_for": [world["company"]]})
+    with use_tenant(alpha):
+        assert Company.objects.get(pk=world["company"]).purchase_terms_id == own["id"]
+    sub = call(buyer, "post", url, {**order(world, terms_set=base["id"]), "submit": True})
+    assert sub.status_code == 201, sub.json()
+    locked = call(owner, "patch", f"terms/{base['id']}/", {"kind": "sales"})
+    assert locked.status_code == 400
+    with use_tenant(alpha):
+        assert TermsSet.objects.get(pk=base["id"]).kind == "purchase"
+    same = call(owner, "post", "terms/", {"name": " purchase -  GENERAL ", "kind": "purchase",
+                "text": "x"}).json()  # fmt: skip
+    assert same["existing"]["kind"] == "terms"
+
+
+def test_a_supplier_carries_purchase_terms_only(owner, world):
+    def terms(kind):
+        body = {"name": f"{kind} terms", "kind": kind, "text": "Subject to Kolkata jurisdiction."}
+        return call(owner, "post", "terms/", body).json()["id"]
+
+    buying, selling = terms("purchase"), terms("sales")
+    url = f"ledgers/{world['local']}/"
+    bad = call(owner, "patch", url, {"party": {"purchase_terms": selling}}).json()
+    assert "purchase_terms" in str(bad)
+    good = call(owner, "patch", url, {"party": {"purchase_terms": buying}})
+    assert good.status_code == 200, good.json()
+    assert good.json()["party"]["purchase_terms_name"] == "purchase terms"

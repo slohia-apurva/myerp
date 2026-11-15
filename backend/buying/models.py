@@ -84,6 +84,11 @@ class PurchaseOrder(models.Model):
     whatsapp_to = models.JSONField(default=list, blank=True)
     mail_agent_user = models.BooleanField(default=False)
     supplier_ref = models.CharField(max_length=80, blank=True)
+    # The set the terms were taken from (the supplier's, else the company's
+    # default); the text below is the order's own copy and may be changed.
+    terms_set = models.ForeignKey(
+        "core.TermsSet", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
     terms = models.TextField(blank=True)  # printed for the supplier
     notes = models.TextField(blank=True)  # internal, not printed
     status = models.CharField(max_length=14, choices=STATUSES, default=DRAFT)

@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
+import { TermsText } from "./Terms";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
@@ -49,6 +50,8 @@ export type PurchaseOrder = {
   credit_term_name: string;
   transporter: number | null;
   transporter_name: string;
+  terms_set: number | null;
+  terms_set_name: string;
   bill_to: number | null;
   bill_to_name: string;
   supplier_address: Partial<Place>;
@@ -106,6 +109,7 @@ type Supplier = {
   state_code: string;
   credit_term: number | null;
   transporter: number | null;
+  terms_set: number | null;
   charges_gst: boolean;
   contacts: Contact[];
   addresses: Place[];
@@ -130,6 +134,8 @@ type Setup = {
   branches: BranchRow[];
   employees: Employee[];
   transporters: Transporter[];
+  terms_sets: { id: number; name: string; is_active: boolean; text: string }[];
+  default_terms: number | null;
   supplier_group: number | null;
 };
 type BuyItem = {
@@ -458,6 +464,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const newTerm = mayAddMasters ? creatable("credit_term", "credit-terms", refreshTerms) : undefined;
   const addSupplier = mayAddMasters ? newSupplier(companyId, setup, refreshSetup) : undefined;
   const newTransporter = mayAddMasters ? creatable("courier_account", `companies/${companyId}/couriers`, refreshSetup) : undefined;
+  const newTerms = mayAddMasters ? creatable("terms", "terms", refreshSetup) : undefined;
   const [supplier, setSupplierId] = useState(from ? String(from.supplier) : "");
   const [branch, setBranch] = useState(from ? String(from.branch) : "");
   const [orderDate, setOrderDate] = useState(order?.order_date ?? today());
@@ -476,6 +483,11 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const [mailTo, setMailTo] = useState<number[]>(from?.mail_to ?? []);
   const [waTo, setWaTo] = useState<number[]>(from?.whatsapp_to ?? []);
   const [termsText, setTermsText] = useState(from?.terms ?? "");
+  // The set of terms the text came from; picking a set (or a supplier) brings its text
+  // unless the text was changed by hand on this order.
+  const [termsSet, setTermsSet] = useState(from?.terms_set ? String(from.terms_set) : "");
+  const [termsEdited, setTermsEdited] = useState(!!from);
+  const [fillTerms, setFillTerms] = useState(!from);
   const [notes, setNotes] = useState(from?.notes ?? "");
   const [lines, setLines] = useState<Draft[]>(() => [
     ...(from?.lines ?? []).map((l) => ({
@@ -511,6 +523,22 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       if (first) setBillTo(String(first.id));
     }
   }, [setup, billTo]);
+  // A new order starts with the company's default terms; picking a set brings its text
+  // (once the set is in the list, as after "Create …").
+  useEffect(() => {
+    if (!fillTerms || !setup) return;
+    const id = termsSet || (from ? "" : String(setup.default_terms ?? ""));
+    const set = setup.terms_sets.find((t) => String(t.id) === id);
+    if (id && !set) return;
+    setTermsSet(id);
+    if (set) setTermsText(set.text);
+    setFillTerms(false);
+  }, [fillTerms, setup, termsSet, from]);
+  const pickTerms = (value: string) => {
+    setTermsSet(value);
+    setTermsEdited(false);
+    if (value) setFillTerms(true);
+  };
   const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
   const br = setup?.branches.find((b) => String(b.id) === branch);
   useEffect(() => {
@@ -543,6 +571,13 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     if (s) setSupAddr((s.addresses.find((a) => a.is_billing) ?? s.addresses[0])?.label ?? "");
     // So does its preferred transporter (none: "By Supplier").
     if (s) setTransporter(s.transporter ? String(s.transporter) : "");
+    // Its own terms, else the company's default, unless the text was changed by hand.
+    const sets = s ? String(s.terms_set ?? setup?.default_terms ?? "") : "";
+    if (s && !termsEdited && sets !== termsSet) {
+      setTermsSet(sets);
+      if (sets) setFillTerms(true);
+      else setTermsText("");
+    }
     // The new supplier's purchase contacts replace the old one's; the agent's stay.
     const agentIds = setup?.suppliers.find((x) => `l${x.id}` === agent)?.contacts.map((c) => c.id) ?? [];
     setMailTo((m) => [...(s ? mailedFirst(s.contacts) : []), ...m.filter((id) => agentIds.includes(id))]);
@@ -627,6 +662,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       mail_to: mailTo,
       whatsapp_to: waTo,
       mail_agent_user: mailAgentUser,
+      terms_set: termsSet ? Number(termsSet) : null,
       terms: termsText,
       notes,
       lines: filled.map((l) => ({ item: Number(l.item), description: l.description, unit: Number(l.unit), qty: l.qty || "0", rate: l.rate || "0", discount_pct: l.discount || "0" })),
@@ -950,8 +986,31 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
           <Fold title="Terms and Notes" summary="Terms for the supplier, internal note" open={!!(termsText || notes)}>
             <div className="item-fields">
               <label>
+                Terms and Conditions
+                <Combobox
+                  value={termsSet}
+                  onChange={pickTerms}
+                  empty="None"
+                  placeholder="Type to search…"
+                  options={(setup?.terms_sets ?? [])
+                    .filter((t) => t.is_active || String(t.id) === termsSet)
+                    .map((t) => ({ value: String(t.id), label: t.name }))}
+                  create={newTerms}
+                />
+                <span className="small">From the supplier (its own set), else the company's default. Picking a set brings its text.</span>
+              </label>
+              <label className="wide">
                 Terms for the Supplier
-                <textarea rows={4} value={termsText} onChange={(e) => setTermsText(e.target.value)} placeholder="Delivery, packing, payment and other terms printed on the order" />
+                <textarea
+                  rows={8}
+                  value={termsText}
+                  onChange={(e) => {
+                    setTermsText(e.target.value);
+                    setTermsEdited(true);
+                  }}
+                  placeholder="Delivery, packing, payment and other terms printed on the order"
+                />
+                <span className="small">Change it for this order if needed; a line ending in ":" prints as a heading.</span>
               </label>
               <label>
                 Internal Note
@@ -1366,8 +1425,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             <Fold title="Terms and Notes" open>
               {order.terms && (
                 <div>
-                  <b className="fact-label">Terms for the Supplier</b>
-                  <p className="pre">{order.terms}</p>
+                  <b className="fact-label">Terms for the Supplier{order.terms_set_name ? ` (from "${order.terms_set_name}")` : ""}</b>
+                  <TermsText text={order.terms} />
                 </div>
               )}
               {order.notes && (

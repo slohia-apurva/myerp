@@ -444,6 +444,51 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "terms",
+    title: "Terms and conditions",
+    summary: "Named sets of terms printed on purchase orders, a default for each company, and a supplier's own set.",
+    body: (
+      <>
+        <p>
+          A set of terms and conditions is the text printed at the foot of an
+          order: delivery, packing, invoices, payment and so on. Each set is for
+          "Purchase" or "Sales" (sales documents use them once Sales is built).
+          This is one list shared by every company in the group.
+        </p>
+        <h3>Add a set</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Terms and conditions".</li>
+          <li>
+            Click "Add terms" (it opens in a new browser tab). Give it a
+            "Name", such as "Purchase - tea", and a "Type".
+          </li>
+          <li>
+            Under "Terms", write one term per line. A line ending in ":", such
+            as "Invoices:", prints as a heading over the terms below it.
+          </li>
+          <li>
+            Under "Default For", tick the companies whose new orders should
+            start with this set. A company has one default set of each type:
+            ticking it here takes it off its old default.
+          </li>
+          <li>Click "Save".</li>
+        </ol>
+        <h3>A supplier's own terms</h3>
+        <p>
+          On a supplier's ledger, pick its "Terms and Conditions" under "GST
+          And Credit". Its new purchase orders then start with that set instead
+          of the company's default. Leave it empty to use the default.
+        </p>
+        <p>
+          An order keeps its own copy of the text, so changing a set later does
+          not change orders already made. Sets are never deleted: tick
+          "Disabled" to stop offering one. Once a set is used by a supplier, a
+          company or a submitted order, its "Type" cannot change.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "price-lists",
     title: "Price lists",
     summary:
@@ -2019,8 +2064,13 @@ export const MANUAL: Chapter[] = [
             empty row appears for the next item; "✕" removes a line.
           </li>
           <li>
-            Under "Terms and Notes", "Terms for the Supplier" are printed on the
-            order; the "Internal Note" is only for your own people.
+            Under "Terms and Notes", "Terms and Conditions" starts with the
+            supplier's own set, else the company's default (see the chapter
+            "Terms and conditions"); picking another set brings its text. The
+            "Terms for the Supplier" box holds this order's own copy, printed
+            on the order: change it here for this one order. Once you change
+            the text by hand, picking another supplier keeps it. The "Internal
+            Note" is only for your own people.
           </li>
           <li>
             Click "Save" to keep it as a draft (it can still be changed), or

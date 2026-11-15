@@ -21,6 +21,7 @@ from core import (
     places,
     price_lists,
     printout,
+    terms,
     units,
     warehouses,
 )
@@ -39,6 +40,8 @@ urlpatterns = [
     ),
     path("credit-terms/<int:pk>/", credit_terms.CreditTermDetailView.as_view(), name="credit_term"),
     path("price-lists/", price_lists.PriceListListView.as_view(), name="price_lists"),
+    path("terms/", terms.TermsListView.as_view(), name="terms_sets"),
+    path("terms/<int:pk>/", terms.TermsDetailView.as_view(), name="terms_set"),
     path("price-lists/<int:pk>/", price_lists.PriceListDetailView.as_view(), name="price_list"),
     path(
         "parties/<int:pk>/item-prices/", price_lists.PartyPricesView.as_view(), name="party_prices"
