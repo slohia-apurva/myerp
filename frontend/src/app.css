@@ -2712,3 +2712,293 @@ td.nowrap {
 .po-charges .po-gst {
   min-width: 90px;
 }
+
+/* The purchase order as printed (PoPrint.tsx; layout approved by Sidharth, 2026-11-14).
+ * Sizes in points, as on the A4 page; on screen the sheet is shown on a grey desk. */
+.po-print-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 210mm;
+  margin: 16px auto 10px;
+  padding: 0 16px;
+}
+.po-print-bar p {
+  margin: 0 auto 0 0;
+  color: var(--slate);
+}
+.po-sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  margin: 0 auto 24px;
+  padding: 12mm 11mm;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  color: #1f2933;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 8.5pt;
+  line-height: 1.4;
+  overflow-x: auto;
+}
+.po-sheet.is-draft::before,
+.po-sheet.is-cancelled::before {
+  content: "DRAFT";
+  position: fixed;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-35deg);
+  font-size: 110pt;
+  font-weight: 800;
+  color: rgba(220, 38, 38, 0.1);
+  pointer-events: none;
+  z-index: 0;
+}
+.po-sheet.is-cancelled::before {
+  content: "CANCELLED";
+  font-size: 80pt;
+}
+.po-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.po-sheet .po-r {
+  text-align: right;
+}
+.po-sheet .po-mut {
+  color: #616e7c;
+}
+.po-sheet .b td {
+  font-weight: 600;
+}
+.po-band {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  border-bottom: 3px solid #2e9e62;
+  padding-bottom: 8pt;
+}
+.po-band h1 {
+  margin: 0;
+  font-size: 16pt;
+  font-weight: 700;
+  color: #14532d;
+  letter-spacing: 0.02em;
+}
+.po-no {
+  font-size: 11pt;
+  font-weight: 600;
+  margin-top: 4pt;
+}
+.po-date {
+  font-size: 10pt;
+  font-weight: 400;
+}
+.po-logo {
+  display: inline-flex;
+  width: 30pt;
+  height: 30pt;
+  border-radius: 7pt;
+  background: #2e9e62;
+  color: #fff;
+  font-weight: 800;
+  font-size: 17pt;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8pt;
+  vertical-align: middle;
+}
+.po-company {
+  font-size: 12pt;
+  font-weight: 600;
+}
+.po-sheet b {
+  font-weight: 600;
+}
+.po-lh {
+  margin-top: 4pt;
+  line-height: 1.5;
+}
+.po-lab {
+  color: #2e9e62;
+  font-weight: 600;
+  font-size: 7pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2pt;
+}
+.po-gap {
+  margin-top: 10pt;
+}
+.po-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10pt;
+  margin: 12pt 0 10pt;
+}
+.po-addr {
+  background: #f3faf6;
+  border-radius: 5pt;
+  padding: 7pt;
+  line-height: 1.45;
+  break-inside: avoid;
+}
+.po-addr dl {
+  display: grid;
+  grid-template-columns: 42pt 1fr;
+  gap: 1pt 4pt;
+  margin: 5pt 0 0;
+  border-top: 1px solid #d6ebdd;
+  padding-top: 4pt;
+}
+.po-addr dl > div {
+  display: contents;
+}
+.po-addr dt {
+  font-weight: 700;
+  color: #14532d;
+}
+.po-addr dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.po-meta {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8pt;
+  margin-bottom: 10pt;
+}
+.po-meta.import {
+  grid-template-columns: repeat(4, 1fr);
+}
+.po-items th {
+  background: #14532d;
+  color: #fff;
+  padding: 5pt 4pt;
+  font-size: 7.5pt;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.po-items th.po-r {
+  text-align: right;
+}
+.po-items td {
+  padding: 5pt;
+  vertical-align: top;
+}
+.po-items td.po-r {
+  white-space: nowrap;
+}
+.po-items tr.alt td {
+  background: #f6faf8;
+}
+.po-items tr {
+  break-inside: avoid;
+}
+.po-sheet tr.po-total td {
+  border-top: 1px solid #14532d;
+  font-weight: 600;
+}
+.po-items tr.po-sub td {
+  background: #e3f2e9;
+  color: #14532d;
+  font-weight: 700;
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4pt 5pt;
+}
+.po-desc {
+  font-size: 7.5pt;
+  color: #3e4c59;
+  margin-top: 1pt;
+  white-space: pre-line;
+}
+.po-sums {
+  display: flex;
+  gap: 16pt;
+  margin-top: 14pt;
+}
+.po-keep {
+  break-inside: avoid;
+}
+.po-grow {
+  flex: 1;
+}
+.po-tax td {
+  padding: 3pt 4pt;
+}
+.po-tax thead td {
+  color: #616e7c;
+}
+.po-totals {
+  width: 180pt;
+  flex: none;
+  align-self: flex-start;
+  background: #f3faf6;
+  border-radius: 5pt;
+  padding: 8pt;
+}
+.po-totals td {
+  padding: 3pt 4pt;
+}
+.po-totals tr.po-grand td {
+  border-top: 2px solid #2e9e62;
+  font-size: 10.5pt;
+  font-weight: 600;
+  color: #14532d;
+}
+.po-docs {
+  margin: 0;
+  padding-left: 14pt;
+  columns: 2;
+}
+.po-pre {
+  white-space: pre-line;
+}
+.po-terms b {
+  display: block;
+  margin-top: 4pt;
+  color: #14532d;
+}
+.po-end {
+  align-items: flex-end;
+}
+.po-sign {
+  width: 170pt;
+  flex: none;
+  text-align: center;
+}
+.po-sign-line {
+  margin-top: 30pt;
+  border-top: 1px solid #333;
+  padding-top: 3pt;
+}
+@media print {
+  body.printing-doc .topbar,
+  body.printing-doc .no-print {
+    display: none !important;
+  }
+  html:has(body.printing-doc),
+  body.printing-doc {
+    background: #fff;
+  }
+  body.printing-doc .po-sheet {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    overflow: visible;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+.po-tax thead td {
+  white-space: nowrap;
+}

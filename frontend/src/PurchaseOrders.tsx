@@ -12,6 +12,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { STOCK_COST } from "./Items";
+import { PoPrint } from "./PoPrint";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -35,7 +36,7 @@ type Line = {
   igst: string;
   amount: string;
 };
-type Charge = {
+export type Charge = {
   id: number;
   item: number;
   item_name: string;
@@ -101,7 +102,7 @@ export type PurchaseOrder = {
   charges?: Charge[];
 };
 /** An address as the order shows and prints it. */
-type Place = {
+export type Place = {
   name?: string;
   label: string;
   address: string;
@@ -237,8 +238,10 @@ const base = (companyId: number) => `#/companies/${companyId}/purchase-orders`;
 export function PurchaseOrdersPage({ companyId, session }: { companyId: number; session: SignedIn }) {
   const form = hashParam("form");
   const view = Number(hashParam("view"));
+  const print = Number(hashParam("print"));
   const can = (p: string) => session.permissions.includes(`purchase.${p}`);
   if (form && can("create")) return <OrderFormTab companyId={companyId} form={form} session={session} />;
+  if (print > 0) return <PoPrint id={print} pdf={hashParam("pdf") === "1"} />;
   if (view > 0) return <OrderView companyId={companyId} id={view} session={session} />;
   return <OrderList companyId={companyId} session={session} />;
 }
@@ -1499,7 +1502,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   useCreated("purchase_order_saved", (c) => {
     if (c.id === id) reload();
   });
-  const printing = usePrintMenu({ title: `Purchase order ${order?.number ?? ""}`, scope: order ? `${order.supplier_name} · ${showDate(order.order_date)}` : "" });
+  // The order prints in its own tab, laid out for the supplier.
+  const printItems = [
+    { label: "Print", onClick: () => openTab(`${base(companyId)}?print=${id}`) },
+    { label: "Download PDF", onClick: () => openTab(`${base(companyId)}?print=${id}&pdf=1`) },
+  ];
   const close = () =>
     closeThisTab(() => {
       window.location.hash = base(companyId);
@@ -1554,11 +1561,10 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Submit
               </button>
             )}
-            <ActionsMenu items={printing.items} />
+            <ActionsMenu items={printItems} />
           </>
         }
       />
-      {printing.panel}
       <div className="doc-page">
         <div className="side-main">
           <div className="item-head doc-head">

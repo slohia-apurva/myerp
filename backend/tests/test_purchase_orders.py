@@ -609,6 +609,9 @@ def test_charges_are_service_items_with_gst_and_a_stock_cost_choice(buyer, world
     assert (body["taxable_total"], body["cgst_total"], body["total"]) == (
         "97550.00", "2520.00", "102590.00",
     )  # fmt: skip
+    # The print has the total in words and the company's letterhead.
+    assert body["amount_words"] == "Rupees One Lakh Two Thousand Five Hundred Ninety only"
+    assert {"name", "gstin", "pan", "cin", "fssai", "iec"} <= set(body["letterhead"])
     mixed = order(world, charges=[{"item": loading.pk, "basis": "per_unit", "rate": "1"}])
     assert "same unit" in str(call(buyer, "post", url, mixed).json()["charges"])
     bad = order(world, lines=tea_only, charges=[{"item": plain.pk, "basis": "fixed", "rate": "1"}])
