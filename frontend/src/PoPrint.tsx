@@ -178,13 +178,7 @@ function PoSheet({ order }: { order: Order }) {
           <span className="po-logo">{lh.name.slice(0, 1)}</span>
           <b className="po-company">{lh.name}</b>
           <div className="po-mut po-lh">
-            {lh.address && (
-              <div>
-                Regd Office: {lh.address.split("\n").join(", ")}
-                {lh.city && `, ${lh.city}`}
-                {lh.pincode && ` - ${lh.pincode}`}
-              </div>
-            )}
+            {lh.address && <RegdOffice lh={lh} />}
             {(lh.phone || lh.email) && <div>{[lh.phone && `Ph ${lh.phone}`, lh.email].filter(Boolean).join(" · ")}</div>}
             <div>
               {(
@@ -468,6 +462,25 @@ function PoSheet({ order }: { order: Order }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** The registered office on two lines, as approved: "Regd Office: <first line>," then
+ * the rest of the street with the city and PIN. */
+function RegdOffice({ lh }: { lh: Order["letterhead"] }) {
+  const [first, ...rest] = lh.address
+    .split("\n")
+    .map((l) => l.trim().replace(/,$/, ""))
+    .filter(Boolean);
+  const second = [...rest, lh.city].filter(Boolean).join(", ") + (lh.pincode ? ` - ${lh.pincode}` : "");
+  return (
+    <>
+      <div>
+        Regd Office: {first}
+        {second ? "," : ""}
+      </div>
+      {second && <div>{second}</div>}
+    </>
   );
 }
 
