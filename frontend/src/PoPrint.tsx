@@ -14,6 +14,7 @@ import type { Charge, Place, PurchaseOrder } from "./PurchaseOrders";
 
 type Order = PurchaseOrder & {
   letterhead: {
+    mark?: string;
     name: string;
     address: string;
     city: string;
@@ -610,6 +611,7 @@ function FullHead({ order }: { order: Order }) {
   const facts = (...keys: string[]) => keys;
   return (
     <div>
+      {lh.mark && <img className="po-mark-img" src={lh.mark} alt="" />}
       <div className="po-band">
         <div>
           <div className="po-brand">

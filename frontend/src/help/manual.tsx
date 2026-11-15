@@ -270,6 +270,10 @@ export const MANUAL: Chapter[] = [
               "Use foreign currencies",
               "Tick for exports, imports or EEFC accounts. Ledgers can then be kept in another currency; the books stay in rupees.",
             ],
+            [
+              "Printing",
+              'Tick "Print a small Lord Ganesha image…" to print a small image at the top centre of the first page of every printout: purchase orders, reports and all other prints. "Use our own image…" puts your own PNG or JPG (up to 300 KB) in its place; "Use the standard image" brings the standard one back. The image is saved as soon as it is chosen.',
+            ],
           ]}
         />
 
@@ -1221,7 +1225,9 @@ export const MANUAL: Chapter[] = [
           a printer. "Download PDF" saves the same report as a PDF file, ready
           to email: landscape A4, column headings repeated on every page,
           amounts on the right in Indian style (1,23,456.00), and "Page 1 of 3"
-          at the foot of each page.
+          at the foot of each page. When a company has "Printing" ticked on its
+          setup, the first page carries the small Lord Ganesha image at the top
+          centre.
         </p>
         <p>
           On a master the report leaves out the ID and any column that is empty
@@ -2129,7 +2135,7 @@ export const MANUAL: Chapter[] = [
           transporter, the items with their descriptions, the charges, a "Tax Summary" by HSN / SAC code, the totals, the
           amount in words, the terms and conditions and the signature. An import shows its shipment and payment terms,
           "Documents Required" and "Packing and Marking", in the order's currency with no GST. A draft prints with
-          "DRAFT" across each page; a submitted order says "Approved by" who submitted it and when, under the signature. The supplier's box shows the people the order is mailed to, else its main contact. "Download PDF" opens the same page: pick "Save as PDF" as the printer to keep a PDF.
+          "DRAFT" across each page; a submitted order says "Approved by" who submitted it and when, under the signature. The supplier's box shows the people the order is mailed to, else its main contact. When the company has "Printing" ticked, the first page carries the small Lord Ganesha image at the top centre. "Download PDF" opens the same page: pick "Save as PDF" as the printer to keep a PDF.
           Pages after the first start with a short heading (logo, company, order number and date, the supplier "continued"); when the items run over, a page ends "Carried to page n" with the total so far and the next begins "Brought from page n-1". Every page has the order number and "Page n of m" at the foot.
         </p>
         <h3>Submit, change and cancel</h3>

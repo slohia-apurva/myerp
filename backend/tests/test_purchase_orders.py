@@ -626,3 +626,13 @@ def test_charges_are_service_items_with_gst_and_a_stock_cost_choice(buyer, world
     assert "Use as Purchase Charge" in str(call(buyer, "post", url, bad).json()["charges"])
     odd = [{"item": freight.pk, "basis": "fixed", "rate": "1", "gst_rate": "7"}]
     assert "not a GST rate" in str(call(buyer, "post", url, order(world, charges=odd)).json())
+
+
+def test_print_heading_carries_the_image_when_the_company_ticks_it(alpha, buyer, world):
+    po = call(buyer, "post", f"companies/{world['company']}/purchase-orders/", order(world)).json()
+    shown = call(buyer, "get", f"purchase-orders/{po['id']}/").json()
+    assert shown["letterhead"]["mark"] == ""
+    with use_tenant(alpha):
+        Company.objects.filter(pk=world["company"]).update(print_ganesha=True)
+    shown = call(buyer, "get", f"purchase-orders/{po['id']}/").json()
+    assert shown["letterhead"]["mark"].startswith("data:image/png;base64,")

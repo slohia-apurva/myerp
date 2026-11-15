@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from accounts.models import User
 from buying import imports
 from buying.models import PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
-from core import fiscal, india, numbering, words
+from core import fiscal, india, numbering, print_mark, words
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -194,6 +194,8 @@ def _letterhead(c: Company) -> dict:
         "cin": c.cin,
         "fssai": wide.get(Certificate.FSSAI, ""),
         "iec": wide.get(Certificate.IEC, ""),
+        # The image at the top centre of page 1, when the company prints one.
+        "mark": print_mark.mark_url(c),
     }
 
 
