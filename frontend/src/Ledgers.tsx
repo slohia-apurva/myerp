@@ -255,7 +255,12 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
           { label: detail.company.name, href: `#/companies/${props.companyId}` },
         ]}
         sub={`${ledgers.length} ${ledgers.length === 1 ? "ledger" : "ledgers"}${query || groupFilter ? " match" : ""}`}
-        actions={io.buttons}
+        actions={
+          <>
+            {io.buttons}
+            {canEdit && <button onClick={() => edit("new")}>Add ledger</button>}
+          </>
+        }
       />
       {error && <p className="error">{error}</p>}
       {io.panel}
