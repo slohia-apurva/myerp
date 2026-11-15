@@ -19,8 +19,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
+from audit.models import AuditEntry
 from buying import imports
-from buying.models import PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
+from buying.models import GoodsReceipt, PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
 from core import fiscal, india, numbering, print_mark, words
 from core.api import Signed
 from core.api import _company as _visible_company
@@ -258,6 +259,13 @@ def _line_out(ln: PurchaseOrderLine) -> dict:
         "igst": str(ln.igst),
         "amount": str(ln.amount),
         "received_qty": _plain(ln.received_qty),
+        "pending_qty": _plain(
+            Decimal("0") if ln.closed_at else max(ln.qty - ln.received_qty, Decimal("0"))
+        ),
+        "stock": ln.item.maintain_stock,
+        "closed_at": ln.closed_at.isoformat() if ln.closed_at else None,
+        "closed_by_name": ln.closed_by.display_name if ln.closed_by_id else "",
+        "close_reason": ln.close_reason,
     }
 
 
@@ -414,7 +422,7 @@ def _orders(company):
             "terms_set",
             "created_by",
         )
-        .prefetch_related("lines__item", "lines__unit", "charges__item")
+        .prefetch_related("lines__item", "lines__unit", "lines__closed_by", "charges__item")
     )
 
 
@@ -903,6 +911,71 @@ class OrderCancelView(APIView):
         o.status = PurchaseOrder.CANCELLED
         o.cancel_reason = reason[:200]
         o.save()
+        return Response(_fresh(o))
+
+
+class OrderLineCloseView(APIView):
+    """POST {reason} closes a line whose balance will not come (Sidharth,
+    2026-11-15); POST {"reopen": true} opens it again."""
+
+    permission_classes = [Signed]
+
+    @tenant_atomic()
+    def post(self, request, pk: int, line: int):
+        from buying.receipts import order_status  # receipts imports this module
+
+        _check(request, SUBMIT)
+        o = _order(request, pk, lock=True)
+        ln = o.lines.select_related("item", "unit").filter(pk=line).first()
+        if ln is None:
+            raise NotFound("No such line on this order.")
+        if o.status not in (*PurchaseOrder.OPEN, PurchaseOrder.RECEIVED, PurchaseOrder.CLOSED):
+            raise ValidationError({"detail": "Only a submitted order's lines can be closed."})
+        reopen = bool(request.data.get("reopen"))
+        if reopen:
+            if not ln.closed_at:
+                raise ValidationError({"detail": "This line is not closed."})
+            change = ("Open", f"Line {ln.position} {ln.item.name} reopened")
+            ln.closed_at, ln.closed_by, ln.close_reason = None, None, ""
+        else:
+            if ln.closed_at:
+                raise ValidationError({"detail": "This line is already closed."})
+            if not ln.item.maintain_stock or ln.received_qty >= ln.qty:
+                raise ValidationError({"detail": "Nothing is pending on this line."})
+            reason = str(request.data.get("reason", "")).strip()
+            if not reason:
+                raise ValidationError({"reason": ["Say why the rest will not come."]})
+            draft = (
+                GoodsReceipt.objects.filter(status=GoodsReceipt.DRAFT, lines__order_line=ln)
+                .values_list("pk", flat=True)
+                .first()
+            )
+            if draft:
+                raise ValidationError(
+                    {
+                        "detail": "A draft goods receipt has this line. Submit it or take "
+                        "the line off it first."
+                    }
+                )
+            unit = ln.unit.short_name
+            change = (
+                "Closed",
+                f"Line {ln.position} {ln.item.name} closed, "
+                f"{_plain(ln.qty - ln.received_qty)} {unit} not coming: {reason[:200]}",
+            )
+            ln.closed_at, ln.closed_by, ln.close_reason = timezone.now(), request.user, reason[:200]
+        ln.save(update_fields=["closed_at", "closed_by", "close_reason"])
+        order_status(o)
+        AuditEntry.objects.create(
+            user=request.user,
+            user_name=request.user.display_name[:150],
+            company=o.company,
+            record_type="purchase_order",
+            record_id=o.pk,
+            record_name=str(o)[:200],
+            action=AuditEntry.UPDATE,
+            changes=[{"field": "line_closed", "label": "Line", "old": None, "new": change[1]}],
+        )
         return Response(_fresh(o))
 
 

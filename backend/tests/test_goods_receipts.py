@@ -211,12 +211,16 @@ def test_over_receipt_tells_purchase_and_the_owner(store, buyer, grn, alpha):  #
     with use_tenant(alpha):
         told = set(Notification.objects.values_list("user__email", flat=True))
         assert {"buyer@x.in", "owner@x.in"} <= told and "stores@x.in" not in told
-        note = Notification.objects.filter(user__email="buyer@x.in").get()
+        mine = Notification.objects.filter(user__email="buyer@x.in")
+        note = mine.get(title__startswith="Over-receipt")
+        assert note.link.endswith(f"purchase-orders?view={grn['po']}&grn={done.json()['id']}")
         assert "650 kg received against 600 ordered" in note.body and "50 over" in note.body
         po_log = AuditEntry.objects.filter(record_type="purchase_order", record_id=grn["po"])
         assert any(c["field"] == "over_receipt" for e in po_log for c in e.changes)
     mine = call(buyer, "get", "notifications/").json()
-    assert mine["unread"] == 1 and mine["rows"][0]["title"].startswith("Over-receipt")
+    # The packets did not come with it: a second notice says so.
+    assert mine["unread"] == 2
+    assert {r["title"].split(" on ")[0] for r in mine["rows"]} == {"Over-receipt", "Not received"}
     call(buyer, "post", "notifications/read/", {})
     assert call(buyer, "get", "notifications/").json()["unread"] == 0
 
@@ -340,3 +344,54 @@ def test_a_qr_code_comes_as_a_picture(store):
     assert res["Content-Type"] == "image/svg+xml"
     assert res.content.startswith(b"<svg") and b"<path" in res.content
     assert call(store, "get", "qr/").status_code == 400
+
+
+def test_short_and_missing_lines_are_told_and_a_line_can_be_closed(store, buyer, grn, alpha):  # noqa: F811
+    puts = [{"location": grn["bin1"], "batch_number": "B1", "qty": "400"}]
+    done = call(
+        store, "post", url(grn), receipt(grn, [tea_line(grn, "400", puts=puts)], submit=True)
+    )
+    assert done.status_code == 201, done.json()
+    with use_tenant(alpha):
+        mine = Notification.objects.filter(user__email="buyer@x.in")
+        short = mine.get(title__startswith="Short receipt")
+        assert "400 kg received against 600 ordered" in short.body and "200 short" in short.body
+        missing = mine.get(title__startswith="Not received")
+        assert "none came with" in missing.body and "(30 " in missing.body
+        logged = AuditEntry.objects.filter(record_type="purchase_order", record_id=grn["po"])
+        fields = {c["field"] for e in logged for c in e.changes}
+        assert {"short_receipt", "not_received"} <= fields
+
+    close = f"purchase-orders/{grn['po']}/lines/{grn['tea_line']}/close/"
+    assert call(store, "post", close, {"reason": "x"}).status_code == 403
+    res = call(buyer, "post", close, {"reason": " "})
+    assert "Say why" in str(res.json())
+    po = call(buyer, "post", close, {"reason": "Supplier will not send balance"}).json()
+    tea = po["lines"][0]
+    assert (
+        tea["closed_at"]
+        and tea["pending_qty"] == "0"
+        and tea["close_reason"].startswith("Supplier")
+    )
+    assert po["status"] == "part_received"  # the packets are still to come
+    box = f"purchase-orders/{grn['po']}/lines/{grn['box_line']}/close/"
+    po = call(buyer, "post", box, {"reason": "Not needed"}).json()
+    assert po["status"] == "closed"
+    # A closed line is no longer offered to the next receipt.
+    pending = call(store, "get", f"companies/{grn['company']}/goods-receipts/pending/").json()
+    assert all(o["id"] != grn["po"] for o in pending) or not any(
+        o["lines"] for o in pending if o["id"] == grn["po"]
+    )
+    po = call(buyer, "post", close, {"reopen": True}).json()
+    assert po["lines"][0]["closed_at"] is None and po["lines"][0]["pending_qty"] == "200"
+    assert po["status"] == "part_received"
+    with use_tenant(alpha):
+        logged = AuditEntry.objects.filter(record_type="purchase_order", record_id=grn["po"])
+        assert any("200 kg not coming" in str(c["new"]) for e in logged for c in e.changes)
+
+
+def test_a_line_on_a_draft_receipt_cannot_be_closed(store, buyer, grn):  # noqa: F811
+    assert call(store, "post", url(grn), receipt(grn, [tea_line(grn)])).status_code == 201
+    close = f"purchase-orders/{grn['po']}/lines/{grn['tea_line']}/close/"
+    res = call(buyer, "post", close, {"reason": "No more"})
+    assert res.status_code == 400 and "draft goods receipt" in str(res.json())

@@ -2207,6 +2207,20 @@ export const MANUAL: Chapter[] = [
             becomes "Part received", then "Received".
           </li>
           <li>
+            A submitted order shows a "Received" box: each stock line's
+            "Ordered", "Received" and "Pending" quantity and its status
+            ("Received", "… short", "… over", "Not received" or "Closed"). When
+            the rest of a line will not come, click "Close Line", say why (for
+            example "Supplier will not send balance") and click "Close Line"
+            again: its pending quantity becomes 0 and the next goods receipt
+            no longer offers it. When every line is received or closed the
+            order's status becomes "Closed". "Reopen Line" undoes it. Closing
+            and reopening are written to the order's Activity. A line on a
+            draft goods receipt cannot be closed until that receipt is
+            submitted or the line taken off it. Closing needs the right to
+            submit purchase orders.
+          </li>
+          <li>
             To change a submitted order, open it, click "Cancel order", say why,
             and click "Cancel order" again; then click "Duplicate", change the
             copy and submit it. A cancelled order stays in the list with its
@@ -2323,10 +2337,15 @@ export const MANUAL: Chapter[] = [
             received" or "Received".
           </li>
           <li>
-            More than ordered may be accepted. The line turns amber with a
-            warning, and on Submit the Purchase team and the Owner get a
-            notification (the bell at the top right) naming the order, item,
-            quantities and who received it; the order's Activity notes it too.
+            More than ordered may be accepted; the line turns amber with a
+            warning. On Submit the Purchase team and the Owner get a
+            notification (the bell at the top right) for each line that came
+            over ("Over-receipt") or is still short ("Short receipt"), naming
+            the order, item, quantities and who received it, and one ("Not
+            received") listing the order's lines that did not come with it.
+            Clicking a notification opens the purchase order with those lines
+            marked, where a line can be closed; the order's Activity notes each
+            one too.
           </li>
           <li>
             Gives every bag or box its own number, PK-000241 and on, shown in

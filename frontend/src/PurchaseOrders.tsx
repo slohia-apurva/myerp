@@ -37,6 +37,13 @@ type Line = {
   igst: string;
   amount: string;
   supplier_code?: string;
+  // On a saved order: what has come and what is still to come (goods receipts).
+  received_qty?: string;
+  pending_qty?: string;
+  stock?: boolean;
+  closed_at?: string | null;
+  closed_by_name?: string;
+  close_reason?: string;
 };
 export type Charge = {
   id: number;
@@ -1760,6 +1767,9 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               </table>
             </div>
           </Fold>
+          {!draft && order.status !== "cancelled" && (order.lines ?? []).some((l) => l.stock) && (
+            <ReceivedBox order={order} canClose={can("submit")} onDone={(o) => setOrder(o)} />
+          )}
           {!!order.charges?.length && <ChargesView order={order} />}
           {(order.terms || order.notes) && (
             <Fold title="Terms and Notes" open>
@@ -2086,6 +2096,123 @@ function ChargesView({ order }: { order: PurchaseOrder }) {
               <td />
             </tr>
           </tfoot>
+        </table>
+      </div>
+    </Fold>
+  );
+}
+
+/** How a line stands against what came: the words and the pill's look. */
+function lineState(l: Line): [string, string] {
+  const got = Number(l.received_qty ?? 0);
+  const want = Number(l.qty);
+  const unit = l.unit_name;
+  if (l.closed_at) return [`Closed · ${plainQty(Math.max(want - got, 0))} ${unit} not coming`, "pill"];
+  if (got > want) return [`${plainQty(got - want)} ${unit} over`, "pill warn"];
+  if (got === want) return ["Received", "pill on"];
+  if (got === 0) return ["Not received", "pill bad"];
+  return [`${plainQty(want - got)} ${unit} short`, "pill warn"];
+}
+
+const plainQty = (n: number) => String(Number(n.toFixed(6)));
+
+/** "Received" box on a submitted order (Sidharth, 2026-11-15): ordered, received
+ * and pending per stock line, and "Close Line" for a balance that will not
+ * come (with a reason), or "Reopen Line". Opened from a goods receipt's notice
+ * (?grn=), the lines that differ are marked. */
+function ReceivedBox({ order, canClose, onDone }: { order: PurchaseOrder; canClose: boolean; onDone: (o: PurchaseOrder) => void }) {
+  const fromReceipt = !!hashParam("grn");
+  const [closing, setClosing] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<unknown>("");
+  const lines = (order.lines ?? []).filter((l) => l.stock);
+  const act = async (line: number, body: object) => {
+    setError("");
+    try {
+      const done = await api<PurchaseOrder>(`v1/purchase-orders/${order.id}/lines/${line}/close/`, body);
+      setClosing(null);
+      setReason("");
+      onDone(done);
+      announceSaved("purchase_order_saved", { id: order.id, name: done.number });
+    } catch (err) {
+      setError(err);
+    }
+  };
+  const pending = lines.filter((l) => Number(l.pending_qty) > 0).length;
+  return (
+    <Fold title="Received" open summary={pending ? `${pending} line${pending > 1 ? "s" : ""} still to come` : "Nothing pending"}>
+      <ErrorNote error={error} />
+      <div className="table-scroll">
+        <table className="grid">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th className="num">Ordered</th>
+              <th className="num">Received</th>
+              <th className="num">Pending</th>
+              <th>Status</th>
+              <th className="no-print" />
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => {
+              const [label, look] = lineState(l);
+              const differs = fromReceipt && !l.closed_at && Number(l.received_qty) !== Number(l.qty);
+              const open = Number(l.pending_qty) > 0;
+              return (
+                <tr key={l.id} className={differs ? "differs" : undefined}>
+                  <td>{order.lines!.indexOf(l) + 1}</td>
+                  <td>
+                    <b>{l.item_name}</b>
+                    {l.closed_at && (
+                      <div className="line-desc">
+                        Closed by {l.closed_by_name} on {shortDate(l.closed_at.slice(0, 10))}: {l.close_reason}
+                      </div>
+                    )}
+                    {closing === l.id && (
+                      <div className="close-line no-print">
+                        <label>
+                          <b>Why will the rest not come?</b>
+                          <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Supplier will not send balance" />
+                        </label>
+                        <div className="buttons">
+                          <button type="button" className="link" onClick={() => setClosing(null)}>
+                            Keep it open
+                          </button>
+                          <button type="button" className="link danger" onClick={() => act(l.id!, { reason })}>
+                            Close Line
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                  <td className="num">
+                    {l.qty} {l.unit_name}
+                  </td>
+                  <td className="num">
+                    {l.received_qty} {l.unit_name}
+                  </td>
+                  <td className="num">{l.pending_qty === "0" ? "0" : `${l.pending_qty} ${l.unit_name}`}</td>
+                  <td>
+                    <span className={look}>{label}</span>
+                  </td>
+                  <td className="num no-print">
+                    {canClose && open && closing !== l.id && (
+                      <button type="button" className="link danger" onClick={() => setClosing(l.id!)}>
+                        Close Line
+                      </button>
+                    )}
+                    {canClose && l.closed_at && (
+                      <button type="button" className="link" onClick={() => act(l.id!, { reopen: true })}>
+                        Reopen Line
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
         </table>
       </div>
     </Fold>
