@@ -3048,8 +3048,18 @@ td.nowrap {
   flex: none;
   text-align: center;
 }
+/* Room for the approver's signature; the line stays put with or without it. */
+.po-sign-img {
+  height: 30pt;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.po-sign-img img {
+  max-height: 30pt;
+  max-width: 150pt;
+}
 .po-sign-line {
-  margin-top: 30pt;
   border-top: 1px solid #333;
   padding-top: 3pt;
 }
@@ -3088,7 +3098,7 @@ td.nowrap {
   height: 13mm;
 }
 
-/* An image with its buttons beside it: the company's printed image. */
+/* An image with its buttons beside it: a user's signature, the company's printed image. */
 .image-row {
   display: flex;
   gap: 16px;

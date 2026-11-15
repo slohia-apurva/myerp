@@ -125,6 +125,8 @@ SKIP = {
     "google_sub",
     "print_image",  # an image: shows through the company's "Printed image" extra
     "print_image_type",
+    "signature",  # an image: shows through the user's "Signature" extra
+    "signature_type",
     "is_superuser",
     "party",  # a ledger's party shows through its party extras
     "salesman",  # likewise, by name
@@ -346,6 +348,12 @@ def _register() -> None:
                 extras={
                     "roles": ("Roles", lambda u: names(u.roles.all())),
                     "companies": ("Companies", lambda u: names(u.companies.all()) or "All"),
+                    "signature": (
+                        "Signature",
+                        lambda u: (
+                            f"Image, {len(u.signature) // 1024 + 1} KB" if u.signature else None
+                        ),
+                    ),
                 },
             ),
             Role: Tracked("role", "Role", lambda r: None),

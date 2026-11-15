@@ -636,3 +636,18 @@ def test_print_heading_carries_the_image_when_the_company_ticks_it(alpha, buyer,
         Company.objects.filter(pk=world["company"]).update(print_ganesha=True)
     shown = call(buyer, "get", f"purchase-orders/{po['id']}/").json()
     assert shown["letterhead"]["mark"].startswith("data:image/png;base64,")
+
+
+def test_print_carries_the_approvers_signature_and_our_contacts_phone(alpha, buyer, world):
+    with use_tenant(alpha):
+        User.objects.filter(email="buyer@x.in").update(
+            phone="98300 22222", signature=b"\x89PNG\r\n\x1a\nfake", signature_type="image/png"
+        )
+    url = f"companies/{world['company']}/purchase-orders/"
+    draft = call(buyer, "post", url, order(world)).json()
+    shown = call(buyer, "get", f"purchase-orders/{draft['id']}/").json()
+    assert shown["created_by_phone"] == "98300 22222"
+    assert shown["submitted_by_signature"] == ""  # a draft is never signed
+    call(buyer, "post", f"purchase-orders/{draft['id']}/submit/", {})
+    signed = call(buyer, "get", f"purchase-orders/{draft['id']}/").json()
+    assert signed["submitted_by_signature"].startswith("data:image/png;base64,")
