@@ -114,7 +114,9 @@ exchange.register(
         serializer=BatchSerializer,
         queryset=lambda ctx: _batches(),
         save=lambda ctx, batch, data: save_batch(batch or Batch(), data),
-        exclude=("item_name", "item_number", "status_label"),
+        exclude=("item_name", "status_label"),
+        show=("item_number",),
+        labels={"item_number": "Item No", "number": "Batch No"},
         hints={
             "status": "Quarantine, Released or Rejected",
             "expiry_date": "Blank: worked out from the mfg date and the item's best-before",

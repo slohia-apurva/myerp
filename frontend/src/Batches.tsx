@@ -89,7 +89,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
   }, [openId, batches, opened]);
   const itemOptions = useMemo(() => {
     const seen = new Map<number, string>();
-    batches.forEach((b) => seen.set(b.item, b.item_name));
+    batches.forEach((b) => seen.set(b.item, `${b.item_number} ${b.item_name}`));
     return [...seen].map(([id, name]) => ({ value: String(id), label: name }));
   }, [batches]);
   const shown = itemFilter ? batches.filter((b) => String(b.item) === itemFilter) : batches;
@@ -117,6 +117,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
             <thead>
               <tr>
                 <th>Batch No</th>
+                <th>Item No</th>
                 <th>Item</th>
                 <th>Mfg Date</th>
                 <th>Expiry</th>
@@ -136,6 +137,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
                     {b.number}
                     {!b.is_active && <span className="pill">Disabled</span>}
                   </td>
+                  <td>{b.item_number}</td>
                   <td>{b.item_name}</td>
                   <td>{showDate(b.mfg_date)}</td>
                   <td>{showDate(b.expiry_date)}</td>
@@ -145,7 +147,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="small">
+                  <td colSpan={8} className="small">
                     No batches yet. Click "Add batch", or receive goods of a batch-tracked item.
                   </td>
                 </tr>
@@ -159,7 +161,8 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
               <SideRows
                 rows={[
                   ["Batch No", selected.number],
-                  ["Item", `${selected.item_name} (${selected.item_number})`],
+                  ["Item No", selected.item_number],
+                  ["Item", selected.item_name],
                   ["Supplier's Batch No", selected.supplier_batch_no],
                   ["Mfg Date", showDate(selected.mfg_date)],
                   ["Expiry", showDate(selected.expiry_date)],
@@ -287,7 +290,7 @@ function BatchForm(props: {
   return (
     <FormPage
       title={props.title}
-      sub={b ? `${b.number} · ${b.item_name}` : undefined}
+      sub={b ? `${b.number} · ${b.item_number} ${b.item_name}` : undefined}
       formId="batch-form"
       onSubmit={save}
       onCancel={props.onCancel}
@@ -305,7 +308,7 @@ function BatchForm(props: {
           <label>
             <span className="req">Item</span>
             <Combobox
-              options={items.map((i) => ({ value: String(i.id), label: `${i.name} (${i.item_number})` }))}
+              options={items.map((i) => ({ value: String(i.id), label: `${i.item_number} ${i.name}` }))}
               value={item}
               onChange={setItem}
               required

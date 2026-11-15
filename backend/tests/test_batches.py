@@ -148,7 +148,9 @@ def test_batches_export_and_import(owner, tea):
     rows = list(csv.reader(io.StringIO(out.content.decode("utf-8-sig"))))
     head = rows[0]
     new = dict.fromkeys(head, "")
-    new.update({"Item": "Tulsi green tea", head[head.index("Item") + 1]: "B2"})
+    assert "Item No" in head
+    number = next(h for h in head if h.lower() in ("number", "batch no"))
+    new.update({"Item": "Tulsi green tea", number: "B2"})
     for label in head:
         if label.lower().startswith("mfg"):
             new[label] = "2026-01-15"
