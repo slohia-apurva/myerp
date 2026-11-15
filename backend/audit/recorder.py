@@ -123,6 +123,8 @@ SKIP = {
     "last_login",
     "date_joined",
     "google_sub",
+    "print_image",  # an image: shows through the company's "Printed image" extra
+    "print_image_type",
     "signature",  # an image: shows through the user's "Signature" extra
     "signature_type",
     "is_superuser",
@@ -225,6 +227,16 @@ def _register() -> None:
                 "company",
                 "Company",
                 lambda r: r.pk,
+                extras={
+                    "print_image": (
+                        "Printed image",
+                        lambda c: (
+                            f"Own image, {len(c.print_image) // 1024 + 1} KB"
+                            if c.print_image
+                            else "Standard"
+                        ),
+                    ),
+                },
                 formats={
                     "state_code": state,
                     "modules": lambda v: ", ".join(module_labels.get(c, c) for c in v) or None,

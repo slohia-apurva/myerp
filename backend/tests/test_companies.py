@@ -433,3 +433,41 @@ def test_old_tally_groups_are_converted_to_schedule_iii(owner, alpha):
         clash.refresh_from_db()
         assert clash.code == "finance_costs" and clash.parent == new["indirect_expenses"]
         assert not LedgerGroup.objects.filter(code__in=["loans_liability", "misc_expenses_asset"])
+
+
+def _picture(client, company_id, data, name="g.png"):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    return client.post(
+        f"/api/v1/companies/{company_id}/print-image/",
+        {"file": SimpleUploadedFile(name, data)},
+        HTTP_HOST=HOST,
+    )
+
+
+def test_printed_image_is_ticked_per_company_and_can_be_its_own(owner, as_user):
+    from core import print_mark, printout
+
+    company = add_company(owner).json()
+    assert company["print_ganesha"] is False
+    assert company["print_image"].startswith("data:image/png;base64,")  # the standard one
+    assert company["print_image_own"] is False
+    assert call(owner, "get", "print/mark/").json() == {"mark": ""}
+
+    ticked = call(owner, "patch", f"companies/{company['id']}/", {"print_ganesha": True})
+    assert ticked.json()["print_ganesha"] is True
+    assert call(owner, "get", "print/mark/").json()["mark"] == company["print_image"]
+
+    own = b"\xff\xd8\xff" + b"0" * 40
+    viewer = as_user("viewer")
+    assert _picture(viewer, company["id"], own).status_code == 403
+    assert "PNG or JPG" in str(_picture(owner, company["id"], b"%PDF").json())
+    saved = _picture(owner, company["id"], own).json()
+    assert saved["print_image_own"] and saved["print_image"].startswith("data:image/jpeg")
+    back = owner.delete(f"/api/v1/companies/{company['id']}/print-image/", HTTP_HOST=HOST)
+    assert back.json()["print_image"] == company["print_image"]
+
+    # Reports carry it at the top of the first page.
+    with_mark = printout.pdf("T", "", [{"columns": ["A"], "rows": [["1"]]}], print_mark.standard())
+    without = printout.pdf("T", "", [{"columns": ["A"], "rows": [["1"]]}])
+    assert b"/Subtype /Image" in with_mark and b"/Subtype /Image" not in without

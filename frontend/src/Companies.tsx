@@ -9,9 +9,9 @@ import {
 } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { Combobox } from "./Combobox";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Activity, WithActivity } from "./Audit";
-import { api, SignedIn } from "./api";
+import { api, upload, SignedIn } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { useExchange, usePrintMenu } from "./Exchange";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
@@ -133,6 +133,9 @@ export type Company = Contact & {
   books_start: string;
   multi_currency: boolean;
   modules: string[];
+  print_ganesha: boolean;
+  print_image: string;
+  print_image_own: boolean;
   base_currency: string;
 };
 type DefaultFlag = "default_billing" | "default_ship_to" | "default_ship_from";
@@ -531,6 +534,67 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
   );
 }
 
+/** The image printed at the top of page 1: the standard one or the company's
+ * own. Saved at once, apart from the form's Save. */
+function PrintImage(props: { company: Company; onError: (e: unknown) => void }) {
+  const [image, setImage] = useState(props.company.print_image);
+  const [own, setOwn] = useState(props.company.print_image_own);
+  const [busy, setBusy] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
+  const url = `v1/companies/${props.company.id}/print-image/`;
+  const run = async (work: () => Promise<Company>) => {
+    setBusy(true);
+    props.onError("");
+    try {
+      const saved = await work();
+      setImage(saved.print_image);
+      setOwn(saved.print_image_own);
+    } catch (err) {
+      props.onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const choose = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    run(() => upload<Company>(url, form));
+  };
+  return (
+    <>
+      <div className="image-row">
+        <div className="image-box">
+          <img src={image} alt="Printed image" />
+        </div>
+        <div>
+          <button type="button" className="link" disabled={busy} onClick={() => picker.current?.click()}>
+            Use our own image…
+          </button>{" "}
+          {own && (
+            <button
+              type="button"
+              className="link"
+              disabled={busy}
+              onClick={() => run(() => api<Company>(url, undefined, "DELETE"))}
+            >
+              Use the standard image
+            </button>
+          )}
+          <input ref={picker} type="file" accept="image/png,image/jpeg" hidden onChange={choose} />
+        </div>
+      </div>
+      <p className="small">
+        {own ? "Your own image is shown." : "The standard image is shown."} You can upload your own PNG or JPG
+        instead (up to 300 KB); "Use the standard image" brings the standard one back. Untick to print without an
+        image.
+      </p>
+    </>
+  );
+}
+
 function CompanyForm(props: {
   company: Company | null;
   /** Duplicate: the setup of this company, but not its name, code or registrations. */
@@ -556,6 +620,7 @@ function CompanyForm(props: {
   const [multiCurrency, setMultiCurrency] = useState(
     from?.multi_currency ?? false,
   );
+  const [printGanesha, setPrintGanesha] = useState(from?.print_ganesha ?? false);
   const allModules = useModules();
   const [modules, setModules] = useState<string[] | null>(
     props.copyOf?.modules ?? null,
@@ -587,6 +652,7 @@ function CompanyForm(props: {
       fiscal_year_start_month: fyMonth,
       ...(booksStart ? { books_start: booksStart } : {}),
       multi_currency: multiCurrency,
+      print_ganesha: printGanesha,
       ...(!c && modules ? { modules } : {}),
       ...(c ? {} : abbr ? { abbr } : {}),
     };
@@ -734,6 +800,25 @@ function CompanyForm(props: {
           Use foreign currencies (exports, imports, EEFC accounts). Books stay
           in INR.
         </label>
+      </Section>
+      <Section title="Printing">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={printGanesha}
+            onChange={(e) => setPrintGanesha(e.target.checked)}
+          />
+          Print a small Lord Ganesha image at the top centre of the first page
+          of every printout (purchase orders, reports and all other prints)
+        </label>
+        {c ? (
+          <PrintImage company={c} onError={setError} />
+        ) : (
+          <p className="small">
+            The standard image is used. Once the company is saved you can
+            upload your own image here instead.
+          </p>
+        )}
       </Section>
       {!c && (
         <fieldset>
@@ -1071,6 +1156,14 @@ function Overview({ detail }: { detail: Detail }) {
                 {c.multi_currency
                   ? "INR, plus foreign currencies on ledgers"
                   : "INR only"}
+              </dd>
+            </div>
+            <div>
+              <dt>Lord Ganesha Image</dt>
+              <dd>
+                {c.print_ganesha
+                  ? `Printed on page 1 (${c.print_image_own ? "own image" : "standard image"})`
+                  : "Not printed"}
               </dd>
             </div>
           </dl>

@@ -296,8 +296,8 @@ function SignatureBox(props: { user: User; canChange: boolean; onError: (e: unkn
   };
   return (
     <>
-      <div className="sig-row">
-        <div className="sig-box">{image ? <img src={image} alt="Signature" /> : <span className="small">No signature</span>}</div>
+      <div className="image-row">
+        <div className="image-box">{image ? <img src={image} alt="Signature" /> : <span className="small">No signature</span>}</div>
         {props.canChange && (
           <div>
             <button type="button" className="link" disabled={busy} onClick={() => picker.current?.click()}>
