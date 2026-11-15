@@ -23,6 +23,6 @@ def _purchase_invoice(request, pk: int) -> attachments.Found:
     return attachments.Found(invoices._invoice(request, pk), request.user.can("purchase.create"))
 
 
-attachments.register("purchase_order", _purchase_order)
-attachments.register("purchase_invoice", _purchase_invoice)
-attachments.register("goods_receipt", _goods_receipt)
+attachments.register("purchase_order", _purchase_order, "Purchase Order")
+attachments.register("goods_receipt", _goods_receipt, "Goods Receipt")
+attachments.register("purchase_invoice", _purchase_invoice, "Purchase Invoice")

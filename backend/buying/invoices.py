@@ -42,7 +42,7 @@ from buying.models import (
     PurchaseInvoiceLine,
 )
 from buying.receipts import _factor
-from core import numbering
+from core import attachments, numbering
 from core.api import Signed
 from core.companies import visible_companies
 from core.credit_terms import summary as term_summary
@@ -534,6 +534,7 @@ def _fiscal_year(company, day):
 
 
 def _submit(inv: PurchaseInvoice, user) -> None:
+    attachments.require_file(inv, "purchase_invoice")
     errors = {}
     if not inv.bill_no:
         errors["bill_no"] = ["Give the supplier's invoice number."]
@@ -741,6 +742,8 @@ class InvoiceListView(APIView):
         _save(inv, data)
         if data.get("submit"):
             _check(request, SUBMIT)
+            if refused := attachments.refuse_submit(inv, "purchase_invoice"):
+                return refused
             _submit(inv, request.user)
         return Response(_fresh(inv), status=status.HTTP_201_CREATED)
 
@@ -768,6 +771,8 @@ class InvoiceDetailView(APIView):
         _save(inv, data)
         if data.get("submit"):
             _check(request, SUBMIT)
+            if refused := attachments.refuse_submit(inv, "purchase_invoice"):
+                return refused
             _submit(inv, request.user)
         return Response(_fresh(inv))
 

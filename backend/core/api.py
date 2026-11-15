@@ -94,6 +94,9 @@ class CompanySerializer(serializers.ModelSerializer):
     tan = serializers.CharField(max_length=10, allow_blank=True, required=False)
     validate_gstin = validate_pan = validate_cin = validate_tan = staticmethod(_upper)
     modules = serializers.ListField(child=serializers.CharField(), required=False)
+    attachments_required = serializers.ListField(child=serializers.CharField(), required=False)
+    # The entry types that can be ticked, as [code, label] in menu order.
+    attachment_types = serializers.SerializerMethodField()
     # The image under Printing: the company's own upload, else the standard one.
     print_image = serializers.SerializerMethodField()
     print_image_own = serializers.SerializerMethodField()
@@ -103,6 +106,19 @@ class CompanySerializer(serializers.ModelSerializer):
 
     def get_print_image_own(self, company) -> bool:
         return bool(company.print_image)
+
+    def get_attachment_types(self, company) -> list:
+        from core import attachments  # it imports this module
+
+        return list(attachments.LABELS.items())
+
+    def validate_attachments_required(self, value):
+        from core import attachments
+
+        try:
+            return attachments.check_required(value)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
 
     def validate_modules(self, value):
         try:
@@ -134,6 +150,8 @@ class CompanySerializer(serializers.ModelSerializer):
             "print_ganesha",
             "print_image",
             "print_image_own",
+            "attachments_required",
+            "attachment_types",
             "base_currency",
         ]
         read_only_fields = ["base_currency"]
@@ -546,6 +564,7 @@ class CompanyDetailView(APIView):
             "multi_currency",
             "modules",
             "print_ganesha",
+            "attachments_required",
         ]
         refuse_key_changes("company", company, data)
         _save(company, data, [*fields, *extra])

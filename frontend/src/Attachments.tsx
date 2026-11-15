@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, upload } from "./api";
+import { api, ApiError, upload } from "./api";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
 import { Fold } from "./Master";
@@ -24,6 +24,13 @@ const ACCEPT = ".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,.xls,.xlsx";
 const sizeText = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** The draft the server kept when Submit was refused for want of a file (the
+ * company's "Attachment Needed to Submit" setting): a new form then edits it,
+ * so files can be added straight away. */
+export function keptDraft(err: unknown): number | null {
+  return err instanceof ApiError && err.keptDraft ? err.keptDraft : null;
+}
 
 export function Attachments(props: {
   /** The entry type as registered on the server, e.g. "purchase_order". */

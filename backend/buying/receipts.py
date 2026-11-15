@@ -29,7 +29,7 @@ from buying.models import (
     PurchaseOrder,
     PurchaseOrderLine,
 )
-from core import numbering
+from core import attachments, numbering
 from core.api import Signed
 from core.batches import save_batch
 from core.companies import visible_companies
@@ -564,6 +564,7 @@ def order_status(o: PurchaseOrder) -> None:
 def _submit(r: GoodsReceipt, user) -> None:
     if not can(user, SUBMIT):
         raise PermissionDenied("Your role may save drafts but not submit them.")
+    attachments.require_file(r, "goods_receipt")
     lines = list(
         r.lines.select_related("item", "unit", "order_line__order").prefetch_related(
             "putaways__location", "putaways__batch"
@@ -794,6 +795,8 @@ class ReceiptListView(APIView):
         r = GoodsReceipt(company=company, created_by=request.user)
         _save(r, data)
         if data.get("submit"):
+            if refused := attachments.refuse_submit(r, "goods_receipt"):
+                return refused
             _submit(r, request.user)
         return Response(_fresh(r), status=status.HTTP_201_CREATED)
 
@@ -830,6 +833,8 @@ class ReceiptDetailView(APIView):
         data = dict(serializer.validated_data)
         _save(r, data)
         if data.get("submit"):
+            if refused := attachments.refuse_submit(r, "goods_receipt"):
+                return refused
             _submit(r, request.user)
         return Response(_fresh(r))
 

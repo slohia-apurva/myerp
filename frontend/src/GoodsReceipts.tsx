@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments } from "./Attachments";
+import { Attachments, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -668,7 +668,13 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
       setBusy(false);
     } catch (err) {
+      const kept = keptDraft(err);
+      if (kept && !draftId) {
+        setDraftId(kept);
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+      }
       setError(err);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setBusy(false);
     }
   };

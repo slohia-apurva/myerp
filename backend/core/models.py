@@ -89,6 +89,9 @@ class Company(models.Model):
     print_ganesha = models.BooleanField("print Lord Ganesha image", default=False)
     print_image = models.BinaryField(null=True, blank=True, editable=False)
     print_image_type = models.CharField(max_length=20, blank=True, editable=False)
+    # Entry types (core.attachments.LABELS) that cannot be submitted without at
+    # least one attachment, e.g. ["goods_receipt", "purchase_invoice"].
+    attachments_required = models.JSONField("attachment needed to submit", default=list, blank=True)
 
     class Meta:
         ordering = ["name"]

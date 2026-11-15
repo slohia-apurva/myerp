@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments } from "./Attachments";
+import { Attachments, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
@@ -835,7 +835,13 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
       setBusy(false);
     } catch (err) {
+      const kept = keptDraft(err);
+      if (kept && !draftId) {
+        setDraftId(kept);
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+      }
       setError(err);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setBusy(false);
     }
   };
@@ -883,6 +889,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               {br && <span className="tag">{br.name}</span>}
             </p>
           </div>
+          <ErrorNote error={error} />
           <Fold title="Supplier and Dates" open summary={sup ? `${sup.name} · ${showDate(orderDate)}` : ""}>
             <p className="small">
               <span className="req-star">*</span> Required
@@ -1209,7 +1216,6 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
             </div>
           </Fold>
           <Attachments type="purchase_order" id={draftId} />
-          <ErrorNote error={error} />
         </div>
         <div className="doc-foot">
           <TotalsPanel

@@ -207,6 +207,11 @@ def _register() -> None:
 
         return Carrier.objects.filter(pk=pk).values_list("name", flat=True).first() or pk
 
+    def attachment_labels():
+        from core import attachments
+
+        return attachments.LABELS
+
     module_labels = {code: label for code, label, *_ in company_modules.MODULES}
 
     def names(qs) -> str | None:
@@ -244,6 +249,9 @@ def _register() -> None:
                     "state_code": state,
                     "modules": lambda v: ", ".join(module_labels.get(c, c) for c in v) or None,
                     "fiscal_year_start_month": lambda m: datetime.date(2000, m, 1).strftime("%B"),
+                    "attachments_required": lambda v: (
+                        ", ".join(attachment_labels().get(c, c) for c in v) or None
+                    ),
                 },
             ),
             Branch: Tracked("branch", "Branch", by_company, formats={"state_code": state}),

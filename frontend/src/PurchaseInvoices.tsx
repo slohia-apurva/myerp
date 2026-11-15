@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments } from "./Attachments";
+import { Attachments, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -444,7 +444,13 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
       setInterstate(got.interstate);
       if (!charges.length) setCharges(got.charges.map((c) => ({ key: nextKey++, item: String(c.item), amount: c.amount, gst_rate: c.gst_rate, in_stock_cost: c.in_stock_cost })));
     } catch (err) {
+      const kept = keptDraft(err);
+      if (kept && !draftId) {
+        setDraftId(kept);
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+      }
       setError(err);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
   const pickSupplier = (v: string) => {
