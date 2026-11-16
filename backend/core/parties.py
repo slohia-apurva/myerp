@@ -15,7 +15,6 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from accounts.models import User
 from audit import recorder
 from core import duplicates
 from core.locks import lock_status, refuse_key_changes
@@ -31,6 +30,7 @@ from core.models import (
     PartyItemName,
     PartyProduct,
     PriceList,
+    SalesPerson,
     TermsSet,
 )
 from core.numbering import next_number
@@ -116,7 +116,7 @@ class PartySerializer(serializers.ModelSerializer):
     # Each company's own salesman (customers) or purchaser (suppliers), kept
     # on its ledger; LedgerSerializer adds both to the output.
     salesman = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True),
+        queryset=SalesPerson.objects.all(),
         allow_null=True,
         required=False,
         write_only=True,
@@ -273,7 +273,11 @@ def save_party(
         ledger.credit_limit = data.pop("credit_limit") or 0
         own.append("credit_limit")
     if "salesman" in data:
-        ledger.salesman = data.pop("salesman")
+        from core.sales_people import check_pick
+
+        person = data.pop("salesman")
+        check_pick(ledger, side, person)
+        ledger.salesman = person
         own.append("salesman")
     if "preferred_transporter" in data:
         transporter = data.pop("preferred_transporter")
@@ -641,7 +645,7 @@ def party_extras() -> dict:
         # On the ledger itself, so it is this company's own.
         "party_salesman": (
             "Salesman or purchaser",
-            lambda ledger: ledger.salesman.display_name if ledger.salesman_id else None,
+            lambda ledger: ledger.salesman.name if ledger.salesman_id else None,
         ),
         "party_preferred_transporter": (
             "Preferred transporter",

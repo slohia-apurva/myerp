@@ -14,7 +14,7 @@ from accounts.models import Role, User
 from audit.models import AuditEntry
 from core import exchange
 from core.india import gstin_check_char
-from core.models import Unit
+from core.models import SalesPerson, Unit
 from tenancy.context import use_tenant
 
 pytestmark = [pytest.mark.django_db(databases="__all__"), pytest.mark.usefixtures("hsn_list")]
@@ -395,6 +395,8 @@ FRESH_GSTIN = "29AAPFU0939F1Z" + gstin_check_char("29AAPFU0939F1Z")
 
 
 def test_ledgers_with_customers_contacts_and_opening_bills(owner, company, alpha):
+    with use_tenant(alpha):
+        SalesPerson.objects.create(name="Ravi Kumar", is_salesman=True)
     assert owner.get("/api/v1/exchange/ledgers/?as=json", HTTP_HOST=HOST).status_code == 400
     sheets = {
         "Ledgers": [
@@ -409,7 +411,7 @@ def test_ledgers_with_customers_contacts_and_opening_bills(owner, company, alpha
                 FRESH_GSTIN,
                 "Karnataka",
                 "30 days",
-                "owner@x.in",
+                "ravi kumar",
             ],
         ],
         "Opening bills": [
@@ -440,6 +442,7 @@ def test_ledgers_with_customers_contacts_and_opening_bills(owner, company, alpha
     fresh = by_name["Fresh Mart"]
     assert fresh["party"]["state_code"] == "29"
     assert fresh["party"]["credit_term_name"] == "30 days"
+    assert fresh["party"]["salesman_name"] == "Ravi Kumar"
     assert fresh["party"]["customer_number"].startswith("CUST-")
     assert fresh["party"]["contacts"][0]["kinds"] == ["accounts", "sales"]
     assert [b["ref"] for b in fresh["opening_bills"]] == ["INV-1", "INV-2"]

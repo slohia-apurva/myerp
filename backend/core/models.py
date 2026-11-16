@@ -544,9 +544,14 @@ class Ledger(models.Model):
     credit_limit = models.DecimalField(
         max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
     )  # 0 = no limit
-    # Each company has its own salesman (customers) or purchaser (suppliers).
+    # Each company has its own salesman (customers) or purchaser (suppliers),
+    # from the Salesmen and Purchasers list.
     salesman = models.ForeignKey(
-        "accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+        "core.SalesPerson",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="ledgers",
     )
     # The transporter this company usually sends a customer's goods with, or brings a
     # supplier's goods with (none for a supplier: "By Supplier").
@@ -848,6 +853,37 @@ class Brand(models.Model):
     class Meta:
         ordering = ["name"]
         constraints = [models.UniqueConstraint(Lower("name"), name="brand_name_unique")]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class SalesPerson(models.Model):
+    """A salesman (picked on customers) or purchaser (picked on suppliers),
+    with or without a MyERP sign-in (Sidharth, 2026-11-16, preview 83). One
+    list shared by every company in the group. Never deleted, only disabled."""
+
+    name = models.CharField(max_length=100)
+    is_salesman = models.BooleanField("salesman", default=False)
+    is_purchaser = models.BooleanField("purchaser", default=False)
+    mobile = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    # Only when the person also signs in to MyERP.
+    user = models.OneToOneField(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="sales_person",
+    )
+    notes = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="sales_person_name_unique"),
+        ]
 
     def __str__(self) -> str:
         return self.name

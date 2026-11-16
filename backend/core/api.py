@@ -276,9 +276,7 @@ class LedgerSerializer(serializers.ModelSerializer):
             data["party"]["credit_limit"] = str(ledger.credit_limit)
             # Each company's own salesman or purchaser.
             data["party"]["salesman"] = ledger.salesman_id
-            data["party"]["salesman_name"] = (
-                ledger.salesman.display_name if ledger.salesman_id else ""
-            )
+            data["party"]["salesman_name"] = ledger.salesman.name if ledger.salesman_id else ""
             data["party"]["preferred_transporter"] = ledger.preferred_transporter_id
             data["party"]["preferred_transporter_name"] = (
                 ledger.preferred_transporter.name if ledger.preferred_transporter_id else ""
