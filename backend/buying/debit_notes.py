@@ -10,6 +10,11 @@ Submit posts (posting.service):
 * the difference between the bill's value and the receipt value to "Purchase
   Price Difference"; the rupee rounding to Round Off.
 No stock moves: the return took the goods out.
+
+A note "Rate charged higher" (Sidharth, 2026-11-16, preview 78) takes no
+return: it debits the supplier for a lower agreed rate on goods billed and
+kept, reverses that much input GST, and takes the difference off the stock
+still on hand, the rest to "Purchase Price Difference" (buying/rates.py).
 """
 
 from __future__ import annotations
@@ -23,8 +28,9 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from buying import rates
 from buying.api import CANCEL, CREATE, SUBMIT, VIEW, _check, _company, _plain
-from buying.invoices import _gst, _side, _text, grni_value
+from buying.invoices import _gst, _side, _text, grni_value, system_ledger
 from buying.models import (
     DebitNote,
     DebitNoteLine,
@@ -45,13 +51,16 @@ from tenancy.context import tenant_atomic
 KIND = "debit_note"
 ZERO = Decimal("0")
 RUPEE = Decimal("1")
+RATE = "rate"
 
 
 # What is left to debit -------------------------------------------------------
 
 
 def _debited_on(invoice_line: PurchaseInvoiceLine, exclude=None) -> Decimal:
-    rows = DebitNoteLine.objects.filter(invoice_line=invoice_line, note__status=DebitNote.SUBMITTED)
+    rows = DebitNoteLine.objects.filter(
+        invoice_line=invoice_line, note__status=DebitNote.SUBMITTED, return_line__isnull=False
+    )
     if exclude is not None:
         rows = rows.exclude(note=exclude)
     return rows.aggregate(q=Sum("qty"))["q"] or ZERO
@@ -80,14 +89,23 @@ def _notes(company):
 
 
 def _line_out(ln: DebitNoteLine, note: DebitNote) -> dict:
-    left = _left(ln.invoice_line, ln.return_line, note)
-    if note.status == DebitNote.SUBMITTED:
-        left += ln.qty
+    if ln.return_line_id is None:
+        left = rates.kept_qty(ln.invoice_line)
+    else:
+        left = _left(ln.invoice_line, ln.return_line, note)
+        if note.status == DebitNote.SUBMITTED:
+            left += ln.qty
     return {
         "id": ln.pk,
         "invoice_line": ln.invoice_line_id,
         "return_line": ln.return_line_id,
-        "return_number": ln.return_line.ret.number,
+        "return_number": ln.return_line.ret.number if ln.return_line_id else "",
+        "new_rate": _plain(ln.new_rate) if ln.new_rate is not None else None,
+        "in_stock": _plain(min(rates.in_stock(ln.invoice_line), left))
+        if ln.return_line_id is None
+        else None,
+        "stock_difference": ln.stock_difference,
+        "price_difference": ln.price_difference,
         "item": ln.item_id,
         "item_name": ln.item.name,
         "hsn": ln.item.hsn,
@@ -167,7 +185,7 @@ def _note_out(note: DebitNote, lines: bool = True) -> dict:
             "item", "unit", "invoice_line__receipt_line", "return_line__ret"
         )
         data["lines"] = [_line_out(ln, note) for ln in rows]
-        data["returns"] = sorted({x["return_number"] for x in data["lines"]})
+        data["returns"] = sorted({x["return_number"] for x in data["lines"]} - {""})
         data["dues_after"] = _dues_after(note)
         data["entries"] = _entries(note)
     return _text(data)
@@ -188,7 +206,12 @@ def _entries(note: DebitNote) -> list[dict]:
         ]
     if note.status != DebitNote.DRAFT or not note.lines.exists():
         return []
-    gl, _values = _plan(note, preview=True)
+    try:
+        gl = _rate_plan(note, preview=True)[0] if note.reason == RATE else _plan(note, True)[0]
+    except ValidationError as exc:
+        from buying.invoices import _first_error
+
+        return [{"ledger": "", "why": _first_error(exc), "debit": "", "credit": ""}]
     return [
         {"ledger": g.ledger.name, "why": g.remarks, "debit": g.debit, "credit": g.credit}
         for g in gl
@@ -200,7 +223,10 @@ def _entries(note: DebitNote) -> list[dict]:
 
 class LineSerializer(serializers.Serializer):
     invoice_line = serializers.IntegerField()
-    return_line = serializers.IntegerField()
+    return_line = serializers.IntegerField(required=False, allow_null=True)
+    new_rate = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=Decimal("0"), required=False, allow_null=True
+    )
     qty = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=Decimal("0"))
 
 
@@ -226,8 +252,28 @@ def _save(note: DebitNote, data: dict) -> None:
         .select_related("supplier", "branch")
         .first()
     )
-    if inv is None:
-        raise ValidationError({"invoice": ["Pick a submitted purchase invoice of this company."]})
+    rates.regular_bill(inv)
+    if data.get("reason") == RATE:
+        rows = [
+            DebitNoteLine(
+                position=n,
+                invoice_line=r["il"],
+                item=r["il"].item,
+                unit=r["il"].unit,
+                qty=r["qty"],
+                rate=r["il"].rate,
+                new_rate=r["new_rate"],
+                taxable=r["taxable"],
+                gst_rate=r["il"].gst_rate,
+                cgst=r["cgst"],
+                sgst=r["sgst"],
+                igst=r["igst"],
+                amount=r["amount"],
+            )
+            for n, r in enumerate(rates.checked_lines(inv, data.get("lines") or [], rates.DOWN), 1)
+        ]
+        _fill(note, inv, data, rows)
+        return
     rows, errors = [], []
     for n, line in enumerate(data.get("lines") or [], start=1):
         if not line["qty"]:
@@ -249,7 +295,7 @@ def _save(note: DebitNote, data: dict) -> None:
             )
             .first()
         )
-        if rln is None:
+        if rln is None or line.get("return_line") is None:
             errors.append(f"Line {n}: pick a submitted return of {il.item.name} from that receipt.")
             continue
         left = _left(il, rln, note if note.pk else None)
@@ -280,6 +326,10 @@ def _save(note: DebitNote, data: dict) -> None:
         )
     if errors:
         raise ValidationError({"lines": errors})
+    _fill(note, inv, data, rows)
+
+
+def _fill(note: DebitNote, inv: PurchaseInvoice, data: dict, rows: list[DebitNoteLine]) -> None:
     note.invoice, note.supplier, note.branch = inv, inv.supplier, inv.branch
     note.interstate = inv.interstate
     note.note_date = data["note_date"]
@@ -365,17 +415,65 @@ def _plan(note: DebitNote, preview: bool = False, work=None):
     return gl, values
 
 
+def _rate_plan(note: DebitNote, preview: bool = False):
+    """A lower agreed rate: Dr the supplier; Cr the stock still on hand and
+    "Purchase Price Difference"; Cr the input GST; Round Off."""
+    lines = list(
+        note.lines.select_related("item", "invoice_line__receipt_line", "invoice_line__item")
+    )
+    split, revalue, per_line = rates.plan(note, lines, rates.DOWN, preview)
+    inv = note.invoice
+    gl = [
+        GLLine(
+            note.supplier,
+            debit=note.total,
+            remarks=f"Against bill {inv.bill_no}: rate charged higher".strip(),
+        ),
+        *split,
+        *rates.gst_lines(note, rates.DOWN, preview),
+    ]
+    if note.round_off:
+        gl.append(
+            _side(system_ledger(note.company, accounts.ROUND_OFF, preview), -note.round_off, "")
+        )
+    return gl, revalue, per_line
+
+
+def _submit_rate(note: DebitNote, user) -> None:
+    lines = list(note.lines.select_related("item", "invoice_line"))
+    if not lines:
+        raise ValidationError({"lines": ["Type the agreed rate on at least one line."]})
+    for ln in lines:
+        kept = rates.kept_qty(ln.invoice_line)
+        if ln.qty > kept:
+            raise ValidationError(
+                {"lines": [f"{ln.item.name}: only {_plain(kept)} was billed and kept."]}
+            )
+    note.number = numbering.next_document_number(note.company, KIND, note.note_date, note.branch)
+    note.save(update_fields=["number"])
+    gl, revalue, per_line = _rate_plan(note)
+    voucher = Voucher(note.company, note.branch, note.note_date, KIND, note.pk, note.number, user)
+    service.post(voucher, gl=gl, revalue=revalue)
+    for ln in lines:
+        ln.stock_difference, ln.price_difference = per_line[ln.pk]
+        ln.save(update_fields=["stock_difference", "price_difference"])
+
+
 def _submit(note: DebitNote, user) -> None:
     if not user.can(SUBMIT):
         raise PermissionDenied("Your role may save drafts but not submit them.")
     attachments.require_file(note, KIND)
-    lines = list(note.lines.select_related("item", "invoice_line", "return_line"))
-    if not lines:
-        raise ValidationError({"lines": ["Give the quantity to debit on at least one line."]})
     if note.note_date < (note.invoice.posting_date or note.note_date):
         raise ValidationError(
             {"note_date": [f"The bill was posted on {note.invoice.posting_date:%d-%m-%Y}."]}
         )
+    if note.reason == RATE:
+        _submit_rate(note, user)
+        _done(note, user)
+        return
+    lines = list(note.lines.select_related("item", "invoice_line", "return_line"))
+    if not lines:
+        raise ValidationError({"lines": ["Give the quantity to debit on at least one line."]})
     work = {}
     for ln in lines:
         rl_id = ln.invoice_line.receipt_line_id
@@ -403,6 +501,10 @@ def _submit(note: DebitNote, user) -> None:
         ln.return_line.debited_qty += ln.qty
     for rl in work.values():
         rl.save(update_fields=["debited_qty", "debited_value"])
+    _done(note, user)
+
+
+def _done(note: DebitNote, user) -> None:
     note.status = DebitNote.SUBMITTED
     note.submitted_at = timezone.now()
     note.submitted_by = user
@@ -412,7 +514,7 @@ def _submit(note: DebitNote, user) -> None:
 def _cancel(note: DebitNote, user, reason: str) -> None:
     if note.status == DebitNote.SUBMITTED:
         service.cancel(KIND, note.pk, user)
-        for ln in note.lines.select_related("invoice_line"):
+        for ln in note.lines.select_related("invoice_line").filter(return_line__isnull=False):
             rl = GoodsReceiptLine.objects.select_for_update().get(
                 pk=ln.invoice_line.receipt_line_id
             )
@@ -645,6 +747,13 @@ class NoteDraftFromView(APIView):
             ).first()
             if inv is None:
                 raise ValidationError({"invoice": ["Pick a submitted purchase invoice."]})
+            if q.get("reason") == RATE:
+                rates.regular_bill(inv)
+                if not (lines := rates.draft_lines(inv)):
+                    raise ValidationError(
+                        {"detail": "Nothing on this bill is left to change the rate of."}
+                    )
+                return Response({**_draft_for(inv, lines), "reason": RATE})
             return Response(_draft_from_invoice(inv))
         if (v := q.get("return", "")).isdigit():
             r = PurchaseReturn.objects.filter(

@@ -10,31 +10,18 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
+import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
 
 /** Entry > Purchase > Debit Note (Sidharth, 2026-11-15, preview 75): goods sent back on a
  * Purchase Return, debited against the supplier's bill at the bill's rate and GST. Submit
  * debits the supplier, clears the returned goods from "Goods Received but Bills not
- * Received" and reverses the input GST. Served by buying/debit_notes.py. */
+ * Received" and reverses the input GST. A note "Rate charged higher" (preview 78) takes a lower
+ * agreed rate off goods billed and kept instead. Served by buying/debit_notes.py. */
 
-type Line = {
-  id?: number;
-  invoice_line: number;
-  return_line: number;
+type Line = RateLine & {
+  return_line: number | null;
   return_number: string;
-  item: number;
-  item_name: string;
-  hsn: string;
-  unit_name: string;
-  billed_qty: string;
-  left_qty: string;
-  qty: string;
-  rate: string;
-  gst_rate: string;
-  taxable?: string;
-  cgst?: string;
-  sgst?: string;
-  igst?: string;
-  amount?: string;
+  item?: number;
 };
 type Due = { due_date: string; bill: string; less: string; now_due: string };
 type Note = {
@@ -78,11 +65,15 @@ type DraftFrom = {
   bill_date: string | null;
   supplier_name: string;
   interstate: boolean;
+  reason?: string;
   lines: Line[];
 };
 type InvoiceRow = { id: number; number: string; bill_no: string; bill_date: string | null; supplier_name: string };
 
-const REASONS = [{ value: "returned", label: "Goods returned" }];
+const REASONS = [
+  { value: "returned", label: "Goods returned" },
+  { value: "rate", label: "Rate charged higher" },
+];
 
 const base = (companyId: number) => `#/companies/${companyId}/debit-notes`;
 const showDate = (iso: string | null) => (iso ? longDate(iso) : "");
@@ -300,14 +291,15 @@ function NoteFormTab({ companyId, form, canSubmit }: { companyId: number; form: 
   const [error, setError] = useState<unknown>("");
   const invoice = hashParam("invoice");
   const ret = hashParam("return");
+  const rate = hashParam("reason") === "rate";
   useEffect(() => {
     if (form !== "new") {
       api<Note>(`v1/debit-notes/${Number(form)}/`).then(setNote, setError);
       return;
     }
-    const q = invoice ? `invoice=${invoice}` : ret ? `return=${ret}` : "";
+    const q = invoice ? `invoice=${invoice}${rate ? "&reason=rate" : ""}` : ret ? `return=${ret}` : "";
     if (q) api<DraftFrom>(`v1/companies/${companyId}/debit-notes/draft-from/?${q}`).then(setFrom, setError);
-  }, [companyId, form, invoice, ret]);
+  }, [companyId, form, invoice, ret, rate]);
   const title = form === "new" ? "New Debit Note" : "Edit Debit Note";
   const shell = (msg?: unknown) => (
     <section className="page">
@@ -328,7 +320,8 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [invoice, setInvoice] = useState(String(note?.invoice ?? props.from?.invoice ?? ""));
   const [noteDate, setNoteDate] = useState(note?.note_date ?? today());
-  const [reason, setReason] = useState(note?.reason ?? "returned");
+  const [reason, setReason] = useState(note?.reason ?? props.from?.reason ?? "returned");
+  const isRate = reason === "rate";
   const [supNo, setSupNo] = useState(note?.supplier_note_no ?? "");
   const [supDate, setSupDate] = useState(note?.supplier_note_date ?? "");
   const [notes, setNotes] = useState(note?.notes ?? "");
@@ -350,7 +343,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
     bill_date: from?.bill_date ?? note?.bill_date ?? null,
     interstate: from?.interstate ?? note?.interstate ?? false,
   };
-  const pickInvoice = async (v: string) => {
+  const loadLines = async (v: string, why: string) => {
     setInvoice(v);
     setError("");
     setLines([]);
@@ -359,14 +352,21 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
       return;
     }
     try {
-      const got = await api<DraftFrom>(`v1/companies/${companyId}/debit-notes/draft-from/?invoice=${v}`);
+      const got = await api<DraftFrom>(`v1/companies/${companyId}/debit-notes/draft-from/?invoice=${v}${why === "rate" ? "&reason=rate" : ""}`);
       setFrom(got);
       setLines(got.lines);
     } catch (err) {
       setError(err);
     }
   };
+  const pickInvoice = (v: string) => loadLines(v, reason);
+  const pickReason = (v: string) => {
+    const why = v || "returned";
+    setReason(why);
+    if (why !== reason && invoice) loadLines(invoice, why);
+  };
   const changeLine = (i: number, qty: string) => setLines((ls) => ls.map((l, n) => (n === i ? { ...l, qty } : l)));
+  const changeRate = (i: number, patch: Partial<RateLine>) => setLines((ls) => ls.map((l, n) => (n === i ? { ...l, ...patch } : l)));
 
   // Totals as the server works them out: GST per line, the total to the rupee.
   const calc = lines.map((l) => {
@@ -375,13 +375,14 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
     const g = head.interstate ? { c: 0, s: 0, i: t } : { c: r2(t / 2), s: r2(t - r2(t / 2)), i: 0 };
     return { taxable, ...g, amount: r2(taxable + t) };
   });
-  const taxable = r2(calc.reduce((s, x) => s + x.taxable, 0));
-  const cgst = r2(calc.reduce((s, x) => s + x.c, 0));
-  const sgst = r2(calc.reduce((s, x) => s + x.s, 0));
-  const igst = r2(calc.reduce((s, x) => s + x.i, 0));
+  const rated = rateCalc(lines, "down", head.interstate);
+  const taxable = isRate ? rated.taxable : r2(calc.reduce((s, x) => s + x.taxable, 0));
+  const cgst = isRate ? rated.cgst : r2(calc.reduce((s, x) => s + x.c, 0));
+  const sgst = isRate ? rated.sgst : r2(calc.reduce((s, x) => s + x.s, 0));
+  const igst = isRate ? rated.igst : r2(calc.reduce((s, x) => s + x.i, 0));
   const exact = r2(taxable + cgst + sgst + igst);
   const total = Math.round(exact);
-  const returns = [...new Set(lines.map((l) => l.return_number))];
+  const returns = [...new Set(lines.map((l) => l.return_number).filter(Boolean))];
 
   const close = () =>
     closeThisTab(() => {
@@ -397,7 +398,21 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
       supplier_note_no: supNo,
       supplier_note_date: supDate || null,
       notes,
-      lines: lines.filter((l) => num(l.qty) > 0).map((l) => ({ invoice_line: l.invoice_line, return_line: l.return_line, qty: l.qty })),
+      lines: isRate
+        ? lines
+            .filter((_, i) => rated.rows[i].taxable > 0)
+            .map((l) => ({
+              invoice_line: l.invoice_line,
+              qty: l.qty,
+              new_rate: l.new_rate,
+            }))
+        : lines
+            .filter((l) => num(l.qty) > 0)
+            .map((l) => ({
+              invoice_line: l.invoice_line,
+              return_line: l.return_line,
+              qty: l.qty,
+            })),
       submit,
     };
     try {
@@ -443,7 +458,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
           savedAt
             ? `Saved as a draft at ${savedAt}. Carry on, or click "Close" and finish it later.`
             : head.number
-              ? `From purchase invoice ${head.number} (Bill ${head.bill_no})`
+              ? `${isRate ? "Rate charged higher · purchase invoice" : "From purchase invoice"} ${head.number} (Bill ${head.bill_no})`
               : undefined
         }
         crumbs={[{ label: "Entry › Purchase › Debit Note", href: base(companyId) }]}
@@ -472,6 +487,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
               <b>{note?.number || "Number given on Submit"}</b>
               <span className="tag">Draft</span>
               {head.bill_no && <span className="tag">Bill {head.bill_no}</span>}
+              {isRate && <span className="tag">Rate charged higher</span>}
               {returns.map((n) => (
                 <span key={n} className="tag">
                   Return {n}
@@ -499,7 +515,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
               </label>
               <label>
                 <span className="req">Reason</span>
-                <Combobox required value={reason} onChange={(v) => setReason(v || "returned")} options={REASONS} />
+                <Combobox required value={reason} onChange={pickReason} options={REASONS} />
               </label>
               <label>
                 Supplier's Credit Note No
@@ -515,6 +531,14 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
           <Fold title="Items" open summary={lines.length ? `${lines.length} ${lines.length === 1 ? "line" : "lines"}` : ""}>
             {lines.length === 0 ? (
               <p className="small">Pick the purchase invoice, or open this from a Purchase Invoice's or Purchase Return's "Create ▾".</p>
+            ) : isRate ? (
+              <>
+                <RateLinesTable lines={lines} way="down" interstate={head.interstate} onChange={changeRate} />
+                <p className="small">
+                  Every line of the bill is listed at the quantity billed and kept. Type the "Agreed Rate" on the lines whose price came down; lines left at the bill rate are not on the note. Qty can
+                  be lowered when only part of it gets the new rate. GST % comes from the bill.
+                </p>
+              </>
             ) : (
               <>
                 <div className="table-scroll">
@@ -567,7 +591,11 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
           <Fold title="Totals" open summary={`₹${money(String(total))}`}>
             <Totals taxable={taxable} cgst={cgst} sgst={sgst} igst={igst} roundOff={r2(total - exact)} total={total} />
           </Fold>
-          {saved && <EntriesBox entries={saved.entries ?? []} dues={[]} draft />}
+          {saved && (
+            <EntriesBox entries={saved.entries ?? []} dues={[]} draft>
+              {isRate && <p className="small">No quantity moves: only the value of the stock still on hand changes.</p>}
+            </EntriesBox>
+          )}
           {saved && <DuesAfter dues={saved.dues_after ?? []} />}
           <Fold title="Notes" open={!!notes}>
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
@@ -688,6 +716,7 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
               <b>{note.number || "Number given on Submit"}</b>
               <span className={pillClass(note.status)}>{note.status_label}</span>
               <span className="tag">Bill {note.bill_no}</span>
+              {note.reason === "rate" && <span className="tag">Rate charged higher</span>}
               {(note.returns ?? []).map((n) => (
                 <span key={n} className="tag">
                   Return {n}
@@ -737,43 +766,47 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
             </dl>
           </Fold>
           <Fold title="Items" open>
-            <div className="table-scroll">
-              <table className="grid po-lines">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Item</th>
-                    <th>Return</th>
-                    <th className="num">Qty</th>
-                    <th>Unit</th>
-                    <th className="num">Bill Rate</th>
-                    <th className="num">Taxable ₹</th>
-                    <th className="num">GST %</th>
-                    <th className="num">GST ₹</th>
-                    <th className="num">Amount ₹</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(note.lines ?? []).map((l, i) => (
-                    <tr key={l.id ?? i}>
-                      <td>{i + 1}</td>
-                      <td className="po-item">
-                        <b>{l.item_name}</b>
-                        <span className="small">HSN {l.hsn}</span>
-                      </td>
-                      <td className="nowrap">{l.return_number}</td>
-                      <td className="num">{Number(l.qty)}</td>
-                      <td>{l.unit_name}</td>
-                      <td className="num">{money(l.rate)}</td>
-                      <td className="num">{money(l.taxable ?? "0")}</td>
-                      <td className="num">{Number(l.gst_rate)}</td>
-                      <td className="num">{money(String(r2(num(l.cgst) + num(l.sgst) + num(l.igst))))}</td>
-                      <td className="num">{money(l.amount ?? "0")}</td>
+            {note.reason === "rate" ? (
+              <RateLinesTable lines={note.lines ?? []} way="down" interstate={note.interstate} />
+            ) : (
+              <div className="table-scroll">
+                <table className="grid po-lines">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Item</th>
+                      <th>Return</th>
+                      <th className="num">Qty</th>
+                      <th>Unit</th>
+                      <th className="num">Bill Rate</th>
+                      <th className="num">Taxable ₹</th>
+                      <th className="num">GST %</th>
+                      <th className="num">GST ₹</th>
+                      <th className="num">Amount ₹</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {(note.lines ?? []).map((l, i) => (
+                      <tr key={l.id ?? i}>
+                        <td>{i + 1}</td>
+                        <td className="po-item">
+                          <b>{l.item_name}</b>
+                          <span className="small">HSN {l.hsn}</span>
+                        </td>
+                        <td className="nowrap">{l.return_number}</td>
+                        <td className="num">{Number(l.qty)}</td>
+                        <td>{l.unit_name}</td>
+                        <td className="num">{money(l.rate)}</td>
+                        <td className="num">{money(l.taxable ?? "0")}</td>
+                        <td className="num">{Number(l.gst_rate)}</td>
+                        <td className="num">{money(String(r2(num(l.cgst) + num(l.sgst) + num(l.igst))))}</td>
+                        <td className="num">{money(l.amount ?? "0")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Fold>
           <Fold title="Totals" open summary={`₹${money(note.total)}`}>
             <Totals taxable={note.taxable_total} cgst={note.cgst_total} sgst={note.sgst_total} igst={note.igst_total} roundOff={note.round_off} total={note.total} />

@@ -124,7 +124,9 @@ def _gst(taxable: Decimal, rate: Decimal, interstate: bool) -> tuple[Decimal, De
 def _invoices(company):
     return (
         PurchaseInvoice.objects.filter(company=company)
-        .select_related("supplier__party", "branch", "credit_term", "created_by", "submitted_by")
+        .select_related(
+            "supplier__party", "branch", "credit_term", "created_by", "submitted_by", "original"
+        )
         .prefetch_related("receipts", "dues")
     )
 
@@ -187,6 +189,12 @@ def _invoice_out(inv: PurchaseInvoice, lines: bool = True) -> dict:
     data = {
         "id": inv.pk,
         "company": inv.company_id,
+        "kind": inv.kind,
+        "kind_label": inv.get_kind_display(),
+        "original": inv.original_id,
+        "original_number": inv.original.number if inv.original_id else "",
+        "original_bill_no": inv.original.bill_no if inv.original_id else "",
+        "original_bill_date": inv.original.bill_date if inv.original_id else None,
         "number": inv.number,
         "status": inv.status,
         "status_label": inv.get_status_display(),
@@ -229,6 +237,22 @@ def _invoice_out(inv: PurchaseInvoice, lines: bool = True) -> dict:
         )
         data["orders"] = sorted({(r["order_number"]) for r in data["lines"] if r["order_number"]})
         data["entries"] = _entries(inv)
+        if inv.kind == PurchaseInvoice.SUPPLEMENTARY:
+            from buying.supplementary import rate_line_out
+
+            data["rate_lines"] = [
+                rate_line_out(ln)
+                for ln in inv.rate_lines.select_related(
+                    "item", "unit", "original_line__receipt_line"
+                )
+            ]
+        data["later"] = [
+            {"id": x.pk, "number": x.number, "kind": "supplementary", "total": x.total}
+            for x in inv.supplementaries.filter(status=PurchaseInvoice.SUBMITTED)
+        ] + [
+            {"id": n.pk, "number": n.number, "kind": "debit_note", "total": n.total}
+            for n in inv.debit_notes.filter(status="submitted")
+        ]
     return _text(data)
 
 
@@ -246,6 +270,10 @@ def _entries(inv: PurchaseInvoice) -> list[dict]:
             {"ledger": e.ledger.name, "why": e.remarks, "debit": e.debit, "credit": e.credit}
             for e in rows
         ]
+    if inv.status == PurchaseInvoice.DRAFT and inv.kind == PurchaseInvoice.SUPPLEMENTARY:
+        from buying.supplementary import entries
+
+        return entries(inv)
     if inv.status != PurchaseInvoice.DRAFT or not inv.lines.exists():
         return []
     try:
@@ -473,6 +501,57 @@ def _lots(rl: GoodsReceiptLine) -> list[StockLot]:
     return list(StockLot.objects.filter(move__in=moves, qty_left__gt=0).order_by("id"))
 
 
+def rate_split(il: PurchaseInvoiceLine, qty: Decimal, diff: Decimal):
+    """A change in what `qty` of a billed line cost (signed rupees: more is
+    positive), split between the receipt's stock still on hand (its lots are
+    revalued) and what is already used. Returns (on hand, used, revaluations)."""
+    lots = _lots(il.receipt_line)
+    billed = qty * _factor(il.item, il.unit_id)
+    spread = sum((lot.qty_left for lot in lots), ZERO)
+    on_hand = min(spread, billed)
+    on_hand_value = money(diff * on_hand / billed) if billed else ZERO
+    revalue, left = [], on_hand_value
+    for i, lot in enumerate(lots):
+        if not left:
+            break
+        part = left if i == len(lots) - 1 else money(on_hand_value * lot.qty_left / spread)
+        revalue.append(Revalue(lot, part))
+        left -= part
+    return on_hand_value, diff - on_hand_value, revalue
+
+
+def system_ledger(company, code, preview: bool):
+    """A system ledger; a preview names it without making it."""
+    if preview:
+        from posting.accounts import SYSTEM_LEDGERS
+
+        found = Ledger.objects.filter(company=company, system_code=code).first()
+        return found or Ledger(company=company, name=SYSTEM_LEDGERS[code][0])
+    return accounts.system_ledger(company, code)
+
+
+def bill_clash(inv: PurchaseInvoice) -> None:
+    """One supplier's bill number is entered once a fiscal year."""
+    year = _fiscal_year(inv.company, inv.bill_date)
+    same = PurchaseInvoice.objects.filter(
+        company=inv.company,
+        supplier=inv.supplier,
+        bill_no__iexact=inv.bill_no,
+        status=PurchaseInvoice.SUBMITTED,
+    ).exclude(pk=inv.pk)
+    if year is not None:
+        same = same.filter(bill_date__gte=year.start_date, bill_date__lte=year.end_date)
+    if clash := same.first():
+        raise ValidationError(
+            {
+                "bill_no": [
+                    f"{inv.supplier.name}'s bill {inv.bill_no} is already entered "
+                    f"as {clash.number}."
+                ]
+            }
+        )
+
+
 def _plan(inv: PurchaseInvoice, preview: bool = False) -> _Plan:
     company = inv.company
     lines = list(
@@ -583,24 +662,7 @@ def _submit(inv: PurchaseInvoice, user) -> None:
                 ]
             }
         )
-    year = _fiscal_year(inv.company, inv.bill_date)
-    same = PurchaseInvoice.objects.filter(
-        company=inv.company,
-        supplier=inv.supplier,
-        bill_no__iexact=inv.bill_no,
-        status=PurchaseInvoice.SUBMITTED,
-    ).exclude(pk=inv.pk)
-    if year is not None:
-        same = same.filter(bill_date__gte=year.start_date, bill_date__lte=year.end_date)
-    if clash := same.first():
-        raise ValidationError(
-            {
-                "bill_no": [
-                    f"{inv.supplier.name}'s bill {inv.bill_no} is already entered "
-                    f"as {clash.number}."
-                ]
-            }
-        )
+    bill_clash(inv)
     # Lock the receipt lines and check again what is still to be billed.
     for ln in lines:
         rl = GoodsReceiptLine.objects.select_for_update().get(pk=ln.receipt_line_id)
@@ -641,6 +703,16 @@ def _cancel(inv: PurchaseInvoice, user, reason: str) -> None:
     if notes := invoice_debited(inv):
         raise ValidationError(
             {"detail": f"Debit note {notes} is against this bill; cancel it first."}
+        )
+    extra = inv.supplementaries.filter(status=PurchaseInvoice.SUBMITTED).values_list(
+        "number", flat=True
+    )
+    if extra:
+        raise ValidationError(
+            {
+                "detail": f"Supplementary bill {', '.join(extra)} is against this bill; "
+                "cancel it first."
+            }
         )
     if inv.status == PurchaseInvoice.SUBMITTED:
         service.cancel(KIND, inv.pk, user)
@@ -798,6 +870,8 @@ class InvoiceDetailView(APIView):
             raise ValidationError(
                 {"detail": "A submitted invoice cannot be changed. Cancel it and make a new one."}
             )
+        if inv.kind != PurchaseInvoice.REGULAR:
+            raise ValidationError({"detail": "Change a supplementary bill on its own form."})
         serializer = InvoiceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
