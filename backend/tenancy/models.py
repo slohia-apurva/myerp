@@ -163,6 +163,10 @@ class TdsSection(models.Model):
     name = models.CharField(max_length=120)
     # The Income-tax Act 2025's reference for the same payment, when known.
     new_code = models.CharField(max_length=40, blank=True)
+    # The code the challan and the TDS return ask for (Income-tax Act 2025);
+    # a second one for an individual or HUF where the Act gives one (194C).
+    payment_code = models.CharField(max_length=12, blank=True)
+    payment_code_individual = models.CharField(max_length=12, blank=True)
     valid_from = models.DateField()
     rate_other = models.DecimalField(max_digits=6, decimal_places=3)  # company, firm, others
     rate_individual = models.DecimalField(max_digits=6, decimal_places=3)  # individual, HUF

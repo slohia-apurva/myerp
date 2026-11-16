@@ -3,10 +3,12 @@
 section from the item, ledger or supplier, the limits and the supplier's year
 so far, the rate for the deductee, TDS Payable, net dues, debit notes."""
 
+import datetime
 from decimal import Decimal as D
 
 import pytest
 
+from core import tds_sections
 from core.models import Company, Item, Ledger, Party
 from posting.service import gl_balance
 from tenancy.context import use_tenant
@@ -85,7 +87,9 @@ def test_the_year_passing_its_limit_catches_up_earlier_bills(buyer, office, alph
     amc = bill["tds"]["rows"][0]
     assert amc["base"] == "106500.00" and "includes ₹26,500 of earlier bills" in amc["note"]
     assert bill["tds_total"] == str(D("2130") + D("30")) + ".00"
-    assert bill["tds"]["year_so_far"] == [{"section": "194C", "amount": "26500.00"}]
+    assert bill["tds"]["year_so_far"] == [
+        {"section": "393(1) Sl. 6(i) (194C)", "amount": "26500.00"}
+    ]
 
 
 def test_goods_deduct_194q_above_the_limit_when_the_company_ticks_it(buyer, office, alpha):
@@ -155,3 +159,30 @@ def test_a_debit_note_takes_tds_back_in_proportion(buyer, received, alpha):
         supplier = Ledger.objects.get(pk=g["local"])
         owed = D(inv["total"]) - D(inv["tds_total"]) - (D(done["total"]) - 120)
         assert gl_balance(supplier) == -owed
+
+
+def test_new_act_numbers_from_april_2026_and_old_ones_before(buyer, owner, office, alpha):
+    # Income-tax Act 2025: 194C is 393(1) Sl. 6(i) from 1 April 2026; older bills keep 194C.
+    assert tds_sections.shown("194C", datetime.date(2026, 3, 31)) == "194C"
+    assert tds_sections.shown("194C", datetime.date(2026, 4, 1)) == "393(1) Sl. 6(i) (194C)"
+    old = tds_sections.section_on("194J(ba)", datetime.date(2025, 6, 1))
+    assert old.rate_other == 10 and not old.new_code
+    listed = {s["code"]: s["label"] for s in call(owner, "get", "tds-sections/").json()}
+    assert (
+        listed["194C"].startswith("393(1) Sl. 6(i) Contractors") and "(old 194C)" in listed["194C"]
+    )
+    assert listed["194IA"] == ("393(1) Sl. 3(i) Purchase of land or building "
+                               "(not agricultural land) (old 194IA)")  # fmt: skip
+    # The bill shows the new number and the challan's payment code for the deductee.
+    _sections(alpha, office)
+    bill = call(buyer, "post", _url(office), _amc(office, "40000")).json()
+    amc = bill["tds"]["rows"][0]
+    assert (amc["section"], amc["section_shown"], amc["payment_code"]) == (
+        "194C",
+        "393(1) Sl. 6(i) (194C)",
+        "1024",
+    )
+    with use_tenant(alpha):
+        Party.objects.filter(ledgers__pk=office["local"]).update(deductee_type="individual")
+    again = call(buyer, "get", f"purchase-invoices/{bill['id']}/tds/").json()
+    assert again["rows"][0]["payment_code"] == "1023"

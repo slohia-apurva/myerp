@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api import VIEW, Signed, _check
-from core.tds_sections import current_sections
+from core.tds_sections import current_sections, label
 from tenancy.models import GstRate
 
 
@@ -59,7 +59,8 @@ class TdsSectionListView(APIView):
                 {
                     "code": s.code,
                     "name": s.name,
-                    "label": f"{s.code} {s.name}",
+                    "new_code": s.new_code,
+                    "label": label(s),
                     "for_goods": s.for_goods,
                 }
                 for s in current_sections()

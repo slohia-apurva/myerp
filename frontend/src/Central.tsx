@@ -325,6 +325,8 @@ type CentralTds = {
   code: string;
   name: string;
   new_code: string;
+  payment_code: string;
+  payment_code_individual: string;
   valid_from: string;
   rate_other: string;
   rate_individual: string;
@@ -340,6 +342,8 @@ const blankTds = (): CentralTds => ({
   code: "",
   name: "",
   new_code: "",
+  payment_code: "",
+  payment_code_individual: "",
   valid_from: "",
   rate_other: "",
   rate_individual: "",
@@ -383,7 +387,9 @@ function TdsSections() {
     <Section title="TDS Sections">
       <p className="small">
         One list for every customer, kept here like GST rates. Rates and limits are dated: a change in the law is a new row for the same section
-        with its own "From" date, and a bill uses the row in force on its date. Rates shown are the usual ones, to be confirmed by a CA. Rows are
+        with its own "From" date, and a bill uses the row in force on its date. From 1 April 2026 the Income-tax Act 2025 numbers lead and the old
+        section stays beside them; rows from 1 April 2025 have only the old number and serve older bills. Where a section has two payment codes, the
+        second is for an individual or HUF. Rates shown are the usual ones, to be confirmed by a CA. Rows are
         never deleted, only disabled.
       </p>
       {!form && (
@@ -397,7 +403,7 @@ function TdsSections() {
         <form onSubmit={save} className="panel-card">
           <div className="row">
             <label>
-              <span className="req">Section</span>
+              <span className="req">Old Section</span>
               <input required value={form.code} onChange={(e) => set({ code: e.target.value })} placeholder="194C" />
             </label>
             <label>
@@ -405,8 +411,16 @@ function TdsSections() {
               <input required value={form.name} onChange={(e) => set({ name: e.target.value })} />
             </label>
             <label>
-              New Act Code
-              <input value={form.new_code} onChange={(e) => set({ new_code: e.target.value })} />
+              New Act Section
+              <input value={form.new_code} onChange={(e) => set({ new_code: e.target.value })} placeholder="393(1) Sl. 6(i)" />
+            </label>
+            <label>
+              Payment Code
+              <input value={form.payment_code} onChange={(e) => set({ payment_code: e.target.value })} placeholder="1024" />
+            </label>
+            <label>
+              Payment Code, Individual / HUF
+              <input value={form.payment_code_individual} onChange={(e) => set({ payment_code_individual: e.target.value })} placeholder="Blank if the same" />
             </label>
             <label>
               <span className="req">From</span>
@@ -455,7 +469,9 @@ function TdsSections() {
       <table>
         <thead>
           <tr>
-            <th>Section</th>
+            <th>New Act Section</th>
+            <th>Old Section</th>
+            <th>Payment Code</th>
             <th>Nature of Payment</th>
             <th className="num">Company / Firm %</th>
             <th className="num">Individual / HUF %</th>
@@ -470,10 +486,9 @@ function TdsSections() {
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className={r.is_active ? "" : "off"}>
-              <td>
-                <b>{r.code}</b>
-                {r.new_code && <div className="small">{r.new_code}</div>}
-              </td>
+              <td style={{ whiteSpace: "nowrap" }}>{r.new_code && <b>{r.new_code}</b>}</td>
+              <td>{r.new_code ? r.code : <b>{r.code}</b>}</td>
+              <td>{[r.payment_code, r.payment_code_individual].filter(Boolean).join(" / ")}</td>
               <td>{r.name}</td>
               <td className="num">{pct(r.rate_other)}</td>
               <td className="num">{pct(r.rate_individual)}</td>

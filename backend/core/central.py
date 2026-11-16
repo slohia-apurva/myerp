@@ -290,6 +290,8 @@ class TdsSectionAdminSerializer(serializers.ModelSerializer):
             "code",
             "name",
             "new_code",
+            "payment_code",
+            "payment_code_individual",
             "valid_from",
             "rate_other",
             "rate_individual",
@@ -308,7 +310,8 @@ class TdsSectionAdminSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Give the section as in the Act, e.g. 194C or 194J(b)."
             )
-        return value.replace("(A)", "(a)").replace("(B)", "(b)")
+        # The letters in brackets are small, as in the Act: 194J(b), 194J(ba).
+        return re.sub(r"\(([A-Z]+)\)", lambda m: f"({m.group(1).lower()})", value)
 
     def validate(self, data):
         for field in ("rate_other", "rate_individual", "rate_no_pan"):

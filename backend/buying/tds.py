@@ -36,6 +36,7 @@ from rest_framework.views import APIView
 
 from buying.api import CREATE, VIEW, _check
 from buying.models import DebitNote, PurchaseInvoice, PurchaseInvoiceTds
+from core import tds_sections
 from core.api import Signed
 from core.models import Company, Item, Ledger, LedgerGroup, Party, fiscal_year_start
 from core.tds_sections import check_section, section_on
@@ -373,12 +374,16 @@ def note_lines(note: DebitNote, preview: bool = False) -> tuple[list[GLLine], De
 # The bill's TDS box -------------------------------------------------------------
 
 
-def row_out(r: PurchaseInvoiceTds) -> dict:
+def row_out(r: PurchaseInvoiceTds, day: datetime.date, individual: bool) -> dict:
+    sec = section_on(r.section, day)
     return {
         "line_kind": r.line_kind,
         "line_position": r.line_position,
         "label": r.label,
         "section": r.section,
+        # As the bill's date shows it: the new Act's number first from 1 April 2026.
+        "section_shown": tds_sections.shown(r.section, day),
+        "payment_code": tds_sections.payment_code(sec, individual) if sec else "",
         "by_hand": r.by_hand,
         "taxable": r.taxable,
         "base": r.base,
@@ -391,14 +396,16 @@ def row_out(r: PurchaseInvoiceTds) -> dict:
 def box(inv: PurchaseInvoice) -> dict:
     party = inv.supplier.party
     codes = sorted({r.section for r in inv.tds_rows.all() if r.section})
+    day = bill_day(inv)
     so_far = []
     for code in codes:
         taxable, _ = year_so_far(inv, code)
-        so_far.append({"section": code, "amount": taxable})
+        so_far.append({"section": tds_sections.shown(code, day), "amount": taxable})
+    individual = deductee_type(party) == Party.INDIVIDUAL
     return {
         "deductee": deductee_label(party),
         "year_so_far": so_far,
-        "rows": [row_out(r) for r in inv.tds_rows.all()],
+        "rows": [row_out(r, day, individual) for r in inv.tds_rows.all()],
         "total": inv.tds_total,
     }
 
