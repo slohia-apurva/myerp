@@ -398,8 +398,12 @@ class PurchaseInvoice(models.Model):
     DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
     STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
 
-    REGULAR, SUPPLEMENTARY = "regular", "supplementary"
-    KINDS = [(REGULAR, "Purchase invoice"), (SUPPLEMENTARY, "Supplementary bill")]
+    REGULAR, SUPPLEMENTARY, DIRECT = "regular", "supplementary", "direct"
+    KINDS = [
+        (REGULAR, "Purchase invoice"),
+        (SUPPLEMENTARY, "Supplementary bill"),
+        (DIRECT, "Without goods receipt"),
+    ]
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="purchase_invoices")
     # A supplementary bill (Sidharth, 2026-11-16, preview 79): the supplier
@@ -513,6 +517,54 @@ class PurchaseInvoiceRateLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item_id}: {self.qty} @ +{self.new_rate - self.rate}"
+
+
+class PurchaseInvoiceExpenseLine(models.Model):
+    """A line of a bill without goods receipt (Sidharth, 2026-11-16, preview
+    82): a service or goods not kept in stock (an item, booked to the item's
+    Expense Account), or an expense ledger booked to itself. No stock moves."""
+
+    invoice = models.ForeignKey(
+        PurchaseInvoice, on_delete=models.CASCADE, related_name="expense_lines"
+    )
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(
+        Item, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    ledger = models.ForeignKey(
+        Ledger, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    description = models.CharField(max_length=200, blank=True)
+    hsn = models.CharField(max_length=8, blank=True)  # HSN or SAC
+    unit = models.ForeignKey(
+        Unit, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+    rate = models.DecimalField(**QTY, validators=[MinValueValidator(0)])
+    taxable = models.DecimalField(**MONEY)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY)
+    # The ledger debited: the picked ledger, or the item's Expense Account,
+    # worked out on save and fixed on Submit.
+    booked_to = models.ForeignKey(
+        Ledger, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["position"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(item__isnull=False, ledger__isnull=True)
+                | models.Q(item__isnull=True, ledger__isnull=False),
+                name="expense_line_item_or_ledger",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item_id or self.ledger_id}: {self.taxable}"
 
 
 class PurchaseInvoiceCharge(models.Model):

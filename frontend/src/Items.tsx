@@ -16,6 +16,7 @@ import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 import { longDate } from "./Companies";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
 import { ColumnSearch } from "./ColumnSearch";
+import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts, type ItemAccount } from "./ItemAccounts";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -455,6 +456,21 @@ function PricesView({ item, side }: { item: Item; side: "customer" | "supplier" 
   );
 }
 
+/** The item's Expense Account in each company, on the item's own page. */
+function AccountsView({ itemId }: { itemId: number }) {
+  const [rows] = useItemAccounts(itemId);
+  return (
+    <Fold title="Accounts" summary={accountsSummary(rows)}>
+      <Facts
+        rows={(rows ?? []).map((r) => [
+          `Expense Account, ${r.company_name}`,
+          r.expense_ledger_name || (r.group_ledger_name ? `From item group: ${r.group_ledger_name}` : "From item group (not set)"),
+        ])}
+      />
+    </Fold>
+  );
+}
+
 function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
   const { units } = useUnits();
@@ -668,6 +684,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 </table>
               )}
             </Fold>
+            <AccountsView itemId={i.id} />
             <PricesView item={i} side="customer" />
             <PricesView item={i} side="supplier" />
             <Fold title="Connections" summary="No documents yet" />
@@ -813,6 +830,8 @@ function ItemForm(props: {
   useEffect(() => {
     api<PartyRow[]>("v1/parties/").then(setParties);
   }, []);
+  // Its own Expense Account per company (bills without goods receipt).
+  const [accounts, setAccounts] = useItemAccounts(it && !props.copyOf ? it.id : null);
   // What customers pay for this item: one set of data with each customer's Item Prices.
   const [custPrices, setCustPrices] = useState<PriceRow[] | null>(null);
   useEffect(() => {
@@ -842,7 +861,7 @@ function ItemForm(props: {
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "prices" | "supplier-prices" | "connections">("general");
+  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "prices" | "supplier-prices" | "accounts" | "connections">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -981,6 +1000,7 @@ function ItemForm(props: {
       const saved = it ? await api<Item>(`v1/items/${it.id}/`, body, "PATCH") : await api<Item>("v1/items/", body);
       if (it && custPrices !== null) await api(`v1/items/${saved.id}/customer-prices/`, priceBody(custPrices), "PUT");
       if (it && suppPrices !== null) await api(`v1/items/${saved.id}/supplier-prices/`, priceBody(suppPrices), "PUT");
+      if (it && accounts !== null) await saveItemAccounts(saved.id, accounts);
       if (!it && props.copyOf && copyPrices && copySource.length > 0) {
         // The copy keeps every supplier line whose unit the new item also has.
         const has = new Set(saved.units.map((u) => u.unit));
@@ -1003,6 +1023,7 @@ function ItemForm(props: {
     ["names", "Customer And Supplier Names", `${names.length} ${names.length === 1 ? "name" : "names"}`],
     ["prices", "Customer Prices", `${(custPrices ?? []).length} ${(custPrices ?? []).length === 1 ? "price" : "prices"}`],
     ["supplier-prices", "Supplier Prices", `${(suppPrices ?? []).length} ${(suppPrices ?? []).length === 1 ? "price" : "prices"}`],
+    ["accounts", "Accounts", accountsSummary(accounts)],
     ["connections", "Connections", "No documents yet"],
   ] as const;
   return (
@@ -1644,10 +1665,25 @@ function ItemForm(props: {
             </Section>
           </div>}
         </div>
+        <div className={"fold" + (tab === "accounts" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "accounts"} onClick={() => setTab(tab === "accounts" ? "none" : "accounts")}>
+            <span className="fold-title">{folds[9][1]}</span>
+            {tab !== "accounts" && <span className="fold-summary">{folds[9][2]}</span>}
+          </button>
+          {tab === "accounts" && <div className="fold-body">
+            <Section>
+              {!it || accounts === null ? (
+                <p className="small">Save the item first; then pick its Expense Account for each company here.</p>
+              ) : (
+                <ItemAccountsEditor rows={accounts} onChange={(rows: ItemAccount[]) => setAccounts(rows)} />
+              )}
+            </Section>
+          </div>}
+        </div>
         <div className={"fold" + (tab === "connections" ? " open" : "")}>
           <button type="button" className="fold-head" aria-expanded={tab === "connections"} onClick={() => setTab(tab === "connections" ? "none" : "connections")}>
-            <span className="fold-title">{folds[9][1]}</span>
-            {tab !== "connections" && <span className="fold-summary">{folds[9][2]}</span>}
+            <span className="fold-title">{folds[10][1]}</span>
+            {tab !== "connections" && <span className="fold-summary">{folds[10][2]}</span>}
           </button>
           {tab === "connections" && <div className="fold-body">
         {true && (

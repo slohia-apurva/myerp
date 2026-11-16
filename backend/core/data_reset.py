@@ -40,6 +40,7 @@ from core.models import (
     Company,
     CreditTerm,
     Item,
+    ItemAccount,
     ItemGroup,
     Ledger,
     LedgerGroup,
@@ -221,6 +222,7 @@ def run(level: str, company, user) -> dict:
 def _delete_masters(scope) -> None:
     parties = list(_orphan_parties(scope).values_list("pk", flat=True))
     LedgerOpeningBill.objects.filter(ledger__in=_scope_ledgers(scope)).delete()
+    ItemAccount.objects.filter(expense_ledger__in=_scope_ledgers(scope)).delete()
     _scope_ledgers(scope).delete()
     Party.objects.filter(pk__in=parties).delete()
     _certificates(scope).delete()

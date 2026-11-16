@@ -11,6 +11,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { RateLinesTable, type RateLine } from "./RateLines";
 import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBills";
+import { BillTypePicker, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
 
 /** Entry > Purchase > Purchase Invoice (Sidharth, 2026-11-15, preview 67): the supplier's
  * bill, entered against goods receipts. Submit clears "Goods Received but Bills not
@@ -55,6 +56,7 @@ type Invoice = {
   original_bill_no: string;
   original_bill_date: string | null;
   rate_lines?: RateLine[];
+  expense_lines?: DirectLine[];
   later?: { id: number; number: string; kind: string; total: string }[];
   number: string;
   status: string;
@@ -155,7 +157,7 @@ const COLUMNS: [key: string, label: string, text: (r: Invoice) => string, num?: 
   ["supplier", "Supplier", (r) => r.supplier_name],
   ["bill", "Supplier Invoice No", (r) => r.bill_no],
   ["bill_date", "Bill Date", (r) => shortDate(r.bill_date)],
-  ["receipts", "Goods Receipts", (r) => (r.kind === "supplementary" ? `Supplementary against ${r.original_number}` : r.receipts.map((x) => x.number).join(" "))],
+  ["receipts", "Goods Receipts", (r) => (r.kind === "supplementary" ? `Supplementary against ${r.original_number}` : r.kind === "direct" ? "No GRN" : r.receipts.map((x) => x.number).join(" "))],
   ["total", "Amount ₹", (r) => `${r.total} ${money(r.total)}`, true],
   ["due", "First Due", (r) => shortDate(r.first_due)],
   ["status", "Status", (r) => r.status_label],
@@ -328,6 +330,8 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
                           <>
                             <span className="tag">Supplementary</span> <span className="small">against {r.original_number}</span>
                           </>
+                        ) : r.kind === "direct" ? (
+                          <span className="tag">No GRN</span>
                         ) : (
                           r.receipts.map((x) => x.number).join(", ")
                         )}
@@ -399,16 +403,18 @@ function InvoiceFormTab({ companyId, form, canSubmit }: { companyId: number; for
   const receipt = hashParam("receipt");
   const order = hashParam("order");
   const original = Number(hashParam("supplementary"));
+  const direct = hashParam("type") === "direct";
   useEffect(() => {
-    if (form === "new" && original) return;
+    if (form === "new" && (original || direct)) return;
     if (form !== "new") {
       api<Invoice>(`v1/purchase-invoices/${Number(form)}/`).then(setInv, setError);
       return;
     }
     const q = receipt ? `receipt=${receipt}` : order ? `order=${order}` : "";
     if (q) api<DraftFrom>(`v1/companies/${companyId}/purchase-invoices/draft-from/?${q}`).then(setFrom, setError);
-  }, [companyId, form, receipt, order, original]);
+  }, [companyId, form, receipt, order, original, direct]);
   if (form === "new" && original) return <SupplementaryFormTab companyId={companyId} original={original} canSubmit={canSubmit} />;
+  if (form === "new" && direct) return <DirectFormTab key="new-direct" companyId={companyId} canSubmit={canSubmit} />;
   const title = form === "new" ? "New Purchase Invoice" : "Edit Purchase Invoice";
   const shell = (note?: unknown) => (
     <section className="page">
@@ -420,6 +426,7 @@ function InvoiceFormTab({ companyId, form, canSubmit }: { companyId: number; for
   if (form !== "new" && !inv) return shell();
   if ((receipt || order) && !from) return shell();
   if (inv && inv.status !== "draft") return shell("A submitted invoice cannot be changed. Cancel it and make a new one.");
+  if (inv?.kind === "direct") return <DirectFormTab companyId={companyId} bill={inv as unknown as DirectBill} canSubmit={canSubmit} />;
   if (inv?.kind === "supplementary") return <SupplementaryFormTab companyId={companyId} bill={inv as unknown as SupplementaryBill} canSubmit={canSubmit} />;
   return <InvoiceForm companyId={companyId} title={title} invoice={inv} from={from} canSubmit={canSubmit} />;
 }
@@ -602,6 +609,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
               <span className="req-star">*</span> Required
             </p>
             <div className="item-fields">
+              <BillTypePicker companyId={companyId} direct={false} locked={!!draftId || !!from} />
               <label>
                 <span className="req">Supplier</span>
                 <Combobox
@@ -931,6 +939,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
     );
   const draft = inv.status === "draft";
   const supp = inv.kind === "supplementary";
+  const direct = inv.kind === "direct";
   const name = supp ? "Supplementary Bill" : "Purchase Invoice";
   return (
     <section className="page">
@@ -963,7 +972,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                 Open to Submit
               </button>
             )}
-            {inv.status === "submitted" && !supp && (
+            {inv.status === "submitted" && !supp && !direct && (
               <ActionsMenu
                 label="Create"
                 main
@@ -995,6 +1004,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
               <span className={pillClass(inv.status)}>{inv.status_label}</span>
               <span className="tag">Bill {inv.bill_no}</span>
               {supp && <span className="tag">Supplementary · against Bill {inv.original_bill_no}</span>}
+              {direct && <span className="tag">Without goods receipt</span>}
               {inv.receipts.map((r) => (
                 <span key={r.id} className="tag">
                   {r.number}
@@ -1049,6 +1059,48 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
           {supp ? (
             <Fold title="Items" open>
               <RateLinesTable lines={inv.rate_lines ?? []} way="up" interstate={inv.interstate} />
+            </Fold>
+          ) : direct ? (
+            <Fold title="Items and Services" open>
+              <div className="table-scroll">
+                <table className="grid po-lines">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Item or Ledger</th>
+                      <th>Description</th>
+                      <th>HSN / SAC</th>
+                      <th className="num">Qty</th>
+                      <th>Unit</th>
+                      <th className="num">Rate</th>
+                      <th className="num">Taxable ₹</th>
+                      <th className="num">GST %</th>
+                      <th className="num">GST ₹</th>
+                      <th>Booked To</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(inv.expense_lines ?? []).map((l, i) => (
+                      <tr key={l.id ?? i}>
+                        <td>{i + 1}</td>
+                        <td className="po-item">
+                          <b>{l.name}</b>
+                          <span className="small">{l.what}</span>
+                        </td>
+                        <td>{l.description}</td>
+                        <td>{l.hsn}</td>
+                        <td className="num">{Number(l.qty)}</td>
+                        <td>{l.unit_name}</td>
+                        <td className="num">{money(l.rate)}</td>
+                        <td className="num">{money(l.taxable)}</td>
+                        <td className="num">{Number(l.gst_rate)}</td>
+                        <td className="num">{money(String(r2(num(l.cgst) + num(l.sgst) + num(l.igst))))}</td>
+                        <td>{l.booked_to_name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </Fold>
           ) : (
             <Fold title="Items" open>

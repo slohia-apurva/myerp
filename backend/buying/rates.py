@@ -49,9 +49,13 @@ def in_stock(il: PurchaseInvoiceLine) -> Decimal:
 def regular_bill(inv: PurchaseInvoice | None, field: str = "invoice") -> PurchaseInvoice:
     if inv is None or inv.status != PurchaseInvoice.SUBMITTED:
         raise ValidationError({field: ["Pick a submitted purchase invoice of this company."]})
-    if inv.kind != PurchaseInvoice.REGULAR:
+    if inv.kind == PurchaseInvoice.SUPPLEMENTARY:
         raise ValidationError(
             {field: ["Pick the original purchase invoice, not a supplementary bill."]}
+        )
+    if inv.kind != PurchaseInvoice.REGULAR:
+        raise ValidationError(
+            {field: ["A bill without goods receipt has no goods to return or reprice here."]}
         )
     return inv
 

@@ -246,6 +246,10 @@ def _invoice_out(inv: PurchaseInvoice, lines: bool = True) -> dict:
                     "item", "unit", "original_line__receipt_line"
                 )
             ]
+        if inv.kind == PurchaseInvoice.DIRECT:
+            from buying.direct_bills import lines_of
+
+            data["expense_lines"] = lines_of(inv)
         data["later"] = [
             {"id": x.pk, "number": x.number, "kind": "supplementary", "total": x.total}
             for x in inv.supplementaries.filter(status=PurchaseInvoice.SUBMITTED)
@@ -274,6 +278,10 @@ def _entries(inv: PurchaseInvoice) -> list[dict]:
         from buying.supplementary import entries
 
         return entries(inv)
+    if inv.status == PurchaseInvoice.DRAFT and inv.kind == PurchaseInvoice.DIRECT:
+        from buying.direct_bills import entries as direct_entries
+
+        return direct_entries(inv)
     if inv.status != PurchaseInvoice.DRAFT or not inv.lines.exists():
         return []
     try:
@@ -871,7 +879,7 @@ class InvoiceDetailView(APIView):
                 {"detail": "A submitted invoice cannot be changed. Cancel it and make a new one."}
             )
         if inv.kind != PurchaseInvoice.REGULAR:
-            raise ValidationError({"detail": "Change a supplementary bill on its own form."})
+            raise ValidationError({"detail": "Change this bill on its own form."})
         serializer = InvoiceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
