@@ -1099,6 +1099,54 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "sales-people",
+    title: "Salesmen and Purchasers",
+    summary:
+      "The people who sell to customers and buy from suppliers, picked on each customer and supplier.",
+    body: (
+      <>
+        <p>
+          Salesmen and Purchasers are one list shared by every company in the
+          group. A person here does not need to sign in to MyERP. A customer
+          picks its "Salesman" and a supplier its "Purchaser" from this list,
+          and each company can pick someone different for the same party.
+        </p>
+        <h3>Add a person</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Salesmen and Purchasers".</li>
+          <li>
+            Click "Add person". The form opens in a new browser tab. Give the
+            "Name", and if you like the "Mobile", "Email" and "Notes".
+          </li>
+          <li>
+            Under "Works As", tick "Salesman", "Purchaser" or both. A Salesman
+            is offered on customers, a Purchaser on suppliers.
+          </li>
+          <li>
+            If the person also signs in to MyERP, pick them in "MyERP User".
+            Otherwise leave it at "None (no sign-in)".
+          </li>
+          <li>Click "Save"; the tab closes and the person is selected in the list.</li>
+        </ol>
+        <p>
+          You can also add someone straight from a customer or supplier: type
+          the name in "Salesman" or "Purchaser" and pick 'Create "…"'.
+        </p>
+        <p>
+          Click a person in the list to see their details on the right, with
+          their activity below. The "Parties" column counts the customers and
+          suppliers that have picked them. Names must be different, whatever
+          the capital letters. Someone picked as a customer's salesman keeps the
+          "Salesman" tick, and a supplier's purchaser keeps the "Purchaser"
+          tick. People are never deleted: tick "Disabled" to stop offering
+          them; parties that already have them keep them. To change many at
+          once, use "Actions" at the top of the screen (see "Import, export
+          and print").
+        </p>
+      </>
+    ),
+  },
+  {
     id: "item-groups",
     title: "Item groups",
     summary:
@@ -1769,7 +1817,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Salesman or Purchaser",
-              "The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser). Other companies can choose someone else for the same party.",
+              'The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser), from the list in "Masters" › "Salesmen and Purchasers". A customer offers the people ticked "Salesman", a supplier those ticked "Purchaser"; type a new name and pick \'Create "…"\' to add someone. Other companies can choose someone else for the same party.',
             ],
             [
               "Preferred Transporter",

@@ -18,7 +18,8 @@ from core.companies import visible_companies
 
 PAGE = 50
 GROUP_TYPES = ("user", "role")
-SHARED_MASTER_TYPES = ("credit_term", "unit", "item", "item_group", "brand")  # group-wide masters
+# group-wide masters
+SHARED_MASTER_TYPES = ("credit_term", "unit", "item", "item_group", "brand", "sales_person")
 
 
 def _int(value, name):

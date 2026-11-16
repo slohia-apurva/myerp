@@ -6,6 +6,7 @@ from django.test import Client
 from accounts.models import Role, User
 from core.companies import create_company
 from core.india import gstin_check_char
+from core.models import SalesPerson
 from tenancy.context import use_tenant
 from tenancy.models import PinCode, State
 
@@ -61,7 +62,7 @@ def test_a_customer_gets_party_details(accountant, company, alpha):
     PinCode.objects.create(pin="560001", city="Bengaluru GPO", state=State.objects.get(code="29"))
     PinCode.objects.create(pin="411028", city="Pune", state=State.objects.get(code="27"))
     with use_tenant(alpha):
-        salesman = User.objects.create_user("ravi@x.in", full_name="Ravi").pk
+        salesman = SalesPerson.objects.create(name="Ravi", is_salesman=True).pk
     party = {
         "gst_type": "regular",
         "gstin": gstin("29").lower(),
@@ -210,8 +211,8 @@ def test_a_party_is_shared_by_the_group(accountant, company, second, alpha):
     """One party, a ledger in each company: details shared, balances,
     credit limit and salesman per company (decision 0020)."""
     with use_tenant(alpha):
-        ravi = User.objects.create_user("ravi@x.in", full_name="Ravi").pk
-        meena = User.objects.create_user("meena@x.in", full_name="Meena").pk
+        ravi = SalesPerson.objects.create(name="Ravi", is_salesman=True).pk
+        meena = SalesPerson.objects.create(name="Meena", is_salesman=True).pk
     party = {
         "gst_type": "regular",
         "gstin": gstin("29"),

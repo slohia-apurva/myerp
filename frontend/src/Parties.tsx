@@ -11,6 +11,7 @@ import type { CourierAccount } from "./Shipments";
 import { creatable } from "./Create";
 import { useCreditTerms } from "./CreditTerms";
 import { useTermsSets } from "./Terms";
+import { useSalesPeople } from "./SalesPeople";
 import { usePriceLists } from "./PriceLists";
 import { PriceTable, rowFromServer, type PriceRow } from "./PriceLines";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
@@ -127,7 +128,6 @@ const blankAddress = (stateCode: string): PartyAddress => ({
 
 const blankContact = (): PartyContact => ({ name: "", designation: "", phone: "", email: "", is_primary: false, kinds: [] });
 
-type Person = { id: number; name: string };
 export type PartyTab = "none" | "general" | "details" | "addresses" | "contacts" | "documents" | "products" | "prices" | "labels" | "extra";
 
 /** The tab strip at the top of a customer/supplier ledger form. */
@@ -252,10 +252,9 @@ export function PartyFields({
   }, []);
   const linked = new Set([companyId, ...(p.companies ?? []).map((c) => c.id)]);
   const term = terms.find((t) => t.id === p.credit_term);
-  const [people, setPeople] = useState<Person[]>([]);
-  useEffect(() => {
-    api<Person[]>("v1/people/").then(setPeople);
-  }, []);
+  // From Masters > Salesmen and Purchasers: those ticked for this side, and not disabled.
+  const { people, refresh: refreshPeople } = useSalesPeople();
+  const newPerson = creatable("sales_person", "sales-people", refreshPeople, `as=${supplier ? "purchaser" : "salesman"}`);
   // A customer's usual transporter (when the company has Sales) or a supplier's (when it
   // has Purchase): one of this company's own. A supplier with none sends the goods itself.
   const modules = companies.find((c) => c.id === companyId)?.modules ?? [];
@@ -426,8 +425,11 @@ export function PartyFields({
           <Combobox
             value={p.salesman === null ? "" : String(p.salesman)}
             empty="None"
-            options={people.map((person) => ({ value: String(person.id), label: person.name }))}
+            options={people
+              .filter((x) => (supplier ? x.is_purchaser : x.is_salesman) && (x.is_active || x.id === p.salesman))
+              .map((x) => ({ value: String(x.id), label: x.is_active ? x.name : `${x.name} (disabled)` }))}
             onChange={(v) => set({ salesman: v ? Number(v) : null })}
+            create={newPerson}
           />
         </label>
         {hasTransport && (

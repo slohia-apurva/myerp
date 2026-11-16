@@ -2,31 +2,9 @@
 ledgers, with the customer or supplier details of party ledgers and the
 opening bills, on the Ledgers screen of the company being worked in."""
 
-from django.db.models import Q
-
-from accounts.models import User
 from core import exchange
 from core.api import LedgerSerializer, add_ledger, change_ledger
-
-
-def _user_cell(pk) -> str:
-    if pk is None:
-        return ""
-    user = User.objects.filter(pk=pk).first()
-    return user.email if user else str(pk)
-
-
-def _user_from(text: str) -> int:
-    text = text.strip()
-    user = (
-        User.objects.filter(is_active=True)
-        .filter(Q(email__iexact=text) | Q(full_name__iexact=text))
-        .first()
-    )
-    if user is None:
-        raise ValueError(f"there is no active user {text!r}")
-    return user.pk
-
+from core.sales_people import PERSON
 
 STATE = exchange.STATE
 
@@ -78,9 +56,7 @@ exchange.register(
         codecs={
             "party.state_code": STATE,
             "party.addresses.state_code": STATE,
-            "party.salesman": exchange.Codec(
-                _user_cell, _user_from, hint="The user's email or full name", kind="other"
-            ),
+            "party.salesman": PERSON,
         },
         labels={
             "party.customer_number": "Customer number",

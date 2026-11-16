@@ -70,10 +70,10 @@ export function openCreate(create: Creatable, name: string) {
 
 /** "Create …" for the master whose screen is at #/<page> (for example
  * "units" or "companies/3/branches"). */
-export function creatable(kind: string, page: string, reload: () => unknown): Creatable {
+export function creatable(kind: string, page: string, reload: () => unknown, extra = ""): Creatable {
   return {
     kind,
-    href: (name) => `${window.location.pathname}${window.location.search}#/${page}?new=${encodeURIComponent(name)}`,
+    href: (name) => `${window.location.pathname}${window.location.search}#/${page}?new=${encodeURIComponent(name)}${extra ? `&${extra}` : ""}`,
     reload,
   };
 }

@@ -20,6 +20,7 @@ import "./app.css";
 import { Logo } from "./Brand";
 import { BatchesPage } from "./Batches";
 import { BrandsPage } from "./Brands";
+import { SalesPeoplePage } from "./SalesPeople";
 import { ItemGroupsPage } from "./ItemGroups";
 import { CentralPage } from "./Central";
 import { CountriesPage } from "./Countries";
@@ -36,7 +37,7 @@ import { DebitNotesPage } from "./DebitNotes";
 import { NotificationBell } from "./Notifications";
 import { SupplierReplyPage } from "./SupplierReply";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -45,7 +46,7 @@ function routeFromHash(): Route {
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
   if (page === "bins") return { page, id: Number(id) || undefined };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "batches" || page === "hsn" || page === "items" || page === "reset" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "reset" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
 }
 
 export function App() {
@@ -121,7 +122,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {link("home", "Dashboard")}
           {canSeeMasters && (
             <MastersMenu
-              active={page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "batches" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers" || sub === "warehouses"))}
+              active={page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers" || sub === "warehouses"))}
               company={current.company}
               canSeeMasters={canSeeMasters}
             />
@@ -215,6 +216,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <BatchesPage session={session} />
         ) : page === "brands" && canSeeMasters ? (
           <BrandsPage session={session} />
+        ) : page === "sales-people" && canSeeMasters ? (
+          <SalesPeoplePage session={session} />
         ) : page === "item-groups" && canSeeMasters ? (
           <ItemGroupsPage session={session} />
         ) : page === "units" && canSeeMasters ? (

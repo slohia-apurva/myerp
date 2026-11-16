@@ -53,6 +53,7 @@ from core.models import (
     PartyItemName,
     PartyProduct,
     PriceList,
+    SalesPerson,
     TermsSet,
     Unit,
     WarehouseLocation,
@@ -133,6 +134,7 @@ def _plan(level: str, company):
             ("Items", Item.objects.all()),
             ("Item groups", ItemGroup.objects.all()),
             ("Brands", Brand.objects.all()),
+            ("Salesmen and purchasers", SalesPerson.objects.all()),
             ("Price lists", PriceList.objects.all()),
             ("Terms and conditions", TermsSet.objects.all()),
             ("Credit terms you added", _custom_terms()),
@@ -183,6 +185,7 @@ def run(level: str, company, user) -> dict:
         if level == "all":
             Item.objects.all().delete()
             Brand.objects.all().delete()
+            SalesPerson.objects.all().delete()
             # Deepest groups first: a group cannot go while one sits under it.
             while (tips := ItemGroup.objects.filter(children__isnull=True)).exists():
                 tips.delete()
