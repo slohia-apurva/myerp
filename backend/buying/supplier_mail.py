@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from audit.models import AuditEntry
-from buying.api import SUBMIT, VIEW, _check, _fresh, _order, _plain
+from buying.api import SUBMIT, VIEW, _check, _fresh, _order, _plain, person_email
 from buying.models import GoodsReceipt, PurchaseOrder
 from buying.po_pdf import order_pdf
 from buying.supplier_link import make_link
@@ -389,11 +389,11 @@ class OrderPdfView(APIView):
 
 def _order_to(o: PurchaseOrder) -> list[dict]:
     """Who the order goes to: the contacts ticked "Mail" on it (supplier's and
-    agent's), and the employee agent when ticked; else the supplier's first."""
+    agent's), and the purchaser agent when ticked; else the supplier's first."""
     found = {c.pk: c for c in PartyContact.objects.filter(pk__in=o.mail_to).exclude(email="")}
     out = [{"name": found[i].name, "email": found[i].email} for i in o.mail_to if i in found]
-    if o.mail_agent_user and o.agent_user_id and o.agent_user.email:
-        out.append({"name": o.agent_user.display_name, "email": o.agent_user.email})
+    if o.mail_agent_user and (email := person_email(o.purchaser)):
+        out.append({"name": o.purchaser.name, "email": email})
     if not out:
         out = [{"name": c.name, "email": c.email} for c in _supplier_contacts(o)[:1]]
     return out

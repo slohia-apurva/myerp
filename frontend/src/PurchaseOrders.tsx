@@ -90,8 +90,8 @@ export type PurchaseOrder = {
   addresses?: { bill_to: Place | null; ship_to: Place; supplier: Place };
   agent: number | null;
   agent_name: string;
-  agent_user: number | null;
-  agent_user_name: string;
+  purchaser: number | null;
+  purchaser_name: string;
   mail_agent_user: boolean;
   mail_to: number[];
   whatsapp_to: number[];
@@ -152,6 +152,8 @@ type Supplier = {
   state_code: string;
   credit_term: number | null;
   transporter: number | null;
+  /** The supplier's Purchaser in this company (Masters › Salesmen and Purchasers). */
+  purchaser: number | null;
   terms_set: number | null;
   currency: string;
   currency_symbol: string;
@@ -173,13 +175,13 @@ type BranchRow = {
   is_head_office: boolean;
   address_block: Place;
 };
-type Employee = { id: number; name: string; email: string };
+type Purchaser = { id: number; name: string; email: string; is_active: boolean };
 type Transporter = { id: number; name: string; is_active: boolean };
 type Setup = {
   company_name: string;
   suppliers: Supplier[];
   branches: BranchRow[];
-  employees: Employee[];
+  purchasers: Purchaser[];
   transporters: Transporter[];
   terms_sets: { id: number; name: string; is_active: boolean; text: string }[];
   default_terms: number | null;
@@ -550,6 +552,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const addSupplier = mayAddMasters ? newSupplier(companyId, setup, refreshSetup) : undefined;
   const newTransporter = mayAddMasters ? creatable("courier_account", `companies/${companyId}/couriers`, refreshSetup) : undefined;
   const newTerms = mayAddMasters ? creatable("terms", "terms", refreshSetup) : undefined;
+  const newPurchaser = mayAddMasters ? creatable("sales_person", "sales-people", refreshSetup, "as=purchaser") : undefined;
   const [supplier, setSupplierId] = useState(from ? String(from.supplier) : "");
   const [branch, setBranch] = useState(from ? String(from.branch) : "");
   const [orderDate, setOrderDate] = useState(order?.order_date ?? today());
@@ -563,7 +566,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const [transporter, setTransporter] = useState(from?.transporter ? String(from.transporter) : "");
   const [ref, setRef] = useState(order?.supplier_ref ?? "");
   // The agent picker holds "l<ledger id>" for a supplier firm or "u<user id>" for an employee.
-  const [agent, setAgentId] = useState(from?.agent ? `l${from.agent}` : from?.agent_user ? `u${from.agent_user}` : "");
+  // The agent picker holds "l<ledger id>" for a supplier firm or "p<id>" for a purchaser.
+  const [agent, setAgentId] = useState(from?.agent ? `l${from.agent}` : from?.purchaser ? `p${from.purchaser}` : "");
   const [mailAgentUser, setMailAgentUser] = useState(from?.mail_agent_user ?? false);
   const [mailTo, setMailTo] = useState<number[]>(from?.mail_to ?? []);
   const [waTo, setWaTo] = useState<number[]>(from?.whatsapp_to ?? []);
@@ -675,17 +679,26 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     const agentIds = setup?.suppliers.find((x) => `l${x.id}` === agent)?.contacts.map((c) => c.id) ?? [];
     setMailTo((m) => [...(s ? mailedFirst(s.contacts) : []), ...m.filter((id) => agentIds.includes(id))]);
     setWaTo((w) => w.filter((id) => agentIds.includes(id)));
-    if (`l${value}` === agent) setAgentId("");
+    // The supplier's own Purchaser becomes the agent, unless a broker firm or another person was picked.
+    const before = setup?.suppliers.find((x) => String(x.id) === supplier);
+    const usual = before?.purchaser ? `p${before.purchaser}` : "";
+    if (`l${value}` === agent || agent === "" || agent === usual) {
+      const next = s?.purchaser ? `p${s.purchaser}` : "";
+      setAgentId(next);
+      setMailAgentUser(false);
+    }
     setLines((ls) => ls.map((l) => (l.rateTyped ? l : { ...l, rate: "", source: "" })));
   };
 
   const ag = setup?.suppliers.find((s) => `l${s.id}` === agent);
-  const agUser = setup?.employees.find((u) => `u${u.id}` === agent);
-  const pickAgent = (value: string) => {
+  const agUser = setup?.purchasers.find((u) => `p${u.id}` === agent);
+  const pickAgent = (picked: string) => {
+    // A purchaser made with "Create …" comes back as its bare id.
+    const value = /^\d+$/.test(picked) ? `p${picked}` : picked;
     const old = ag?.contacts.map((c) => c.id) ?? [];
     const next = setup?.suppliers.find((s) => `l${s.id}` === value);
     setAgentId(value);
-    setMailAgentUser(value.startsWith("u"));
+    setMailAgentUser(false);
     setMailTo((m) => [...m.filter((id) => !old.includes(id)), ...(next ? mailedFirst(next.contacts) : [])]);
     setWaTo((w) => w.filter((id) => !old.includes(id)));
   };
@@ -800,7 +813,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       supplier_address: supAddr,
       supplier_ref: ref,
       agent: agent.startsWith("l") ? Number(agent.slice(1)) : null,
-      agent_user: agent.startsWith("u") ? Number(agent.slice(1)) : null,
+      purchaser: agent.startsWith("p") ? Number(agent.slice(1)) : null,
       mail_to: mailTo,
       whatsapp_to: waTo,
       mail_agent_user: mailAgentUser,
@@ -1018,22 +1031,25 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                   value={agent}
                   onChange={pickAgent}
                   empty="None"
+                  create={newPurchaser}
                   placeholder="Type to search…"
                   options={[
                     ...(setup?.suppliers ?? [])
                       .filter((s) => (s.is_active && String(s.id) !== supplier) || `l${s.id}` === agent)
                       .map((s) => ({ value: `l${s.id}`, label: s.name, hint: "Supplier" })),
-                    ...(setup?.employees ?? []).map((u) => ({ value: `u${u.id}`, label: u.name, hint: "Employee" })),
+                    ...(setup?.purchasers ?? [])
+                      .filter((u) => u.is_active || `p${u.id}` === agent)
+                      .map((u) => ({ value: `p${u.id}`, label: u.name, hint: "Purchaser" })),
                   ]}
                 />
-                <span className="small">A broker or firm from the suppliers, or one of your own employees.</span>
+                <span className="small">Starts as the supplier's Purchaser; or pick a broker firm from the suppliers, or another purchaser.</span>
               </label>
             </div>
             {ag && <ContactTicks title="Agent Contacts" contacts={ag.contacts} ticked={mailTo} onTick={tick} wa={waTo} onWa={tickWa} empty="This agent has no contacts yet." />}
             {agUser && (
               <ContactTicks
                 title="Agent Contact"
-                contacts={[{ id: -1, name: agUser.name, designation: "Employee", phone: "", email: agUser.email, is_primary: false, kinds: [] }]}
+                contacts={[{ id: -1, name: agUser.name, designation: "Purchaser", phone: "", email: agUser.email, is_primary: false, kinds: [] }]}
                 ticked={mailAgentUser ? [-1] : []}
                 onTick={(_, on) => setMailAgentUser(on)}
                 empty=""
@@ -1736,7 +1752,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             <dl className="kv">
               <div>
                 <dt>Buying Agent</dt>
-                <dd>{order.agent_name || (order.agent_user_name ? `${order.agent_user_name} (employee)` : "None")}</dd>
+                <dd>{order.agent_name || (order.purchaser_name ? `${order.purchaser_name} (purchaser)` : "None")}</dd>
               </div>
             </dl>
             {order.mail_contacts.length === 0 ? (

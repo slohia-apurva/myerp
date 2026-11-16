@@ -18,7 +18,6 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
 from audit.models import AuditEntry
 from buying import imports
 from buying.models import GoodsReceipt, PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
@@ -42,6 +41,7 @@ from core.models import (
     PartyContact,
     PartyItemName,
     PriceList,
+    SalesPerson,
     TermsSet,
 )
 from core.parties import items_for_party
@@ -322,12 +322,19 @@ def _mail_contacts(o: PurchaseOrder) -> list[dict]:
     return out
 
 
-def _with_agent_user(o: PurchaseOrder, rows: list[dict]) -> list[dict]:
-    u = o.agent_user
-    if u is None or not o.mail_agent_user:
+def person_email(p: SalesPerson | None) -> str:
+    """A purchaser's own email, else the one they sign in with."""
+    if p is None:
+        return ""
+    return p.email or (p.user.email if p.user_id else "")
+
+
+def _with_purchaser(o: PurchaseOrder, rows: list[dict]) -> list[dict]:
+    p = o.purchaser
+    if p is None or not o.mail_agent_user:
         return rows
-    me = {"id": None, "name": u.display_name, "designation": "Employee", "phone": ""}
-    me |= {"email": u.email, "is_primary": False, "kinds": [], "of": "Agent"}
+    me = {"id": None, "name": p.name, "designation": "Purchaser", "phone": p.mobile}
+    me |= {"email": person_email(p), "is_primary": False, "kinds": [], "of": "Agent"}
     return [*rows, {**me, "mail": True, "whatsapp": False}]
 
 
@@ -355,12 +362,12 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "transporter_name": o.transporter.name if o.transporter else "By Supplier",
         "agent": o.agent_id,
         "agent_name": o.agent.name if o.agent else "",
-        "agent_user": o.agent_user_id,
-        "agent_user_name": o.agent_user.display_name if o.agent_user else "",
+        "purchaser": o.purchaser_id,
+        "purchaser_name": o.purchaser.name if o.purchaser else "",
         "mail_agent_user": o.mail_agent_user,
         "mail_to": o.mail_to,
         "whatsapp_to": o.whatsapp_to,
-        "mail_contacts": _with_agent_user(o, _mail_contacts(o)),
+        "mail_contacts": _with_purchaser(o, _mail_contacts(o)),
         "supplier_ref": o.supplier_ref,
         "currency": o.currency,
         "currency_symbol": _symbol(o.currency),
@@ -418,7 +425,7 @@ def _orders(company):
         .select_related(
             "supplier__party",
             "agent",
-            "agent_user",
+            "purchaser__user",
             "submitted_by",
             "branch__company",
             "bill_to__company",
@@ -481,8 +488,8 @@ class OrderSerializer(serializers.Serializer):
     agent = serializers.PrimaryKeyRelatedField(
         queryset=Ledger.objects.all(), required=False, allow_null=True
     )
-    agent_user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), required=False, allow_null=True
+    purchaser = serializers.PrimaryKeyRelatedField(
+        queryset=SalesPerson.objects.all(), required=False, allow_null=True
     )
     mail_to = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
     whatsapp_to = serializers.ListField(
@@ -539,12 +546,14 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
             errors["agent"] = ["The agent is not the supplier itself."]
         elif not agent.is_active and agent.pk != o.agent_id:
             errors["agent"] = ["This agent is disabled."]
-    agent_user = data.get("agent_user")
-    if agent_user is not None:
+    purchaser = data.get("purchaser")
+    if purchaser is not None:
         if agent is not None:
-            errors["agent_user"] = ["Pick one agent: a supplier firm or an employee."]
-        elif not agent_user.is_active and agent_user.pk != o.agent_user_id:
-            errors["agent_user"] = ["This employee no longer has access."]
+            errors["purchaser"] = ["Pick one agent: a supplier firm or a purchaser."]
+        elif purchaser.pk != o.purchaser_id and not (
+            purchaser.is_active and purchaser.is_purchaser
+        ):
+            errors["purchaser"] = [f"{purchaser.name} is not an active purchaser."]
     mail_to = list(dict.fromkeys(data.get("mail_to") or []))
     parties = [p for p in (supplier.party_id, agent.party_id if agent else None) if p]
     known = PartyContact.objects.filter(pk__in=mail_to, party_id__in=parties)
@@ -676,8 +685,8 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     elif not overseas:
         o.import_details = {}
     o.agent, o.mail_to, o.whatsapp_to = agent, mail_to, whatsapp_to
-    o.agent_user = agent_user
-    o.mail_agent_user = bool(agent_user and data.get("mail_agent_user"))
+    o.purchaser = purchaser
+    o.mail_agent_user = bool(purchaser and data.get("mail_agent_user"))
     for field in ("supplier_ref", "terms", "notes"):
         setattr(o, field, data.get(field, "").strip())
     o.interstate = interstate
@@ -1057,6 +1066,8 @@ class OrderSetupView(APIView):
                         "state_code": s.party.state_code,
                         "credit_term": s.party.credit_term_id,
                         "transporter": s.preferred_transporter_id,
+                        # The supplier's Purchaser in this company: the order's agent to start.
+                        "purchaser": s.salesman_id,
                         "currency": s.currency.code if s.currency_id else "INR",
                         "currency_symbol": _symbol(s.currency.code if s.currency_id else "INR"),
                         "overseas": s.party.gst_type == Party.OVERSEAS,
@@ -1100,9 +1111,10 @@ class OrderSetupView(APIView):
                     .select_related("company")
                     .prefetch_related("locations")
                 ],
-                "employees": [
-                    {"id": u.pk, "name": u.display_name, "email": u.email}
-                    for u in User.objects.filter(is_active=True).order_by("full_name", "email")
+                # Masters > Salesmen and Purchasers: the people ticked Purchaser.
+                "purchasers": [
+                    {"id": p.pk, "name": p.name, "email": person_email(p), "is_active": p.is_active}
+                    for p in SalesPerson.objects.filter(is_purchaser=True).select_related("user")
                 ],
                 "credit_terms": [
                     {"id": t.pk, "name": t.name, "is_active": t.is_active}

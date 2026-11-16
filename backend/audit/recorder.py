@@ -105,8 +105,8 @@ LABELS = {
     "branch": "Deliver to",
     "terms": "Terms for the supplier",
     "agent": "Buying agent",
-    "agent_user": "Buying agent (employee)",
-    "mail_agent_user": "Mail the employee agent",
+    "purchaser": "Buying agent (purchaser)",
+    "mail_agent_user": "Mail the purchaser",
     "bill_to": "Bill to",
 }
 
