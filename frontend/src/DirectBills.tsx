@@ -9,6 +9,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu } from "./Exchange";
 import { Fold } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
+import { TdsBox, type TdsInfo } from "./Tds";
 
 /** Purchase Invoice of type "Without goods receipt" (Sidharth, 2026-11-16, preview 82): services
  * and goods not kept in stock. Each line picks an item, booked to the item's "Expense Account"
@@ -51,6 +52,8 @@ export type DirectBill = {
   expense_lines?: DirectLine[];
   entries?: Entry[];
   dues?: { due_date: string; amount: string }[];
+  total: string;
+  tds?: TdsInfo;
 };
 type Setup = {
   suppliers: { id: number; name: string; credit_term: number | null; state_code: string; is_active: boolean }[];
@@ -431,6 +434,7 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
           <Fold title="Totals" open summary={`₹${money(String(ours))}`}>
             <Totals taxable={taxable} cgst={cgst} sgst={sgst} igst={igst} roundOff={r2(ours - exact)} total={ours} />
           </Fold>
+          {saved && <TdsBox<DirectBill> billId={saved.id} tds={saved.tds} total={saved.total} draft onChanged={setSaved} />}
           {saved && (
             <EntriesBox entries={saved.entries ?? []} dues={saved.dues ?? []} draft>
               <p className="small">No stock moves and "Goods Received but Bills not Received" is not touched.</p>

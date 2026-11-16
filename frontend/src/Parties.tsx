@@ -1,3 +1,4 @@
+import { DEDUCTEE_TYPES, TdsSectionPicker } from "./Tds";
 import { CountryPicker, PinPicker } from "./Pin";
 import { Section } from "./Brand";
 import { SidePanel, SideRows } from "./Master";
@@ -58,6 +59,9 @@ export type Party = {
   gst_type: string;
   gstin: string;
   pan: string;
+  /** TDS as a supplier: blank deductee type is read from the PAN. */
+  deductee_type?: string;
+  tds_section?: string;
   state_code: string;
   country: string;
   credit_limit: string;
@@ -86,6 +90,13 @@ export type Party = {
   /** Documents kept for the party (read only; the Documents tab saves its own). */
   document_count?: number;
 };
+
+/** The deductee type a PAN's 4th letter gives (C company, F firm, P/H individual or HUF). */
+function panType(pan: string): string {
+  if (pan.length !== 10) return "";
+  const kind = { C: "company", F: "firm", P: "individual", H: "individual" }[pan[3]] ?? "others";
+  return DEDUCTEE_TYPES.find((t) => t.value === kind)?.label ?? "";
+}
 
 export const GST_TYPES: [string, string][] = [
   ["regular", "Registered (regular)"],
@@ -477,6 +488,25 @@ export function PartyFields({
             />
           </label>
         )}
+        {supplier && (
+          <label>
+            Deductee Type
+            <Combobox
+              value={p.deductee_type ?? ""}
+              empty={`From the PAN${panType(p.pan) ? `: ${panType(p.pan)}` : ""}`}
+              options={DEDUCTEE_TYPES}
+              onChange={(v) => set({ deductee_type: v })}
+            />
+            <span className="small">Sets the TDS rate; no PAN means the higher rate</span>
+          </label>
+        )}
+        {supplier && (
+          <label>
+            Default TDS Section
+            <TdsSectionPicker value={p.tds_section ?? ""} onChange={(v) => set({ tds_section: v })} />
+            <span className="small">Used for a bill line whose item or ledger names none</span>
+          </label>
+        )}
       </div>
       </div>
       </PanelBox>
@@ -838,6 +868,12 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
     ["Price List", (supplier ? p.buying_price_list_name : p.price_list_name) ?? ""],
     ["Terms and Conditions", (supplier ? p.purchase_terms_name : p.sales_terms_name) || "Company default"],
     [supplier ? "Purchaser" : "Salesman", p.salesman_name ?? ""],
+    ...(supplier
+      ? ([
+          ["Deductee Type", DEDUCTEE_TYPES.find((t) => t.value === p.deductee_type)?.label ?? `From the PAN${panType(p.pan) ? `: ${panType(p.pan)}` : ""}`],
+          ["Default TDS Section", p.tds_section || "None"],
+        ] as [string, string][])
+      : []),
     ...(p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
   ];
   return (

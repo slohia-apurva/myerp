@@ -134,6 +134,8 @@ export type Company = Contact & {
   multi_currency: boolean;
   modules: string[];
   print_ganesha: boolean;
+  /** Deduct TDS on purchase of goods (194Q): turnover last year above Rs 10 crore. */
+  deduct_194q?: boolean;
   print_image: string;
   print_image_own: boolean;
   /** Entry types that cannot be submitted without an attachment. */
@@ -625,6 +627,7 @@ function CompanyForm(props: {
     from?.multi_currency ?? false,
   );
   const [printGanesha, setPrintGanesha] = useState(from?.print_ganesha ?? false);
+  const [deduct194q, setDeduct194q] = useState(from?.deduct_194q ?? false);
   const [needFile, setNeedFile] = useState<string[]>(from?.attachments_required ?? []);
   const mailbox = useMailAccount(c?.id);
   const allModules = useModules();
@@ -659,6 +662,7 @@ function CompanyForm(props: {
       ...(booksStart ? { books_start: booksStart } : {}),
       multi_currency: multiCurrency,
       print_ganesha: printGanesha,
+      deduct_194q: deduct194q,
       ...(c ? { attachments_required: needFile } : {}),
       ...(!c && modules ? { modules } : {}),
       ...(c ? {} : abbr ? { abbr } : {}),
@@ -772,6 +776,11 @@ function CompanyForm(props: {
             />
           </label>
         </div>
+        <label className="check">
+          <input type="checkbox" checked={deduct194q} onChange={(e) => setDeduct194q(e.target.checked)} />
+          Deduct TDS on purchase of goods (194Q)
+        </label>
+        <span className="small">Tick when last year's turnover was above ₹10 crore. Purchase bills then deduct 0.1% on what a supplier bills above ₹50,00,000 in the year.</span>
       </Section>
       <Section title="Registered address and contact">
         <ContactFields
@@ -1149,6 +1158,10 @@ function Overview({ detail }: { detail: Detail }) {
             <div>
               <dt>TAN</dt>
               <dd>{c.tan || "—"}</dd>
+            </div>
+            <div>
+              <dt>TDS on Purchase of Goods (194Q)</dt>
+              <dd>{c.deduct_194q ? "Deducted" : "Not deducted"}</dd>
             </div>
             <div>
               <dt>Incorporated</dt>

@@ -19,7 +19,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from buying import rates
+from buying import rates, tds
 from buying.api import CREATE, SUBMIT, VIEW, _check, _company, _plain
 from buying.invoices import (
     _due_rows,
@@ -34,7 +34,7 @@ from buying.models import PurchaseInvoice, PurchaseInvoiceDue, PurchaseInvoiceRa
 from core import attachments, numbering
 from core.api import Signed
 from posting import accounts, service
-from posting.service import GLLine, Voucher
+from posting.service import Voucher
 from tenancy.context import tenant_atomic
 
 KIND = "purchase_invoice"
@@ -139,6 +139,7 @@ def _save(inv: PurchaseInvoice, data: dict) -> None:
             for n, r in enumerate(rows, start=1)
         ]
     )
+    tds.refresh(inv)
 
 
 def plan(inv: PurchaseInvoice, preview: bool = False):
@@ -149,9 +150,8 @@ def plan(inv: PurchaseInvoice, preview: bool = False):
     gl = [*split, *rates.gst_lines(inv, rates.UP, preview)]
     if inv.round_off:
         gl.append(_side(system_ledger(inv.company, accounts.ROUND_OFF, preview), inv.round_off, ""))
-    gl.append(
-        GLLine(inv.supplier, credit=inv.total, remarks=f"Supplementary bill {inv.bill_no}".strip())
-    )
+    gl += tds.bill_lines(inv, preview)
+    gl.append(tds.supplier_line(inv, f"Supplementary bill {inv.bill_no}".strip()))
     return gl, revalue, per_line
 
 
@@ -210,6 +210,7 @@ def submit(inv: PurchaseInvoice, user) -> None:
             )
     inv.number = numbering.next_document_number(inv.company, KIND, inv.posting_date, inv.branch)
     inv.save(update_fields=["number", "posting_date"])
+    tds.refresh(inv)
     gl, revalue, per_line = plan(inv)
     voucher = Voucher(inv.company, inv.branch, inv.posting_date, KIND, inv.pk, inv.number, user)
     service.post(voucher, gl=gl, revalue=revalue)

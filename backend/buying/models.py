@@ -431,6 +431,8 @@ class PurchaseInvoice(models.Model):
     igst_total = models.DecimalField(**MONEY, default=Decimal("0"))
     round_off = models.DecimalField(**MONEY, default=Decimal("0"))
     total = models.DecimalField(**MONEY, default=Decimal("0"))
+    # TDS deducted on the bill (buying/tds.py); the supplier is owed total less this.
+    tds_total = models.DecimalField(**MONEY, default=Decimal("0"))
     notes = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
     cancel_reason = models.CharField(max_length=200, blank=True)
@@ -604,6 +606,35 @@ class PurchaseInvoiceDue(models.Model):
         return f"{self.due_date}: {self.amount}"
 
 
+class PurchaseInvoiceTds(models.Model):
+    """TDS on one line of a purchase bill (buying/tds.py), worked out again on
+    every save of a draft and on Submit. `section` is the line's own (from its
+    item or ledger, else the supplier's default) unless `by_hand`, when the
+    person chose it, or chose none, on the bill."""
+
+    LINE, CHARGE, RATE, EXPENSE = "line", "charge", "rate", "expense"
+    KINDS = [(LINE, "Goods"), (CHARGE, "Charge"), (RATE, "Rate change"), (EXPENSE, "Line")]
+
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name="tds_rows")
+    position = models.PositiveSmallIntegerField()
+    line_kind = models.CharField(max_length=8, choices=KINDS)
+    line_position = models.PositiveSmallIntegerField()
+    label = models.CharField(max_length=200, blank=True)
+    section = models.CharField(max_length=12, blank=True)
+    by_hand = models.BooleanField(default=False)
+    taxable = models.DecimalField(**MONEY, default=Decimal("0"))  # the line, before GST
+    base = models.DecimalField(**MONEY, default=Decimal("0"))  # what TDS is worked out on
+    rate = models.DecimalField(max_digits=6, decimal_places=3, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY, default=Decimal("0"))
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.section or '-'}: {self.amount}"
+
+
 class PurchaseReturn(models.Model):
     """Goods sent back to the supplier from one goods receipt (Sidharth,
     2026-11-15, preview 74): damaged, short, rejected. Submit takes them out of
@@ -719,6 +750,9 @@ class DebitNote(models.Model):
     igst_total = models.DecimalField(**MONEY, default=Decimal("0"))
     round_off = models.DecimalField(**MONEY, default=Decimal("0"))
     total = models.DecimalField(**MONEY, default=Decimal("0"))
+    # TDS taken back from the bill in proportion (buying/tds.py); the supplier's
+    # balance goes down by total less this.
+    tds_total = models.DecimalField(**MONEY, default=Decimal("0"))
     notes = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
     cancel_reason = models.CharField(max_length=200, blank=True)

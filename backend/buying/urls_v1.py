@@ -10,6 +10,7 @@ from buying import (
     supplementary,
     supplier_link,
     supplier_mail,
+    tds,
 )
 
 urlpatterns = [
@@ -112,6 +113,9 @@ urlpatterns = [
     ),
     path(
         "purchase-invoices/<int:pk>/", invoices.InvoiceDetailView.as_view(), name="purchase-invoice"
+    ),
+    path(
+        "purchase-invoices/<int:pk>/tds/", tds.InvoiceTdsView.as_view(), name="purchase-invoice-tds"
     ),
     path(
         "purchase-invoices/<int:pk>/cancel/",

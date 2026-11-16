@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api import VIEW, Signed, _check
+from core.tds_sections import current_sections
 from tenancy.models import GstRate
 
 
@@ -43,3 +44,24 @@ def refuse_unlisted_rates(new: list[dict], kept: set[tuple]) -> None:
                     ]
                 }
             )
+
+
+class TdsSectionListView(APIView):
+    """GET: the TDS sections as in force today (core/tds_sections.py), for the
+    pickers on suppliers, items, ledgers and bills."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _check(request, VIEW)
+        return Response(
+            [
+                {
+                    "code": s.code,
+                    "name": s.name,
+                    "label": f"{s.code} {s.name}",
+                    "for_goods": s.for_goods,
+                }
+                for s in current_sections()
+            ]
+        )

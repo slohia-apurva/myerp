@@ -279,6 +279,10 @@ export const MANUAL: Chapter[] = [
             ],
             ["Date of incorporation, TAN", "TAN is needed for deducting TDS."],
             [
+              "Deduct TDS on purchase of goods (194Q)",
+              "Tick it when the company's turnover last year was above ₹10 crore. Purchase bills then deduct TDS under 194Q (0.1%) on what a supplier bills for goods above ₹50,00,000 in the year.",
+            ],
+            [
               "Registered address and contact",
               "Address, PIN, phone, email and a contact person.",
             ],
@@ -695,7 +699,11 @@ export const MANUAL: Chapter[] = [
             the "Default purchase unit", and fill in the "Lead time in days",
             "Safety stock qty", "Minimum order qty" and "Max stock qty" (the
             quantities are in the item's default unit; the maximum cannot be
-            below the safety stock). The default units are picked from the
+            below the safety stock). "TDS Section" is the section a purchase of
+            the item deducts TDS under, for example "194C" for an Annual
+            Maintenance (AMC); goods usually leave it empty (they go by 194Q when
+            the company deducts it), and a service left empty takes the
+            supplier's default. The default units are picked from the
             item's own units, so add a unit on the "Units of measure" tab
             first. Left blank, the stock unit is used.
           </li>
@@ -879,13 +887,20 @@ export const MANUAL: Chapter[] = [
           about, see "Central" in the top menu. A customer's Owner does not.
         </p>
         <p>
-          The screen has four tabs. "Customers" lists every customer group
+          The screen has its tabs. "Customers" lists every customer group
           (tenant) with its status. "Shared lists" shows each central list with
           the number of rows in it (click "Open" to look inside) and the "Load
           lists from a file" box. "GST Rates" holds the rates every customer's
           items choose from: type a rate under "GST Rate (%)" and click "Add
           rate", or click "Disable" to stop offering a rate for new entries
           (items that already use it keep it; rates are never deleted).
+          "TDS Sections" holds the TDS sections purchase bills use, with their
+          rates ("Company / Firm %", "Individual / HUF %", "No PAN %") and
+          limits ("One Bill Over ₹", "Year Over ₹") from a date ("From"). When
+          the law changes, click "Add section" and add a new row for the same
+          section with the new "From" date; bills use the row in force on their
+          date. "Edit" corrects a row and "Disable" stops it. The rates loaded
+          at the start are the usual ones and are to be confirmed by a CA.
           "Couriers" holds the courier list and the requests customers have
           sent.
         </p>
@@ -1728,6 +1743,11 @@ export const MANUAL: Chapter[] = [
             branch.
           </li>
           <li>
+            For an expense ledger, "TDS Section" is the section a purchase bill
+            line booked to it deducts under (for example "194I(b)" for "Office
+            Rent"). Left at "None", the supplier's default section is used.
+          </li>
+          <li>
             Open "Opening Balance", enter the opening balance (see below) and
             click "Save"; the tab closes and the ledger is selected in the list.
           </li>
@@ -1828,6 +1848,10 @@ export const MANUAL: Chapter[] = [
             [
               "Salesman or Purchaser",
               'The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser), from the list in "Masters" › "Salesmen and Purchasers". A customer offers the people ticked "Salesman", a supplier those ticked "Purchaser"; type a new name and pick \'Create "…"\' to add someone. Other companies can choose someone else for the same party.',
+            ],
+            [
+              "Deductee Type and Default TDS Section",
+              'For a supplier. "Deductee Type" (Company, Firm or LLP, Individual or HUF, Others) sets the TDS rate; left at "From the PAN" it is read from the PAN\'s 4th letter. "Default TDS Section" is used on a purchase bill line whose item or ledger names no section, for example "194C" for a contractor. They are kept once for the supplier and used by every company. See "TDS" in the chapter "Purchase invoices".',
             ],
             [
               "Preferred Transporter",
@@ -2700,9 +2724,34 @@ export const MANUAL: Chapter[] = [
             If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
           </li>
           <li>
+            <b>TDS.</b> Every purchase bill (against goods receipts, without goods
+            receipt, and supplementary bills) has a "TDS" box once it is saved.
+            Each line gets a TDS section: from the "TDS Section" on its item or
+            expense ledger; for goods, "194Q" when the company ticks "Deduct TDS
+            on purchase of goods (194Q)"; otherwise the supplier's "Default TDS
+            Section". On a draft you can change or clear a line's "Section" in the
+            box; it is saved at once and kept when the bill is saved again.
+            MyERP takes the section's rates and limits from the central "TDS
+            Sections" list as on the bill's date and works TDS out on the amount
+            before GST ("On ₹ (Before GST)"): a bill whose lines in a section pass
+            the one-bill limit deducts, and so does a bill that takes the
+            supplier's year (this company, this financial year, shown as
+            "Supplier's Year So Far") past the year limit, which then also
+            catches up the earlier bills that did not deduct. 194Q deducts only
+            on what passes ₹50,00,000. The rate follows the "Deductee Type"
+            (from the supplier, else read from its PAN); a supplier without a PAN
+            pays the higher "No PAN" rate. TDS is rounded to the rupee, and
+            "Why" says how each line was worked out. A supplier abroad has no TDS
+            here. Submit credits "TDS Payable 194C" (one ledger per section, made
+            under Duties &amp; Taxes the first time) and credits the supplier
+            with the bill total less TDS; the due dates split that net amount.
+            Paying TDS to the government (challan), the 26Q return and Form 16A
+            come in later pieces of work.
+          </li>
+          <li>
             "Print ▾" prints the page or saves it as a PDF. "Scan e-invoice QR",
-            bills before the goods come, service bills without a receipt, TDS and
-            imports' bills come in later pieces of work.
+            bills before the goods come and imports' bills come in later pieces
+            of work.
           </li>
         </ul>
         <Note>
@@ -2792,6 +2841,11 @@ export const MANUAL: Chapter[] = [
           debit note for the 3. Open it from "Entry" in the top menu, then
           "Purchase", then "Debit Note"; or from "Create ▾" on a submitted
           purchase invoice or purchase return.
+        </p>
+        <p>
+          When the bill deducted TDS, the debit note takes back TDS in
+          proportion to what it debits: "TDS Payable" is debited for that
+          share and the supplier's balance goes down by the note less it.
         </p>
         <p>
           With the "Reason" "Rate charged higher" a debit note instead takes a

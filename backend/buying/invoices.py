@@ -32,6 +32,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from buying import tds
 from buying.api import CANCEL, CREATE, SUBMIT, VIEW, _check, _company, _plain
 from buying.models import (
     GoodsReceipt,
@@ -217,6 +218,7 @@ def _invoice_out(inv: PurchaseInvoice, lines: bool = True) -> dict:
         "igst_total": inv.igst_total,
         "round_off": inv.round_off,
         "total": inv.total,
+        "tds_total": inv.tds_total,
         "notes": inv.notes,
         "cancel_reason": inv.cancel_reason,
         "receipts": [{"id": r.pk, "number": r.number} for r in receipts],
@@ -237,6 +239,7 @@ def _invoice_out(inv: PurchaseInvoice, lines: bool = True) -> dict:
         )
         data["orders"] = sorted({(r["order_number"]) for r in data["lines"] if r["order_number"]})
         data["entries"] = _entries(inv)
+        data["tds"] = tds.box(inv)
         if inv.kind == PurchaseInvoice.SUPPLEMENTARY:
             from buying.supplementary import rate_line_out
 
@@ -307,7 +310,7 @@ def _first_error(exc: ValidationError) -> str:
 def _due_rows(inv: PurchaseInvoice) -> list[dict]:
     """The credit term's parts as due dates, each counted from the bill date
     (Sidharth, 2026-11-15); the last part takes what is left."""
-    total = inv.total or ZERO
+    total = (inv.total or ZERO) - inv.tds_total
     day = inv.bill_date or inv.posting_date
     if not total or day is None:
         return []
@@ -474,6 +477,7 @@ def _save(inv: PurchaseInvoice, data: dict) -> None:
         c.invoice = inv
     PurchaseInvoiceCharge.objects.bulk_create(charges)
     inv.receipts.set({r.receipt_line.receipt_id for r in rows})
+    tds.refresh(inv)
 
 
 # Posting ---------------------------------------------------------------------
@@ -635,7 +639,8 @@ def _plan(inv: PurchaseInvoice, preview: bool = False) -> _Plan:
             gl.append(GLLine(ledger(code), debit=value))
     if inv.round_off:
         gl.append(_side(ledger(accounts.ROUND_OFF), inv.round_off, ""))
-    gl.append(GLLine(inv.supplier, credit=inv.total, remarks=f"Bill {inv.bill_no}".strip()))
+    gl += tds.bill_lines(inv, preview)
+    gl.append(tds.supplier_line(inv, f"Bill {inv.bill_no}".strip()))
     return _Plan(gl, revalue, per_line)
 
 
@@ -682,6 +687,7 @@ def _submit(inv: PurchaseInvoice, user) -> None:
 
     inv.number = numbering.next_document_number(inv.company, KIND, inv.posting_date, inv.branch)
     inv.save(update_fields=["number", "posting_date"])
+    tds.refresh(inv)
     plan = _plan(inv)
     voucher = Voucher(inv.company, inv.branch, inv.posting_date, KIND, inv.pk, inv.number, user)
     service.post(voucher, gl=plan.gl, revalue=plan.revalue)

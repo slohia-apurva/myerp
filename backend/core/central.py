@@ -28,6 +28,7 @@ from tenancy.models import (
     GstRate,
     HsnCode,
     PinCode,
+    TdsSection,
     Tenant,
 )
 from tenancy.provisioning import create_tenant, drop_tenant_database
@@ -48,6 +49,13 @@ CENTRAL_TABLES = [
         "GST rates",
         "The GST rates an item's rate history picks from.",
         GstRate,
+        "",
+    ),
+    (
+        "tds_sections",
+        "TDS sections",
+        "TDS sections with their dated rates and limits, used on purchase bills.",
+        TdsSection,
         "",
     ),
     (
@@ -272,6 +280,84 @@ class GstRateAdminDetailView(APIView):
             row.is_active = bool(request.data["is_active"])
             row.save(update_fields=["is_active"])
         return Response(GstRateAdminSerializer(row).data)
+
+
+class TdsSectionAdminSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TdsSection
+        fields = [
+            "id",
+            "code",
+            "name",
+            "new_code",
+            "valid_from",
+            "rate_other",
+            "rate_individual",
+            "rate_no_pan",
+            "bill_limit",
+            "year_limit",
+            "above_limit_only",
+            "for_goods",
+            "is_active",
+        ]
+        validators = []  # the clash is refused in validate(), in words
+
+    def validate_code(self, value):
+        value = value.strip().upper().replace(" ", "")
+        if not re.fullmatch(r"[0-9A-Z()]{2,12}", value):
+            raise serializers.ValidationError(
+                "Give the section as in the Act, e.g. 194C or 194J(b)."
+            )
+        return value.replace("(A)", "(a)").replace("(B)", "(b)")
+
+    def validate(self, data):
+        for field in ("rate_other", "rate_individual", "rate_no_pan"):
+            if field in data and not 0 <= data[field] <= 100:
+                raise serializers.ValidationError({field: ["A rate is between 0 and 100."]})
+        code = data.get("code", getattr(self.instance, "code", ""))
+        day = data.get("valid_from", getattr(self.instance, "valid_from", None))
+        clash = TdsSection.objects.filter(code=code, valid_from=day)
+        if self.instance is not None:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise serializers.ValidationError(
+                {"valid_from": [f"{code} already has a row from {day:%d-%m-%Y}."]}
+            )
+        return data
+
+
+class TdsSectionAdminListView(APIView):
+    """The central dated list of TDS sections. A change in the law is a new row
+    from its date; rows are never deleted, only disabled."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _platform_admin(request)
+        return Response(TdsSectionAdminSerializer(TdsSection.objects.all(), many=True).data)
+
+    def post(self, request):
+        _platform_admin(request)
+        serializer = TdsSectionAdminSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            row = serializer.save()
+        return Response(TdsSectionAdminSerializer(row).data, status=status.HTTP_201_CREATED)
+
+
+class TdsSectionAdminDetailView(APIView):
+    permission_classes = [Signed]
+
+    def patch(self, request, pk: int):
+        _platform_admin(request)
+        row = TdsSection.objects.filter(pk=pk).first()
+        if row is None:
+            raise NotFound("No such TDS section.")
+        serializer = TdsSectionAdminSerializer(row, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            serializer.save()
+        return Response(TdsSectionAdminSerializer(row).data)
 
 
 class CentralRequestAdminSerializer(serializers.ModelSerializer):

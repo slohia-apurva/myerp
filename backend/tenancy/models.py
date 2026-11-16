@@ -151,6 +151,40 @@ class GstRate(models.Model):
         return f"GST {self.rate.normalize():f}%"
 
 
+class TdsSection(models.Model):
+    """A TDS section (194C, 194J(b), 194Q...) with its rates and limits from a
+    date. One central dated list for every tenant, read-only to them, like GST
+    rates: a change in the law is a new row with its own "from" date, and a
+    bill uses the row in force on its date. Tenants keep only the code (on a
+    supplier, item, ledger or bill line). Rates are percentages; limits are
+    rupees and blank when the section has none."""
+
+    code = models.CharField(max_length=12)
+    name = models.CharField(max_length=120)
+    # The Income-tax Act 2025's reference for the same payment, when known.
+    new_code = models.CharField(max_length=40, blank=True)
+    valid_from = models.DateField()
+    rate_other = models.DecimalField(max_digits=6, decimal_places=3)  # company, firm, others
+    rate_individual = models.DecimalField(max_digits=6, decimal_places=3)  # individual, HUF
+    rate_no_pan = models.DecimalField(max_digits=6, decimal_places=3)
+    bill_limit = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    year_limit = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    # TDS only on what the year passes the limit by (194Q), not on the whole year.
+    above_limit_only = models.BooleanField(default=False)
+    # Purchase of goods (194Q): used for goods only when the company ticks it.
+    for_goods = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["code", "-valid_from"]
+        constraints = [
+            models.UniqueConstraint(fields=["code", "valid_from"], name="tds_section_once_a_date")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.code} {self.name}"
+
+
 class Carrier(models.Model):
     """A courier, aggregator or transporter (Delhivery, Blue Dart, Shiprocket...).
     One central list for every tenant, read-only to them, like HSN codes; a

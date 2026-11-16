@@ -1,3 +1,4 @@
+import { TdsSectionPicker } from "./Tds";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
@@ -62,6 +63,7 @@ export type Item = {
   best_before_unit: string;
   batch_no: string;
   lead_time_days: number | null;
+  tds_section?: string;
   safety_stock_qty: string | null;
   min_order_qty: string | null;
   max_stock_qty: string | null;
@@ -562,6 +564,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                   ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
                   ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
                   ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
+                  ["TDS Section", i.tds_section || (i.item_type === "goods" ? "None (194Q when the company deducts it)" : "None (the supplier's default)")],
                 ]}
               />
               {i.purchase_description && <div className="rich">{i.purchase_description}</div>}
@@ -810,6 +813,7 @@ function ItemForm(props: {
   const [bestBefore, setBestBefore] = useState(from?.best_before_value == null ? "" : String(from.best_before_value));
   const [bestBeforeUnit, setBestBeforeUnit] = useState(from?.best_before_unit ?? "days");
   const [batchNo, setBatchNo] = useState(from?.batch_no ?? "");
+  const [tdsSection, setTdsSection] = useState(from?.tds_section ?? "");
   const [leadTime, setLeadTime] = useState(from?.lead_time_days == null ? "" : String(from.lead_time_days));
   const [safety, setSafety] = useState(from?.safety_stock_qty == null ? "" : plain(from.safety_stock_qty));
   const [minOrder, setMinOrder] = useState(from?.min_order_qty == null ? "" : plain(from.min_order_qty));
@@ -967,6 +971,7 @@ function ItemForm(props: {
       best_before_unit: bestBeforeUnit,
       batch_no: batchNo,
       lead_time_days: num(leadTime),
+      tds_section: tdsSection,
       safety_stock_qty: num(safety),
       min_order_qty: num(minOrder),
       max_stock_qty: num(maxStock),
@@ -1257,6 +1262,11 @@ function ItemForm(props: {
                 <label>
                   Max stock qty
                   <input className="num" inputMode="decimal" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
+                </label>
+                <label>
+                  TDS Section
+                  <TdsSectionPicker value={tdsSection} onChange={setTdsSection} empty={type === "service" ? "None: the supplier's default" : "None: 194Q when the company deducts it"} />
+                  <span className="small">e.g. 194C for an Annual Maintenance (AMC). Goods usually leave it empty.</span>
                 </label>
               </div>
               <p className="small wide">The quantities are in the item's default unit.</p>

@@ -1,3 +1,4 @@
+import { TdsSectionPicker } from "./Tds";
 import { Combobox } from "./Combobox";
 import { announceCreated, announceSaved, closeThisTab, creatable, useCreated, useNewName, type Creatable } from "./Create";
 import { useOpenParam } from "./ErrorNote";
@@ -21,6 +22,8 @@ export type Ledger = {
   is_active: boolean;
   lock?: LockInfo;
   notes: string;
+  /** The TDS section a purchase bill line booked to this expense ledger deducts under. */
+  tds_section?: string;
   bank_name: string;
   account_number: string;
   ifsc: string;
@@ -477,6 +480,7 @@ function LedgerPanels(props: { ledger: Ledger; companyId: number }) {
             ["Branch", l.bank_branch],
             ["In Use", l.lock?.in_use.join(", ") ?? ""],
             ["Disabled", l.is_active ? "No" : "Yes"],
+            ...(l.nature === "expense" ? ([["TDS Section", l.tds_section || "None (the supplier's default)"]] as [string, string][]) : []),
             ["Notes", l.notes],
           ]}
         />
@@ -547,6 +551,7 @@ function LedgerForm(props: {
   const [name, setName] = useState(l?.name ?? (c ? `${c.name} (copy)` : (props.startName ?? "")));
   const [group, setGroup] = useState(from ? String(from.group) : props.defaultGroup);
   const [notes, setNotes] = useState(from?.notes ?? "");
+  const [tdsSection, setTdsSection] = useState(from?.tds_section ?? "");
   const [disabled, setDisabled] = useState(l ? !l.is_active : false);
   const locked = (field: string) => isLocked(l?.lock, field);
   const [tab, setTab] = useState<PartyTab>("general");
@@ -635,6 +640,7 @@ function LedgerForm(props: {
       group: Number(group),
       ...(l ? { is_active: !disabled } : {}),
       notes,
+      tds_section: chosen?.nature === "expense" ? tdsSection : "",
       bank_name: bankName,
       account_number: accountNumber,
       ifsc,
@@ -959,6 +965,13 @@ function LedgerForm(props: {
                   } else setParty(blankParty(props.companyState));
                 }}
               />
+            </label>
+          )}
+          {chosen?.nature === "expense" && (
+            <label>
+              TDS Section
+              <TdsSectionPicker value={tdsSection} onChange={setTdsSection} empty="None: the supplier's default" />
+              <span className="small">e.g. 194I(b) for "Office Rent"; used on purchase bills without goods receipt</span>
             </label>
           )}
           <label>

@@ -22,7 +22,7 @@ type Info = {
 export function CentralPage() {
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"customers" | "lists" | "gst" | "couriers" | "requests">("customers");
+  const [tab, setTab] = useState<"customers" | "lists" | "gst" | "tds" | "couriers" | "requests">("customers");
   const printing = usePrintMenu({ title: "Central tables" });
   const reload = useCallback(
     () =>
@@ -50,6 +50,7 @@ export function CentralPage() {
             ["customers", "Customers"],
             ["lists", "Shared lists"],
             ["gst", "GST Rates"],
+            ["tds", "TDS Sections"],
             ["couriers", "Couriers"],
             ["requests", "Requests"],
           ] as const
@@ -121,6 +122,7 @@ export function CentralPage() {
         </>
       )}
       {tab === "gst" && <GstRates />}
+      {tab === "tds" && <TdsSections />}
       {tab === "requests" && <AdditionRequests />}
       {tab === "couriers" && (
         <>
@@ -312,6 +314,185 @@ function GstRates() {
               </tr>
             );
           })}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
+
+type CentralTds = {
+  id?: number;
+  code: string;
+  name: string;
+  new_code: string;
+  valid_from: string;
+  rate_other: string;
+  rate_individual: string;
+  rate_no_pan: string;
+  bill_limit: string | null;
+  year_limit: string | null;
+  above_limit_only: boolean;
+  for_goods: boolean;
+  is_active: boolean;
+};
+
+const blankTds = (): CentralTds => ({
+  code: "",
+  name: "",
+  new_code: "",
+  valid_from: "",
+  rate_other: "",
+  rate_individual: "",
+  rate_no_pan: "",
+  bill_limit: "",
+  year_limit: "",
+  above_limit_only: false,
+  for_goods: false,
+  is_active: true,
+});
+
+const pct = (v: string) => String(Number(v));
+const rupees = (v: string | null) => (v ? Number(v).toLocaleString("en-IN") : "");
+const dmy = (iso: string) => iso.split("-").reverse().join("-");
+
+/** The TDS sections every customer's purchase bills use, with dated rates and limits: only platform admins change it. */
+function TdsSections() {
+  const [rows, setRows] = useState<CentralTds[]>([]);
+  const [form, setForm] = useState<CentralTds | null>(null);
+  const [error, setError] = useState<unknown>("");
+  const load = useCallback(() => api<CentralTds[]>("v1/central/tds-sections/").then(setRows), []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const set = (patch: Partial<CentralTds>) => setForm((f) => (f ? { ...f, ...patch } : f));
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!form) return;
+    setError("");
+    const body = { ...form, bill_limit: form.bill_limit || null, year_limit: form.year_limit || null };
+    try {
+      if (form.id) await api(`v1/central/tds-sections/${form.id}/`, body, "PATCH");
+      else await api("v1/central/tds-sections/", body);
+      setForm(null);
+      load();
+    } catch (err) {
+      setError(err);
+    }
+  };
+  return (
+    <Section title="TDS Sections">
+      <p className="small">
+        One list for every customer, kept here like GST rates. Rates and limits are dated: a change in the law is a new row for the same section
+        with its own "From" date, and a bill uses the row in force on its date. Rates shown are the usual ones, to be confirmed by a CA. Rows are
+        never deleted, only disabled.
+      </p>
+      {!form && (
+        <p>
+          <button type="button" onClick={() => setForm(blankTds())}>
+            Add section
+          </button>
+        </p>
+      )}
+      {form && (
+        <form onSubmit={save} className="panel-card">
+          <div className="row">
+            <label>
+              <span className="req">Section</span>
+              <input required value={form.code} onChange={(e) => set({ code: e.target.value })} placeholder="194C" />
+            </label>
+            <label>
+              <span className="req">Nature of Payment</span>
+              <input required value={form.name} onChange={(e) => set({ name: e.target.value })} />
+            </label>
+            <label>
+              New Act Code
+              <input value={form.new_code} onChange={(e) => set({ new_code: e.target.value })} />
+            </label>
+            <label>
+              <span className="req">From</span>
+              <input required type="date" value={form.valid_from} onChange={(e) => set({ valid_from: e.target.value })} />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              <span className="req">Company / Firm %</span>
+              <input required className="num" inputMode="decimal" value={form.rate_other} onChange={(e) => set({ rate_other: e.target.value })} />
+            </label>
+            <label>
+              <span className="req">Individual / HUF %</span>
+              <input required className="num" inputMode="decimal" value={form.rate_individual} onChange={(e) => set({ rate_individual: e.target.value })} />
+            </label>
+            <label>
+              <span className="req">No PAN %</span>
+              <input required className="num" inputMode="decimal" value={form.rate_no_pan} onChange={(e) => set({ rate_no_pan: e.target.value })} />
+            </label>
+            <label>
+              One Bill Over ₹
+              <input className="num" inputMode="decimal" value={form.bill_limit ?? ""} onChange={(e) => set({ bill_limit: e.target.value })} />
+            </label>
+            <label>
+              Year Over ₹
+              <input className="num" inputMode="decimal" value={form.year_limit ?? ""} onChange={(e) => set({ year_limit: e.target.value })} />
+            </label>
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={form.above_limit_only} onChange={(e) => set({ above_limit_only: e.target.checked })} />
+            TDS only on the part above the year limit (as 194Q)
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={form.for_goods} onChange={(e) => set({ for_goods: e.target.checked })} />
+            Purchase of goods: used for goods when a company ticks "Deduct TDS on purchase of goods"
+          </label>
+          <ErrorNote error={error} />
+          <p>
+            <button>Save</button>{" "}
+            <button type="button" className="link" onClick={() => setForm(null)}>
+              Cancel
+            </button>
+          </p>
+        </form>
+      )}
+      <table>
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>Nature of Payment</th>
+            <th className="num">Company / Firm %</th>
+            <th className="num">Individual / HUF %</th>
+            <th className="num">No PAN %</th>
+            <th className="num">One Bill Over ₹</th>
+            <th className="num">Year Over ₹</th>
+            <th>From</th>
+            <th>Status</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className={r.is_active ? "" : "off"}>
+              <td>
+                <b>{r.code}</b>
+                {r.new_code && <div className="small">{r.new_code}</div>}
+              </td>
+              <td>{r.name}</td>
+              <td className="num">{pct(r.rate_other)}</td>
+              <td className="num">{pct(r.rate_individual)}</td>
+              <td className="num">{pct(r.rate_no_pan)}</td>
+              <td className="num">{rupees(r.bill_limit)}</td>
+              <td className="num">
+                {rupees(r.year_limit)}
+                {r.above_limit_only && r.year_limit ? " (above it)" : ""}
+              </td>
+              <td style={{ whiteSpace: "nowrap" }}>{dmy(r.valid_from)}</td>
+              <td>{r.is_active ? <span className="pill on">Active</span> : <span className="pill">Disabled</span>}</td>
+              <td className="row-actions">
+                <button type="button" className="link" onClick={() => setForm({ ...r, bill_limit: r.bill_limit ?? "", year_limit: r.year_limit ?? "" })}>
+                  Edit
+                </button>
+                <ActiveButton url={`v1/central/tds-sections/${r.id}/`} active={r.is_active} what={r.code} onDone={load} onError={setError} />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </Section>
