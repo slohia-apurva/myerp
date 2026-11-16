@@ -29,7 +29,8 @@ def current_sections(day: datetime.date | None = None) -> list[TdsSection]:
         if row.code not in seen:
             seen.add(row.code)
             out.append(row)
-    return out
+    # In code order whatever the database's collation (it may skip brackets).
+    return sorted(out, key=lambda row: row.code)
 
 
 def check_section(code: str, field: str = "tds_section") -> str:
