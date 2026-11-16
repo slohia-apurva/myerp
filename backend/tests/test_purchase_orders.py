@@ -354,17 +354,28 @@ def test_contacts_ticked_for_whatsapp(buyer, world, alpha):
     assert wrong["whatsapp_to"] == ["Pick contacts of the supplier or the agent."]
 
 
-def test_the_agent_can_be_an_employee(buyer, world, alpha):
+def test_the_agent_can_be_a_purchaser_and_starts_as_the_suppliers(buyer, world, alpha):
+    from core.models import Ledger, SalesPerson
+
     with use_tenant(alpha):
-        rina = User.objects.create_user("rina@x.in", full_name="Rina").pk
+        rina_user = User.objects.create_user("rina@x.in", full_name="Rina")
+        rina = SalesPerson.objects.create(name="Rina", is_purchaser=True, user=rina_user).pk
+        sam = SalesPerson.objects.create(name="Sam", is_salesman=True).pk
+        Ledger.objects.filter(pk=world["local"]).update(salesman_id=rina)
     url = f"companies/{world['company']}/purchase-orders/"
-    po = call(buyer, "post", url, order(world, agent_user=rina, mail_agent_user=True)).json()
-    assert po["agent_user_name"] == "Rina"
+    setup = call(buyer, "get", f"{url}setup/").json()
+    local = next(s for s in setup["suppliers"] if s["id"] == world["local"])
+    assert local["purchaser"] == rina
+    assert [(p["name"], p["email"]) for p in setup["purchasers"]] == [("Rina", "rina@x.in")]
+    po = call(buyer, "post", url, order(world, purchaser=rina, mail_agent_user=True)).json()
+    assert po["purchaser_name"] == "Rina"
     assert [(c["name"], c["email"], c["of"]) for c in po["mail_contacts"]] == [
         ("Rina", "rina@x.in", "Agent")
     ]
-    both = call(buyer, "post", url, order(world, agent=world["far"], agent_user=rina)).json()
-    assert both["agent_user"] == ["Pick one agent: a supplier firm or an employee."]
+    both = call(buyer, "post", url, order(world, agent=world["far"], purchaser=rina)).json()
+    assert both["purchaser"] == ["Pick one agent: a supplier firm or a purchaser."]
+    salesman = call(buyer, "post", url, order(world, purchaser=sam)).json()
+    assert salesman["purchaser"] == ["Sam is not an active purchaser."]
 
 
 def test_the_transporter_is_by_supplier_or_one_of_ours(buyer, world, alpha):

@@ -2241,10 +2241,14 @@ export const MANUAL: Chapter[] = [
             Under "Supplier Contacts and Agent", tick "Send Mail" for each
             person who should get the order by mail. The supplier's purchase
             contacts and its main contact are ticked to start with; a contact
-            with no email cannot be ticked. If an agent buys for you, pick it as the
-            "Buying Agent": either a broker or firm from the suppliers list
-            (marked "Supplier"; add it as a supplier first) or one of your own
-            employees (marked "Employee"), and tick who of them gets the mail. Contacts themselves are added on the supplier's ledger.
+            with no email cannot be ticked. The "Buying Agent" starts as the
+            supplier's "Purchaser" in this company (set on the supplier). Change
+            it to a broker or firm from the suppliers list (marked "Supplier";
+            add it as a supplier first) or to another person ticked "Purchaser"
+            in "Masters" › "Salesmen and Purchasers" (marked "Purchaser"; type a
+            new name and pick 'Create "…"' to add one), or to "None"; then tick
+            who of them gets the mail. A purchaser is mailed at their own email,
+            else the one they sign in with. Contacts themselves are added on the supplier's ledger.
             Tick "WhatsApp" for each person who should also get the order on
             WhatsApp; a contact with no phone number cannot be ticked. For now
             the ticks are only kept on the order: sending on WhatsApp comes

@@ -66,19 +66,20 @@ class PurchaseOrder(models.Model):
         CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     # A buying agent: a firm from the company's suppliers (a broker, say), or one of
-    # our own employees (a user). At most one of the two.
+    # the Purchasers (Masters > Salesmen and Purchasers), which starts as the
+    # supplier's own Purchaser in this company. At most one of the two.
     agent = models.ForeignKey(
         Ledger, null=True, blank=True, on_delete=models.PROTECT, related_name="agent_orders"
     )
-    agent_user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+    purchaser = models.ForeignKey(
+        "core.SalesPerson",
         null=True,
         blank=True,
         on_delete=models.PROTECT,
-        related_name="agent_orders",
+        related_name="purchase_orders",
     )
     # Who the order is mailed to: ids of the supplier's and the agent firm's contacts,
-    # and whether the employee agent gets it too.
+    # and whether the purchaser gets it too.
     mail_to = models.JSONField(default=list, blank=True)
     # Contacts ticked to get the order on WhatsApp (kept now; sending comes later).
     whatsapp_to = models.JSONField(default=list, blank=True)
