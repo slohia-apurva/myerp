@@ -1787,6 +1787,15 @@ export const MANUAL: Chapter[] = [
           are filled in from the GST portal, and you can change any of them.
         </p>
         <p>
+          Saved addresses and contacts each show as one line: an address with
+          its "Name", "Address", "State" and which default it is; a contact
+          with its "Name", "Designation", "Phone", "Email" and "Type". Click
+          "Edit" at the end of a line to open it, change what you need, and
+          click "Done" to fold it back into a line ("Remove" takes it off).
+          A new address or contact opens ready to fill in. Nothing is kept
+          until you click "Save" at the top of the page.
+        </p>
+        <p>
           For an Indian address, click the "PIN code" box and type the PIN, or
           words of the city or state, and click the PIN you want in the list.
           The "City" and "State" boxes are then filled in for you; they are
@@ -1801,7 +1810,7 @@ export const MANUAL: Chapter[] = [
         <p>
           In the "Contacts" section, click "+ Add contact" for each person you deal
           with: the owner, the purchase manager, accounts. Give each a name, and
-          add their designation, phone and email. Under "Contact type", tick
+          add their designation, phone and email. Under "Contact Type", tick
           what each person is for: "Main" (the one to call first; only one per
           party), "Accounting", "Shipping", "Purchase" or "Sales". One person
           can have several types. When MyERP sends automated emails during

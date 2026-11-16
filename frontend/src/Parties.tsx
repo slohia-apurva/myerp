@@ -208,6 +208,35 @@ function PartyItemPrices(props: { party: Party; onChange: (p: Party) => void; ca
   );
 }
 
+/**
+ * Which rows of a list (addresses, contacts) are open for editing. Saved rows show as one
+ * line with "Edit" (Sidharth, 2026-11-16); a row opened or newly added shows its fields
+ * until "Done". Indexes shift down when a row is removed.
+ */
+function useOpenRows(resetKey: unknown) {
+  const [open, setOpen] = useState<Set<number>>(new Set());
+  useEffect(() => setOpen(new Set()), [resetKey]);
+  return {
+    isOpen: (i: number) => open.has(i),
+    show: (i: number) => setOpen((o) => new Set(o).add(i)),
+    hide: (i: number) =>
+      setOpen((o) => {
+        const n = new Set(o);
+        n.delete(i);
+        return n;
+      }),
+    removed: (i: number) =>
+      setOpen((o) => new Set([...o].filter((j) => j !== i).map((j) => (j > i ? j - 1 : j)))),
+  };
+}
+
+/** "Done" folds a row only when its required boxes are filled; otherwise it points to the first empty one. */
+function foldIfFilled(button: HTMLElement, fold: () => void) {
+  const empty = button.closest(".address-card")?.querySelector<HTMLInputElement>(":invalid");
+  if (empty) empty.reportValidity();
+  else fold();
+}
+
 /** The "Party details" part of the ledger form. */
 export function PartyFields({
   value: p,
@@ -284,6 +313,8 @@ export function PartyFields({
         return { ...a, ...off };
       }),
     });
+  const openAddress = useOpenRows(p.id);
+  const openContact = useOpenRows(p.id);
   const setContact = (i: number, change: Partial<PartyContact>) =>
     set({
       contacts: p.contacts.map((c, j) =>
@@ -451,9 +482,43 @@ export function PartyFields({
       <PanelBox ctx={ctx} code="addresses">
       {p.addresses.length === 0 && <p className="small">No addresses yet.</p>}
       {p.addresses.length > 0 && (
-        <div className="addresses">
-          {p.addresses.map((a, i) => (
-            <div className="address-card" key={i}>
+        <table className="row-list">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Address</th>
+              <th>State</th>
+              {registered && <th>GSTIN</th>}
+              <th>Default For</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+          {p.addresses.map((a, i) =>
+            !openAddress.isOpen(i) ? (
+              <tr key={i}>
+                <td>{a.label}</td>
+                <td>
+                  {[a.address.replace(/\s*\n\s*/g, ", "), a.city, a.pincode, overseas ? a.country : ""]
+                    .filter(Boolean)
+                    .join(", ")}
+                </td>
+                <td>{states.find((st) => st.code === a.state_code)?.name ?? ""}</td>
+                {registered && <td>{a.gstin}</td>}
+                <td>
+                  {a.is_billing && <span className="tag">Billing</span>}
+                  {a.is_shipping && <span className="tag">Shipping</span>}
+                </td>
+                <td className="row-edit">
+                  <button type="button" className="link" onClick={() => openAddress.show(i)}>
+                    Edit
+                  </button>
+                </td>
+              </tr>
+            ) : (
+            <tr key={i}>
+            <td colSpan={registered ? 6 : 5} className="row-open">
+            <div className="address-card">
               <div className="row">
                 <label>
                   Name
@@ -548,19 +613,30 @@ export function PartyFields({
                 <button
                   type="button"
                   className="link danger"
-                  onClick={() => set({ addresses: p.addresses.filter((_, j) => j !== i) })}
+                  onClick={() => {
+                    set({ addresses: p.addresses.filter((_, j) => j !== i) });
+                    openAddress.removed(i);
+                  }}
                 >
                   Remove
                 </button>
+                <button type="button" onClick={(e) => foldIfFilled(e.currentTarget, () => openAddress.hide(i))}>
+                  Done
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+            </td>
+            </tr>
+            ),
+          )}
+          </tbody>
+        </table>
       )}
       <button
         type="button"
         className="link"
-        onClick={() =>
+        onClick={() => {
+          openAddress.show(p.addresses.length);
           set({
             addresses: [
               ...p.addresses,
@@ -571,8 +647,8 @@ export function PartyFields({
                 is_shipping: p.addresses.length === 0,
               },
             ],
-          })
-        }
+          });
+        }}
       >
         + Add address
       </button>
@@ -616,9 +692,43 @@ export function PartyFields({
       <PanelBox ctx={ctx} code="contacts">
       {p.contacts.length === 0 && <p className="small">No contacts yet.</p>}
       {p.contacts.length > 0 && (
-        <div className="addresses">
-          {p.contacts.map((c, i) => (
-            <div className="address-card" key={i}>
+        <table className="row-list">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Designation</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Type</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+          {p.contacts.map((c, i) =>
+            !openContact.isOpen(i) ? (
+              <tr key={i}>
+                <td>{c.name}</td>
+                <td>{c.designation}</td>
+                <td>{c.phone}</td>
+                <td>{c.email}</td>
+                <td>
+                  {c.is_primary && <span className="tag">Main</span>}
+                  {c.kinds.map((k) => (
+                    <span className="tag" key={k}>
+                      {kindLabel(k)}
+                    </span>
+                  ))}
+                </td>
+                <td className="row-edit">
+                  <button type="button" className="link" onClick={() => openContact.show(i)}>
+                    Edit
+                  </button>
+                </td>
+              </tr>
+            ) : (
+            <tr key={i}>
+            <td colSpan={6} className="row-open">
+            <div className="address-card">
               <div className="row">
                 <label>
                   Name
@@ -644,7 +754,7 @@ export function PartyFields({
                 </label>
               </div>
               <div className="address-flags">
-                <span className="small">Contact type</span>
+                <span className="small">Contact Type</span>
                 <label className="check">
                   <input
                     type="checkbox"
@@ -670,21 +780,32 @@ export function PartyFields({
                 <button
                   type="button"
                   className="link danger"
-                  onClick={() => set({ contacts: p.contacts.filter((_, j) => j !== i) })}
+                  onClick={() => {
+                    set({ contacts: p.contacts.filter((_, j) => j !== i) });
+                    openContact.removed(i);
+                  }}
                 >
                   Remove
                 </button>
+                <button type="button" onClick={(e) => foldIfFilled(e.currentTarget, () => openContact.hide(i))}>
+                  Done
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+            </td>
+            </tr>
+            ),
+          )}
+          </tbody>
+        </table>
       )}
       <button
         type="button"
         className="link"
-        onClick={() =>
-          set({ contacts: [...p.contacts, { ...blankContact(), is_primary: p.contacts.length === 0 }] })
-        }
+        onClick={() => {
+          openContact.show(p.contacts.length);
+          set({ contacts: [...p.contacts, { ...blankContact(), is_primary: p.contacts.length === 0 }] });
+        }}
       >
         + Add contact
       </button>
