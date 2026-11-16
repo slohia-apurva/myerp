@@ -21,6 +21,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from buying import tds
 from buying.api import CREATE, SUBMIT, VIEW, _check, _company, _plain
 from buying.invoices import (
     _due_rows,
@@ -228,6 +229,7 @@ def _save(inv: PurchaseInvoice, data: dict) -> None:
     for r in rows:
         r.invoice = inv
     PurchaseInvoiceExpenseLine.objects.bulk_create(rows)
+    tds.refresh(inv)
 
 
 def plan(inv: PurchaseInvoice, preview: bool = False) -> list[GLLine]:
@@ -247,7 +249,8 @@ def plan(inv: PurchaseInvoice, preview: bool = False) -> list[GLLine]:
             gl.append(GLLine(system_ledger(company, code, preview), debit=value))
     if inv.round_off:
         gl.append(_side(system_ledger(company, accounts.ROUND_OFF, preview), inv.round_off, ""))
-    gl.append(GLLine(inv.supplier, credit=inv.total, remarks=f"Bill {inv.bill_no}".strip()))
+    gl += tds.bill_lines(inv, preview)
+    gl.append(tds.supplier_line(inv, f"Bill {inv.bill_no}".strip()))
     return gl
 
 
@@ -294,6 +297,7 @@ def submit(inv: PurchaseInvoice, user) -> None:
         ln.save(update_fields=["booked_to"])
     inv.number = numbering.next_document_number(inv.company, KIND, inv.posting_date, inv.branch)
     inv.save(update_fields=["number", "posting_date"])
+    tds.refresh(inv)
     voucher = Voucher(inv.company, inv.branch, inv.posting_date, KIND, inv.pk, inv.number, user)
     service.post(voucher, gl=plan(inv))
     inv.dues.all().delete()

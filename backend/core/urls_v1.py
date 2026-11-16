@@ -103,6 +103,16 @@ urlpatterns = [
         name="central-gst-rate",
     ),
     path(
+        "central/tds-sections/",
+        central.TdsSectionAdminListView.as_view(),
+        name="central-tds-sections",
+    ),
+    path(
+        "central/tds-sections/<int:pk>/",
+        central.TdsSectionAdminDetailView.as_view(),
+        name="central-tds-section",
+    ),
+    path(
         "central/carrier-requests/",
         central.CarrierRequestListView.as_view(),
         name="central-carrier-requests",
@@ -117,6 +127,7 @@ urlpatterns = [
     path("pin/<str:pin>/", places.PinView.as_view(), name="pin"),
     path("hsn/", hsn.HsnListView.as_view(), name="hsn"),
     path("gst-rates/", gst_rates.GstRateListView.as_view(), name="gst-rates"),
+    path("tds-sections/", gst_rates.TdsSectionListView.as_view(), name="tds-sections"),
     path("print/pdf/", printout.PdfView.as_view(), name="print-pdf"),
     path("print/mark/", print_mark.MarkView.as_view(), name="print-mark"),
     path(

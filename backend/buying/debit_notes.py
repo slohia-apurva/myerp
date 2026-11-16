@@ -21,14 +21,14 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from django.db.models import Q, Sum
+from django.db.models import F, Q, Sum
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from buying import rates
+from buying import rates, tds
 from buying.api import CANCEL, CREATE, SUBMIT, VIEW, _check, _company, _plain
 from buying.invoices import _gst, _side, _text, grni_value, system_ledger
 from buying.models import (
@@ -130,10 +130,13 @@ def _dues_after(note: DebitNote) -> list[dict]:
     others = (
         DebitNote.objects.filter(invoice=inv, status=DebitNote.SUBMITTED)
         .exclude(pk=note.pk)
-        .aggregate(t=Sum("total"))["t"]
+        .aggregate(t=Sum(F("total") - F("tds_total")))["t"]
         or ZERO
     )
-    less = others + (note.total if note.status != DebitNote.CANCELLED else ZERO)
+    if note.status == DebitNote.DRAFT:
+        note.tds_total = sum(tds.note_back(note).values(), ZERO)
+    mine = note.total - note.tds_total if note.status != DebitNote.CANCELLED else ZERO
+    less = others + mine
     rows = [{"due_date": d.due_date, "bill": d.amount, "less": ZERO} for d in inv.dues.all()]
     for row in reversed(rows):
         take = min(row["bill"], less)
@@ -387,12 +390,14 @@ def _plan(note: DebitNote, preview: bool = False, work=None):
     grni = sum(values.values(), ZERO)
     returns = ", ".join(sorted({ln.return_line.ret.number for ln in lines}))
     inv = note.invoice
+    back, note.tds_total = tds.note_lines(note, preview)
     gl = [
         GLLine(
             note.supplier,
-            debit=note.total,
-            remarks=f"Against bill {inv.bill_no}: reduces what we owe".strip(),
+            debit=note.total - note.tds_total,
+            remarks=_less_tds(f"Against bill {inv.bill_no}: reduces what we owe".strip(), note),
         ),
+        *back,
         GLLine(ledger(accounts.GRNI), credit=grni, remarks=f"Clears goods sent back on {returns}"),
     ]
     for code, value in (
@@ -415,6 +420,12 @@ def _plan(note: DebitNote, preview: bool = False, work=None):
     return gl, values
 
 
+def _less_tds(remarks: str, note: DebitNote) -> str:
+    if note.tds_total:
+        return f"{remarks}, less TDS ₹{tds._plain(note.tds_total)} taken back"
+    return remarks
+
+
 def _rate_plan(note: DebitNote, preview: bool = False):
     """A lower agreed rate: Dr the supplier; Cr the stock still on hand and
     "Purchase Price Difference"; Cr the input GST; Round Off."""
@@ -423,12 +434,14 @@ def _rate_plan(note: DebitNote, preview: bool = False):
     )
     split, revalue, per_line = rates.plan(note, lines, rates.DOWN, preview)
     inv = note.invoice
+    back, note.tds_total = tds.note_lines(note, preview)
     gl = [
         GLLine(
             note.supplier,
-            debit=note.total,
-            remarks=f"Against bill {inv.bill_no}: rate charged higher".strip(),
+            debit=note.total - note.tds_total,
+            remarks=_less_tds(f"Against bill {inv.bill_no}: rate charged higher".strip(), note),
         ),
+        *back,
         *split,
         *rates.gst_lines(note, rates.DOWN, preview),
     ]

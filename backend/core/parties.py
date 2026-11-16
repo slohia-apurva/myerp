@@ -34,6 +34,7 @@ from core.models import (
     TermsSet,
 )
 from core.numbering import next_number
+from core.tds_sections import check_section
 from shipping.models import CourierAccount
 from tenancy.models import PinCode
 
@@ -172,6 +173,8 @@ class PartySerializer(serializers.ModelSerializer):
             "gst_type",
             "gstin",
             "pan",
+            "deductee_type",
+            "tds_section",
             "state_code",
             "country",
             "credit_limit",
@@ -332,6 +335,11 @@ def save_party(
     for field in ("customer_number", "vendor_number"):
         if not data.get(field):
             data.pop(field, None)  # blank keeps the number it has
+    if data.get("tds_section"):
+        try:
+            data["tds_section"] = check_section(data["tds_section"])
+        except ValidationError as exc:
+            raise ValidationError({"party": exc.detail}) from exc
     for field, kind, word in (
         ("price_list", PriceList.SELLING, "Selling"),
         ("buying_price_list", PriceList.BUYING, "Buying"),

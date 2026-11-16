@@ -40,6 +40,7 @@ from core.models import (
 )
 from core.parties import PartySerializer, save_party
 from core.stores import sync_default_store
+from core.tds_sections import check_section
 from tenancy.context import tenant_atomic
 
 VIEW, EDIT = "masters.view", "masters.edit"
@@ -152,6 +153,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "print_image_own",
             "attachments_required",
             "attachment_types",
+            "deduct_194q",
             "base_currency",
         ]
         read_only_fields = ["base_currency"]
@@ -293,6 +295,7 @@ class LedgerSerializer(serializers.ModelSerializer):
             "nature",
             "is_active",
             "notes",
+            "tds_section",
             *BANK_FIELDS,
             "opening_amount",
             "opening_side",
@@ -313,6 +316,7 @@ LEDGER_FIELDS = [
     "group",
     "is_active",
     "notes",
+    "tds_section",
     *BANK_FIELDS,
     "opening_amount",
     "opening_side",
@@ -563,6 +567,7 @@ class CompanyDetailView(APIView):
             "modules",
             "print_ganesha",
             "attachments_required",
+            "deduct_194q",
         ]
         refuse_key_changes("company", company, data)
         _save(company, data, [*fields, *extra])
@@ -879,6 +884,8 @@ def _ledger_data(ledger: Ledger, data: dict) -> dict:
         data["name"] = duplicates.tidy(data["name"])
     if data.get("account_number"):
         _unique_account_number(ledger, data["account_number"])
+    if "tds_section" in data:
+        data["tds_section"] = check_section(data["tds_section"])
     if data.get("currency") is not None:
         if data["currency"].code == ledger.company.base_currency:
             data["currency"] = None

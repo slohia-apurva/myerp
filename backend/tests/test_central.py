@@ -504,3 +504,23 @@ def test_customers_request_countries_and_pin_codes(alpha, settings):
     assert found["results"][0]["state_name"] == "Gujarat"
     by_city = owner.get("/api/v1/pin-codes/?q=mundra gujarat&limit=pick", HTTP_HOST=HOST).json()
     assert [p["pin"] for p in by_city["results"]] == ["370421"]
+
+
+def test_platform_admins_keep_the_dated_tds_sections(alpha, settings):
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    boss = _client(alpha, "boss@x.in")
+    owner = _client(alpha, "owner@x.in", owner=True)
+    # The usual sections are loaded; customers see each once.
+    seen = [s["code"] for s in owner.get("/api/v1/tds-sections/", HTTP_HOST=HOST).json()]
+    assert seen == ["194C", "194H", "194I(a)", "194I(b)", "194J(a)", "194J(b)", "194Q"]
+    row = {"code": "194c", "name": "Contractors", "valid_from": "2027-04-01",
+           "rate_other": "3", "rate_individual": "1.5", "rate_no_pan": "20",
+           "bill_limit": "40000", "year_limit": None}  # fmt: skip
+    made = boss.post("/api/v1/central/tds-sections/", row, content_type="application/json",
+                     HTTP_HOST=HOST)  # fmt: skip
+    assert made.status_code == 201, made.json()
+    assert made.json()["code"] == "194C"
+    again = boss.post("/api/v1/central/tds-sections/", row, content_type="application/json",
+                      HTTP_HOST=HOST)  # fmt: skip
+    assert "already has a row" in str(again.json())
+    assert owner.get("/api/v1/central/tds-sections/", HTTP_HOST=HOST).status_code == 403

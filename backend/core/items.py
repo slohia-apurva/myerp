@@ -39,6 +39,7 @@ from core.models import (
     Unit,
 )
 from core.numbering import next_number
+from core.tds_sections import check_section
 from tenancy.context import tenant_atomic
 from tenancy.models import HsnCode
 
@@ -199,6 +200,7 @@ class ItemSerializer(serializers.ModelSerializer):
             "purchase_charge",
             "add_to_stock",
             "offer_to_all",
+            "tds_section",
             "notes",
             "is_active",
             "units",
@@ -346,11 +348,13 @@ def _save_item(item: Item, data: dict) -> Item:
         "purchase_charge",
         "add_to_stock",
         "offer_to_all",
+        "tds_section",
         "notes",
         "is_active",
     ):
         if field in data:
             setattr(item, field, data[field])
+    item.tds_section = check_section(item.tds_section)
     if item.purchase_charge and item.item_type != Item.SERVICE:
         raise ValidationError(
             {"purchase_charge": ["Only a service item can be a purchase charge."]}
@@ -593,6 +597,7 @@ exchange.register(
             "purchase_charge": "Use as purchase charge",
             "add_to_stock": "Add to stock cost",
             "offer_to_all": "Offer to all",
+            "tds_section": "TDS section",
             "units": "Units of measure",
             "units.contains_qty": "Contains how many",
             "units.contains_unit": "Of",

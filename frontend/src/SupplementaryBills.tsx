@@ -8,6 +8,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu } from "./Exchange";
 import { Fold } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
+import { TdsBox, type TdsInfo } from "./Tds";
 import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
 
 /** Purchase Invoice of type "Supplementary" (Sidharth, 2026-11-16, preview 79): the supplier
@@ -32,6 +33,8 @@ export type SupplementaryBill = {
   rate_lines?: RateLine[];
   entries?: Entry[];
   dues?: { due_date: string; amount: string }[];
+  total: string;
+  tds?: TdsInfo;
 };
 type DraftFrom = {
   original: number;
@@ -268,6 +271,7 @@ function SupplementaryForm(props: { companyId: number; from: DraftFrom; bill?: S
           <Fold title="Totals" open summary={`₹${money(String(ours))}`}>
             <Totals taxable={calc.taxable} cgst={calc.cgst} sgst={calc.sgst} igst={calc.igst} roundOff={r2(ours - calc.exact)} total={ours} />
           </Fold>
+          {saved && <TdsBox<SupplementaryBill> billId={saved.id} tds={saved.tds} total={saved.total} draft onChanged={setSaved} />}
           {saved && (
             <EntriesBox entries={saved.entries ?? []} dues={[]} draft>
               <p className="small">No quantity moves. Due dates count from this bill's own date on the credit term.</p>

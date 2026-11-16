@@ -11,6 +11,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { RateLinesTable, type RateLine } from "./RateLines";
 import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBills";
+import { TdsBox, type TdsInfo } from "./Tds";
 import { BillTypePicker, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
 
 /** Entry > Purchase > Purchase Invoice (Sidharth, 2026-11-15, preview 67): the supplier's
@@ -92,6 +93,8 @@ type Invoice = {
   dues?: { due_date: string; amount: string }[];
   orders?: string[];
   entries?: Entry[];
+  tds_total?: string;
+  tds?: TdsInfo;
 };
 type DraftFrom = {
   supplier: number;
@@ -790,6 +793,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
           <Fold title="Totals" open summary={`₹${money(String(ours))}`}>
             <Totals taxable={taxable} cgst={cgst} sgst={sgst} igst={igst} roundOff={r2(ours - exact)} total={ours} />
           </Fold>
+          {saved && <TdsBox<Invoice> billId={saved.id} tds={saved.tds} total={saved.total} draft onChanged={setSaved} />}
           {saved && <EntriesBox entries={saved.entries ?? []} dues={saved.dues ?? []} draft />}
           <Fold title="Notes" open={!!notes}>
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
@@ -1189,6 +1193,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
           <Fold title="Totals" open summary={`₹${money(inv.total)}`}>
             <Totals taxable={inv.taxable_total} cgst={inv.cgst_total} sgst={inv.sgst_total} igst={inv.igst_total} roundOff={inv.round_off} total={inv.total} />
           </Fold>
+          <TdsBox<Invoice> billId={inv.id} tds={inv.tds} total={inv.total} draft={draft && can("create")} onChanged={setInv} />
           <EntriesBox entries={inv.entries ?? []} dues={inv.dues ?? []} draft={draft} />
           {inv.notes && (
             <Fold title="Notes" open>

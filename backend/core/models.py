@@ -92,6 +92,9 @@ class Company(models.Model):
     # Entry types (core.attachments.LABELS) that cannot be submitted without at
     # least one attachment, e.g. ["goods_receipt", "purchase_invoice"].
     attachments_required = models.JSONField("attachment needed to submit", default=list, blank=True)
+    # TDS on purchase of goods (194Q): for a buyer whose turnover last year was
+    # above the limit (Rs 10 crore). Bills then deduct it on goods.
+    deduct_194q = models.BooleanField("deduct TDS on purchase of goods (194Q)", default=False)
 
     class Meta:
         ordering = ["name"]
@@ -565,6 +568,9 @@ class Ledger(models.Model):
     # A ledger the posting rules use (posting/accounts.py), such as "grni" for Goods
     # Received but Bills not Received. Blank for ledgers people add.
     system_code = models.CharField(max_length=40, blank=True, editable=False)
+    # The TDS section (central list, e.g. "194I(b)") a bill line booked to this
+    # expense ledger deducts under. Blank: the supplier's default.
+    tds_section = models.CharField("TDS section", max_length=12, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -990,6 +996,10 @@ class Item(models.Model):
     add_to_stock = models.CharField(max_length=5, choices=STOCK_COST, default=BY_VALUE)
     # Offered to every customer and supplier even when theirs has a Products list.
     offer_to_all = models.BooleanField(default=False)
+    # The TDS section a purchase of this item deducts under (e.g. 194C for an
+    # AMC). Blank: goods go by 194Q when the company deducts it, services by
+    # the supplier's default.
+    tds_section = models.CharField("TDS section", max_length=12, blank=True)
     notes = models.CharField(max_length=200, blank=True)
     is_active = models.BooleanField(default=True)
 
@@ -1247,6 +1257,18 @@ class Party(models.Model):
     # can be both. Unique across the group. Decision 0021.
     customer_number = models.CharField(max_length=20, blank=True)
     vendor_number = models.CharField(max_length=20, blank=True)
+    # TDS (as a supplier): the deductee type sets the rate (blank: read from the
+    # PAN's 4th letter), and the section used for a line whose item or ledger
+    # names none.
+    COMPANY, FIRM, INDIVIDUAL, OTHERS = "company", "firm", "individual", "others"
+    DEDUCTEE_TYPES = [
+        (COMPANY, "Company"),
+        (FIRM, "Firm or LLP"),
+        (INDIVIDUAL, "Individual or HUF"),
+        (OTHERS, "Others"),
+    ]
+    deductee_type = models.CharField(max_length=10, choices=DEDUCTEE_TYPES, blank=True)
+    tds_section = models.CharField("default TDS section", max_length=12, blank=True)
 
     class Meta:
         verbose_name_plural = "parties"
