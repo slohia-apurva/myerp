@@ -3822,3 +3822,26 @@ td.nowrap {
 .totals-box {
   max-width: 380px;
 }
+/* Addresses and contacts on the customer/supplier form: one line each, "Edit" opens it. */
+table.row-list {
+  margin-bottom: 10px;
+}
+table.row-list th {
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+table.row-list td.row-edit {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
+table.row-list td.row-open {
+  padding: 8px 0;
+  background: #fff;
+}
+table.row-list .tag + .tag {
+  margin-left: 4px;
+}
