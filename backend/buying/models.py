@@ -398,7 +398,16 @@ class PurchaseInvoice(models.Model):
     DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
     STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
 
+    REGULAR, SUPPLEMENTARY = "regular", "supplementary"
+    KINDS = [(REGULAR, "Purchase invoice"), (SUPPLEMENTARY, "Supplementary bill")]
+
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="purchase_invoices")
+    # A supplementary bill (Sidharth, 2026-11-16, preview 79): the supplier
+    # charges more for goods already billed on `original`; it has rate lines only.
+    kind = models.CharField(max_length=15, choices=KINDS, default=REGULAR)
+    original = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="supplementaries"
+    )
     supplier = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="purchase_invoices")
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="purchase_invoices")
     receipts = models.ManyToManyField(GoodsReceipt, related_name="invoices", blank=True)
@@ -471,6 +480,39 @@ class PurchaseInvoiceLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item_id}: {self.qty} @ {self.rate}"
+
+
+class PurchaseInvoiceRateLine(models.Model):
+    """A supplementary bill's line: more per unit on a quantity of a line of
+    the original bill. No quantity moves; the extra goes onto the stock still
+    on hand, the rest to "Purchase Price Difference"."""
+
+    invoice = models.ForeignKey(
+        PurchaseInvoice, on_delete=models.CASCADE, related_name="rate_lines"
+    )
+    position = models.PositiveSmallIntegerField()
+    original_line = models.ForeignKey(
+        PurchaseInvoiceLine, on_delete=models.PROTECT, related_name="supplementary_lines"
+    )
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+    rate = models.DecimalField(**QTY)  # the original bill's rate
+    new_rate = models.DecimalField(**QTY)  # the revised, higher rate
+    taxable = models.DecimalField(**MONEY)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY)
+    stock_difference = models.DecimalField(**MONEY, default=Decimal("0"))  # set on Submit
+    price_difference = models.DecimalField(**MONEY, default=Decimal("0"))
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item_id}: {self.qty} @ +{self.new_rate - self.rate}"
 
 
 class PurchaseInvoiceCharge(models.Model):
@@ -605,7 +647,7 @@ class DebitNote(models.Model):
 
     DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
     STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
-    REASONS = [("returned", "Goods returned")]
+    REASONS = [("returned", "Goods returned"), ("rate", "Rate charged higher")]
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="debit_notes")
     supplier = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="debit_notes")
@@ -657,9 +699,17 @@ class DebitNoteLine(models.Model):
     invoice_line = models.ForeignKey(
         PurchaseInvoiceLine, on_delete=models.PROTECT, related_name="debit_lines"
     )
+    # Goods returned: the return line settled. Rate charged higher (Sidharth,
+    # 2026-11-16, preview 78): no return; `rate` is the bill's, `new_rate` the
+    # agreed one, and the taxable is the difference on `qty`.
     return_line = models.ForeignKey(
-        PurchaseReturnLine, on_delete=models.PROTECT, related_name="debit_lines"
+        PurchaseReturnLine,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="debit_lines",
     )
+    new_rate = models.DecimalField(**QTY, null=True, blank=True)
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
     unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
     qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
@@ -671,6 +721,8 @@ class DebitNoteLine(models.Model):
     igst = models.DecimalField(**MONEY, default=Decimal("0"))
     amount = models.DecimalField(**MONEY)
     receipt_value = models.DecimalField(**MONEY, default=Decimal("0"))  # set on Submit
+    stock_difference = models.DecimalField(**MONEY, default=Decimal("0"))  # rate notes
+    price_difference = models.DecimalField(**MONEY, default=Decimal("0"))
 
     class Meta:
         ordering = ["position"]

@@ -9,6 +9,8 @@ import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { RateLinesTable, type RateLine } from "./RateLines";
+import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBills";
 
 /** Entry > Purchase > Purchase Invoice (Sidharth, 2026-11-15, preview 67): the supplier's
  * bill, entered against goods receipts. Submit clears "Goods Received but Bills not
@@ -46,6 +48,14 @@ export type Entry = { ledger: string; why: string; debit: string; credit: string
 type Invoice = {
   id: number;
   company: number;
+  kind: string;
+  kind_label: string;
+  original: number | null;
+  original_number: string;
+  original_bill_no: string;
+  original_bill_date: string | null;
+  rate_lines?: RateLine[];
+  later?: { id: number; number: string; kind: string; total: string }[];
   number: string;
   status: string;
   status_label: string;
@@ -145,7 +155,7 @@ const COLUMNS: [key: string, label: string, text: (r: Invoice) => string, num?: 
   ["supplier", "Supplier", (r) => r.supplier_name],
   ["bill", "Supplier Invoice No", (r) => r.bill_no],
   ["bill_date", "Bill Date", (r) => shortDate(r.bill_date)],
-  ["receipts", "Goods Receipts", (r) => r.receipts.map((x) => x.number).join(" ")],
+  ["receipts", "Goods Receipts", (r) => (r.kind === "supplementary" ? `Supplementary against ${r.original_number}` : r.receipts.map((x) => x.number).join(" "))],
   ["total", "Amount ₹", (r) => `${r.total} ${money(r.total)}`, true],
   ["due", "First Due", (r) => shortDate(r.first_due)],
   ["status", "Status", (r) => r.status_label],
@@ -313,7 +323,15 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
                       <td>{r.supplier_name}</td>
                       <td>{r.bill_no}</td>
                       <td className="nowrap">{shortDate(r.bill_date)}</td>
-                      <td>{r.receipts.map((x) => x.number).join(", ")}</td>
+                      <td>
+                        {r.kind === "supplementary" ? (
+                          <>
+                            <span className="tag">Supplementary</span> <span className="small">against {r.original_number}</span>
+                          </>
+                        ) : (
+                          r.receipts.map((x) => x.number).join(", ")
+                        )}
+                      </td>
                       <td className="num">{money(r.total)}</td>
                       <td className="nowrap">{overdue ? <span className="pill bad">{shortDate(r.first_due)}</span> : shortDate(r.first_due)}</td>
                       <td>
@@ -380,14 +398,17 @@ function InvoiceFormTab({ companyId, form, canSubmit }: { companyId: number; for
   const [error, setError] = useState<unknown>("");
   const receipt = hashParam("receipt");
   const order = hashParam("order");
+  const original = Number(hashParam("supplementary"));
   useEffect(() => {
+    if (form === "new" && original) return;
     if (form !== "new") {
       api<Invoice>(`v1/purchase-invoices/${Number(form)}/`).then(setInv, setError);
       return;
     }
     const q = receipt ? `receipt=${receipt}` : order ? `order=${order}` : "";
     if (q) api<DraftFrom>(`v1/companies/${companyId}/purchase-invoices/draft-from/?${q}`).then(setFrom, setError);
-  }, [companyId, form, receipt, order]);
+  }, [companyId, form, receipt, order, original]);
+  if (form === "new" && original) return <SupplementaryFormTab companyId={companyId} original={original} canSubmit={canSubmit} />;
   const title = form === "new" ? "New Purchase Invoice" : "Edit Purchase Invoice";
   const shell = (note?: unknown) => (
     <section className="page">
@@ -399,6 +420,7 @@ function InvoiceFormTab({ companyId, form, canSubmit }: { companyId: number; for
   if (form !== "new" && !inv) return shell();
   if ((receipt || order) && !from) return shell();
   if (inv && inv.status !== "draft") return shell("A submitted invoice cannot be changed. Cancel it and make a new one.");
+  if (inv?.kind === "supplementary") return <SupplementaryFormTab companyId={companyId} bill={inv as unknown as SupplementaryBill} canSubmit={canSubmit} />;
   return <InvoiceForm companyId={companyId} title={title} invoice={inv} from={from} canSubmit={canSubmit} />;
 }
 
@@ -908,10 +930,12 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
       </section>
     );
   const draft = inv.status === "draft";
+  const supp = inv.kind === "supplementary";
+  const name = supp ? "Supplementary Bill" : "Purchase Invoice";
   return (
     <section className="page">
       <PageHeader
-        title={inv.number ? `Purchase Invoice ${inv.number}` : "Purchase Invoice (draft)"}
+        title={inv.number ? `${name} ${inv.number}` : `${name} (draft)`}
         sub={
           inv.number && inv.submitted_at
             ? `Submitted as ${inv.number} on ${showDate(inv.submitted_at.slice(0, 10))} at ${new Date(inv.submitted_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`
@@ -939,8 +963,25 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                 Open to Submit
               </button>
             )}
-            {inv.status === "submitted" && (
-              <ActionsMenu label="Create" main items={[{ label: "Debit Note (goods sent back)", onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}`) }]} />
+            {inv.status === "submitted" && !supp && (
+              <ActionsMenu
+                label="Create"
+                main
+                items={[
+                  {
+                    label: "Debit Note (goods sent back)",
+                    onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}`),
+                  },
+                  {
+                    label: "Debit Note (rate charged higher)",
+                    onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}&reason=rate`),
+                  },
+                  {
+                    label: "Supplementary Bill (rate charged lower)",
+                    onClick: () => openTab(`${base(companyId)}?form=new&supplementary=${inv.id}`),
+                  },
+                ]}
+              />
             )}
           </>
         }
@@ -953,6 +994,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
               <b>{inv.number || "Number given on Submit"}</b>
               <span className={pillClass(inv.status)}>{inv.status_label}</span>
               <span className="tag">Bill {inv.bill_no}</span>
+              {supp && <span className="tag">Supplementary · against Bill {inv.original_bill_no}</span>}
               {inv.receipts.map((r) => (
                 <span key={r.id} className="tag">
                   {r.number}
@@ -989,7 +1031,9 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                   ["Posting Date", showDate(inv.posting_date)],
                   ["Branch", inv.branch_name],
                   ["Credit Term", inv.credit_term_name ? `${inv.credit_term_name} (${inv.credit_term_summary})` : ""],
+                  ["Against Invoice", supp ? `${inv.original_number} · Bill ${inv.original_bill_no}` : ""],
                   ["Purchase Orders", (inv.orders ?? []).join(", ")],
+                  ["Later Changes", (inv.later ?? []).map((x) => `${x.kind === "debit_note" ? "Debit Note" : "Supplementary Bill"} ${x.number} (₹${money(x.total)})`).join(", ")],
                   ["Supplier's Bill Total", inv.bill_total ? `₹${money(inv.bill_total)}` : ""],
                 ] as [string, string][]
               )
@@ -1002,60 +1046,66 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                 ))}
             </dl>
           </Fold>
-          <Fold title="Items" open>
-            <div className="table-scroll">
-              <table className="grid po-lines">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Item</th>
-                    <th>Receipt</th>
-                    <th className="num">Qty</th>
-                    <th>Unit</th>
-                    <th className="num">Receipt Rate</th>
-                    <th className="num">Bill Rate</th>
-                    <th className="num">Taxable ₹</th>
-                    <th className="num">GST %</th>
-                    <th className="num">GST ₹</th>
-                    <th className="num">Amount ₹</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(inv.lines ?? []).map((l, i) => {
-                    const differs = num(l.rate) !== num(l.receipt_rate);
-                    return (
-                      <tr key={l.receipt_line} className={differs ? "differs" : undefined}>
-                        <td>{i + 1}</td>
-                        <td className="po-item">
-                          <b>{l.item_name}</b>
-                          <span className="small">
-                            HSN {l.hsn}
-                            {inv.status === "submitted" && (num(l.stock_difference) || num(l.price_difference))
-                              ? ` · rate difference: ${[
-                                  num(l.stock_difference) ? `₹${money(l.stock_difference ?? "0")} to stock on hand` : "",
-                                  num(l.price_difference) ? `₹${money(l.price_difference ?? "0")} to Purchase Price Difference` : "",
-                                ]
-                                  .filter(Boolean)
-                                  .join(", ")}`
-                              : ""}
-                          </span>
-                        </td>
-                        <td className="nowrap">{l.receipt_number}</td>
-                        <td className="num">{Number(l.qty)}</td>
-                        <td>{l.unit_name}</td>
-                        <td className="num">{money(l.receipt_rate)}</td>
-                        <td className="num">{money(l.rate)}</td>
-                        <td className="num">{money(l.taxable ?? "0")}</td>
-                        <td className="num">{Number(l.gst_rate)}</td>
-                        <td className="num">{money(String(r2(num(l.cgst) + num(l.sgst) + num(l.igst))))}</td>
-                        <td className="num">{money(l.amount ?? "0")}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Fold>
+          {supp ? (
+            <Fold title="Items" open>
+              <RateLinesTable lines={inv.rate_lines ?? []} way="up" interstate={inv.interstate} />
+            </Fold>
+          ) : (
+            <Fold title="Items" open>
+              <div className="table-scroll">
+                <table className="grid po-lines">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Item</th>
+                      <th>Receipt</th>
+                      <th className="num">Qty</th>
+                      <th>Unit</th>
+                      <th className="num">Receipt Rate</th>
+                      <th className="num">Bill Rate</th>
+                      <th className="num">Taxable ₹</th>
+                      <th className="num">GST %</th>
+                      <th className="num">GST ₹</th>
+                      <th className="num">Amount ₹</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(inv.lines ?? []).map((l, i) => {
+                      const differs = num(l.rate) !== num(l.receipt_rate);
+                      return (
+                        <tr key={l.receipt_line} className={differs ? "differs" : undefined}>
+                          <td>{i + 1}</td>
+                          <td className="po-item">
+                            <b>{l.item_name}</b>
+                            <span className="small">
+                              HSN {l.hsn}
+                              {inv.status === "submitted" && (num(l.stock_difference) || num(l.price_difference))
+                                ? ` · rate difference: ${[
+                                    num(l.stock_difference) ? `₹${money(l.stock_difference ?? "0")} to stock on hand` : "",
+                                    num(l.price_difference) ? `₹${money(l.price_difference ?? "0")} to Purchase Price Difference` : "",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ")}`
+                                : ""}
+                            </span>
+                          </td>
+                          <td className="nowrap">{l.receipt_number}</td>
+                          <td className="num">{Number(l.qty)}</td>
+                          <td>{l.unit_name}</td>
+                          <td className="num">{money(l.receipt_rate)}</td>
+                          <td className="num">{money(l.rate)}</td>
+                          <td className="num">{money(l.taxable ?? "0")}</td>
+                          <td className="num">{Number(l.gst_rate)}</td>
+                          <td className="num">{money(String(r2(num(l.cgst) + num(l.sgst) + num(l.igst))))}</td>
+                          <td className="num">{money(l.amount ?? "0")}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Fold>
+          )}
           {!!inv.charges?.length && (
             <Fold title="Charges on the Bill" open>
               <table className="grid">

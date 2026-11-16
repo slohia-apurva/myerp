@@ -1,6 +1,15 @@
 from django.urls import path
 
-from buying import api, debit_notes, invoices, receipts, returns, supplier_link, supplier_mail
+from buying import (
+    api,
+    debit_notes,
+    invoices,
+    receipts,
+    returns,
+    supplementary,
+    supplier_link,
+    supplier_mail,
+)
 
 urlpatterns = [
     # The supplier's page: no sign-in, reached by the private code in the mail.
@@ -128,6 +137,21 @@ urlpatterns = [
         "purchase-returns/<int:pk>/cancel/",
         returns.ReturnCancelView.as_view(),
         name="purchase-return-cancel",
+    ),
+    path(
+        "companies/<int:pk>/supplementary-bills/",
+        supplementary.BillListView.as_view(),
+        name="supplementary-bills",
+    ),
+    path(
+        "companies/<int:pk>/supplementary-bills/draft-from/",
+        supplementary.BillDraftFromView.as_view(),
+        name="supplementary-bill-draft-from",
+    ),
+    path(
+        "supplementary-bills/<int:pk>/",
+        supplementary.BillDetailView.as_view(),
+        name="supplementary-bill",
     ),
     path("companies/<int:pk>/debit-notes/", debit_notes.NoteListView.as_view(), name="debit-notes"),
     path(

@@ -2589,6 +2589,22 @@ export const MANUAL: Chapter[] = [
           <li>
             "Create ▾" on a submitted invoice makes a "Debit Note (goods sent
             back)" for goods returned on a Purchase Return and billed on this
+            invoice, a "Debit Note (rate charged higher)" when the supplier
+            agrees a lower price afterwards, or a "Supplementary Bill (rate
+            charged lower)" when the supplier charges more afterwards. The
+            invoice's "Later Changes" lists them, and it cannot be cancelled
+            while they stand.
+          </li>
+          <li>
+            A supplementary bill lists every line of the original bill at the
+            quantity billed and kept. Type the "Revised Rate" on the lines whose
+            price went up, the supplier's "Supplier Invoice No" and "Supplier
+            Invoice Date", and the "Supplier's Bill Total". "Submit" credits the
+            supplier with due dates from the original's credit term, counted
+            from this bill's date, books the extra input GST, and adds the extra
+            to the cost of the stock still on hand; the part for goods already
+            used goes to "Purchase Price Difference". No quantity moves. It shows
+            in the list with a "Supplementary" tag and is cancelled like any
             invoice.
           </li>
           <li>
@@ -2689,6 +2705,18 @@ export const MANUAL: Chapter[] = [
           debit note for the 3. Open it from "Entry" in the top menu, then
           "Purchase", then "Debit Note"; or from "Create ▾" on a submitted
           purchase invoice or purchase return.
+        </p>
+        <p>
+          With the "Reason" "Rate charged higher" a debit note instead takes a
+          lower agreed price off goods already billed (no return needed). Make
+          it from the invoice's "Create ▾" › "Debit Note (rate charged higher)".
+          Every line of the bill is listed at the quantity billed and kept;
+          type the "Agreed Rate" on the lines whose price came down (lower "Qty"
+          if only part gets the new rate). "Submit" debits the supplier,
+          reverses that much input GST and takes the difference off the cost of
+          the stock still on hand; the part for goods already used goes to
+          "Purchase Price Difference". No quantity moves. A higher price needs a
+          Supplementary Bill instead (see Purchase invoices).
         </p>
         <ul>
           <li>

@@ -37,9 +37,15 @@ def _returns(company):
 
 register_entries("Debit notes", lambda c: _notes(c).count(), lambda c: _notes(c).delete())
 register_entries("Purchase returns", lambda c: _returns(c).count(), lambda c: _returns(c).delete())
-register_entries(
-    "Purchase invoices", lambda c: _invoices(c).count(), lambda c: _invoices(c).delete()
-)
+
+
+def _delete_invoices(company) -> None:
+    # Supplementary bills point at their original bill: they go first.
+    _invoices(company).exclude(original=None).delete()
+    _invoices(company).delete()
+
+
+register_entries("Purchase invoices", lambda c: _invoices(c).count(), _delete_invoices)
 register_entries("Packages", lambda c: _packages(c).count(), lambda c: _packages(c).delete())
 register_entries("Goods receipts", lambda c: _receipts(c).count(), lambda c: _receipts(c).delete())
 register_entries("Purchase orders", lambda c: _orders(c).count(), lambda c: _orders(c).delete())
