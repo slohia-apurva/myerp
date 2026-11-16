@@ -8,7 +8,7 @@ posting needs one, under its standard group, and they are found again by
 
 from rest_framework.exceptions import ValidationError
 
-from core.models import Company, Item, ItemGroupAccount, Ledger, LedgerGroup
+from core.models import Company, Item, ItemAccount, ItemGroupAccount, Ledger, LedgerGroup
 
 GRNI = "grni"
 BILLS_NOT_RECEIVED_GOODS = "bills_received_goods_not_received"
@@ -86,6 +86,26 @@ def stock_ledger(company: Company, item: Item) -> Ledger:
             }
         )
     return accounts.stock_ledger
+
+
+def expense_ledger(company: Company, item: Item) -> Ledger:
+    """Where a purchase bill without goods receipt books the item: its own
+    "Expense Account" for the company (Masters > Items), else its main group's
+    COGS/Expense ledger."""
+    own = ItemAccount.objects.filter(item=item, company=company).select_related("expense_ledger")
+    if row := own.first():
+        return row.expense_ledger
+    accounts = _accounts(company, item)
+    if accounts is None or accounts.cogs_ledger_id is None:
+        raise ValidationError(
+            {
+                "detail": [
+                    f'Set the "Expense Account" of {item.name} for {company} (Masters > '
+                    "Items), or the COGS/Expense Ledger of its item group."
+                ]
+            }
+        )
+    return accounts.cogs_ledger
 
 
 def cogs_ledger(company: Company, item: Item) -> Ledger:

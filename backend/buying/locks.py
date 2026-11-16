@@ -71,6 +71,7 @@ locks.register("ledger", lambda ledger: _invoices(supplier=ledger))
 locks.register("branch", lambda branch: _invoices(branch=branch))
 locks.register("item", lambda item: _invoices(lines__item=item))
 locks.register("item", lambda item: _invoices(charges__item=item))
+locks.register("item", lambda item: _invoices(expense_lines__item=item))
 
 
 def _returns(**where) -> str:

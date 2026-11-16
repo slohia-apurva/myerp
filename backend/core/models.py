@@ -841,6 +841,24 @@ class ItemGroupAccount(models.Model):
         return f"{self.group} / {self.company}"
 
 
+class ItemAccount(models.Model):
+    """An item's own expense account in one company (Sidharth, 2026-11-16,
+    preview 82): a purchase bill without goods receipt books the item here.
+    With no row, the item's main group's COGS/Expense ledger is used."""
+
+    item = models.ForeignKey("Item", on_delete=models.CASCADE, related_name="accounts")
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    expense_ledger = models.ForeignKey("Ledger", on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["item", "company"], name="item_account_once")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item} / {self.company}"
+
+
 class Brand(models.Model):
     """A brand name items are sold under, picked on the item's General tab.
     One list shared by every company in the group. Never deleted, only made

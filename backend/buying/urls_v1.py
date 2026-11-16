@@ -3,6 +3,7 @@ from django.urls import path
 from buying import (
     api,
     debit_notes,
+    direct_bills,
     invoices,
     receipts,
     returns,
@@ -138,6 +139,17 @@ urlpatterns = [
         returns.ReturnCancelView.as_view(),
         name="purchase-return-cancel",
     ),
+    path(
+        "companies/<int:pk>/direct-bills/",
+        direct_bills.BillListView.as_view(),
+        name="direct-bills",
+    ),
+    path(
+        "companies/<int:pk>/direct-bills/setup/",
+        direct_bills.BillSetupView.as_view(),
+        name="direct-bill-setup",
+    ),
+    path("direct-bills/<int:pk>/", direct_bills.BillDetailView.as_view(), name="direct-bill"),
     path(
         "companies/<int:pk>/supplementary-bills/",
         supplementary.BillListView.as_view(),

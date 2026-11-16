@@ -750,6 +750,16 @@ export const MANUAL: Chapter[] = [
           on a unit (for example cartons) will stop a quantity such as 2.5 on
           documents. A barcode can belong to one item only.
         </Note>
+        <h3>Expense Account</h3>
+        <p>
+          The "Accounts" section of the item form has one row for each company,
+          with its "Expense Account": the ledger a purchase bill without goods
+          receipt books this item to (for example "Repairs and Maintenance" for
+          a printer's annual maintenance). Only expense ledgers are offered. Left
+          empty, the item group's "COGS/Expense Ledger" is used. Save the item
+          first; the section then opens. Items kept in stock go to stock as
+          before.
+        </p>
         <p>
           Items are never deleted: click "Edit", tick "Disabled" and "Save" to
           stop using one (untick it to bring it back). Use "Duplicate" to start
@@ -2590,6 +2600,13 @@ export const MANUAL: Chapter[] = [
           yet billed. "New purchase invoice" starts an empty one: pick the
           "Supplier" and click "Get items".
         </p>
+        <p>
+          The "Bill Type" at the top says what the bill is for. "Against goods
+          receipts" is the usual bill for goods received into stock. "Without
+          goods receipt" is for services and for goods not kept in stock (see
+          "Bills without goods receipt" below). It is fixed once the bill is
+          saved.
+        </p>
         <ul>
           <li>
             "Supplier's Bill": the "Supplier Invoice No" and "Supplier Invoice
@@ -2651,6 +2668,19 @@ export const MANUAL: Chapter[] = [
             charged lower)" when the supplier charges more afterwards. The
             invoice's "Later Changes" lists them, and it cannot be cancelled
             while they stand.
+          </li>
+          <li>
+            <b>Bills without goods receipt.</b> Pick "Without goods receipt" as
+            the "Bill Type". Under "Items and Services", each line picks an item
+            (a service, or goods with "Maintain stock" off) or an expense ledger,
+            such as "Courier Charges". An item brings its HSN or SAC code, unit
+            and GST rate, and is booked to the "Expense Account" on its item
+            master (shown in "Booked To"); a ledger is booked to itself, and you
+            type its SAC code. Only expense ledgers are offered: fixed assets are
+            not bought on this bill, and items kept in stock need a goods receipt
+            first. "Add line" adds another. Submit debits each line's ledger and
+            the input GST and credits the supplier, with the due dates. No stock
+            moves. The list shows these bills with a "No GRN" tag.
           </li>
           <li>
             A supplementary bill lists every line of the original bill at the

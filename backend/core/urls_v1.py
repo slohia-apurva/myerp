@@ -15,6 +15,7 @@ from core import (
     gst_rates,
     gstin_lookup,
     hsn,
+    item_accounts,
     item_groups,
     items,
     ledger_exchange,  # noqa: F401  (registers Ledgers for import and export)
@@ -52,6 +53,9 @@ urlpatterns = [
     path("price-lists/<int:pk>/", price_lists.PriceListDetailView.as_view(), name="price_list"),
     path(
         "parties/<int:pk>/item-prices/", price_lists.PartyPricesView.as_view(), name="party_prices"
+    ),
+    path(
+        "items/<int:pk>/accounts/", item_accounts.ItemAccountsView.as_view(), name="item_accounts"
     ),
     path(
         "items/<int:pk>/customer-prices/", price_lists.ItemPricesView.as_view(), name="item_prices"
