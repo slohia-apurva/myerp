@@ -21,8 +21,6 @@ locals {
     MYERP_GOOGLE_CLIENT_ID = var.google_client_id
     # The Owner's "Reset data" tool: off unless an environment turns it on.
     MYERP_ALLOW_DATA_RESET = var.allow_data_reset ? "1" : "0"
-    # Sign-in emails of MyERP platform admins, who alone see the Central screen.
-    MYERP_PLATFORM_ADMINS = var.platform_admins
   }
 
   # Secrets, read by Cloud Run from Secret Manager at start-up.
@@ -31,6 +29,8 @@ locals {
     PLATFORM_DATABASE_URL = google_secret_manager_secret.platform_database_url.secret_id
     GSTINAPI_KEY          = data.google_secret_manager_secret.gstinapi_key.secret_id
     MYERP_SECRETS_KEY     = google_secret_manager_secret.secrets_key.secret_id
+    # Sign-in emails of MyERP platform admins, who alone see the Central menu.
+    MYERP_PLATFORM_ADMINS = data.google_secret_manager_secret.platform_admins.secret_id
   }
 
   # Cloud Run needs an image to create the service; CI replaces it on deploy.
@@ -186,6 +186,18 @@ resource "google_secret_manager_secret_version" "secrets_key" {
 # state); Terraform only points Cloud Run at it and must not read its value.
 data "google_secret_manager_secret" "gstinapi_key" {
   secret_id = "gstinapi-key"
+}
+
+# The platform admins' sign-in emails (comma separated), also kept by hand in
+# Secret Manager: the repository is public, so the emails cannot sit in a
+# tfvars file, and a Terraform variable left empty on an apply wiped the
+# Central menu (16 Nov 2026). Create it once per project, before applying:
+#   printf '%s' 'you@example.com' | gcloud secrets create platform-admins \
+#     --replication-policy=user-managed --locations=asia-south1 --data-file=-
+# and change it later with `gcloud secrets versions add platform-admins`
+# followed by a new Cloud Run revision.
+data "google_secret_manager_secret" "platform_admins" {
+  secret_id = "platform-admins"
 }
 
 resource "google_secret_manager_secret" "platform_database_url" {
