@@ -2491,12 +2491,21 @@ export const MANUAL: Chapter[] = [
             line says "600 of 600 Kg put away" once it all has a place.
           </li>
           <li>
-            The bins must add up to the "Accepted" quantity. Until they do, the
-            line says so in red, for example "264 of 304 Kg put away · 40 Kg
-            short", and "Submit" is refused with a note naming each line that
-            does not add up. "Save" still keeps the draft, so it can be
-            finished later. Fix the bin quantities (or the "Received" or
-            "Rejected" quantity if that was wrong), then Submit.
+            Each line's bins fold into one line under the item, for example
+            "✓ Bins: 600 of 600 Kg" with "2 bins · DC1028 · 15 bags × 40". Click
+            "Edit bins" to open that line's bins, and "Done" to fold them
+            again. Only one line is open at a time, so a receipt with many
+            items stays short.
+          </li>
+          <li>
+            The bins must add up to the "Accepted" quantity, and each bin of a
+            batch-tracked item needs its "Batch No". Until then the line shows
+            in red, for example "Bins: 264 of 304 Kg · 40 Kg short". "Submit"
+            then opens a box listing each such line with "Accepted", "In
+            Bins" and "Difference"; "Go to line" takes you to it with its bins
+            open. Nothing is submitted, and "Save" still keeps the draft. Fix
+            the bin quantities (or the "Received" or "Rejected" quantity if
+            that was wrong), then Submit again.
           </li>
           <li>
             If the goods came in bags, boxes or drums, say so on each bin row:
