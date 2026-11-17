@@ -9,6 +9,7 @@ import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { GrnPrint, type PrintKind } from "./GrnPrint";
+import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 
 /** Entry > Purchase > Goods Receipt: what arrived against a supplier's purchase orders, and
@@ -135,10 +136,6 @@ type Setup = {
   today: string;
 };
 type BatchRow = { id: number; number: string; mfg_date: string | null; expiry_date: string | null; status_label: string };
-type Postings = {
-  gl: { ledger_name: string; debit: string; credit: string; is_reversal: boolean }[];
-  stock: { item_name: string; location: string; batch: string; qty: string; value: string; is_reversal: boolean }[];
-};
 
 const base = (companyId: number) => `#/companies/${companyId}/goods-receipts`;
 const showDate = (iso: string | null) => (iso ? longDate(iso) : "");
@@ -542,6 +539,8 @@ function ReceiptForm(props: {
   // Each line's bins fold to one line; "Edit bins" opens just that one (Sidharth, 2026-11-17).
   const [openBins, setOpenBins] = useState<number | null>(null);
   const [binCheck, setBinCheck] = useState<LineDraft[] | null>(null);
+  const [noLedgers, setNoLedgers] = useState<MissingLedgers | null>(null);
+  const [saves, setSaves] = useState(0); // reads the Ledger Posting again after each save
 
   // The supplier's open orders (with what is still to come), once a supplier is picked.
   useEffect(() => {
@@ -706,6 +705,7 @@ function ReceiptForm(props: {
         window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${saved.id}`);
       }
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
+      setSaves((n) => n + 1);
       setBusy(false);
     } catch (err) {
       const kept = keptDraft(err);
@@ -713,8 +713,14 @@ function ReceiptForm(props: {
         setDraftId(kept);
         window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
-      setError(err);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setSaves((n) => n + 1);
+      // Missing item group ledgers: all of them in a popup, not an error at the top (Sidharth, 2026-11-17).
+      const noLedgersNow = missingLedgersOf(err);
+      if (noLedgersNow) setNoLedgers(noLedgersNow);
+      else {
+        setError(err);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
       setBusy(false);
     }
   };
@@ -765,6 +771,7 @@ function ReceiptForm(props: {
         }
       />
       {binCheck && <BinCheckPopup lines={binCheck} all={lines} onGo={goToLine} onClose={() => setBinCheck(null)} />}
+      {noLedgers && <MissingLedgersPopup refusal={noLedgers} document={`the goods receipt from ${sup?.name ?? "a supplier"}`} onClose={() => setNoLedgers(null)} />}
       <form id="grn-form" className="doc-page" onSubmit={onSubmit}>
         <div className="side-main">
           <div className="item-head doc-head">
@@ -989,6 +996,7 @@ function ReceiptForm(props: {
             </label>
           </Fold>
           <Attachments type="goods_receipt" id={draftId} />
+          <LedgerPosting url={draftId ? `v1/goods-receipts/${draftId}/ledger-posting/` : null} stamp={saves} />
         </div>
         <div className="doc-foot">
           <SidePanel title="Against Purchase Order">
@@ -1001,15 +1009,6 @@ function ReceiptForm(props: {
           <SidePanel title="Stock Value (at order rates)">
             <SideRows rows={[...lines.map((l): [string, string] => [l.info.item_name, money(accepted(l) * num(l.info.rate) * toInr)]), ["Total ₹", money(value)]]} />
             <p className="small">The order's charges marked "Add to Stock Cost" (freight, packing…) are added on Submit, by quantity or value. The supplier's bill (Purchase Invoice) settles the final cost.</p>
-          </SidePanel>
-          <SidePanel title="On Submit">
-            <SideRows
-              rows={[
-                ["Stock (Inventories)", `Dr ${money(value)}`],
-                ["Goods Received but Bills not Received", `Cr ${money(value)}`],
-              ]}
-            />
-            <p className="small">One stock entry per bin and batch, each a FIFO lot. No GST is booked here; it comes with the Purchase Invoice.</p>
           </SidePanel>
         </div>
       </form>
@@ -1297,7 +1296,7 @@ function PackagesBox({ rows, ticked, onTick }: { rows: PackageRow[]; ticked: num
 function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
   const { setup } = useSetup(companyId);
   const [r, setR] = useState<GoodsReceipt | null>(null);
-  const [postings, setPostings] = useState<Postings | null>(null);
+  const [noLedgers, setNoLedgers] = useState<MissingLedgers | null>(null);
   const [error, setError] = useState<unknown>("");
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
@@ -1305,7 +1304,6 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
   const [ticked, setTicked] = useState<number[]>([]); // bags picked for labels
   const reload = useCallback(() => {
     api<GoodsReceipt>(`v1/goods-receipts/${id}/`).then(setR, setError);
-    api<Postings>(`v1/postings/?voucher_type=goods_receipt&voucher_id=${id}`).then(setPostings, () => setPostings(null));
   }, [id]);
   useEffect(reload, [reload]);
   useCreated("goods_receipt_saved", (c) => {
@@ -1322,9 +1320,10 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
       setR(done);
       setCancelling(false);
       announceSaved("goods_receipt_saved", { id, name: done.number || "Draft" });
-      api<Postings>(`v1/postings/?voucher_type=goods_receipt&voucher_id=${id}`).then(setPostings, () => setPostings(null));
     } catch (err) {
-      setError(err);
+      const missing = missingLedgersOf(err);
+      if (missing) setNoLedgers(missing);
+      else setError(err);
     }
   };
   if (!r)
@@ -1336,7 +1335,6 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
     );
   const draft = r.status === "draft";
   const sym = r.currency === "INR" ? "₹" : `${r.currency} `;
-  const gl = postings?.gl.filter((g) => !g.is_reversal) ?? [];
   return (
     <section className="page">
       <PageHeader
@@ -1372,6 +1370,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
           </>
         }
       />
+      {noLedgers && <MissingLedgersPopup refusal={noLedgers} document={`the goods receipt from ${r.supplier_name}`} onClose={() => setNoLedgers(null)} />}
       <div className="doc-page">
         <div className="side-main">
           <div className="item-head doc-head">
@@ -1549,25 +1548,9 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
             </Fold>
           )}
           <Attachments type="goods_receipt" id={r.id} onChange={() => setFiles((n) => n + 1)} />
+          <LedgerPosting url={`v1/goods-receipts/${r.id}/ledger-posting/`} stamp={r.status} />
         </div>
         <div className="doc-foot">
-          <SidePanel title="Postings">
-            {gl.length ? (
-              <SideRows rows={gl.map((g): [string, string] => [g.ledger_name, Number(g.debit) ? `Dr ${money(g.debit)}` : `Cr ${money(g.credit)}`])} />
-            ) : (
-              <p className="small">{draft ? "Nothing is posted until Submit." : "Nothing posted."}</p>
-            )}
-            {r.status === "cancelled" && postings?.gl.some((g) => g.is_reversal) && <p className="small">Reversed when the receipt was cancelled.</p>}
-            {!!postings?.stock.length && (
-              <p className="small">
-                Stock:{" "}
-                {postings.stock
-                  .filter((m) => !m.is_reversal)
-                  .map((m) => `${qty(m.qty)} ${m.item_name} in ${m.location}${m.batch ? ` (batch ${m.batch})` : ""}`)
-                  .join("; ")}
-              </p>
-            )}
-          </SidePanel>
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="goods_receipt" id={r.id} stamp={JSON.stringify(r) + files} />
           </SidePanel>

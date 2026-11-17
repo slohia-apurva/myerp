@@ -50,8 +50,10 @@ def grn(alpha, world, owner, buyer):  # noqa: F811
         tea.save()
         inventories = LedgerGroup.objects.get(company_id=world["company"], code="stock_in_hand")
         stock = Ledger.objects.create(company_id=world["company"], group=inventories, name="Stock")
+        direct = LedgerGroup.objects.get(company_id=world["company"], code="direct_expenses")
+        cogs = Ledger.objects.create(company_id=world["company"], group=direct, name="Cost of Tea")
         ItemGroupAccount.objects.create(
-            group=tea.item_group, company_id=world["company"], stock_ledger=stock
+            group=tea.item_group, company_id=world["company"], stock_ledger=stock, cogs_ledger=cogs
         )
         rack = WarehouseLocation.objects.create(branch_id=world["branch"], kind="rack", name="F01")
         bin1 = WarehouseLocation.objects.create(
@@ -267,13 +269,86 @@ def test_a_submitted_receipt_is_fixed_and_puts_places_in_use(store, grn, alpha):
         assert AuditEntry.objects.filter(record_type="goods_receipt", user=user).exists()
 
 
-def test_a_missing_stock_ledger_stops_the_submit(store, grn, alpha):
+def test_missing_ledgers_stop_the_submit_all_listed_and_the_draft_is_kept(store, grn, alpha):
+    """Sidharth, 2026-11-17: every missing item group ledger in one popup, not an
+    error at the top; the draft stays saved."""
     with use_tenant(alpha):
         ItemGroupAccount.objects.all().delete()
-    res = call(store, "post", url(grn), receipt(grn, [box_line(grn)], submit=True))
-    assert res.status_code == 400 and 'Set the "Stock Ledger"' in str(res.json())
+    lines = [tea_line(grn), box_line(grn)]
+    res = call(store, "post", url(grn), receipt(grn, lines, submit=True))
+    assert res.status_code == 400
+    body = res.json()
+    assert body["missing_accounts"] == [
+        {
+            "group": body["missing_accounts"][0]["group"],
+            "group_name": "General",
+            "missing": ["Stock Ledger", "COGS/Expense Ledger"],
+            "lines": ["Line 1 CTC Tea", "Line 2 Tea Box"],
+        }
+    ]
+    assert body["may_set"] is False  # a storekeeper may not change masters
     with use_tenant(alpha):
-        assert not GoodsReceipt.objects.filter(status="submitted").exists()
+        draft = GoodsReceipt.objects.get(pk=body["id"])
+        assert draft.status == "draft" and not GLEntry.objects.exists()
+    # Submitting the saved draft is refused the same way.
+    res = call(store, "post", f"goods-receipts/{draft.pk}/submit/")
+    assert res.status_code == 400 and res.json()["missing_accounts"][0]["group_name"] == "General"
+
+
+def test_a_missing_cogs_ledger_alone_stops_the_submit(store, owner, grn, alpha):  # noqa: F811
+    with use_tenant(alpha):
+        ItemGroupAccount.objects.update(cogs_ledger=None)
+    draft = call(store, "post", url(grn), receipt(grn, [box_line(grn)])).json()
+    res = call(owner, "post", f"goods-receipts/{draft['id']}/submit/")
+    assert res.status_code == 400
+    assert res.json()["missing_accounts"][0]["missing"] == ["COGS/Expense Ledger"]
+    assert res.json()["may_set"] is True  # the owner may set it himself
+
+
+def test_ask_to_set_notifies_those_who_may_change_masters(store, owner, grn, alpha):  # noqa: F811
+    with use_tenant(alpha):
+        ItemGroupAccount.objects.update(cogs_ledger=None)
+        group = ItemGroupAccount.objects.get().group_id
+    body = {"group": group, "document": "the goods receipt from Darjeeling Tea Traders"}
+    res = call(store, "post", f"companies/{grn['company']}/ask-ledgers/", body)
+    assert res.status_code == 200, res.json()
+    with use_tenant(alpha):
+        notes = Notification.objects.filter(title="Set ledgers on item group General")
+        assert notes.exists()
+        assert not notes.filter(user__email="stores@x.in").exists()
+        note = notes.first()
+        assert "COGS/Expense Ledger of General not set" in note.body
+        assert note.link == f"#/item-groups?form={group}&at=ledgers"
+        ItemGroupAccount.objects.update(
+            cogs_ledger_id=ItemGroupAccount.objects.get().stock_ledger_id
+        )
+    again = call(store, "post", f"companies/{grn['company']}/ask-ledgers/", body)
+    assert again.status_code == 400 and "set now" in str(again.json())
+
+
+def test_ledger_posting_previews_a_draft_and_shows_what_was_posted(store, grn, alpha):
+    lines = [tea_line(grn, "600"), box_line(grn)]
+    draft = call(store, "post", url(grn), receipt(grn, lines)).json()
+    preview = call(store, "get", f"goods-receipts/{draft['id']}/ledger-posting/").json()
+    assert preview["posted"] is False
+    rows = {r["ledger_name"]: (r["debit"], r["credit"]) for r in preview["rows"]}
+    # 600 Kg at 250 + 30 at 20, plus freight 6,300 spread by quantity.
+    assert rows["Stock"][0] == "156900.00"
+    assert rows["Goods Received but Bills not Received"] == ("0.00", "156900.00")
+    done = call(store, "post", f"goods-receipts/{draft['id']}/submit/").json()
+    posted = call(store, "get", f"goods-receipts/{done['id']}/ledger-posting/").json()
+    assert posted["posted"] is True and posted["reversed"] is False
+    assert {r["ledger_name"]: (r["debit"], r["credit"]) for r in posted["rows"]} == rows
+    assert posted["rows"][0]["group_name"] == "Stock-in-Hand"
+
+
+def test_ledger_posting_preview_names_a_missing_stock_ledger(store, grn, alpha):
+    with use_tenant(alpha):
+        ItemGroupAccount.objects.all().delete()
+    draft = call(store, "post", url(grn), receipt(grn, [box_line(grn)])).json()
+    rows = call(store, "get", f"goods-receipts/{draft['id']}/ledger-posting/").json()["rows"]
+    assert rows[0]["missing"] is True
+    assert rows[0]["ledger_name"] == "Stock Ledger of item group General not set"
 
 
 def test_bags_in_bins_get_their_own_numbers_on_submit(store, grn, alpha):

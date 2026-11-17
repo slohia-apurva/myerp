@@ -11,6 +11,8 @@ export class ApiError extends Error {
     readonly existing?: Existing,
     /** A draft the server kept although Submit was refused (core/attachments.py). */
     readonly keptDraft?: number,
+    /** The whole answer, for refusals a screen shows in its own way (LedgerPosting.tsx). */
+    readonly data?: unknown,
   ) {
     super(message);
   }
@@ -25,7 +27,7 @@ function existingOf(data: unknown): Existing | undefined {
 }
 
 function keptDraftOf(data: unknown): number | undefined {
-  if (data && typeof data === "object" && "attachments" in data && "id" in data) {
+  if (data && typeof data === "object" && ("attachments" in data || "missing_accounts" in data) && "id" in data) {
     const id = (data as { id: unknown }).id;
     if (typeof id === "number") return id;
   }
@@ -42,7 +44,7 @@ function errorMessage(data: unknown, status: number): string {
   if (data && typeof data === "object") {
     const record = data as Record<string, unknown>;
     if (typeof record.detail === "string") return record.detail;
-    const text = flatten(Object.entries(record).filter(([k]) => k !== "existing").map(([, v]) => v)).join(" ");
+    const text = flatten(Object.entries(record).filter(([k]) => k !== "existing" && k !== "missing_accounts").map(([, v]) => v)).join(" ");
     if (text) return text;
   }
   return `Something went wrong (HTTP ${status}).`;
@@ -68,7 +70,7 @@ export async function api<T>(path: string, body?: unknown, method?: Method): Pro
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data: unknown = res.status === 204 ? {} : await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data), keptDraftOf(data));
+  if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, existingOf(data), keptDraftOf(data), data);
   return data as T;
 }
 

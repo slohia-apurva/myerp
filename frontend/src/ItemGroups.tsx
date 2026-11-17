@@ -348,6 +348,12 @@ function GroupForm(props: {
   const [notes, setNotes] = useState(copy?.notes ?? g?.notes ?? "");
   const [disabled, setDisabled] = useState(g ? !g.is_active : false);
   const [error, setError] = useState<unknown>("");
+  // "Set ledgers" on an entry's missing-ledgers popup opens the group here, at its ledgers (Sidharth, 2026-11-17).
+  useEffect(() => {
+    if (hashParam("at") !== "ledgers") return;
+    const timer = window.setTimeout(() => document.getElementById("group-ledgers")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [busy, setBusy] = useState(false);
   // Accounts per company (main groups only): the ledger ids picked, as text.
   const startRows = copy?.accounts ?? g?.accounts ?? [];
@@ -455,6 +461,7 @@ function GroupForm(props: {
           </label>
         </div>
       </Section>
+      <div id="group-ledgers" />
       <Section title="Accounts">
         {parent === "" ? (
           <AccountGrid

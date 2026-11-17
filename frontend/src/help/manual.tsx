@@ -1252,7 +1252,10 @@ export const MANUAL: Chapter[] = [
           stationery or a service; it lists expense ledgers. Leave a company empty
           if it does not use the group. A group under a main group shows the
           same accounts read only, with a link to open the main group. The
-          "Accounts" panel on the right of the list shows them too.
+          "Accounts" panel on the right of the list shows them too. An entry
+          (such as a Goods Receipt) cannot be submitted while its items' main
+          group lacks these ledgers; its "Set ledgers" button opens the group
+          here, at the "Accounts" box.
         </p>
         <p>
           Once any stock entry or purchase is posted against a company's
@@ -2564,8 +2567,20 @@ export const MANUAL: Chapter[] = [
           <li>
             Books the value: "Stock" (the item group's Stock Ledger) Dr, "Goods
             Received but Bills not Received" Cr. No GST is booked; that comes
-            with the supplier's bill. If an item group has no Stock Ledger for
-            the company, Submit says which one to set in Masters › Item groups.
+            with the supplier's bill.
+          </li>
+          <li>
+            Every item's main item group must have both its "Stock Ledger" and
+            its "COGS/Expense Ledger" set for the company. If any are missing,
+            Submit opens a box listing each such "Item Group", its "Items" (by
+            line) and what is "Missing", all at once. If your role may change
+            masters, "Set ledgers" opens that item group in a new tab at its
+            "Accounts" box: pick the ledgers, save, and Submit again. If it may
+            not, "Ask to set" sends a notice under the bell to everyone whose
+            role may change masters, naming the item group, the missing
+            ledgers and the receipt, with a link to the item group; the button
+            then reads "Asked ✓". Nothing is submitted meanwhile, and the
+            draft stays saved.
           </li>
           <li>
             Adds the accepted quantities to the orders, which become "Part
@@ -2598,9 +2613,19 @@ export const MANUAL: Chapter[] = [
             from the same "Stores" people).
           </li>
         </ul>
+        <h3>Ledger Posting</h3>
         <p>
-          A submitted receipt shows "Submitted as … on … at …", its "Postings"
-          (the book entries) and its "Activity".
+          Once a receipt is saved, its "Ledger Posting" box shows the book
+          entries: "Ledger", "Ledger Group", "Debit ₹" and "Credit ₹", with a
+          total. On a draft it shows what Submit will post, worked out from the
+          last "Save" (the strip says "Posts on Submit"); a ledger not set yet
+          shows in red, for example "Stock Ledger of item group Tea not set".
+          After Submit it shows the entries actually posted ("Posted"), and on
+          a cancelled receipt it says they were reversed.
+        </p>
+        <p>
+          A submitted receipt shows "Submitted as … on … at …", its "Ledger
+          Posting" and its "Activity".
           A submitted receipt cannot be changed: click "Cancel receipt" and say
           why. Cancelling reverses the stock and the book entries and shows the
           goods as pending on the orders again. It is refused if any of the
