@@ -2485,6 +2485,14 @@ export const MANUAL: Chapter[] = [
             line says "600 of 600 Kg put away" once it all has a place.
           </li>
           <li>
+            The bins must add up to the "Accepted" quantity. Until they do, the
+            line says so in red, for example "264 of 304 Kg put away · 40 Kg
+            short", and "Submit" is refused with a note naming each line that
+            does not add up. "Save" still keeps the draft, so it can be
+            finished later. Fix the bin quantities (or the "Received" or
+            "Rejected" quantity if that was wrong), then Submit.
+          </li>
+          <li>
             If the goods came in bags, boxes or drums, say so on each bin row:
             "Packages" (how many), "Package Type" ("Bag") and "Qty per
             Package". The quantity is then worked out: 5 bags of 20 Kg in bin

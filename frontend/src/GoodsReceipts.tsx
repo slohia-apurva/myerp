@@ -436,6 +436,13 @@ let nextKey = 1;
 const num = (v: string) => Number(v) || 0;
 const accepted = (l: LineDraft) => Math.max(num(l.received) - num(l.rejected), 0);
 const putTotal = (l: LineDraft) => l.puts.reduce((s, p) => s + num(p.qty), 0);
+/** "40 kg short" / "20 kg over" when a line's bins do not add up to its accepted quantity
+ * (Sidharth, 2026-11-17: Submit is refused until they do). Empty when they match. */
+const putGap = (l: LineDraft) => {
+  const gap = round6(accepted(l) - putTotal(l));
+  if (Math.abs(gap) < 1e-9) return "";
+  return `${qty(Math.abs(gap))} ${l.info.unit_name} ${gap > 0 ? "short" : "over"}`;
+};
 const overBy = (l: LineDraft) => num(l.info.earlier) + accepted(l) - num(l.info.ordered);
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -682,6 +689,19 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
     e.preventDefault();
     save(false);
   };
+  /** Bins must add up to the accepted quantity before Submit; the server refuses it too. */
+  const submit = () => {
+    const wrong = lines
+      .map((l, n) => ({ l, n, gap: putGap(l) }))
+      .filter((x) => x.gap)
+      .map(({ l, n, gap }) => `Line ${n + 1}, ${l.info.item_name}: ${qty(round6(accepted(l)))} ${l.info.unit_name} accepted but the bins hold ${qty(round6(putTotal(l)))} (${gap}).`);
+    if (wrong.length) {
+      setError(`The bins do not add up to the accepted quantity. ${wrong.join(" ")} Fix the bin quantities, or the Received or Rejected quantity, then Submit.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    save(true);
+  };
   const people = (setup?.users ?? []).map((u) => ({ value: String(u.id), label: u.name }));
 
   return (
@@ -700,7 +720,7 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
               Save
             </button>
             {setup?.can_submit && (
-              <button type="button" disabled={busy} onClick={() => save(true)}>
+              <button type="button" disabled={busy} onClick={submit}>
                 Submit
               </button>
             )}
@@ -1058,9 +1078,10 @@ function PutawayBox(props: {
         <button type="button" className="link" onClick={props.onAdd}>
           + Add bin
         </button>
-        <span className={ok ? "ok-note" : "warn"}>
+        <span className={ok ? "ok-note" : "bad-note"}>
           {ok ? "✓ " : ""}
           {qty(round6(done))} of {qty(round6(acc))} {unit} put away
+          {!ok && ` · ${putGap(l)}, Submit is refused until the bins add up`}
           {count > 0 && ` · ${count} ${kindName}${count === 1 ? "" : "s"}`}
         </span>
       </div>

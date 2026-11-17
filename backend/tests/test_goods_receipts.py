@@ -185,7 +185,11 @@ def test_rejected_goods_stay_out_and_the_order_is_part_received(store, grn, alph
 def test_everything_accepted_must_be_put_away_with_its_batch(store, grn):
     short = [{"location": grn["bin1"], "batch_number": "B1", "qty": "500"}]
     res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=short)], submit=True))
-    assert res.status_code == 400 and "500 of 600 kg put away" in str(res.json())
+    assert res.status_code == 400
+    assert "600 kg accepted but the bins hold 500 (100 kg short)" in str(res.json())
+    over = [{"location": grn["bin1"], "batch_number": "B1", "qty": "640"}]
+    res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=over)], submit=True))
+    assert res.status_code == 400 and "hold 640 (40 kg over)" in str(res.json())
     nobatch = [{"location": grn["bin1"], "qty": "600"}]
     res = call(store, "post", url(grn), receipt(grn, [tea_line(grn, puts=nobatch)], submit=True))
     assert "give the batch" in str(res.json())
