@@ -7,6 +7,7 @@ from django.test import Client
 
 from accounts.models import Role, User
 from audit.models import AuditEntry
+from buying.models import PurchaseOrder
 from core import locks
 from core.companies import create_company
 from core.india import gstin_check_char
@@ -114,6 +115,7 @@ def order(w, supplier="local", lines=None, **more):
         "supplier": w[supplier],
         "branch": w["branch"],
         "order_date": TODAY.isoformat(),
+        "expected_date": (TODAY + datetime.timedelta(days=7)).isoformat(),
         "lines": lines
         if lines is not None
         else [
@@ -209,6 +211,19 @@ def test_wrong_lines_and_parties_are_refused(buyer, world):
     assert customer["supplier"] == ["Pick a supplier of this company."]
     late = order(world, expected_date=(TODAY - datetime.timedelta(days=1)).isoformat())
     assert "before the order date" in str(call(buyer, "post", url, late).json())
+    undated = {**order(world), "expected_date": None}
+    assert call(buyer, "post", url, undated).json()["expected_date"] == [
+        "Give the date the goods should be received by."
+    ]
+
+
+def test_an_older_draft_without_a_receive_by_date_cannot_be_submitted(buyer, world, alpha):
+    url = f"companies/{world['company']}/purchase-orders/"
+    draft = call(buyer, "post", url, order(world)).json()
+    with use_tenant(alpha):
+        PurchaseOrder.objects.filter(pk=draft["id"]).update(expected_date=None)
+    refused = call(buyer, "post", f"purchase-orders/{draft['id']}/submit/", {}).json()
+    assert refused["expected_date"] == ["Give the date the goods should be received by."]
 
 
 def test_an_item_without_a_gst_rate_is_refused_for_a_gst_supplier(buyer, world, alpha):

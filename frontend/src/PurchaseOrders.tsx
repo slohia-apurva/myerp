@@ -943,8 +943,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                 )}
               </label>
               <label>
-                Expected Delivery
-                <input type="date" value={expected} min={orderDate} onChange={(e) => setExpected(e.target.value)} />
+                <span className="req">Expected Delivery</span>
+                <input type="date" required value={expected} min={orderDate} onChange={(e) => setExpected(e.target.value)} />
               </label>
               <label>
                 Credit Term

@@ -602,7 +602,10 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
         if terms_set is not None and "terms" not in data:
             data["terms"] = terms_set.text
     expected = data.get("expected_date")
-    if expected and expected < data["order_date"]:
+    # "Receive By" is required on every save (Sidharth, 2026-11-17).
+    if not expected:
+        errors["expected_date"] = ["Give the date the goods should be received by."]
+    elif expected < data["order_date"]:
         errors["expected_date"] = ["The expected delivery date is before the order date."]
     if errors:
         raise ValidationError(errors)
@@ -790,6 +793,9 @@ def _submit(o: PurchaseOrder, user) -> None:
     # A draft may be saved with no items yet, to finish later; an order needs one.
     if not o.lines.exists():
         raise ValidationError({"lines": ["Add at least one item before submitting."]})
+    # An older draft saved before "Receive By" was required.
+    if not o.expected_date:
+        raise ValidationError({"expected_date": ["Give the date the goods should be received by."]})
     fiscal.assert_open(o.company, o.order_date)
     o.number = numbering.next_document_number(o.company, "purchase_order", o.order_date, o.branch)
     o.status = PurchaseOrder.ORDERED
