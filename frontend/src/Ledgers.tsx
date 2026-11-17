@@ -21,6 +21,8 @@ export type Ledger = {
   nature: string;
   is_active: boolean;
   lock?: LockInfo;
+  /** "fixed": one of the six fixed system ledgers; "system": another ledger MyERP posts to; "": added by a person. */
+  system?: string;
   notes: string;
   /** The TDS section a purchase bill line booked to this expense ledger deducts under. */
   tds_section?: string;
@@ -463,6 +465,7 @@ function LedgerPanels(props: { ledger: Ledger; companyId: number }) {
         <SideRows
           rows={[
             ["Name", l.name],
+            ["Type", l.system === "fixed" ? "Fixed System Ledger" : l.system === "system" ? "System Ledger" : ""],
             ["Group", l.group_name],
             ["Nature", NATURE[l.nature] ?? ""],
             ["Opening Balance", openingText],
@@ -894,7 +897,7 @@ function LedgerForm(props: {
       onCancel={props.onCancel}
       error={error}
       readOnly={dis}
-      disabled={l ? { value: disabled, set: setDisabled } : undefined}
+      disabled={l && !l.system ? { value: disabled, set: setDisabled } : undefined}
       switches={
         <label className="check">
           <Locked on={locked("bill_wise")}>
@@ -906,6 +909,11 @@ function LedgerForm(props: {
       activity={l ? <ChangeLog company={props.companyId} type="ledger" id={l.id} stamp={JSON.stringify(l)} /> : undefined}
     >
       <InUseNote lock={l?.lock} />
+      {l?.system === "fixed" && (
+        <div className="use-note">
+          <b>Fixed system ledger.</b> MyERP posts to it itself, so its name stays and it cannot be disabled. Its group can be changed at any time; past entries move with it.
+        </div>
+      )}
       {fold(
         "general",
         <div className="item-fields">
@@ -926,7 +934,9 @@ function LedgerForm(props: {
           )}
           <label>
             <span className="req">Name</span>
-            <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            <Locked on={locked("name")}>
+              <input required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            </Locked>
           </label>
           {props.multiCurrency && (
             <label>

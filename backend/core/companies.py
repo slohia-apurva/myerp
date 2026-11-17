@@ -10,8 +10,8 @@ from tenancy.context import tenant_atomic
 
 
 def create_company(**fields) -> Company:
-    """A new company with its head office branch, standard ledger groups and
-    a Cash ledger."""
+    """A new company with its head office branch, standard ledger groups, a
+    Cash ledger and the fixed system ledgers."""
     with tenant_atomic():
         fields.setdefault(
             "books_start",
@@ -42,6 +42,9 @@ def _starting_records(company: Company) -> None:
     ensure_years(company)
     seed_standard_groups(LedgerGroup, company, Ledger)
     ensure_cash_ledger(Ledger, LedgerGroup, company)
+    from posting.accounts import ensure_fixed_ledgers
+
+    ensure_fixed_ledgers(company)
     from core.credit_terms import seed_credit_terms
     from core.models import CreditTerm, CreditTermPart
 

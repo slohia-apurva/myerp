@@ -243,8 +243,9 @@ export const MANUAL: Chapter[] = [
         <p>
           A company is one legal entity with its own books, GST registration and
           document numbers. Open them from "Admin", then "Company", in the top
-          menu (Owners only). A new company starts with a Head office branch and
-          the standard ledger groups.
+          menu (Owners only). A new company starts with a Head office branch,
+          the standard ledger groups, a "Cash" ledger and the six fixed system
+          ledgers (see "Ledgers").
         </p>
 
         <h3>Add a company</h3>
@@ -1767,6 +1768,28 @@ export const MANUAL: Chapter[] = [
             click "Save"; the tab closes and the ledger is selected in the list.
           </li>
         </ol>
+        <h3>Fixed system ledgers</h3>
+        <p>
+          Every company has six ledgers that MyERP makes and posts to itself, for
+          goods and bills that have not yet met, and for stock that is being
+          made or is with a job worker:
+        </p>
+        <ul>
+          <li>"Goods Received but Bills not Received", under Other Current Liabilities.</li>
+          <li>"Bills Received but Goods not Received", under Other Current Assets.</li>
+          <li>"Goods Delivered but Bills not Made", under Other Current Assets.</li>
+          <li>"Bills Made but Goods not Delivered", under Other Current Liabilities.</li>
+          <li>"Work in Progress", under Stock-in-Hand (Inventories).</li>
+          <li>"Stock with Job Workers", under Stock-in-Hand (Inventories).</li>
+        </ul>
+        <p>
+          Their panel shows "Type" as "Fixed System Ledger". Their name cannot be
+          changed and they cannot be disabled, but the "Under Group" can be
+          changed at any time, even after entries are posted to them, so your
+          accountant can place them where they belong; past entries move with
+          the ledger. Other ledgers MyERP posts to, such as "Round Off" or "Input
+          CGST", show "System Ledger": they cannot be disabled, but can be renamed.
+        </p>
         <h3>Customers and suppliers</h3>
         <p>
           A ledger under Sundry Debtors is a customer, and one under Sundry

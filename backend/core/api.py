@@ -262,8 +262,21 @@ class LedgerSerializer(serializers.ModelSerializer):
     party = PartySerializer(required=False, allow_null=True)
     lock = serializers.SerializerMethodField()
 
+    system = serializers.SerializerMethodField()
+
     def get_lock(self, ledger) -> dict:
-        return lock_status("ledger", ledger)
+        status = lock_status("ledger", ledger)
+        if _fixed(ledger):
+            # A fixed system ledger keeps its name but may change group even in use.
+            status["locked"] = [f for f in status["locked"] if f != "group"] + ["name"]
+        return status
+
+    def get_system(self, ledger) -> str:
+        """ "fixed" for the six fixed system ledgers, "system" for the other
+        ledgers MyERP posts to itself, "" for ledgers people add."""
+        if not ledger.system_code:
+            return ""
+        return "fixed" if _fixed(ledger) else "system"
 
     # Link a new ledger to a party another company has (decision 0020) and
     # add the party's ledger to more companies.
@@ -308,6 +321,7 @@ class LedgerSerializer(serializers.ModelSerializer):
             "party_id",
             "also_in",
             "lock",
+            "system",
         ]
 
 
@@ -896,6 +910,12 @@ def _ledger_data(ledger: Ledger, data: dict) -> dict:
     return data
 
 
+def _fixed(ledger: Ledger) -> bool:
+    from posting.accounts import is_fixed
+
+    return is_fixed(ledger)
+
+
 def add_ledger(request, company, data: dict) -> Ledger:
     """Save a new ledger from validated LedgerSerializer data: the Ledgers
     screen's Save, and each new row of an imported file."""
@@ -924,7 +944,15 @@ def change_ledger(request, ledger: Ledger, data: dict) -> Ledger:
     also_in = _also_in(request, data.pop("also_in", None))
     if "name" in data:
         _unique_ledger_name(ledger.company, data["name"], exclude=ledger.pk)
-    refuse_key_changes("ledger", ledger, data)
+    if _fixed(ledger):
+        if "name" in data and data["name"] != ledger.name:
+            raise ValidationError(
+                {"name": ["This is a fixed system ledger; its name cannot be changed."]}
+            )
+        # Its group may change even once in use, so the CA can place it.
+        refuse_key_changes("ledger", ledger, {k: v for k, v in data.items() if k != "group"})
+    else:
+        refuse_key_changes("ledger", ledger, data)
     if ledger.system_code and data.get("is_active") is False:
         raise ValidationError(
             {"is_active": ["MyERP posts to this ledger itself, so it cannot be disabled."]}
