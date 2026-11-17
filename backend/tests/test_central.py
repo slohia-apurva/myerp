@@ -512,7 +512,8 @@ def test_platform_admins_keep_the_dated_tds_sections(alpha, settings):
     owner = _client(alpha, "owner@x.in", owner=True)
     # The usual sections are loaded; customers see each once.
     seen = [s["code"] for s in owner.get("/api/v1/tds-sections/", HTTP_HOST=HOST).json()]
-    assert seen == ["194C", "194H", "194I(a)", "194I(b)", "194J(a)", "194J(b)", "194Q"]
+    assert seen == ["194C", "194H", "194I(a)", "194I(b)", "194IA", "194J(a)", "194J(b)",
+                    "194J(ba)", "194Q"]  # fmt: skip
     row = {"code": "194c", "name": "Contractors", "valid_from": "2027-04-01",
            "rate_other": "3", "rate_individual": "1.5", "rate_no_pan": "20",
            "bill_limit": "40000", "year_limit": None}  # fmt: skip
@@ -523,4 +524,7 @@ def test_platform_admins_keep_the_dated_tds_sections(alpha, settings):
     again = boss.post("/api/v1/central/tds-sections/", row, content_type="application/json",
                       HTTP_HOST=HOST)  # fmt: skip
     assert "already has a row" in str(again.json())
+    odd = boss.post("/api/v1/central/tds-sections/", {**row, "code": "194j(BA)"},
+                    content_type="application/json", HTTP_HOST=HOST)  # fmt: skip
+    assert odd.json()["code"] == "194J(ba)", odd.json()
     assert owner.get("/api/v1/central/tds-sections/", HTTP_HOST=HOST).status_code == 403

@@ -899,8 +899,19 @@ export const MANUAL: Chapter[] = [
           limits ("One Bill Over ₹", "Year Over ₹") from a date ("From"). When
           the law changes, click "Add section" and add a new row for the same
           section with the new "From" date; bills use the row in force on their
-          date. "Edit" corrects a row and "Disable" stops it. The rates loaded
-          at the start are the usual ones and are to be confirmed by a CA.
+          date. "Edit" corrects a row and "Disable" stops it. From 1 April
+          2026 the Income-tax Act 2025 numbers TDS under section 393: each row
+          from that date has its "New Act Section" (for example "393(1) Sl.
+          6(i)" for the old 194C) beside the "Old Section", and the "Payment
+          Code" the challan and the TDS return ask for (where there are two,
+          the second is for an individual or HUF). The rows from 1 April 2025
+          have only the old number and serve bills dated before 1 April 2026.
+          The list covers purchase and expense bills: contractors (194C),
+          commission (194H), rent (194I(a), 194I(b)), buying land or a building
+          (194IA), technical and professional fees (194J(a), 194J(b)),
+          director's fees (194J(ba)) and purchase of goods (194Q). The rates
+          loaded at the start are the usual ones and are to be confirmed by a
+          CA.
           "Couriers" holds the courier list and the requests customers have
           sent.
         </p>
@@ -2745,7 +2756,11 @@ export const MANUAL: Chapter[] = [
             on what passes ₹50,00,000. The rate follows the "Deductee Type"
             (from the supplier, else read from its PAN); a supplier without a PAN
             pays the higher "No PAN" rate. TDS is rounded to the rupee, and
-            "Why" says how each line was worked out. A supplier abroad has no TDS
+            "Why" says how each line was worked out. On a bill dated 1 April
+            2026 or later a section shows its Income-tax Act 2025 number first,
+            with the old one in brackets, as "393(1) Sl. 6(i) (194C)"; an older
+            bill keeps "194C". The section pickers show both numbers, so typing
+            either finds it. A supplier abroad has no TDS
             here. Submit credits "TDS Payable 194C" (one ledger per section, made
             under Duties &amp; Taxes the first time) and credits the supplier
             with the bill total less TDS; the due dates split that net amount.

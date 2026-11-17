@@ -29,7 +29,8 @@ def current_sections(day: datetime.date | None = None) -> list[TdsSection]:
         if row.code not in seen:
             seen.add(row.code)
             out.append(row)
-    return out
+    # In code order whatever the database's collation (it may skip brackets).
+    return sorted(out, key=lambda row: row.code)
 
 
 def check_section(code: str, field: str = "tds_section") -> str:
@@ -38,3 +39,27 @@ def check_section(code: str, field: str = "tds_section") -> str:
     if code and not TdsSection.objects.filter(code=code, is_active=True).exists():
         raise ValidationError({field: [f"{code} is not in the TDS sections list."]})
     return code
+
+
+def label(sec: TdsSection) -> str:
+    """A picker's text, with both numbers so either finds it: '393(1) Sl. 6(i)
+    Contractors (old 194C)' from the Income-tax Act 2025, else '194C Contractors'."""
+    if sec.new_code:
+        return f"{sec.new_code} {sec.name} (old {sec.code})"
+    return f"{sec.code} {sec.name}"
+
+
+def shown(code: str, day: datetime.date) -> str:
+    """A section as a bill of that date shows it: '393(1) Sl. 6(i) (194C)' from
+    1 April 2026, '194C' before (the row in force then has no new number)."""
+    sec = section_on(code, day)
+    if sec is not None and sec.new_code:
+        return f"{sec.new_code} ({code})"
+    return code
+
+
+def payment_code(sec: TdsSection, individual: bool) -> str:
+    """The challan's payment code, by the deductee type where the Act gives two."""
+    if individual and sec.payment_code_individual:
+        return sec.payment_code_individual
+    return sec.payment_code

@@ -8,13 +8,15 @@ import { Fold } from "./Master";
 /** TDS (Sidharth, 2026-11-16, previews 86a/86b): the central list of sections,
  * the pickers on suppliers, items and ledgers, and the "TDS" box on every purchase bill. */
 
-export type TdsSection = { code: string; name: string; label: string; for_goods: boolean };
+export type TdsSection = { code: string; new_code: string; name: string; label: string; for_goods: boolean };
 
 export type TdsRow = {
   line_kind: string;
   line_position: number;
   label: string;
   section: string;
+  section_shown: string;
+  payment_code: string;
   by_hand: boolean;
   taxable: string;
   base: string;
@@ -56,11 +58,6 @@ export function TdsSectionPicker(props: { value: string; onChange: (code: string
   const options = sections.map((s) => ({ value: s.code, label: s.label }));
   if (props.value && !sections.some((s) => s.code === props.value)) options.push({ value: props.value, label: props.value });
   return <Combobox options={options} value={props.value} onChange={props.onChange} empty={props.empty ?? "None"} ariaLabel={props.ariaLabel ?? "TDS Section"} />;
-}
-
-export function sectionLabel(sections: TdsSection[], code: string): string {
-  if (!code) return "None";
-  return sections.find((s) => s.code === code)?.label ?? code;
 }
 
 const n = (v: string | undefined) => Number(v) || 0;
@@ -113,7 +110,7 @@ export function TdsBox<T>(props: { billId: number; tds?: TdsInfo; total: string;
               <tr key={r.line_kind + r.line_position}>
                 <td>{r.label}</td>
                 <td style={{ minWidth: "20em" }}>
-                  {draft ? <TdsSectionPicker value={r.section} onChange={(code) => change(r, code)} ariaLabel={`TDS section of ${r.label}`} /> : <SectionText code={r.section} />}
+                  {draft ? <TdsSectionPicker value={r.section} onChange={(code) => change(r, code)} ariaLabel={`TDS section of ${r.label}`} /> : r.section_shown || "None"}
                 </td>
                 <td className="num">{n(r.base) ? money(r.base) : ""}</td>
                 <td className="num">{n(r.rate) ? r.rate : ""}</td>
@@ -133,15 +130,11 @@ export function TdsBox<T>(props: { billId: number; tds?: TdsInfo; total: string;
       )}
       <ErrorNote error={error} />
       <p className="small">
-        Each line's section comes from its item or ledger (goods: 194Q when the company deducts it; else the supplier's default) and can be changed or
+        From 1 April 2026 a section shows its Income-tax Act 2025 number first, with the old one in brackets, as "393(1) Sl. 6(i) (194C)"; a bill
+        dated before that keeps the old number. Each line's section comes from its item or ledger (goods: 194Q when the company deducts it; else the supplier's default) and can be changed or
         cleared here. MyERP checks the section's limits (one bill, and the supplier's year so far) and the rate for the deductee type; no PAN means the
         higher rate. The supplier is credited with the bill total less TDS.
       </p>
     </Fold>
   );
-}
-
-function SectionText({ code }: { code: string }) {
-  const sections = useTdsSections();
-  return <>{sectionLabel(sections, code)}</>;
 }
