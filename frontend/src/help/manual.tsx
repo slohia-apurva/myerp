@@ -2225,8 +2225,10 @@ export const MANUAL: Chapter[] = [
             order. "Transporter" is "By Supplier" when the supplier sends the
             goods, or one of the company's transporters. Fill in the
             "Order Date", "Deliver To" (the branch the goods come to; the line
-            under it says which store they go to), and if you like the
-            "Expected Delivery" date and the "Supplier's Quote Ref".
+            under it says which store they go to) and the "Expected Delivery"
+            date (the date the goods should be received by; an order cannot
+            be saved or submitted without it), and if you like the
+            "Supplier's Quote Ref".
           </li>
           <li>
             Under "Addresses", "Bill To" starts as the branch ticked as the
