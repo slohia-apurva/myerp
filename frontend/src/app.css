@@ -3845,3 +3845,37 @@ table.row-list td.row-open {
 table.row-list .tag + .tag {
   margin-left: 4px;
 }
+
+/* Goods Receipt: each line's bins folded to one line; "Edit bins" opens them (Sidharth, 2026-11-17). */
+.grn-bins-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--mist);
+}
+.grn-bins-line.bad {
+  background: #fdecea;
+  border-color: #f5c2bd;
+}
+.grn-bins-line .small-inline button,
+.grn-put-foot .grn-done {
+  margin-left: 10px;
+}
+.popup.grn-check {
+  width: min(680px, 100%);
+}
+.popup.grn-check table.grid {
+  width: 100%;
+  margin: 10px 0;
+}
+.popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}

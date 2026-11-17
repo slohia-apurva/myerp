@@ -581,14 +581,16 @@ def _submit(r: GoodsReceipt, user) -> None:
             {"exchange_rate": [f"Give the exchange rate: rupees per {r.currency}."]}
         )
     errors = []
-    for ln in lines:
+    for n, ln in enumerate(lines, 1):
         puts = list(ln.putaways.all())
         total = sum((p.qty for p in puts), ZERO)
         unit = ln.unit.short_name
         if total != ln.accepted_qty:
+            gap = ln.accepted_qty - total
             errors.append(
-                f"{ln.item.name}: {_num(total)} of {_num(ln.accepted_qty)} {unit} put away; "
-                "put away all of the accepted quantity."
+                f"Line {n}, {ln.item.name}: {_num(ln.accepted_qty)} {unit} accepted but the bins "
+                f"hold {_num(total)} ({_num(abs(gap))} {unit} {'short' if gap > 0 else 'over'}); "
+                "the bin quantities must add up to the accepted quantity."
             )
         for p in puts:
             has_batch = p.batch_id or p.batch_number

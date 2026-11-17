@@ -443,6 +443,21 @@ let nextKey = 1;
 const num = (v: string) => Number(v) || 0;
 const accepted = (l: LineDraft) => Math.max(num(l.received) - num(l.rejected), 0);
 const putTotal = (l: LineDraft) => l.puts.reduce((s, p) => s + num(p.qty), 0);
+/** "40 kg short" / "20 kg over" when a line's bins do not add up to its accepted quantity
+ * (Sidharth, 2026-11-17: Submit is refused until they do). Empty when they match. */
+const putGap = (l: LineDraft) => {
+  const gap = round6(accepted(l) - putTotal(l));
+  if (Math.abs(gap) < 1e-9) return "";
+  return `${qty(Math.abs(gap))} ${l.info.unit_name} ${gap > 0 ? "short" : "over"}`;
+};
+/** What stops a line from being submitted: bins that do not add up, or a batch-tracked bin with no batch. */
+const binProblem = (l: LineDraft) => {
+  if (accepted(l) <= 0) return "";
+  const gap = putGap(l);
+  if (gap) return gap;
+  if (l.info.batch_tracked && l.puts.some((p) => num(p.qty) && !p.batch)) return "Batch No missing";
+  return "";
+};
 const overBy = (l: LineDraft) => num(l.info.earlier) + accepted(l) - num(l.info.ordered);
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -524,6 +539,9 @@ function ReceiptForm(props: {
   const [draftId, setDraftId] = useState<number | null>(r?.id ?? null);
   const [savedAt, setSavedAt] = useState("");
   const batches = useBatches(lines.map((l) => l.info.item));
+  // Each line's bins fold to one line; "Edit bins" opens just that one (Sidharth, 2026-11-17).
+  const [openBins, setOpenBins] = useState<number | null>(null);
+  const [binCheck, setBinCheck] = useState<LineDraft[] | null>(null);
 
   // The supplier's open orders (with what is still to come), once a supplier is picked.
   useEffect(() => {
@@ -628,6 +646,7 @@ function ReceiptForm(props: {
   const value = lines.reduce((s, l) => s + accepted(l) * num(l.info.rate) * toInr, 0);
   const acceptedTotal = lines.reduce((s, l) => s + accepted(l), 0);
   const allPut = lines.every((l) => Math.abs(putTotal(l) - accepted(l)) < 1e-9);
+  const notReady = lines.filter((l) => binProblem(l)).length;
 
   const close = () =>
     closeThisTab(() => {
@@ -703,6 +722,12 @@ function ReceiptForm(props: {
     e.preventDefault();
     save(false);
   };
+  /** Bins must add up to the accepted quantity before Submit; the server refuses it too. */
+  const submit = () => {
+    const wrong = lines.filter((l) => binProblem(l));
+    if (wrong.length) return setBinCheck(wrong);
+    save(true);
+  };
   // Masters › People ticked "Stores"; a disabled one stays only where already picked.
   const peopleFor = (picked: string) =>
     (setup?.stores_people ?? [])
@@ -710,6 +735,11 @@ function ReceiptForm(props: {
       .map((p) => ({ value: String(p.id), label: p.name }));
   const newPerson = props.mayAddPeople ? creatable("sales_person", "sales-people", refreshSetup, "as=stores") : undefined;
   const noPeople = setup !== null && setup.stores_people.length === 0;
+  const goToLine = (l: LineDraft) => {
+    setBinCheck(null);
+    setOpenBins(l.key);
+    window.setTimeout(() => document.getElementById(`grn-line-${l.key}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+  };
 
   return (
     <section className="page item-edit">
@@ -727,13 +757,14 @@ function ReceiptForm(props: {
               Save
             </button>
             {setup?.can_submit && (
-              <button type="button" disabled={busy} onClick={() => save(true)}>
+              <button type="button" disabled={busy} onClick={submit}>
                 Submit
               </button>
             )}
           </>
         }
       />
+      {binCheck && <BinCheckPopup lines={binCheck} all={lines} onGo={goToLine} onClose={() => setBinCheck(null)} />}
       <form id="grn-form" className="doc-page" onSubmit={onSubmit}>
         <div className="side-main">
           <div className="item-head doc-head">
@@ -839,7 +870,13 @@ function ReceiptForm(props: {
           <Fold
             title="Items"
             open
-            summary={lines.length ? `${lines.length} ${lines.length === 1 ? "item" : "items"} · ${qty(round6(acceptedTotal))} accepted${allPut ? " · all put away" : ""}` : ""}
+            summary={
+              lines.length
+                ? `${lines.length} ${lines.length === 1 ? "item" : "items"} · ${qty(round6(acceptedTotal))} accepted${
+                    notReady ? ` · ${notReady} ${notReady === 1 ? "line doesn't" : "lines don't"} add up` : allPut ? " · all put away" : ""
+                  }`
+                : ""
+            }
           >
             {lines.length === 0 && <p className="small">Tick the purchase orders above and click "Get items".</p>}
             {lines.length > 0 && (
@@ -860,7 +897,7 @@ function ReceiptForm(props: {
                     </tr>
                   </thead>
                   {lines.map((l, i) => (
-                    <tbody key={l.key} className={overBy(l) > 0 ? "grn-over" : undefined}>
+                    <tbody key={l.key} id={`grn-line-${l.key}`} className={overBy(l) > 0 ? "grn-over" : undefined}>
                       <tr>
                         <td>{i + 1}</td>
                         <td className="po-item">
@@ -894,7 +931,11 @@ function ReceiptForm(props: {
                         <tr className="grn-put-row">
                           <td />
                           <td colSpan={9}>
+                            {openBins !== l.key ? (
+                              <BinsLine line={l} batches={batches[l.info.item] ?? []} packageTypes={setup?.package_types ?? []} onEdit={() => setOpenBins(l.key)} />
+                            ) : (
                             <PutawayBox
+                              onDone={() => setOpenBins(null)}
                               line={l}
                               places={places}
                               batches={batches[l.info.item] ?? []}
@@ -903,6 +944,7 @@ function ReceiptForm(props: {
                               onAdd={() => addPut(l)}
                               onRemove={(key) => changeLine(l.key, { puts: l.puts.filter((p) => p.key !== key) })}
                             />
+                            )}
                           </td>
                         </tr>
                       )}
@@ -918,7 +960,7 @@ function ReceiptForm(props: {
               </p>
             ))}
             <p className="small">
-              Put all of each line's accepted quantity away before Submit. "Bin" lists the bins and areas of the receiving warehouse (Masters › Warehouses). "Batch No" lists the item's batches; type a
+              Put all of each line's accepted quantity away before Submit: click "Edit bins" on a line, then "Done" to fold it again. "Bin" lists the bins and areas of the receiving warehouse (Masters › Warehouses). "Batch No" lists the item's batches; type a
               new number and pick 'New batch "…"' to make it here, with its Mfg Date and Expiry (Expiry fills from the item's best-before when left blank). New batches go into the Batches master on
               Submit.
             </p>
@@ -976,6 +1018,7 @@ function ReceiptForm(props: {
 }
 
 function PutawayBox(props: {
+  onDone: () => void;
   line: LineDraft;
   places: Place[];
   batches: BatchRow[];
@@ -1086,11 +1129,102 @@ function PutawayBox(props: {
         <button type="button" className="link" onClick={props.onAdd}>
           + Add bin
         </button>
-        <span className={ok ? "ok-note" : "warn"}>
+        <span className={ok ? "ok-note" : "bad-note"}>
           {ok ? "✓ " : ""}
           {qty(round6(done))} of {qty(round6(acc))} {unit} put away
+          {!ok && ` · ${putGap(l)}`}
           {count > 0 && ` · ${count} ${kindName}${count === 1 ? "" : "s"}`}
+          <button type="button" className="grn-done" onClick={props.onDone}>
+            Done
+          </button>
         </span>
+      </div>
+    </div>
+  );
+}
+
+/** A line's bins folded to one line: how much is put away, and where (Sidharth, 2026-11-17). */
+function BinsLine(props: { line: LineDraft; batches: BatchRow[]; packageTypes: [string, string][]; onEdit: () => void }) {
+  const { line: l } = props;
+  const unit = l.info.unit_name;
+  const puts = l.puts.filter((p) => num(p.qty));
+  const problem = binProblem(l);
+  const done = putTotal(l);
+  const of = `${qty(round6(done))} of ${qty(round6(accepted(l)))} ${unit}`;
+  const bins = new Set(puts.map((p) => p.location).filter(Boolean)).size;
+  const batchNames = [...new Set(puts.map((p) => (p.batch.startsWith("b") ? props.batches.find((b) => `b${b.id}` === p.batch)?.number : p.batch.slice(1))).filter(Boolean))];
+  const packs = puts.filter(packed);
+  const count = packs.reduce((s, p) => s + num(p.pkgs), 0);
+  const kinds = new Set(packs.map((p) => p.pkgType));
+  const kind = kinds.size === 1 ? (props.packageTypes.find(([v]) => kinds.has(v))?.[1] ?? "package").toLowerCase() : "package";
+  const sizes = new Set(packs.map((p) => num(p.pkgQty)));
+  const facts = [
+    bins && `${bins} ${bins === 1 ? "bin" : "bins"}`,
+    batchNames.length && (batchNames.length > 2 ? `${batchNames.length} batches` : batchNames.join(", ")),
+    count && `${count} ${kind}${count === 1 ? "" : "s"}${sizes.size === 1 ? ` × ${qty([...sizes][0])}` : ""}`,
+  ].filter(Boolean);
+  const status = !done ? `Bins: none yet · ${qty(round6(accepted(l)))} ${unit} to put away` : problem ? `Bins: ${of} · ${problem}` : `✓ Bins: ${of}`;
+  return (
+    <div className={problem ? "grn-bins-line bad" : "grn-bins-line"}>
+      <span className={problem ? "bad-note" : "ok-note"}>{status}</span>
+      <span className="small-inline">
+        {facts.join(" · ")}
+        <button type="button" className="link" onClick={props.onEdit}>
+          Edit bins
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** Submit with bins that do not add up: one row per line, with a way to get to it (Sidharth, 2026-11-17). */
+function BinCheckPopup(props: { lines: LineDraft[]; all: LineDraft[]; onGo: (l: LineDraft) => void; onClose: () => void }) {
+  const noBatch = props.lines.some((l) => binProblem(l) === "Batch No missing");
+  return (
+    <div className="popup-back" role="presentation">
+      <div className="popup grn-check" role="dialog" aria-modal="true" aria-label="The bins don't add up">
+        <h3>Can't submit yet: the bins don't add up</h3>
+        <p>
+          Each line's bins must hold exactly its "Accepted" quantity{noBatch ? ', and each bin of a batch-tracked item needs its "Batch No"' : ""}.
+        </p>
+        <table className="grid">
+          <thead>
+            <tr>
+              <th>Line</th>
+              <th>Item</th>
+              <th className="num">Accepted</th>
+              <th className="num">In Bins</th>
+              <th className="num">Difference</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {props.lines.map((l) => (
+              <tr key={l.key}>
+                <td>{props.all.indexOf(l) + 1}</td>
+                <td>{l.info.item_name}</td>
+                <td className="num">
+                  {qty(round6(accepted(l)))} {l.info.unit_name}
+                </td>
+                <td className="num">
+                  {qty(round6(putTotal(l)))} {l.info.unit_name}
+                </td>
+                <td className="num bad-note">{binProblem(l)}</td>
+                <td>
+                  <button type="button" className="link" onClick={() => props.onGo(l)}>
+                    Go to line
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="small">Fix the bin quantities, or the "Received" or "Rejected" quantity if that was wrong, then Submit again. Nothing has been submitted; "Save" keeps the draft.</p>
+        <div className="popup-actions">
+          <button type="button" onClick={props.onClose}>
+            OK
+          </button>
+        </div>
       </div>
     </div>
   );
