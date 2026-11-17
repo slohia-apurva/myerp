@@ -1,9 +1,14 @@
 """Which ledgers postings go to.
 
 System ledgers are the fixed clearing and adjustment accounts the posting
-rules need (decision 0017, rule 11). Each company gets them the first time a
-posting needs one, under its standard group, and they are found again by
-`Ledger.system_code`, so people may rename them. They cannot be disabled.
+rules need (decision 0017, rule 11). They are found by `Ledger.system_code`
+and cannot be disabled. Most are made the first time a posting needs one,
+under their standard group, and people may rename them.
+
+The six FIXED ones (goods and bills not yet matched, work in progress, stock
+with job workers) are made with every company (Sidharth, 2026-11-17), keep
+their names, and may be moved to another group at any time, even once in use,
+so the CA can place them (the entries move with the ledger).
 """
 
 from rest_framework.exceptions import ValidationError
@@ -38,6 +43,26 @@ SYSTEM_LEDGERS = {
     INPUT_SGST: ("Input SGST", "duties_taxes"),
     INPUT_IGST: ("Input IGST", "duties_taxes"),
 }
+
+# Made with every company; their names cannot change, their group can.
+FIXED = (
+    GRNI,
+    BILLS_NOT_RECEIVED_GOODS,
+    GOODS_DELIVERED_NOT_BILLED,
+    BILLED_NOT_DELIVERED,
+    WIP,
+    STOCK_WITH_JOB_WORKERS,
+)
+
+
+def is_fixed(ledger: Ledger) -> bool:
+    return ledger.system_code in FIXED
+
+
+def ensure_fixed_ledgers(company: Company) -> None:
+    """Give the company its six fixed system ledgers (those it lacks)."""
+    for code in FIXED:
+        system_ledger(company, code)
 
 
 def system_ledger(company: Company, code: str) -> Ledger:

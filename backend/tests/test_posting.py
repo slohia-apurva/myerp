@@ -309,6 +309,79 @@ def test_system_ledgers_cannot_be_disabled(books, logged_in):
     assert res.status_code == 400 and "cannot be disabled" in str(res.json())
 
 
+FIXED_GROUPS = {
+    "Goods Received but Bills not Received": "Other Current Liabilities",
+    "Bills Received but Goods not Received": "Other Current Assets",
+    "Goods Delivered but Bills not Made": "Other Current Assets",
+    "Bills Made but Goods not Delivered": "Other Current Liabilities",
+    "Work in Progress": "Stock-in-Hand",
+    "Stock with Job Workers": "Stock-in-Hand",
+}
+
+
+def test_new_company_has_the_six_fixed_ledgers(books):
+    b = books
+    with use_tenant(b["tenant"]):
+        fixed = Ledger.objects.filter(company=b["company"], system_code__in=accounts.FIXED)
+        assert {x.name: x.group.name for x in fixed} == FIXED_GROUPS
+        # The posting rules find the same ledgers, not new ones.
+        assert accounts.system_ledger(b["company"], accounts.WIP).name == "Work in Progress"
+        assert Ledger.objects.filter(company=b["company"], name="Work in Progress").count() == 1
+
+
+def test_fixed_ledger_keeps_its_name_but_may_change_group_in_use(books, logged_in):
+    from accounts.models import Role, User
+
+    b = books
+    with use_tenant(b["tenant"]):
+        grni = accounts.system_ledger(b["company"], accounts.GRNI)
+        with tenant_atomic():
+            receive(b, 1, "10", "10")
+        provisions = LedgerGroup.objects.get(company=b["company"], code="provisions")
+    client = logged_in("alpha", "owner-fixed@x.in")
+    with use_tenant(b["tenant"]):
+        User.objects.get(email="owner-fixed@x.in").roles.set(Role.objects.filter(code="owner"))
+
+    def patch(data):
+        return client.patch(
+            f"/api/v1/ledgers/{grni.pk}/",
+            data=data,
+            content_type="application/json",
+            HTTP_HOST="alpha.localhost",
+        )
+
+    res = patch({"name": "GRNI"})
+    assert res.status_code == 400 and "name cannot be changed" in str(res.json())
+    res = patch({"group": provisions.pk})
+    assert res.status_code == 200, res.json()
+    body = res.json()
+    assert body["group_name"] == provisions.name and body["system"] == "fixed"
+    assert "name" in body["lock"]["locked"] and "group" not in body["lock"]["locked"]
+    with use_tenant(b["tenant"]):
+        # The entry moved with the ledger.
+        assert GLEntry.objects.get(ledger=grni).ledger.group_id == provisions.pk
+
+
+def test_other_ledgers_in_use_still_keep_their_group(books, logged_in):
+    from accounts.models import Role, User
+
+    b = books
+    with use_tenant(b["tenant"]):
+        with tenant_atomic():
+            receive(b, 2, "10", "10")
+        other = LedgerGroup.objects.get(company=b["company"], code="other_current_assets")
+    client = logged_in("alpha", "owner-stock@x.in")
+    with use_tenant(b["tenant"]):
+        User.objects.get(email="owner-stock@x.in").roles.set(Role.objects.filter(code="owner"))
+    res = client.patch(
+        f"/api/v1/ledgers/{b['stock_ledger'].pk}/",
+        data={"group": other.pk},
+        content_type="application/json",
+        HTTP_HOST="alpha.localhost",
+    )
+    assert res.status_code == 400 and "Cannot change the group" in str(res.json())
+
+
 def test_data_reset_clears_postings(books, settings):
     from accounts.models import User
     from core import data_reset

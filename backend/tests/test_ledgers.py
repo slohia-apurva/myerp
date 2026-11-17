@@ -47,9 +47,11 @@ def groups(client, company):
 def test_new_company_has_a_cash_ledger(as_user, company):
     accountant = as_user("accountant")
     ledgers = call(accountant, "get", f"companies/{company}/ledgers/").json()
-    assert [(x["name"], x["group_name"], x["nature"]) for x in ledgers] == [
+    # Cash, and the six fixed system ledgers (test_posting.py).
+    assert [(x["name"], x["group_name"], x["nature"]) for x in ledgers if not x["system"]] == [
         ("Cash", "Cash-in-Hand", "asset")
     ]
+    assert len([x for x in ledgers if x["system"] == "fixed"]) == 6
     assert groups(accountant, company)["Cash-in-Hand"]["ledger_count"] == 1
 
 
