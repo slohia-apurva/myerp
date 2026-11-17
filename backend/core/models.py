@@ -883,13 +883,17 @@ class Brand(models.Model):
 
 
 class SalesPerson(models.Model):
-    """A salesman (picked on customers) or purchaser (picked on suppliers),
-    with or without a MyERP sign-in (Sidharth, 2026-11-16, preview 83). One
-    list shared by every company in the group. Never deleted, only disabled."""
+    """A salesman (picked on customers), purchaser (picked on suppliers) or
+    stores person (picked on goods receipts), with or without a MyERP sign-in
+    (Sidharth, 2026-11-16, preview 83; Masters > People). One list shared by
+    every company in the group. Never deleted, only disabled."""
 
     name = models.CharField(max_length=100)
     is_salesman = models.BooleanField("salesman", default=False)
     is_purchaser = models.BooleanField("purchaser", default=False)
+    # Stores: receives goods and checks quality; picked as "Received By" and
+    # "QC By" on a Goods Receipt (Sidharth, 2026-11-17, preview 88).
+    is_stores = models.BooleanField("stores", default=False)
     mobile = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
     # Only when the person also signs in to MyERP.

@@ -338,7 +338,7 @@ def _register() -> None:
             ItemGroup: Tracked("item_group", "Item group", lambda r: None),
             Batch: Tracked("batch", "Batch", lambda r: None),
             Brand: Tracked("brand", "Brand", lambda r: None),
-            SalesPerson: Tracked("sales_person", "Salesman or purchaser", lambda r: None),
+            SalesPerson: Tracked("sales_person", "Person", lambda r: None),
             Item: Tracked(
                 "item",
                 "Item",

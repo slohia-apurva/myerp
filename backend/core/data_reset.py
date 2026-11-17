@@ -135,7 +135,7 @@ def _plan(level: str, company):
             ("Items", Item.objects.all()),
             ("Item groups", ItemGroup.objects.all()),
             ("Brands", Brand.objects.all()),
-            ("Salesmen and purchasers", SalesPerson.objects.all()),
+            ("People (salesmen, purchasers, stores)", SalesPerson.objects.all()),
             ("Price lists", PriceList.objects.all()),
             ("Terms and conditions", TermsSet.objects.all()),
             ("Credit terms you added", _custom_terms()),

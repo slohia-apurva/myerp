@@ -88,3 +88,9 @@ def test_pickers_follow_the_ticks(accountant, company):  # noqa: F811
     ledger = made.json()["id"]
     kept = call(accountant, "patch", f"ledgers/{ledger}/", {"party": {"salesman": buyer}})
     assert kept.status_code == 200, kept.json()
+
+
+def test_a_stores_person_needs_no_other_tick(accountant):  # noqa: F811
+    made = call(accountant, "post", "sales-people/", {"name": "Ramesh", "is_stores": True})
+    assert made.status_code == 201, made.json()
+    assert made.json()["is_stores"] is True

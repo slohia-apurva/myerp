@@ -238,8 +238,9 @@ class GoodsReceipt(models.Model):
     lr_no = models.CharField(max_length=40, blank=True)
     vehicle_no = models.CharField(max_length=20, blank=True)
     eway_bill_no = models.CharField(max_length=20, blank=True)
+    # Masters > People ticked "Stores" (Sidharth, 2026-11-17, preview 88).
     received_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+        "core.SalesPerson", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     # Orders in a foreign currency: rupees per unit of it, for the stock value.
     currency = models.CharField(max_length=3, default="INR")
@@ -247,8 +248,9 @@ class GoodsReceipt(models.Model):
     # Quality check (optional add-on; for items marked "QC required").
     qc_cartons = models.CharField(max_length=8, choices=CARTONS, blank=True)
     qc_batch_print = models.CharField(max_length=8, choices=PRINTS, blank=True)
+    # Masters > People ticked "Stores" (Sidharth, 2026-11-17, preview 88).
     qc_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+        "core.SalesPerson", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     notes = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)

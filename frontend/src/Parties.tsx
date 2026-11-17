@@ -292,7 +292,7 @@ export function PartyFields({
   }, []);
   const linked = new Set([companyId, ...(p.companies ?? []).map((c) => c.id)]);
   const term = terms.find((t) => t.id === p.credit_term);
-  // From Masters > Salesmen and Purchasers: those ticked for this side, and not disabled.
+  // From Masters > People: those ticked for this side, and not disabled.
   const { people, refresh: refreshPeople } = useSalesPeople();
   const newPerson = creatable("sales_person", "sales-people", refreshPeople, `as=${supplier ? "purchaser" : "salesman"}`);
   // A customer's usual transporter (when the company has Sales) or a supplier's (when it
