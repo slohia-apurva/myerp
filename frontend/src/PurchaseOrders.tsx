@@ -152,7 +152,7 @@ type Supplier = {
   state_code: string;
   credit_term: number | null;
   transporter: number | null;
-  /** The supplier's Purchaser in this company (Masters › Salesmen and Purchasers). */
+  /** The supplier's Purchaser in this company (Masters › People). */
   purchaser: number | null;
   terms_set: number | null;
   currency: string;

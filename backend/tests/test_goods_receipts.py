@@ -14,6 +14,7 @@ from core.models import (
     Ledger,
     LedgerGroup,
     Notification,
+    SalesPerson,
     WarehouseLocation,
 )
 from posting import accounts
@@ -395,3 +396,32 @@ def test_a_line_on_a_draft_receipt_cannot_be_closed(store, buyer, grn):  # noqa:
     close = f"purchase-orders/{grn['po']}/lines/{grn['tea_line']}/close/"
     res = call(buyer, "post", close, {"reason": "No more"})
     assert res.status_code == 400 and "draft goods receipt" in str(res.json())
+
+
+def test_received_by_and_qc_by_are_stores_people(store, owner, grn, alpha):  # noqa: F811
+    """Received By and QC By pick from Masters > People ticked "Stores", signed in
+    or not (Sidharth, 2026-11-17, preview 88)."""
+    with use_tenant(alpha):
+        ramesh = SalesPerson.objects.create(name="Ramesh", is_stores=True).pk
+        sunil = SalesPerson.objects.create(name="Sunil", is_stores=True, is_active=False).pk
+        amit = SalesPerson.objects.create(name="Amit", is_purchaser=True).pk
+    setup = call(store, "get", f"companies/{grn['company']}/goods-receipts/setup/").json()
+    assert {p["name"] for p in setup["stores_people"]} == {"Ramesh", "Sunil"}
+
+    # A purchaser is not on the list, nor is a disabled stores person.
+    for bad in (amit, sunil):
+        refused = call(store, "post", url(grn), receipt(grn, [tea_line(grn)], received_by=bad))
+        assert refused.status_code == 400 and "received_by" in refused.json()
+
+    made = call(
+        store, "post", url(grn), receipt(grn, [tea_line(grn)], received_by=ramesh, qc_by=ramesh)
+    )
+    assert made.status_code == 201, made.json()
+    body = made.json()
+    assert body["received_by_name"] == "Ramesh" and body["qc_by_name"] == "Ramesh"
+
+    # Named on a receipt: stays ticked Stores.
+    untick = call(
+        owner, "patch", f"sales-people/{ramesh}/", {"is_stores": False, "is_purchaser": True}
+    )
+    assert untick.status_code == 400 and "is_stores" in untick.json()

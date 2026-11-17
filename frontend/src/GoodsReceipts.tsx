@@ -5,7 +5,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
-import { announceSaved, closeThisTab, useCreated } from "./Create";
+import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { GrnPrint, type PrintKind } from "./GrnPrint";
@@ -125,7 +125,8 @@ type Setup = {
   branches: { id: number; name: string }[];
   locations: Place[];
   transporters: { id: number; name: string }[];
-  users: { id: number; name: string }[];
+  /** Masters › People ticked "Stores": for Received By and QC By. */
+  stores_people: { id: number; name: string; is_active: boolean }[];
   suppliers: { id: number; name: string }[];
   package_types: [string, string][];
   can_submit: boolean;
@@ -162,10 +163,15 @@ const createFromReceipt = (companyId: number, id: number) => [
 
 function useSetup(companyId: number) {
   const [setup, setSetup] = useState<Setup | null>(null);
+  // refresh returns the request, so "Create …" can wait for the new person.
+  const refresh = useCallback(
+    () => api<Setup>(`v1/companies/${companyId}/goods-receipts/setup/`).then(setSetup, () => setSetup(null)),
+    [companyId],
+  );
   useEffect(() => {
-    api<Setup>(`v1/companies/${companyId}/goods-receipts/setup/`).then(setSetup, () => setSetup(null));
-  }, [companyId]);
-  return setup;
+    refresh();
+  }, [refresh]);
+  return { setup, refresh };
 }
 
 /** Each item's batches, fetched once per item. */
@@ -193,7 +199,8 @@ export function GoodsReceiptsPage({ companyId, session }: { companyId: number; s
   const form = hashParam("form");
   const view = Number(hashParam("view"));
   const can = (p: string) => session.permissions.includes(`purchase.${p}`) || session.permissions.includes(`stock.${p}`);
-  if (form && can("create")) return <ReceiptFormTab companyId={companyId} form={form} />;
+  if (form && can("create"))
+    return <ReceiptFormTab companyId={companyId} form={form} mayAddPeople={session.permissions.includes("masters.edit")} />;
   const print = Number(hashParam("print"));
   if (print > 0) {
     const layout = (hashParam("layout") ?? "note") as PrintKind;
@@ -439,7 +446,7 @@ const putTotal = (l: LineDraft) => l.puts.reduce((s, p) => s + num(p.qty), 0);
 const overBy = (l: LineDraft) => num(l.info.earlier) + accepted(l) - num(l.info.ordered);
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
-function ReceiptFormTab({ companyId, form }: { companyId: number; form: string }) {
+function ReceiptFormTab({ companyId, form, mayAddPeople }: { companyId: number; form: string; mayAddPeople: boolean }) {
   const [receipt, setReceipt] = useState<GoodsReceipt | null>(null);
   const [error, setError] = useState<unknown>("");
   useEffect(() => {
@@ -456,12 +463,26 @@ function ReceiptFormTab({ companyId, form }: { companyId: number; form: string }
   if (error) return shell(error);
   if (form !== "new" && !receipt) return shell();
   if (receipt && receipt.status !== "draft") return shell("A submitted receipt cannot be changed. Cancel it and make a new one.");
-  return <ReceiptForm companyId={companyId} title={title} receipt={receipt} fromOrder={Number(hashParam("order")) || null} />;
+  return (
+    <ReceiptForm
+      companyId={companyId}
+      title={title}
+      receipt={receipt}
+      fromOrder={Number(hashParam("order")) || null}
+      mayAddPeople={mayAddPeople}
+    />
+  );
 }
 
-function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsReceipt | null; fromOrder: number | null }) {
+function ReceiptForm(props: {
+  companyId: number;
+  title: string;
+  receipt: GoodsReceipt | null;
+  fromOrder: number | null;
+  mayAddPeople: boolean;
+}) {
   const { companyId, receipt: r } = props;
-  const setup = useSetup(companyId);
+  const { setup, refresh: refreshSetup } = useSetup(companyId);
   const [supplier, setSupplier] = useState(r ? String(r.supplier) : "");
   const [branch, setBranch] = useState(r ? String(r.branch) : "");
   const [date, setDate] = useState(r?.receipt_date ?? new Date().toISOString().slice(0, 10));
@@ -682,7 +703,13 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
     e.preventDefault();
     save(false);
   };
-  const people = (setup?.users ?? []).map((u) => ({ value: String(u.id), label: u.name }));
+  // Masters › People ticked "Stores"; a disabled one stays only where already picked.
+  const peopleFor = (picked: string) =>
+    (setup?.stores_people ?? [])
+      .filter((p) => p.is_active || String(p.id) === picked)
+      .map((p) => ({ value: String(p.id), label: p.name }));
+  const newPerson = props.mayAddPeople ? creatable("sales_person", "sales-people", refreshSetup, "as=stores") : undefined;
+  const noPeople = setup !== null && setup.stores_people.length === 0;
 
   return (
     <section className="page item-edit">
@@ -777,7 +804,8 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
               </label>
               <label>
                 Received By
-                <Combobox value={receivedBy} onChange={setReceivedBy} empty="Not given" options={people} />
+                <Combobox value={receivedBy} onChange={setReceivedBy} empty="Not given" options={peopleFor(receivedBy)} create={newPerson} />
+                {noPeople && <span className="small">No Stores people yet. Add them in Masters › People.</span>}
               </label>
               {currency !== "INR" && (
                 <label>
@@ -907,7 +935,7 @@ function ReceiptForm(props: { companyId: number; title: string; receipt: GoodsRe
               </label>
               <label>
                 Checked By
-                <Combobox value={qcBy} onChange={setQcBy} empty="Not given" options={people} />
+                <Combobox value={qcBy} onChange={setQcBy} empty="Not given" options={peopleFor(qcBy)} create={newPerson} />
               </label>
             </div>
             <p className="small">New batches of items marked "QC required" go into stock as "Quarantine" and can be released on the Batches screen.</p>
@@ -1133,7 +1161,7 @@ function PackagesBox({ rows, ticked, onTick }: { rows: PackageRow[]; ticked: num
 // The receipt's own page (read only) -------------------------------------------------
 
 function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
-  const setup = useSetup(companyId);
+  const { setup } = useSetup(companyId);
   const [r, setR] = useState<GoodsReceipt | null>(null);
   const [postings, setPostings] = useState<Postings | null>(null);
   const [error, setError] = useState<unknown>("");
