@@ -19,7 +19,6 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
 from audit.models import AuditEntry
 from buying.api import _addresses_out, _company, _letterhead
 from buying.models import (
@@ -42,6 +41,7 @@ from core.models import (
     ItemUnit,
     Ledger,
     Package,
+    SalesPerson,
     WarehouseLocation,
 )
 from core.notifications import notify, people_with_roles
@@ -177,13 +177,13 @@ def _receipt_out(r: GoodsReceipt, lines: bool = True) -> dict:
         "vehicle_no": r.vehicle_no,
         "eway_bill_no": r.eway_bill_no,
         "received_by": r.received_by_id,
-        "received_by_name": r.received_by.display_name if r.received_by_id else "",
+        "received_by_name": r.received_by.name if r.received_by_id else "",
         "currency": r.currency,
         "exchange_rate": r.exchange_rate,
         "qc_cartons": r.qc_cartons,
         "qc_batch_print": r.qc_batch_print,
         "qc_by": r.qc_by_id,
-        "qc_by_name": r.qc_by.display_name if r.qc_by_id else "",
+        "qc_by_name": r.qc_by.name if r.qc_by_id else "",
         "notes": r.notes,
         "stock_value": r.stock_value,
         "accepted_total": sum((ln.accepted_qty for ln in r.lines.all()), ZERO),
@@ -282,13 +282,16 @@ class ReceiptSerializer(serializers.Serializer):
     submit = serializers.BooleanField(required=False, default=False)
 
 
-def _user(value, field: str):
+def _stores_person(value, field: str, current_id: int | None):
+    """Received By and QC By: a person from Masters > People ticked "Stores"
+    (Sidharth, 2026-11-17, preview 88). A disabled person stays only where
+    already picked."""
     if value in (None, ""):
         return None
-    user = User.objects.filter(pk=value, is_active=True).first()
-    if user is None:
+    person = SalesPerson.objects.filter(pk=value, is_stores=True).first()
+    if person is None or (not person.is_active and person.pk != current_id):
         raise ValidationError({field: ["Pick a person from the list."]})
-    return user
+    return person
 
 
 def _save(r: GoodsReceipt, data: dict) -> None:
@@ -335,8 +338,8 @@ def _save(r: GoodsReceipt, data: dict) -> None:
     r.vehicle_no = r.vehicle_no.upper()
     r.challan_date = data.get("challan_date")
     r.transporter = transporter
-    r.received_by = _user(data.get("received_by"), "received_by")
-    r.qc_by = _user(data.get("qc_by"), "qc_by")
+    r.received_by = _stores_person(data.get("received_by"), "received_by", r.received_by_id)
+    r.qc_by = _stores_person(data.get("qc_by"), "qc_by", r.qc_by_id)
     r.qc_cartons = data.get("qc_cartons") or ""
     r.qc_batch_print = data.get("qc_batch_print") or ""
     r.save()
@@ -517,7 +520,7 @@ def _differences(r: GoodsReceipt, user) -> None:
     order, a line still short after this receipt, and the order's open lines
     that did not come at all. Each notice opens the order; each is noted in the
     order's activity."""
-    who = r.received_by.display_name if r.received_by_id else user.display_name
+    who = r.received_by.name if r.received_by_id else user.display_name
     came = set(r.lines.values_list("order_line_id", flat=True))
     for o in r.orders.all():
         missing = []
@@ -948,9 +951,10 @@ class ReceiptSetupView(APIView):
                     {"id": t.pk, "name": t.name}
                     for t in CourierAccount.objects.filter(company=company, is_active=True)
                 ],
-                "users": [
-                    {"id": u.pk, "name": u.display_name}
-                    for u in User.objects.filter(is_active=True).order_by("full_name", "email")
+                # Masters > People ticked "Stores": for Received By and QC By.
+                "stores_people": [
+                    {"id": p.pk, "name": p.name, "is_active": p.is_active}
+                    for p in SalesPerson.objects.filter(is_stores=True).order_by("name")
                 ],
                 "suppliers": [
                     {"id": s.pk, "name": s.name}

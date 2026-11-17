@@ -10,14 +10,16 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 
-/** Salesmen and Purchasers (Sidharth, 2026-11-16, preview 83): the people who sell to
- * customers and buy from suppliers, with or without a MyERP sign-in. One list for every
- * company in the group; a customer picks a Salesman, a supplier a Purchaser. */
+/** People (Sidharth, 2026-11-16, preview 83; "Stores" added 2026-11-17, preview 88): the
+ * people who sell to customers, buy from suppliers or receive goods in the stores, with or
+ * without a MyERP sign-in. One list for every company in the group; a customer picks a
+ * Salesman, a supplier a Purchaser, a goods receipt its Received By and QC By from Stores. */
 export type SalesPerson = {
   id: number;
   name: string;
   is_salesman: boolean;
   is_purchaser: boolean;
+  is_stores: boolean;
   mobile: string;
   email: string;
   user: number | null;
@@ -38,11 +40,12 @@ export function useSalesPeople() {
   return { people, reload, refresh };
 }
 
-export const worksAs = (p: SalesPerson) => [p.is_salesman && "Salesman", p.is_purchaser && "Purchaser"].filter(Boolean).join(", ");
+export const worksAs = (p: SalesPerson) =>
+  [p.is_salesman && "Salesman", p.is_purchaser && "Purchaser", p.is_stores && "Stores"].filter(Boolean).join(", ");
 
 const formParam = () => hashParam("form");
 
-/** Masters > Salesmen and Purchasers. Add, Edit and Duplicate open in a new tab. */
+/** Masters > People. Add, Edit and Duplicate open in a new tab. */
 export function SalesPeoplePage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
   const { people, reload } = useSalesPeople();
@@ -77,8 +80,8 @@ function PeopleList(props: { session: SignedIn; canEdit: boolean; people: SalesP
   return (
     <section className="page">
       <PageHeader
-        title="Salesmen and Purchasers"
-        sub="The people who sell to customers and buy from suppliers, with or without a MyERP sign-in. One list for every company in the group."
+        title="People"
+        sub="The people who sell to customers, buy from suppliers or receive goods in the stores, with or without a MyERP sign-in. One list for every company in the group."
         actions={
           <>
             {io.buttons}
@@ -224,7 +227,7 @@ function PersonForm(props: {
   person: SalesPerson | null;
   copyOf?: SalesPerson | null;
   startName?: string;
-  /** "salesman" or "purchaser": opened by "Create …" on a customer or supplier. */
+  /** "salesman", "purchaser" or "stores": opened by "Create …" on a customer, supplier or goods receipt. */
   startAs?: string | null;
   readOnly?: boolean;
   onDone: (saved?: { id: number; name: string }) => void;
@@ -235,6 +238,7 @@ function PersonForm(props: {
   const [name, setName] = useState(props.startName ?? (props.copyOf ? `${props.copyOf.name} (copy)` : (p?.name ?? "")));
   const [salesman, setSalesman] = useState(from ? from.is_salesman : props.startAs === "salesman");
   const [purchaser, setPurchaser] = useState(from ? from.is_purchaser : props.startAs === "purchaser");
+  const [stores, setStores] = useState(from ? from.is_stores : props.startAs === "stores");
   const [mobile, setMobile] = useState(p?.mobile ?? "");
   const [email, setEmail] = useState(p?.email ?? "");
   const [user, setUser] = useState<number | null>(p?.user ?? null);
@@ -251,7 +255,7 @@ function PersonForm(props: {
     event.preventDefault();
     setError("");
     setBusy(true);
-    const body = { name, is_salesman: salesman, is_purchaser: purchaser, mobile, email, user, notes };
+    const body = { name, is_salesman: salesman, is_purchaser: purchaser, is_stores: stores, mobile, email, user, notes };
     try {
       if (p) {
         await api(`v1/sales-people/${p.id}/`, { ...body, is_active: !disabled }, "PATCH");
@@ -324,7 +328,13 @@ function PersonForm(props: {
             <input type="checkbox" checked={purchaser} onChange={(e) => setPurchaser(e.target.checked)} />
             Purchaser
           </label>
-          <p className="small">Tick at least one. A Salesman is offered on customers, a Purchaser on suppliers.</p>
+          <label className="check">
+            <input type="checkbox" checked={stores} onChange={(e) => setStores(e.target.checked)} />
+            Stores
+          </label>
+          <p className="small">
+            Tick at least one. A Salesman is offered on customers, a Purchaser on suppliers, Stores as "Received By" and "QC By" on goods receipts.
+          </p>
         </fieldset>
       </Section>
     </FormPage>

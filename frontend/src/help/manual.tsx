@@ -1136,27 +1136,30 @@ export const MANUAL: Chapter[] = [
   },
   {
     id: "sales-people",
-    title: "Salesmen and Purchasers",
+    title: "People (salesmen, purchasers, stores)",
     summary:
-      "The people who sell to customers and buy from suppliers, picked on each customer and supplier.",
+      "The people who sell to customers, buy from suppliers or receive goods in the stores, picked on customers, suppliers and goods receipts.",
     body: (
       <>
         <p>
-          Salesmen and Purchasers are one list shared by every company in the
-          group. A person here does not need to sign in to MyERP. A customer
-          picks its "Salesman" and a supplier its "Purchaser" from this list,
-          and each company can pick someone different for the same party.
+          People is one list shared by every company in the group. A person
+          here does not need to sign in to MyERP. A customer picks its
+          "Salesman" and a supplier its "Purchaser" from this list, and each
+          company can pick someone different for the same party. A goods
+          receipt picks "Received By" and "Checked By" from the people ticked
+          "Stores".
         </p>
         <h3>Add a person</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Salesmen and Purchasers".</li>
+          <li>Click "Masters" in the top menu, then "People".</li>
           <li>
             Click "Add person". The form opens in a new browser tab. Give the
             "Name", and if you like the "Mobile", "Email" and "Notes".
           </li>
           <li>
-            Under "Works As", tick "Salesman", "Purchaser" or both. A Salesman
-            is offered on customers, a Purchaser on suppliers.
+            Under "Works As", tick "Salesman", "Purchaser", "Stores", or more
+            than one. A Salesman is offered on customers, a Purchaser on
+            suppliers, Stores on goods receipts.
           </li>
           <li>
             If the person also signs in to MyERP, pick them in "MyERP User".
@@ -1165,16 +1168,17 @@ export const MANUAL: Chapter[] = [
           <li>Click "Save"; the tab closes and the person is selected in the list.</li>
         </ol>
         <p>
-          You can also add someone straight from a customer or supplier: type
-          the name in "Salesman" or "Purchaser" and pick 'Create "…"'.
+          You can also add someone straight from a customer, supplier or goods
+          receipt: type the name in "Salesman", "Purchaser" or "Received By"
+          and pick 'Create "…"'.
         </p>
         <p>
           Click a person in the list to see their details on the right, with
           their activity below. The "Parties" column counts the customers and
           suppliers that have picked them. Names must be different, whatever
           the capital letters. Someone picked as a customer's salesman keeps the
-          "Salesman" tick, and a supplier's purchaser keeps the "Purchaser"
-          tick. People are never deleted: tick "Disabled" to stop offering
+          "Salesman" tick, a supplier's purchaser keeps the "Purchaser" tick,
+          and someone named on a goods receipt keeps the "Stores" tick. People are never deleted: tick "Disabled" to stop offering
           them; parties that already have them keep them. To change many at
           once, use "Actions" at the top of the screen (see "Import, export
           and print").
@@ -1858,7 +1862,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Salesman or Purchaser",
-              'The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser), from the list in "Masters" › "Salesmen and Purchasers". A customer offers the people ticked "Salesman", a supplier those ticked "Purchaser"; type a new name and pick \'Create "…"\' to add someone. Other companies can choose someone else for the same party.',
+              'The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser), from the list in "Masters" › "People". A customer offers the people ticked "Salesman", a supplier those ticked "Purchaser"; type a new name and pick \'Create "…"\' to add someone. Other companies can choose someone else for the same party.',
             ],
             [
               "Deductee Type and Default TDS Section",
@@ -2256,7 +2260,7 @@ export const MANUAL: Chapter[] = [
             supplier's "Purchaser" in this company (set on the supplier). Change
             it to a broker or firm from the suppliers list (marked "Supplier";
             add it as a supplier first) or to another person ticked "Purchaser"
-            in "Masters" › "Salesmen and Purchasers" (marked "Purchaser"; type a
+            in "Masters" › "People" (marked "Purchaser"; type a
             new name and pick 'Create "…"' to add one), or to "None"; then tick
             who of them gets the mail. A purchaser is mailed at their own email,
             else the one they sign in with. Contacts themselves are added on the supplier's ledger.
@@ -2470,7 +2474,9 @@ export const MANUAL: Chapter[] = [
           <li>
             Fill in the supplier's challan or invoice number and date, the
             "Transporter", "LR / Docket No", "Vehicle No", "E-way Bill No" and
-            who received the goods.
+            "Received By". "Received By" lists the people ticked "Stores" in
+            "Masters" › "People", whether or not they sign in to MyERP; type a
+            new name and pick 'Create "…"' to add someone.
           </li>
           <li>
             On each item, change "Received" to what actually came and put any
@@ -2554,7 +2560,8 @@ export const MANUAL: Chapter[] = [
             New batches of items marked "QC required" start as "Quarantine";
             release them on the Batches screen once checked. The "Quality
             Check" box records the carton (CFC) condition, whether the batch
-            code printed on the packs matches, and who checked.
+            code printed on the packs matches, and who checked ("Checked By",
+            from the same "Stores" people).
           </li>
         </ul>
         <p>

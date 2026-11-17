@@ -1,8 +1,10 @@
-"""Salesmen and Purchasers (Sidharth, 2026-11-16, preview 83): the people who
-sell to customers and buy from suppliers, with or without a MyERP sign-in.
+"""People (Sidharth, 2026-11-16, preview 83; "Stores" added 2026-11-17, preview
+88): the people who sell to customers, buy from suppliers or receive goods in
+the stores, with or without a MyERP sign-in.
 One list for every company in the group. A customer's "Salesman" offers the
 people ticked Salesman, a supplier's "Purchaser" those ticked Purchaser; each
-company picks its own (kept on its ledger)."""
+company picks its own (kept on its ledger). A goods receipt's "Received By" and
+"QC By" offer those ticked Stores."""
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
@@ -36,6 +38,7 @@ class SalesPersonSerializer(serializers.ModelSerializer):
             "name",
             "is_salesman",
             "is_purchaser",
+            "is_stores",
             "mobile",
             "email",
             "user",
@@ -68,6 +71,7 @@ def _save_person(person: SalesPerson, data: dict) -> SalesPerson:
         "name",
         "is_salesman",
         "is_purchaser",
+        "is_stores",
         "mobile",
         "email",
         "user",
@@ -76,8 +80,10 @@ def _save_person(person: SalesPerson, data: dict) -> SalesPerson:
     ):
         if field in data:
             setattr(person, field, data[field])
-    if not (person.is_salesman or person.is_purchaser):
-        raise ValidationError({"is_salesman": ['Tick "Salesman", "Purchaser" or both.']})
+    if not (person.is_salesman or person.is_purchaser or person.is_stores):
+        raise ValidationError(
+            {"is_salesman": ['Tick at least one of "Salesman", "Purchaser" and "Stores".']}
+        )
     if person.pk:
         # A person picked on customers stays a salesman, on suppliers a purchaser.
         sides = set(person.ledgers.values_list("party_side", flat=True))
@@ -89,6 +95,12 @@ def _save_person(person: SalesPerson, data: dict) -> SalesPerson:
             raise ValidationError(
                 {"is_purchaser": [f"{person.name} is the purchaser of a supplier."]}
             )
+        # Picked on a goods receipt: stays a stores person.
+        from buying.models import GoodsReceipt
+
+        on_receipt = GoodsReceipt.objects.filter(Q(received_by=person) | Q(qc_by=person))
+        if not person.is_stores and on_receipt.exists():
+            raise ValidationError({"is_stores": [f"{person.name} is named on a goods receipt."]})
     try:
         person.full_clean(validate_constraints=False)
     except DjangoValidationError as exc:
@@ -142,14 +154,14 @@ def _person_cell(pk) -> str:
 def _person_from(text: str) -> int:
     person = SalesPerson.objects.filter(name__iexact=duplicates.tidy(text)).first()
     if person is None:
-        raise ValueError(f"there is no salesman or purchaser {text.strip()!r}")
+        raise ValueError(f"there is no person {text.strip()!r}")
     return person.pk
 
 
 PERSON = exchange.Codec(
     _person_cell,
     _person_from,
-    hint="A name from Salesmen and Purchasers",
+    hint="A name from People",
     kind="other",
 )
 
@@ -157,7 +169,7 @@ PERSON = exchange.Codec(
 exchange.register(
     exchange.Master(
         key="sales-people",
-        label="Salesmen and Purchasers",
+        label="People",
         noun="person",
         serializer=SalesPersonSerializer,
         queryset=lambda ctx: SalesPerson.objects.select_related("user").order_by("name"),
@@ -167,6 +179,7 @@ exchange.register(
         labels={
             "is_salesman": "Salesman",
             "is_purchaser": "Purchaser",
+            "is_stores": "Stores",
             "user": "MyERP user",
         },
     )
