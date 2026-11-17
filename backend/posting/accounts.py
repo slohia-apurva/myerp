@@ -11,7 +11,7 @@ their names, and may be moved to another group at any time, even once in use,
 so the CA can place them (the entries move with the ledger).
 """
 
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 
 from core.models import Company, Item, ItemAccount, ItemGroupAccount, Ledger, LedgerGroup
 
@@ -147,3 +147,65 @@ def cogs_ledger(company: Company, item: Item) -> Ledger:
             }
         )
     return accounts.cogs_ledger
+
+
+# The ledgers an item group sets per company (Masters > Item groups), as the
+# screens name them.
+STOCK, COGS = "stock", "cogs"
+ACCOUNT_LABELS = {STOCK: "Stock Ledger", COGS: "COGS/Expense Ledger"}
+
+
+def missing_accounts(company: Company, lines, needs=(STOCK, COGS)) -> list[dict]:
+    """Each main item group whose ledgers for this company are not all set, with
+    the lines that need them. `lines` is (line number, item) pairs."""
+    rows: dict[int, dict] = {}
+    for n, item in lines:
+        group = main_group(item)
+        if group is None:
+            continue
+        accounts = _accounts(company, item)
+        missing = [
+            ACCOUNT_LABELS[k]
+            for k in needs
+            if accounts is None or getattr(accounts, f"{k}_ledger_id") is None
+        ]
+        if not missing:
+            continue
+        row = rows.setdefault(
+            group.pk, {"group": group.pk, "group_name": group.name, "missing": missing, "lines": []}
+        )
+        row["lines"].append(f"Line {n} {item.name}")
+    return list(rows.values())
+
+
+def accounts_refusal(company: Company, user, lines, needs=(STOCK, COGS)) -> dict | None:
+    """The refusal of a Submit whose items lack their group's ledgers: every one at
+    once, so the screen can list them in a popup (Sidharth, 2026-11-17), and
+    whether this person may set them (else the screen offers "Ask to set")."""
+    rows = missing_accounts(company, lines, needs)
+    if not rows:
+        return None
+    names = ", ".join(r["group_name"] for r in rows)
+    return {
+        "detail": f"Set the ledgers of item group {names} for {company} "
+        "(Masters > Item groups) before Submit.",
+        "missing_accounts": rows,
+        "may_set": user.can("masters.edit"),
+        "company": company.pk,
+    }
+
+
+class AccountsMissing(APIException):
+    """Submit refused for missing item group ledgers; the body is the refusal as is."""
+
+    status_code = 400
+    default_code = "accounts_missing"
+
+    def __init__(self, refusal: dict):
+        super().__init__(refusal["detail"])
+        self.detail = refusal
+
+
+def require_accounts(company: Company, user, lines, needs=(STOCK, COGS)) -> None:
+    if refusal := accounts_refusal(company, user, lines, needs):
+        raise AccountsMissing(refusal)

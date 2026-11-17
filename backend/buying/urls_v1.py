@@ -87,6 +87,11 @@ urlpatterns = [
     ),
     path("goods-receipts/<int:pk>/", receipts.ReceiptDetailView.as_view(), name="goods-receipt"),
     path(
+        "goods-receipts/<int:pk>/ledger-posting/",
+        receipts.ReceiptLedgerPostingView.as_view(),
+        name="goods-receipt-ledger-posting",
+    ),
+    path(
         "goods-receipts/<int:pk>/submit/",
         receipts.ReceiptSubmitView.as_view(),
         name="goods-receipt-submit",

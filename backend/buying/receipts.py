@@ -46,6 +46,7 @@ from core.models import (
 )
 from core.notifications import notify, people_with_roles
 from posting import accounts, service
+from posting import api as posting_api
 from posting.service import GLLine, StockLine, Voucher, money
 from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
@@ -564,6 +565,21 @@ def order_status(o: PurchaseOrder) -> None:
     o.save()
 
 
+def _numbered(r: GoodsReceipt) -> list[tuple[int, Item]]:
+    """(line number as on screen, item) of each line with goods accepted."""
+    lines = r.lines.select_related("item__item_group")
+    return [(n, ln.item) for n, ln in enumerate(lines, 1) if ln.accepted_qty > 0]
+
+
+def _accounts_refused(r: GoodsReceipt, user) -> Response | None:
+    """For a view that saves then submits: the missing-ledgers refusal answered
+    WITHOUT raising, so the draft it just saved is kept ("id")."""
+    if not can(user, SUBMIT):
+        return None
+    refusal = accounts.accounts_refusal(r.company, user, _numbered(r))
+    return Response({**refusal, "id": r.pk}, status=400) if refusal else None
+
+
 def _submit(r: GoodsReceipt, user) -> None:
     if not can(user, SUBMIT):
         raise PermissionDenied("Your role may save drafts but not submit them.")
@@ -600,6 +616,7 @@ def _submit(r: GoodsReceipt, user) -> None:
                 errors.append(f"{ln.item.name} does not keep batches.")
     if errors:
         raise ValidationError({"lines": sorted(set(errors), key=errors.index)})
+    accounts.require_accounts(r.company, user, _numbered(r))
 
     r.number = numbering.next_document_number(r.company, KIND, r.receipt_date, r.branch)
     rate_to_inr = r.exchange_rate if r.currency != "INR" else Decimal("1")
@@ -806,7 +823,8 @@ class ReceiptListView(APIView):
         r = GoodsReceipt(company=company, created_by=request.user)
         _save(r, data)
         if data.get("submit"):
-            if refused := attachments.refuse_submit(r, "goods_receipt"):
+            refused = attachments.refuse_submit(r, "goods_receipt")
+            if refused := refused or _accounts_refused(r, request.user):
                 return refused
             _submit(r, request.user)
         return Response(_fresh(r), status=status.HTTP_201_CREATED)
@@ -844,10 +862,65 @@ class ReceiptDetailView(APIView):
         data = dict(serializer.validated_data)
         _save(r, data)
         if data.get("submit"):
-            if refused := attachments.refuse_submit(r, "goods_receipt"):
+            refused = attachments.refuse_submit(r, "goods_receipt")
+            if refused := refused or _accounts_refused(r, request.user):
                 return refused
             _submit(r, request.user)
         return Response(_fresh(r))
+
+
+def _posting_preview(r: GoodsReceipt) -> dict:
+    """What Submit will post, at order rates with the charges marked "Add to
+    Stock Cost": each item group's Stock Ledger debited, Goods Received but Bills
+    not Received credited."""
+    lines = [
+        ln
+        for ln in r.lines.select_related("item__item_group", "order_line__order")
+        if ln.accepted_qty > 0
+    ]
+    no_rate = r.currency != "INR" and not r.exchange_rate
+    rate_to_inr = Decimal("1") if r.currency == "INR" else (r.exchange_rate or ZERO)
+    charges = _charges_for(lines)
+    per_ledger: dict[int, Decimal] = defaultdict(lambda: ZERO)
+    ledgers: dict[int, Ledger] = {}
+    unset: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for ln in lines:
+        ol = ln.order_line
+        value = (ol.taxable / ol.qty * ln.accepted_qty + charges.get(ln.pk, ZERO)) * rate_to_inr
+        try:
+            led = accounts.stock_ledger(r.company, ln.item)
+        except ValidationError:
+            group = accounts.main_group(ln.item)
+            unset[f"Stock Ledger of item group {group} not set"] += value
+            continue
+        ledgers[led.pk] = led
+        per_ledger[led.pk] += value
+    rows = [posting_api.ledger_row(ledgers[k], debit=v) for k, v in per_ledger.items()]
+    rows += [posting_api.ledger_row(None, debit=v, missing=text) for text, v in unset.items()]
+    total = sum(per_ledger.values(), ZERO) + sum(unset.values(), ZERO)
+    if rows:
+        grni = accounts.system_ledger(r.company, accounts.GRNI)
+        rows.append(posting_api.ledger_row(grni, credit=total))
+    note = (
+        f"Give the exchange rate (rupees per {r.currency}) to see the rupee values. "
+        if no_rate
+        else ""
+    )
+    return posting_api.preview(rows, note)
+
+
+class ReceiptLedgerPostingView(APIView):
+    """GET: the "Ledger Posting" section. A draft shows what Submit will post;
+    a submitted or cancelled receipt what it posted."""
+
+    permission_classes = ReceiptListView.permission_classes
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        r = _receipt(request, pk)
+        if r.status == GoodsReceipt.DRAFT:
+            return Response(_posting_preview(r))
+        return Response(posting_api.posted(KIND, r.pk))
 
 
 class ReceiptSubmitView(APIView):
