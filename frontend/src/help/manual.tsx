@@ -3038,26 +3038,33 @@ export const MANUAL: Chapter[] = [
         <ul>
           <li>
             "As On" is the day the stock is counted at the end of; it starts at
-            today. "Warehouse" and "Item" narrow the list; leave them on "All"
-            to see everything.
+            today.
           </li>
           <li>
-            "Show" picks how deep the list goes: "Items", "Items › Batches" or
-            "Items › Batches › Bins". The arrow beside an item or batch folds it
-            away by itself.
+            Each line is one item in one batch in one bin: "Item No", "Item
+            Name", "Batch", "Warehouse", "Bin", "Unit", "Quantity", "Rate ₹" (the
+            average cost) and "Value ₹". Warehouse and bin names leave out the
+            company's and branch's names, so the default store reads "Store".
           </li>
           <li>
-            Each item shows its "Quantity" in its stock unit, its "Value ₹" and
-            the average "Rate ₹". Under it come its batches (with expiry and
-            status) and under each batch the bins or areas it is kept in.
-            "Total" at the bottom is the value of all stock shown.
+            Type in the "Search" box under any heading to keep only the lines
+            that match, for example a batch number or a warehouse. Searches in
+            several columns all have to match.
+          </li>
+          <li>
+            "Total" adds up the lines shown, so a search gives its own total.
+            The quantity total shows when all those lines are in one unit.
           </li>
           <li>
             The value is what the goods were received at: the order rate before
             GST plus any charge ticked to be added to stock cost. A supplier's
             bill at another rate changes it from the bill's date.
           </li>
-          <li>Click an item to open its Stock Ledger in a new tab.</li>
+          <li>
+            Click an item number to open its Stock Ledger in a new tab. Opened
+            from the Items screen, the list shows that one item; "Show all
+            items" brings back the rest.
+          </li>
         </ul>
         <h3>Stock Ledger</h3>
         <ul>
