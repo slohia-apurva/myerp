@@ -3914,16 +3914,25 @@ table.report td:nth-child(4) {
   color: var(--ink);
   font-weight: 400;
 }
-/* Reports read in a smaller type than the forms, to fit more lines (Sidharth, 2026-11-18). */
-table.report td {
+/* Reports and lists read in a smaller type than the forms, to fit more lines (Sidharth, 2026-11-18). */
+table.report td,
+table.pick td,
+table.groups td,
+table.row-list td,
+:where(.page table:not([class])) td {
   font-size: 13px;
   padding: 5px 8px;
 }
-table.report th {
+table.report th,
+table.pick th,
+table.groups th,
+table.row-list th,
+:where(.page table:not([class])) th {
   font-size: 11px;
   padding: 6px 8px;
 }
-table.report .col-search input {
+table.report .col-search input,
+table.pick .col-search input {
   font-size: 12px;
   padding: 3px 6px;
 }
