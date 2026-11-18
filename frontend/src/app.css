@@ -3942,3 +3942,43 @@ table.pick .col-search input {
 .report-filters > label {
   max-width: 320px;
 }
+
+/* Phones (Sidharth, 2026-11-18): the top menu wraps onto more lines instead of
+   pushing the page wider than the screen; the company picker gets a line of its
+   own, then the bell, Help and Sign out. */
+@media (max-width: 720px) {
+  .topbar {
+    min-height: 0;
+    padding-top: 8px;
+    row-gap: 4px;
+  }
+  .topbar nav {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 0;
+  }
+  .topbar nav > a,
+  .topbar nav > .menu {
+    height: 44px;
+    box-sizing: border-box;
+  }
+  .topbar nav > a,
+  .topbar nav > .menu > button {
+    padding: 0 10px;
+  }
+  .who {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    padding: 4px 0 10px;
+  }
+  .who .company-pick {
+    flex-basis: 100%;
+  }
+  .company-pick .combo {
+    width: 100%;
+  }
+  .who .avatar {
+    display: none;
+  }
+}

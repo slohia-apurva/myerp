@@ -148,7 +148,9 @@ export const MANUAL: Chapter[] = [
             "Credit terms", "Items", "Price lists" and "Units". Ledger groups and
             ledgers open for the company you are working in. Owners also see "Admin", which
             holds "Company", "Users", "User roles" and "Reset data". "Help"
-            opens this manual at the page for the screen you are on.
+            opens this manual at the page for the screen you are on. On a
+            phone the menu runs onto two lines, with the company on its own
+            line under it and then the bell, "Help" and "Sign out".
           </li>
           <li>
             <strong>Company</strong> (top right, beside "Help"): the company you
