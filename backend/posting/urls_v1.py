@@ -1,6 +1,6 @@
 from django.urls import path
 
-from posting import api, reports
+from posting import api, books, reports
 
 urlpatterns = [
     path("postings/", api.PostingsView.as_view(), name="postings"),
@@ -15,5 +15,15 @@ urlpatterns = [
         "companies/<int:pk>/stock-ledger/",
         reports.StockLedgerView.as_view(),
         name="stock-ledger",
+    ),
+    path(
+        "companies/<int:pk>/trial-balance/",
+        books.TrialBalanceView.as_view(),
+        name="trial-balance",
+    ),
+    path(
+        "companies/<int:pk>/ledger-statement/",
+        books.LedgerStatementView.as_view(),
+        name="ledger-statement",
     ),
 ]

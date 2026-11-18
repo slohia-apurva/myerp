@@ -29,6 +29,7 @@ import { RequestAdditionPage } from "./RequestAddition";
 import { HelpPage, helpTopicFor } from "./help/Help";
 import { AdminMenu, CompanyPicker, EntryMenu, MastersMenu, ReportsMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
 import { StockLedgerPage, StockSummaryPage } from "./Reports";
+import { LedgerStatementPage, TrialBalancePage } from "./Books";
 import { PurchaseOrdersPage } from "./PurchaseOrders";
 import { BinContentsPage } from "./BinContents";
 import { GoodsReceiptsPage } from "./GoodsReceipts";
@@ -39,6 +40,8 @@ import { NotificationBell } from "./Notifications";
 import { SupplierReplyPage } from "./SupplierReply";
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
+/** The screens under "Reports" in the top menu. */
+const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement"];
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -100,6 +103,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
   const canSeeShipments = session.permissions.some((p) => p === "sales.view" || p === "stock.view");
   const canSeePurchase = session.permissions.includes("purchase.view");
   const canSeeStock = session.permissions.includes("stock.view");
+  const canSeeBooks = session.permissions.includes("accounts.view");
   // Goods are received by purchase or by the stores (stock rights).
   const canReceive = canSeePurchase || session.permissions.includes("stock.view");
   const current = useCurrentCompany(page === "companies" ? id : undefined, canSeeMasters);
@@ -135,12 +139,12 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
           )}
-          {canSeeStock && current.company && (
-            <ReportsMenu active={page === "companies" && (sub === "stock-summary" || sub === "stock-ledger")} company={current.company} stock={canSeeStock} />
+          {(canSeeStock || canSeeBooks) && current.company && (
+            <ReportsMenu active={page === "companies" && REPORTS.includes(sub ?? "")} company={current.company} stock={canSeeStock} books={canSeeBooks} />
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "stock-summary", "stock-ledger"].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", ...REPORTS].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -175,6 +179,10 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <StockSummaryPage key={id} companyId={id} />
         ) : page === "companies" && id && sub === "stock-ledger" && canSeeStock ? (
           <StockLedgerPage key={id} companyId={id} />
+        ) : page === "companies" && id && sub === "trial-balance" && canSeeBooks ? (
+          <TrialBalancePage key={id} companyId={id} />
+        ) : page === "companies" && id && sub === "ledger-statement" && canSeeBooks ? (
+          <LedgerStatementPage key={id} companyId={id} />
         ) : page === "companies" && id && sub === "purchase-orders" && canSeePurchase ? (
           <PurchaseOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "purchase-invoices" && canSeePurchase ? (
