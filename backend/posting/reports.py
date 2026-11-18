@@ -66,12 +66,7 @@ def _id(request, key: str) -> int | None:
 def short_branch(branch) -> str:
     """The branch's name without the company's name in front: "Apurvam Organics LLP
     (Sankrail-2)" reads "Sankrail-2" (Sidharth, 2026-11-18)."""
-    name, company = branch.name, branch.company.name
-    if name.lower().startswith(company.lower()):
-        rest = name[len(company) :].strip(" -,:()")
-        if rest:
-            return rest
-    return name
+    return Branch.short_name.fget(branch)
 
 
 def short_bin(loc) -> str:

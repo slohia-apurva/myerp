@@ -1495,8 +1495,11 @@ export const MANUAL: Chapter[] = [
         <h3>The default store</h3>
         <p>
           Goods need a place even in a simple office with no racks or bins, so
-          every branch that holds stock has an area called "[Branch name]
-          Store", marked "Default". You can rename it, but not disable it. Goods
+          every branch that holds stock has an area called "Store", marked
+          "Default". You can rename it, but not disable it. Warehouses and
+          their stores read without the company's name, so "Apurvam Organics
+          LLP (Sankrail-2)" shows as "Sankrail-2" here and on goods receipts,
+          returns and stock reports. Goods
           that come in go to the branch's "Receiving" area if it has one,
           otherwise to the default store; you can choose another place on the
           entry.

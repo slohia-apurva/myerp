@@ -260,6 +260,17 @@ class Branch(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    @property
+    def short_name(self) -> str:
+        """The name without the company's name in front, as a warehouse reads on screens:
+        "Apurvam Organics LLP (Sankrail-2)" reads "Sankrail-2" (Sidharth, 2026-11-18)."""
+        name, company = self.name, self.company.name
+        if name.lower().startswith(company.lower()):
+            rest = name[len(company) :].strip(" -,:()")
+            if rest:
+                return rest
+        return name
+
     def clean(self):
         self.gstin = self.gstin.strip().upper()
         if self.gstin:

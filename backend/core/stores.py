@@ -22,9 +22,10 @@ def sync_default_store(branch: Branch) -> None:
             store.is_active = True
             store.save(update_fields=["is_active"])
         return
-    name = f"{branch.name} Store"[:60]
+    # Just "Store": the warehouse it stands in is shown beside it (Sidharth, 2026-11-18).
+    name = "Store"
     if L.objects.filter(
         branch=branch, kind=L.AREA, parent__isnull=True, name__iexact=name
     ).exists():
-        name = f"{name[:50]} (default)"
+        name = "Store (default)"
     L.objects.create(branch=branch, kind=L.AREA, name=name, purpose="storage", is_default=True)

@@ -228,7 +228,7 @@ def warehouse_tree(company) -> list[dict]:
         out.append(
             {
                 "id": branch.pk,
-                "name": branch.name,
+                "name": branch.short_name,
                 "city": branch.city,
                 "is_active": branch.is_active,
                 "racks": racks,

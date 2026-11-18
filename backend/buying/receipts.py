@@ -93,7 +93,9 @@ def _num(value: Decimal) -> str:
 def _receipts(company):
     return (
         GoodsReceipt.objects.filter(company=company)
-        .select_related("supplier", "branch", "transporter", "received_by", "qc_by", "submitted_by")
+        .select_related(
+            "supplier", "branch__company", "transporter", "received_by", "qc_by", "submitted_by"
+        )
         .prefetch_related(
             "orders__insurance_policy__insurer",
             "lines__item",
@@ -166,7 +168,7 @@ def _receipt_out(r: GoodsReceipt, lines: bool = True) -> dict:
         "supplier": r.supplier_id,
         "supplier_name": r.supplier.name,
         "branch": r.branch_id,
-        "branch_name": r.branch.name,
+        "branch_name": r.branch.short_name,
         "receipt_date": r.receipt_date,
         "orders": [o.pk for o in r.orders.all()],
         "order_numbers": [o.number for o in r.orders.all()],
@@ -982,7 +984,7 @@ class PendingOrdersView(APIView):
                         "supplier": o.supplier_id,
                         "supplier_name": o.supplier.name,
                         "branch": o.branch_id,
-                        "branch_name": o.branch.name,
+                        "branch_name": o.branch.short_name,
                         "currency": o.currency,
                         "transporter": o.transporter_id,
                         "lines": pending_lines(o),
