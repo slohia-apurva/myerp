@@ -255,7 +255,7 @@ def order_pdf(o: dict) -> bytes:
         if not place:
             parts.append(Paragraph(f"<b>{t(name)}</b>", body))
             return parts
-        nm = name + (f" ({place['label']})" if label and place.get("label") else "")
+        nm = (place.get("title") or name) if label else name
         rows = [f"<b>{t(nm)}</b>"]
         rows += [t(x) for x in (place.get("address") or "").split("\n") if x.strip()]
         if place.get("city") or place.get("pincode"):
