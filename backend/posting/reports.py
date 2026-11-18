@@ -75,19 +75,13 @@ def short_branch(branch) -> str:
 
 
 def short_bin(loc) -> str:
-    """The bin, rack or area without the branch's name in front: the default store
-    "Apurvam Organics LLP (Sankrail-2) Store" reads "Store"."""
-    name, branch = str(loc), loc.branch.name
-    if name.lower().startswith(branch.lower()):
-        rest = name[len(branch) :].strip(" -,:/")
-        if rest:
-            return rest
-    return name
+    """The bin or area alone (see WarehouseLocation.__str__)."""
+    return str(loc)
 
 
 def _place(loc) -> str:
-    """Branch, then the rack and bin (or area), both without repeating the names above them."""
-    return f"{short_branch(loc.branch)} / {short_bin(loc)}"
+    """The bin or area alone; the warehouse has its own filter."""
+    return short_bin(loc)
 
 
 def entry(voucher_type: str, voucher_id: int, voucher_no: str) -> dict:

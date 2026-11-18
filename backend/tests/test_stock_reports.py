@@ -6,7 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from accounts.models import Role
-from posting.reports import short_bin, short_branch
+from core.models import Branch, WarehouseLocation
+from posting.reports import short_branch
 from tenancy.context import use_tenant
 from tests.test_goods_receipts import (  # noqa: F401  (fixtures)
     box_line,
@@ -54,28 +55,26 @@ def test_summary_shows_items_batches_and_bins_with_values(store, grn, received):
     got = [(r["item_name"], r["batch"], r["bin"], r["unit"], r["qty"], r["rate"], r["value"])
            for r in body["lines"]]  # fmt: skip
     assert got == [
-        ("CTC Tea", "DTT-26-118", "F01 / A-02", "kg", "300.000000", "260.00", "78000.00"),
-        ("CTC Tea", "DTT-26-118", "F01 / A-06", "kg", "300.000000", "260.00", "78000.00"),
+        ("CTC Tea", "DTT-26-118", "A-02", "kg", "300.000000", "260.00", "78000.00"),
+        ("CTC Tea", "DTT-26-118", "A-06", "kg", "300.000000", "260.00", "78000.00"),
         ("Tea Box", "", "Store", "pkt", "30.000000", "30.00", "900.00"),
     ]
     assert all(r["warehouse"] for r in body["lines"])
 
 
-def test_names_do_not_repeat_the_company_or_branch():
+def test_names_do_not_repeat_the_company_or_branch(alpha):
     company = SimpleNamespace(name="Apurvam Organics LLP")
     branch = SimpleNamespace(name="Apurvam Organics LLP (Sankrail-2)", company=company)
     assert short_branch(branch) == "Sankrail-2"
-
-    class Place(SimpleNamespace):
-        def __str__(self):
-            return self.name
-
-    assert (
-        short_bin(Place(name="Apurvam Organics LLP (Sankrail-2) Store", branch=branch)) == "Store"
-    )
-    assert short_bin(Place(name="F01 / A-02", branch=branch)) == "F01 / A-02"
-    other = SimpleNamespace(name="Head Office", company=company)
-    assert short_branch(other) == "Head Office"
+    assert short_branch(SimpleNamespace(name="Head Office", company=company)) == "Head Office"
+    # A bin or area reads alone everywhere: the default store drops its branch's name,
+    # and a bin drops its rack.
+    with use_tenant(alpha):
+        here = Branch(name="Apurvam Organics LLP (Sankrail-2)")
+        store_area = WarehouseLocation(branch=here, name=f"{here.name} Store", is_default=True)
+        assert str(store_area) == "Store"
+        rack = WarehouseLocation(branch=here, kind="rack", name="F01")
+        assert str(WarehouseLocation(branch=here, kind="bin", name="A-02", parent=rack)) == "A-02"
 
 
 def test_summary_on_a_day_before_the_receipt_is_empty(store, grn, received):  # noqa: F811

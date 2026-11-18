@@ -3044,7 +3044,9 @@ export const MANUAL: Chapter[] = [
             Each line is one item in one batch in one bin: "Item No", "Item
             Name", "Batch", "Warehouse", "Bin", "Unit", "Quantity", "Rate ₹" (the
             average cost) and "Value ₹". Warehouse and bin names leave out the
-            company's and branch's names, so the default store reads "Store".
+            company's and branch's names: the default store reads "Store", and a
+            bin shows its own name alone, without its rack. This is how bins read
+            everywhere in MyERP, on screens and prints.
           </li>
           <li>
             Type in the "Search" box under any heading to keep only the lines
