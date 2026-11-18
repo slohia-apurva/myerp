@@ -3010,6 +3010,75 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "stock-reports",
+    title: "Stock reports",
+    summary:
+      "What is in stock on any day, by item, batch and bin, and every move of one item in and out.",
+    body: (
+      <>
+        <p>
+          Open them from "Reports" in the top menu. They show the company picked
+          at the top right and read straight from the stock ledger, so they
+          always agree with the submitted entries. Anyone whose role may see
+          stock can open them. Each has the "Actions ▾" button with "Print" and
+          "Download PDF".
+        </p>
+        <h3>Stock Summary</h3>
+        <ul>
+          <li>
+            "As On" is the day the stock is counted at the end of; it starts at
+            today. "Warehouse" and "Item" narrow the list; leave them on "All"
+            to see everything.
+          </li>
+          <li>
+            "Show" picks how deep the list goes: "Items", "Items › Batches" or
+            "Items › Batches › Bins". The arrow beside an item or batch folds it
+            away by itself.
+          </li>
+          <li>
+            Each item shows its "Quantity" in its stock unit, its "Value ₹" and
+            the average "Rate ₹". Under it come its batches (with expiry and
+            status) and under each batch the bins or areas it is kept in.
+            "Total" at the bottom is the value of all stock shown.
+          </li>
+          <li>
+            The value is what the goods were received at: the order rate before
+            GST plus any charge ticked to be added to stock cost. A supplier's
+            bill at another rate changes it from the bill's date.
+          </li>
+          <li>Click an item to open its Stock Ledger in a new tab.</li>
+        </ul>
+        <h3>Stock Ledger</h3>
+        <ul>
+          <li>
+            Pick the "Item", and the "From" and "To" dates (From starts at 1
+            April of the year). "Warehouse", "Batch" and "Bin" narrow it to one
+            place or one batch.
+          </li>
+          <li>
+            The first line is the "Opening" balance on the From date. Each line
+            after it is one entry: its date, its number (click it to open the
+            entry in a new tab), the batch and bin, the quantity "In" or "Out",
+            and the "Balance" and "Value ₹" after it. The last line is the
+            "Closing" balance.
+          </li>
+          <li>
+            A cancelled entry shows twice: once as made and once, greyed and
+            marked "(cancelled)", taking it back out. A supplier's bill at a
+            different rate shows as a "(rate change)" line that changes only
+            the value.
+          </li>
+        </ul>
+        <Note>
+          To check a goods receipt: the Stock Summary should show the accepted
+          quantity of each item in the bins it was put away in, and the Stock
+          Ledger of the item should list the receipt's number with the same
+          quantities.
+        </Note>
+      </>
+    ),
+  },
+  {
     id: "users",
     title: "Users",
     summary: "Letting people sign in and choosing what they can do.",
