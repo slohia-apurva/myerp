@@ -15,3 +15,8 @@ output "database_instance" {
 output "migrate_job" {
   value = google_cloud_run_v2_job.migrate.name
 }
+
+output "claude_reader" {
+  description = "Service account whose key goes into the Claude environment settings"
+  value       = var.claude_reader ? google_service_account.claude_reader[0].email : ""
+}

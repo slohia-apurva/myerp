@@ -64,3 +64,9 @@ variable "allow_data_reset" {
   type        = bool
   default     = false
 }
+
+variable "claude_reader" {
+  description = "Create the claude-reader service account, which may read the database (never change it) and the logs, so Claude sessions can check entries. Staging only; keep false where live books are kept."
+  type        = bool
+  default     = false
+}
