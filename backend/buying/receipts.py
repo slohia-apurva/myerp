@@ -93,7 +93,9 @@ def _num(value: Decimal) -> str:
 def _receipts(company):
     return (
         GoodsReceipt.objects.filter(company=company)
-        .select_related("supplier", "branch", "transporter", "received_by", "qc_by", "submitted_by")
+        .select_related(
+            "supplier", "branch__company", "transporter", "received_by", "qc_by", "submitted_by"
+        )
         .prefetch_related(
             "orders__insurance_policy__insurer",
             "lines__item",

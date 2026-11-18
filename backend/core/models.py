@@ -335,12 +335,7 @@ class WarehouseLocation(models.Model):
 
     def __str__(self) -> str:
         """The bin or area alone, as it reads on every screen and print (Sidharth,
-        2026-11-18: "only the bin number"). The default store is named after its
-        branch ("Apurvam Organics LLP (Sankrail-2) Store") and reads "Store"."""
-        if self.is_default:
-            branch = self.branch.name
-            if self.name.lower().startswith(branch.lower()):
-                return self.name[len(branch) :].strip(" -,:/") or self.name
+        2026-11-18: "only the bin number")."""
         return self.name
 
 

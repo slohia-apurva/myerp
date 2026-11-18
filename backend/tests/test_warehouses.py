@@ -91,7 +91,7 @@ def test_racks_bins_and_areas_build_the_tree(owner, company, warehouse):
     assert house["name"] == "Bhiwandi warehouse"
     assert [b["name"] for b in house["racks"][0]["bins"]] == ["A1", "A2"]
     assert house["racks"][0]["bin_count"] == 2
-    assert [a["name"] for a in house["areas"]] == ["Bhiwandi warehouse Store", "Despatch"]
+    assert [a["name"] for a in house["areas"]] == ["Despatch", "Store"]
 
 
 def test_a_location_says_what_uses_it_and_what_is_locked(owner, company, warehouse):
@@ -113,7 +113,7 @@ def test_every_branch_holds_stock_unless_ticked_no_stock(owner, company):
     (head,) = tree(owner, company)
     assert head["name"] == "Head office" and head["racks"] == []
     (store,) = head["areas"]
-    assert store["name"] == "Head office Store" and store["is_default"] is True
+    assert store["name"] == "Store" and store["is_default"] is True
     assert store["purpose"] == "storage"
 
     shop = call(
@@ -151,7 +151,7 @@ def test_no_stock_with_only_the_default_store_closes_it(owner, company, warehous
     assert r.status_code == 200, r.json()
     assert "Bhiwandi warehouse" not in [h["name"] for h in tree(owner, company)]
     call(owner, "patch", f"branches/{warehouse}/", {"no_stock": False})
-    assert [a["name"] for a in _house(owner, company)["areas"]] == ["Bhiwandi warehouse Store"]
+    assert [a["name"] for a in _house(owner, company)["areas"]] == ["Store"]
 
 
 def test_the_shape_rules(owner, company, warehouse):
@@ -301,3 +301,29 @@ def test_racks_bins_and_areas_import_and_export(alpha, owner, company, warehouse
     back = owner.get(f"{url}?as=xlsx&company={company}", HTTP_HOST=HOST)
     cells = [list(r) for r in load_workbook(io.BytesIO(back.content)).worksheets[0].values]
     assert any(r[col["Name"]] == "A1" and r[col["On rack"]] == "R1" for r in cells)
+
+
+def test_old_default_stores_are_renamed_store(alpha, owner, company, warehouse):
+    """Default stores named after the branch read just "Store" after the migration, unless
+    renamed by hand or the branch already has another area called "Store"."""
+    import importlib
+
+    from django.apps import apps
+
+    renamer = importlib.import_module("core.migrations.0063_default_store_named_store")
+    with use_tenant(alpha):
+        stores = WarehouseLocation.objects.filter(
+            is_default=True, branch__company_id=company
+        ).select_related("branch")
+        for store in stores:
+            store.name = f"{store.branch.name} Store"
+            store.save(update_fields=["name"])
+        house, head = sorted(stores, key=lambda s: s.branch.name)
+        WarehouseLocation.objects.create(
+            branch=house.branch, kind="area", name="Store", purpose="storage"
+        )
+        renamer.name_default_stores_store(apps, None)
+        head.refresh_from_db()
+        house.refresh_from_db()
+    assert head.name == "Store"
+    assert house.name == "Bhiwandi warehouse Store"
