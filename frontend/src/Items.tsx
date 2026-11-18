@@ -14,7 +14,8 @@ import { groupPaths, useItemGroups } from "./ItemGroups";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { Fold, hashParam, SidePanel, SideRows } from "./Master";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
-import { longDate } from "./Companies";
+import { longDate, type Company } from "./Companies";
+import { ItemStockBox, openItemStock, qty, useItemStock } from "./Reports";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
 import { ColumnSearch } from "./ColumnSearch";
 import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts, type ItemAccount } from "./ItemAccounts";
@@ -201,16 +202,18 @@ function ItemFormTab({ form }: { form: string }) {
   );
 }
 
-export function ItemsPage({ session }: { session: SignedIn }) {
+export function ItemsPage({ session, company }: { session: SignedIn; company?: Company }) {
   const form = formParam();
   const view = viewParam();
   if (form && session.permissions.includes("masters.edit")) return <ItemFormTab form={form} />;
   if (view) return <ItemViewPage id={view} session={session} />;
-  return <ItemList session={session} />;
+  return <ItemList session={session} company={session.permissions.includes("stock.view") ? company : undefined} />;
 }
 
-function ItemList({ session }: { session: SignedIn }) {
+function ItemList({ session, company }: { session: SignedIn; company?: Company }) {
   const canEdit = session.permissions.includes("masters.edit");
+  // Stock of the company picked at the top right, for those who may see stock.
+  const stock = useItemStock(company?.id);
   const { units } = useUnits();
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
@@ -311,13 +314,14 @@ function ItemList({ session }: { session: SignedIn }) {
                 <th>HSN</th>
                 <th>Stock Unit</th>
                 <th className="num">GST Rate</th>
+                {company && <th className="num">In Stock</th>}
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={company ? "stock" : "plain"} />
             </thead>
             <tbody onKeyDown={onListKey}>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="small">
+                  <td colSpan={company ? 7 : 6} className="small">
                     No items match.
                   </td>
                 </tr>
@@ -346,6 +350,23 @@ function ItemList({ session }: { session: SignedIn }) {
                     <td>{i.hsn}</td>
                     <td>{labelFor(units, i.stock_unit, i.stock_unit_name)}</td>
                     <td className="num">{rate ? `${plain(rate.rate)}%` : ""}</td>
+                    {company && (
+                      <td className="num">
+                        {i.maintain_stock && (
+                          <a
+                            href={`#/companies/${company.id}/stock-summary?item=${i.id}`}
+                            title="See this item's stock by batch and bin"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openItemStock(company.id, i.id);
+                            }}
+                          >
+                            {qty(stock[String(i.id)] ?? "0")}
+                          </a>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -384,6 +405,7 @@ function ItemList({ session }: { session: SignedIn }) {
                   )}
                 </div>
               </SidePanel>
+              {company && selected.maintain_stock && <ItemStockBox companyId={company.id} itemId={selected.id} />}
               <ItemActivity item={selected} />
             </>
           ) : (

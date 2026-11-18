@@ -34,4 +34,36 @@ Start with `myerp-staging`; repeat for `myerp-prod` once staging passes the Phas
 
    They can then sign in with that Google account. Add `--deactivate` to remove someone's access.
 
+6. **Read-only access for Claude (staging only, once).** Lets Claude sessions check entries and reports themselves. Terraform (with `claude_reader = true`, set in `staging.tfvars`) makes a service account `claude-reader` that may read the database and the logs and nothing else: its database login gets SELECT only, never sign-in sessions (`backend/tenancy/reader.py`), and it reaches the database through Google's Cloud SQL Data API, so the database keeps its private address. Its key never goes into this repository, which is public. In Cloud Shell, as an Owner:
+
+   1. Bring the code up to date and apply. `-upgrade` is needed once, because this change moves the Google provider to version 7. The plan should *add* the `claude-reader` account, its three roles and its database login, and *change* the database instance in place (Data API on, IAM sign-in flag on); it must destroy nothing. If it wants to destroy or replace anything, stop and ask.
+
+      ```sh
+      cd ~/myerp && git pull && cd deploy/terraform
+      terraform init -upgrade -backend-config="bucket=myerp-staging-tfstate"
+      terraform plan  -var-file=environments/staging.tfvars
+      terraform apply -var-file=environments/staging.tfvars
+      ```
+
+   2. Grant the new login read access to every database (each deploy repeats this from now on):
+
+      ```sh
+      gcloud run jobs execute myerp-migrate --project myerp-staging --region asia-south1 --wait
+      ```
+
+   3. Make the key, print it as one line, then delete the file:
+
+      ```sh
+      gcloud iam service-accounts keys create ~/claude-reader.json --project myerp-staging \
+        --iam-account=claude-reader@myerp-staging.iam.gserviceaccount.com
+      base64 -w0 ~/claude-reader.json; echo
+      rm ~/claude-reader.json
+      ```
+
+      If Google refuses with "Key creation is not allowed on this service account" (an organisation policy, on by default for new organisations), an organisation admin turns it off for this project only and you run step 3 again: `gcloud resource-manager org-policies disable-enforce iam.disableServiceAccountKeyCreation --project=myerp-staging`.
+
+   4. Copy the long line and add it in claude.ai: the MyERP project's settings, **Cloud environment**, the gear beside the environment, **Environment variables**, as `MYERP_STAGING_READER_KEY=<the line>`. New Claude sessions pick it up. Never paste it into a chat, a file in this repository, or an issue.
+
+   To take the access away at any time: *IAM & Admin > Service accounts > claude-reader > Keys*, delete the key (or disable the account). To remove it completely, set `claude_reader = false` and apply.
+
 Not yet created, to keep staging cheap until they are needed: Memorystore (Redis) and the Celery worker (first background jobs arrive in Phase 2/3), and the load balancer with a wildcard certificate (needs the domain).

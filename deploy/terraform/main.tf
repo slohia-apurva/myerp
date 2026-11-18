@@ -21,7 +21,13 @@ locals {
     MYERP_GOOGLE_CLIENT_ID = var.google_client_id
     # The Owner's "Reset data" tool: off unless an environment turns it on.
     MYERP_ALLOW_DATA_RESET = var.allow_data_reset ? "1" : "0"
+    # Each deploy grants this login SELECT on every database (tenancy/reader.py).
+    MYERP_READER_DB_USER = local.reader_db_user
   }
+
+  # Cloud SQL names a service account's database login by its email without
+  # ".gserviceaccount.com". Empty when there is no reader.
+  reader_db_user = var.claude_reader ? trimsuffix(google_service_account.claude_reader[0].email, ".gserviceaccount.com") : ""
 
   # Secrets, read by Cloud Run from Secret Manager at start-up.
   secret_env = {
@@ -114,6 +120,19 @@ resource "google_sql_database_instance" "main" {
     insights_config {
       query_insights_enabled = true
     }
+
+    # Read-only checks by the claude-reader service account (below) go through
+    # Google's Cloud SQL Data API over HTTPS, as that account's own login: the
+    # database stays on its private address, with no public IP.
+    data_api_access = var.claude_reader ? "ALLOW_DATA_API" : "DISALLOW_DATA_API"
+
+    dynamic "database_flags" {
+      for_each = var.claude_reader ? [1] : []
+      content {
+        name  = "cloudsql.iam_authentication"
+        value = "on"
+      }
+    }
   }
 }
 
@@ -128,6 +147,39 @@ resource "google_sql_user" "app" {
   name     = "myerp"
   instance = google_sql_database_instance.main.name
   password = random_password.db.result
+}
+
+# ---------------------------------------------------------------- read-only access
+# The claude-reader service account lets Claude sessions check entries and
+# reports. Its key is made once by an Owner and kept in the Claude environment
+# settings, never in this public repository (deploy/gcp/README.md). It can:
+#   - run SQL through the Data API as its own database login, which each deploy
+#     grants SELECT only, and no sign-in sessions (tenancy/reader.py);
+#   - see the database instance's settings and read the logs.
+# It cannot change data, read secrets or files, or deploy.
+
+resource "google_service_account" "claude_reader" {
+  count        = var.claude_reader ? 1 : 0
+  account_id   = "claude-reader"
+  display_name = "Claude read-only (checks entries; never changes data)"
+}
+
+resource "google_project_iam_member" "claude_reader" {
+  for_each = var.claude_reader ? toset([
+    "roles/cloudsql.instanceUser", # sign in to the database and run SQL by the Data API
+    "roles/cloudsql.viewer",       # see the instance and its databases
+    "roles/logging.viewer",        # read the app's logs, to look into errors
+  ]) : toset([])
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.claude_reader[0].email}"
+}
+
+resource "google_sql_user" "claude_reader" {
+  count    = var.claude_reader ? 1 : 0
+  name     = local.reader_db_user
+  instance = google_sql_database_instance.main.name
+  type     = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
 
 resource "google_sql_database" "platform" {
