@@ -129,12 +129,22 @@ def _party_fssai(party: Party | None, label: str = "") -> str:
     return rows[0].number if rows else ""
 
 
+def branch_title(company: str, branch: str) -> str:
+    """The heading for one of our branches: "Company (Branch)", or the branch's
+    name alone when it already holds the company's name, so that a branch
+    called "Apurvam Organics LLP (Sankrail-2)" does not read twice."""
+    if not branch or " ".join(company.lower().split()) in " ".join(branch.lower().split()):
+        return branch or company
+    return f"{company} ({branch})"
+
+
 def _branch_address(b: Branch) -> dict:
     """A branch of ours as an address block: its own details, else the company's."""
     c = b.company
     return {
         "name": c.name,
         "label": b.name,
+        "title": branch_title(c.name, b.name),
         "address": b.address or c.address,
         "city": b.city or (c.city if not b.address else ""),
         "pincode": b.pincode or (c.pincode if not b.address else ""),

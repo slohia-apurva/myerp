@@ -485,6 +485,7 @@ def test_bill_to_ship_to_and_the_suppliers_address(buyer, world, alpha):
     assert shown["bill_to"]["contact"] == "Accounts Desk"
     assert shown["bill_to"]["fssai"] == "10019031002962"
     assert shown["ship_to"]["label"] == "Sankrail Godown"
+    assert shown["ship_to"]["title"].endswith(" (Sankrail Godown)")
     assert shown["ship_to"]["city"] == "Howrah"
     assert shown["supplier"]["city"] == "Siliguri"
     assert shown["supplier"]["fssai"] == "12823999000123"
@@ -677,3 +678,14 @@ def test_print_carries_the_approvers_signature_and_our_contacts_phone(alpha, buy
     call(buyer, "post", f"purchase-orders/{draft['id']}/submit/", {})
     signed = call(buyer, "get", f"purchase-orders/{draft['id']}/").json()
     assert signed["submitted_by_signature"].startswith("data:image/png;base64,")
+
+
+def test_branch_title_names_the_company_once():
+    from buying.api import branch_title
+
+    co = "Apurvam Organics LLP"
+    assert branch_title(co, "Sankrail-2") == "Apurvam Organics LLP (Sankrail-2)"
+    # A branch whose name already holds the company's is shown as it is.
+    for named in ("Apurvam Organics LLP (Sankrail-2)", "apurvam  organics llp - Head Office"):
+        assert branch_title(co, named) == named
+    assert branch_title(co, "") == co

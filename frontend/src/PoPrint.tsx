@@ -772,8 +772,8 @@ function PrintPlace(props: { title: string; name: string; place: Place | null; f
     <div className="po-addr">
       <div className="po-lab">{props.title}</div>
       <b>
-        {props.name}
-        {props.label && p.label ? ` (${p.label})` : ""}
+        {props.label && p.title ? p.title : props.name}
+        {props.label && p.label && !p.title ? ` (${p.label})` : ""}
       </b>
       {(p.address ?? "")
         .split("\n")

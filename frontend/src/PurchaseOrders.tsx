@@ -125,6 +125,8 @@ type SupplierResponse = {
 };
 /** An address as the order shows and prints it. */
 export type Place = {
+  /** Our branches only: "Company (Branch)", or the branch's name alone when it already holds the company's. */
+  title?: string;
   name?: string;
   label: string;
   address: string;
@@ -1005,7 +1007,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               <div>
                 <div className="fact-label">Ship To</div>
                 <div className="small">The "Deliver To" branch: {br?.name ?? "none yet"}</div>
-                <AddressBlock place={br?.address_block} title={br ? `${setup?.company_name} (${br.name})` : undefined} />
+                <AddressBlock place={br?.address_block} title={br ? (br.address_block?.title ?? `${setup?.company_name} (${br.name})`) : undefined} />
               </div>
               <div>
                 <label>
@@ -1743,7 +1745,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               </div>
               <div>
                 <div className="fact-label">Ship To</div>
-                <AddressBlock place={order.addresses?.ship_to} title={order.addresses ? `${order.addresses.ship_to.name} (${order.addresses.ship_to.label})` : undefined} />
+                <AddressBlock place={order.addresses?.ship_to} title={order.addresses ? (order.addresses.ship_to.title ?? `${order.addresses.ship_to.name} (${order.addresses.ship_to.label})`) : undefined} />
               </div>
               <div>
                 <div className="fact-label">Supplier Address</div>
