@@ -158,6 +158,22 @@ export function SalesMenu(props: { active: boolean; company: Company }) {
   );
 }
 
+/** "Reports" in the top menu (Sidharth, 2026-11-18): reports read straight from the
+ * stock ledger and the books, for the company picked at the top right. */
+export function ReportsMenu(props: { active: boolean; company: Company; stock: boolean }) {
+  const id = props.company.id;
+  return (
+    <DropMenu
+      label="Reports"
+      active={props.active}
+      items={[
+        ["Stock Summary", `#/companies/${id}/stock-summary`, props.stock],
+        ["Stock Ledger", `#/companies/${id}/stock-ledger`, props.stock],
+      ]}
+    />
+  );
+}
+
 /** "Admin" in the top menu, for Owners only: companies, users and roles. */
 export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canManageUsers: boolean }) {
   return (

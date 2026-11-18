@@ -23,6 +23,7 @@ export function helpTopicFor(hash: string): string {
   if (sub === "couriers") return "transporters";
   if (sub === "years") return "fiscal-years";
   if (sub === "warehouses") return "warehouses";
+  if (sub === "stock-summary" || sub === "stock-ledger") return "stock-reports";
   if (sub === "numbering") return "numbering";
   if (sub === "branches" || sub === "certificates" || sub === "modules") return sub;
   return "companies";

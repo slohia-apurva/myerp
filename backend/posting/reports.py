@@ -1,0 +1,308 @@
+"""Stock reports, read straight from the stock ledger (design rule 1): the
+Stock Summary (what is on hand as on a day, by item, batch and bin, with its
+value) and the Stock Ledger of one item (every move in and out, with a running
+balance). Asked by Sidharth on 2026-11-18 to check his first goods receipt.
+
+Values are the rupee values the moves were posted at, plus any change made
+later by a supplier's bill at another rate (a stock revaluation), which is
+counted at the bin and batch the revalued lot came in to."""
+
+from collections import defaultdict
+from datetime import date
+from decimal import Decimal
+
+from django.db.models import Q, Sum
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from core.api import Signed, _company
+from core.models import Batch, Item, WarehouseLocation
+from posting.models import StockMove, StockRevaluation
+
+ZERO = Decimal("0")
+SEE_STOCK = "stock.view"
+
+# Where each kind of entry opens, for the links in the reports.
+PAGES = {
+    "goods_receipt": "goods-receipts",
+    "purchase_invoice": "purchase-invoices",
+    "purchase_return": "purchase-returns",
+    "debit_note": "debit-notes",
+}
+NAMES = {
+    "goods_receipt": "Goods Receipt",
+    "purchase_invoice": "Purchase Invoice",
+    "purchase_return": "Purchase Return",
+    "debit_note": "Debit Note",
+}
+
+
+def _see_stock(request) -> None:
+    if not request.user.can(SEE_STOCK):
+        raise PermissionDenied("Your role does not allow seeing stock.")
+
+
+def _day(request, key: str, default: date | None) -> date | None:
+    raw = request.query_params.get(key, "")
+    if not raw:
+        return default
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValidationError({key: "Give the date as YYYY-MM-DD."}) from exc
+
+
+def _id(request, key: str) -> int | None:
+    raw = request.query_params.get(key, "")
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValidationError({key: "Not a valid choice."}) from exc
+
+
+def _place(loc) -> str:
+    """Branch name, then the rack and bin (or area)."""
+    return f"{loc.branch.name} / {loc}"
+
+
+def entry(voucher_type: str, voucher_id: int, voucher_no: str) -> dict:
+    return {
+        "type": voucher_type,
+        "type_label": NAMES.get(voucher_type, voucher_type.replace("_", " ").title()),
+        "id": voucher_id,
+        "number": voucher_no,
+        "page": PAGES.get(voucher_type, ""),
+    }
+
+
+class StockSummaryView(APIView):
+    """GET companies/<id>/stock-summary/?as_on=&branch=&item=
+
+    Every item with stock on the day, its batches, and the bins or areas each
+    batch is in: quantity in the item's stock unit and rupee value."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _see_stock(request)
+        company = _company(request, pk)
+        as_on = _day(request, "as_on", date.today())
+        moves = StockMove.objects.filter(company=company, date__lte=as_on)
+        revals = StockRevaluation.objects.filter(company=company, date__lte=as_on)
+        branch = _id(request, "branch")
+        if branch is not None:
+            moves = moves.filter(branch_id=branch)
+            revals = revals.filter(branch_id=branch)
+        item = _id(request, "item")
+        if item is not None:
+            moves = moves.filter(item_id=item)
+            revals = revals.filter(item_id=item)
+
+        # (item, batch, location) -> [qty, value]
+        cells: dict[tuple, list[Decimal]] = defaultdict(lambda: [ZERO, ZERO])
+        for row in moves.values("item", "batch", "location").annotate(
+            q=Sum("qty"), v=Sum("value", filter=Q(valued=True))
+        ):
+            key = (row["item"], row["batch"], row["location"])
+            cells[key][0] += row["q"] or ZERO
+            cells[key][1] += row["v"] or ZERO
+        for row in revals.values("item", "lot__move__batch", "lot__move__location").annotate(
+            v=Sum("value")
+        ):
+            key = (row["item"], row["lot__move__batch"], row["lot__move__location"])
+            cells[key][1] += row["v"] or ZERO
+        cells = {k: v for k, v in cells.items() if v[0] != 0 or v[1] != 0}
+
+        items = Item.objects.select_related("stock_unit").in_bulk({k[0] for k in cells})
+        batches = Batch.objects.in_bulk({k[1] for k in cells if k[1]})
+        places = WarehouseLocation.objects.select_related("parent", "branch").in_bulk(
+            {k[2] for k in cells}
+        )
+
+        tree: dict[int, dict[int | None, list]] = defaultdict(lambda: defaultdict(list))
+        for (it, bt, loc), (q, v) in cells.items():
+            tree[it][bt].append((loc, q, v))
+        out = []
+        for it in sorted(tree, key=lambda i: items[i].name.lower()):
+            item_obj = items[it]
+            batch_rows = []
+            order = sorted(tree[it], key=lambda b: (b is not None, batches[b].number if b else ""))
+            for bt in order:
+                bins = sorted(tree[it][bt], key=lambda r: _place(places[r[0]]).lower())
+                b = batches.get(bt)
+                batch_rows.append(
+                    {
+                        "batch": bt,
+                        "number": b.number if b else "",
+                        "expiry_date": b.expiry_date if b else None,
+                        "status": b.get_status_display() if b else "",
+                        "qty": str(sum((r[1] for r in bins), ZERO)),
+                        "value": str(sum((r[2] for r in bins), ZERO)),
+                        "bins": [
+                            {
+                                "location": loc,
+                                "place": _place(places[loc]),
+                                "qty": str(q),
+                                "value": str(v),
+                            }
+                            for loc, q, v in bins
+                        ],
+                    }
+                )
+            qty = sum((Decimal(b["qty"]) for b in batch_rows), ZERO)
+            value = sum((Decimal(b["value"]) for b in batch_rows), ZERO)
+            out.append(
+                {
+                    "item": it,
+                    "item_number": item_obj.item_number,
+                    "item_name": item_obj.name,
+                    "unit": item_obj.stock_unit.short_name,
+                    "batch_tracked": item_obj.batch_tracked,
+                    "qty": str(qty),
+                    "value": str(value),
+                    "rate": str((value / qty).quantize(Decimal("0.01"))) if qty else "",
+                    "batches": batch_rows,
+                }
+            )
+        total = sum((Decimal(r["value"]) for r in out), ZERO)
+        return Response(
+            {
+                "company_name": company.name,
+                "as_on": as_on,
+                "items": out,
+                "total_value": str(total),
+            }
+        )
+
+
+class StockLedgerView(APIView):
+    """GET companies/<id>/stock-ledger/?item=&from=&to=&branch=&batch=&location=
+
+    Every move of one item in the period, oldest first, with the opening
+    balance before it and the balance after each move. A stock revaluation
+    shows as a row with no quantity that changes the value only."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _see_stock(request)
+        company = _company(request, pk)
+        item_id = _id(request, "item")
+        if item_id is None:
+            raise ValidationError({"item": "Pick an item."})
+        item = Item.objects.select_related("stock_unit").filter(pk=item_id).first()
+        if item is None:
+            raise NotFound("No such item.")
+        start = _day(request, "from", None)
+        end = _day(request, "to", date.today())
+        if start and end and start > end:
+            raise ValidationError({"from": "From is after To."})
+
+        moves = StockMove.objects.filter(company=company, item=item, date__lte=end)
+        revals = StockRevaluation.objects.filter(company=company, item=item, date__lte=end)
+        every = moves  # for the batch and bin choices
+        for key, field, rfield in (
+            ("branch", "branch_id", "branch_id"),
+            ("batch", "batch_id", "lot__move__batch_id"),
+            ("location", "location_id", "lot__move__location_id"),
+        ):
+            value = _id(request, key)
+            if value is not None:
+                moves = moves.filter(**{field: value})
+                revals = revals.filter(**{rfield: value})
+
+        open_q = open_v = ZERO
+        if start:
+            before = moves.filter(date__lt=start).aggregate(
+                q=Sum("qty"), v=Sum("value", filter=Q(valued=True))
+            )
+            open_v = (before["v"] or ZERO) + (
+                revals.filter(date__lt=start).aggregate(v=Sum("value"))["v"] or ZERO
+            )
+            open_q = before["q"] or ZERO
+            moves = moves.filter(date__gte=start)
+            revals = revals.filter(date__gte=start)
+
+        rows = []
+        for m in moves.select_related("batch", "location__parent", "location__branch"):
+            rows.append(
+                (
+                    m.date,
+                    m.created_at,
+                    m.pk,
+                    {
+                        "date": m.date,
+                        "entry": entry(m.voucher_type, m.voucher_id, m.voucher_no),
+                        "cancel": m.is_reversal,
+                        "batch": m.batch.number if m.batch_id else "",
+                        "place": _place(m.location),
+                        "qty_in": str(m.qty) if m.qty > 0 else "",
+                        "qty_out": str(-m.qty) if m.qty < 0 else "",
+                        "_q": m.qty,
+                        "_v": m.value if m.valued else ZERO,
+                    },
+                )
+            )
+        for r in revals.select_related(
+            "lot__move__batch", "lot__move__location__parent", "lot__move__location__branch"
+        ):
+            mv = r.lot.move
+            rows.append(
+                (
+                    r.date,
+                    r.created_at,
+                    r.pk,
+                    {
+                        "date": r.date,
+                        "entry": entry(r.voucher_type, r.voucher_id, r.voucher_no),
+                        "cancel": r.is_reversal,
+                        "batch": mv.batch.number if mv.batch_id else "",
+                        "place": _place(mv.location),
+                        "qty_in": "",
+                        "qty_out": "",
+                        "revaluation": True,
+                        "_q": ZERO,
+                        "_v": r.value,
+                    },
+                )
+            )
+        rows.sort(key=lambda r: (r[0], r[1], r[2]))
+        q, v = open_q, open_v
+        out = []
+        for *_, row in rows:
+            q += row.pop("_q")
+            moved = row.pop("_v")
+            v += moved
+            row.update(value=str(moved), balance_qty=str(q), balance_value=str(v))
+            out.append(row)
+
+        options = every.select_related("batch", "location__parent", "location__branch")
+        batch_opts = {m.batch_id: m.batch.number for m in options if m.batch_id}
+        place_opts = {m.location_id: _place(m.location) for m in options}
+        return Response(
+            {
+                "company_name": company.name,
+                "item": item.pk,
+                "item_number": item.item_number,
+                "item_name": item.name,
+                "unit": item.stock_unit.short_name,
+                "from": start,
+                "to": end,
+                "opening_qty": str(open_q),
+                "opening_value": str(open_v),
+                "rows": out,
+                "closing_qty": str(q),
+                "closing_value": str(v),
+                "batches": [
+                    {"id": k, "number": n}
+                    for k, n in sorted(batch_opts.items(), key=lambda x: x[1].lower())
+                ],
+                "places": [
+                    {"id": k, "name": n}
+                    for k, n in sorted(place_opts.items(), key=lambda x: x[1].lower())
+                ],
+            }
+        )

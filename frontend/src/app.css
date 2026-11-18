@@ -3879,3 +3879,38 @@ table.row-list .tag + .tag {
   gap: 8px;
   margin-top: 12px;
 }
+
+/* Reports (Stock Summary, Stock Ledger): item › batch › bin levels and a total row. */
+table.report th.num {
+  text-align: right;
+}
+table.report tr.report-l1 td {
+  font-weight: 700;
+}
+table.report tr.report-l2 td:first-child {
+  padding-left: 30px;
+}
+table.report tr.report-l3 td:first-child {
+  padding-left: 58px;
+  color: var(--slate);
+}
+table.report tr.report-total td {
+  font-weight: 700;
+  background: var(--mist);
+}
+table.report td {
+  white-space: nowrap;
+}
+table.report td:first-child,
+table.report td:nth-child(4) {
+  white-space: normal;
+}
+/* Report filters: field labels as on the forms (14px bold green), values plain. */
+.report-filters label {
+  color: var(--green);
+  font-weight: 700;
+}
+.report-filters label :is(input, .combo, .combo *) {
+  color: var(--ink);
+  font-weight: 400;
+}
