@@ -371,7 +371,11 @@ export const MANUAL: Chapter[] = [
         </ol>
         <Fields
           rows={[
-            ["Name", "For example Bhiwandi warehouse."],
+            ["Company", "Shown for reference; it cannot be changed here."],
+            [
+              "Branch Name",
+              'Just the branch, without the company\'s name, for example Sankrail-2. Screens show it as typed; prints show "Company (Branch Name)", for example "Apurvam Organics LLP (Sankrail-2)".',
+            ],
             ["State", "Where the branch is."],
             [
               "GSTIN",
@@ -1496,10 +1500,7 @@ export const MANUAL: Chapter[] = [
         <p>
           Goods need a place even in a simple office with no racks or bins, so
           every branch that holds stock has an area called "Store", marked
-          "Default". You can rename it, but not disable it. Warehouses and
-          their stores read without the company's name, so "Apurvam Organics
-          LLP (Sankrail-2)" shows as "Sankrail-2" here and on goods receipts,
-          returns and stock reports. Goods
+          "Default". You can rename it, but not disable it. Goods
           that come in go to the branch's "Receiving" area if it has one,
           otherwise to the default store; you can choose another place on the
           entry.
@@ -3140,9 +3141,9 @@ export const MANUAL: Chapter[] = [
           <li>
             Each line is one item in one batch in one bin: "Item No", "Item
             Name", "Batch", "Warehouse", "Bin", "Unit", "Quantity", "Rate ₹" (the
-            average cost) and "Value ₹". Warehouse and bin names leave out the
-            company's and branch's names: the default store reads "Store", and a
-            bin shows its own name alone, without its rack. This is how bins read
+            average cost) and "Value ₹". The warehouse shows the branch's name
+            as typed on the branch, and a bin shows its own name alone, without
+            its rack. This is how bins read
             everywhere in MyERP, on screens and prints.
           </li>
           <li>

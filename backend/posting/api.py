@@ -210,7 +210,7 @@ class BinContentsView(APIView):
                 "kind": place.kind,
                 "kind_label": place.get_kind_display(),
                 "purpose_label": place.get_purpose_display() if place.purpose else "",
-                "branch_name": place.branch.short_name,
+                "branch_name": place.branch.name,
                 "company": place.branch.company_id,
                 "company_name": place.branch.company.name,
                 "stock": [

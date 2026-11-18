@@ -63,12 +63,6 @@ def _id(request, key: str) -> int | None:
         raise ValidationError({key: "Not a valid choice."}) from exc
 
 
-def short_branch(branch) -> str:
-    """The branch's name without the company's name in front: "Apurvam Organics LLP
-    (Sankrail-2)" reads "Sankrail-2" (Sidharth, 2026-11-18)."""
-    return Branch.short_name.fget(branch)
-
-
 def short_bin(loc) -> str:
     """The bin or area alone (see WarehouseLocation.__str__)."""
     return str(loc)
@@ -144,7 +138,7 @@ class StockSummaryView(APIView):
                     "item_number": item_obj.item_number,
                     "item_name": item_obj.name,
                     "batch": batches[bt].number if bt else "",
-                    "warehouse": short_branch(place.branch),
+                    "warehouse": place.branch.name,
                     "bin": short_bin(place),
                     "unit": item_obj.stock_unit.short_name,
                     "qty": str(q),
@@ -339,7 +333,7 @@ class ItemStockView(APIView):
         ):
             per_branch[r["branch"]] = [r["q"] or ZERO, r["v"] or ZERO]
         names = {
-            b.pk: short_branch(b)
+            b.pk: b.name
             for b in Branch.objects.select_related("company").filter(pk__in=list(per_branch))
         }
         for r in revals.values("branch").annotate(v=Sum("value")):

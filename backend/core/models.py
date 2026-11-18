@@ -260,17 +260,6 @@ class Branch(models.Model):
     def __str__(self) -> str:
         return self.name
 
-    @property
-    def short_name(self) -> str:
-        """The name without the company's name in front, as a warehouse reads on screens:
-        "Apurvam Organics LLP (Sankrail-2)" reads "Sankrail-2" (Sidharth, 2026-11-18)."""
-        name, company = self.name, self.company.name
-        if name.lower().startswith(company.lower()):
-            rest = name[len(company) :].strip(" -,:()")
-            if rest:
-                return rest
-        return name
-
     def clean(self):
         self.gstin = self.gstin.strip().upper()
         if self.gstin:
@@ -346,12 +335,7 @@ class WarehouseLocation(models.Model):
 
     def __str__(self) -> str:
         """The bin or area alone, as it reads on every screen and print (Sidharth,
-        2026-11-18: "only the bin number"). The default store is named after its
-        branch ("Apurvam Organics LLP (Sankrail-2) Store") and reads "Store"."""
-        if self.is_default:
-            branch = self.branch.name
-            if self.name.lower().startswith(branch.lower()):
-                return self.name[len(branch) :].strip(" -,:/") or self.name
+        2026-11-18: "only the bin number")."""
         return self.name
 
 

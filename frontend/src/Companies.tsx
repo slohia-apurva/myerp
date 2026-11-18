@@ -1419,14 +1419,22 @@ function BranchForm(props: {
       <FormBody readOnly={props.readOnly}>
         <Section title="Branch">
           <label>
-            Name
+            Company
+            <input value={props.company.name} disabled readOnly />
+          </label>
+          <label>
+            Branch Name
             <input
               required
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Bhiwandi warehouse"
+              placeholder="e.g. Sankrail-2"
             />
+            <span className="small">
+              Just the branch, without the company's name. Prints show "
+              {props.company.name} ({name.trim() || "Branch Name"})".
+            </span>
           </label>
           <div className="row">
             <label>
