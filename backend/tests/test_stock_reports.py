@@ -126,3 +126,15 @@ def test_stock_reports_need_the_right_to_see_stock(alpha, grn):  # noqa: F811
 
 def test_the_stock_ledger_needs_an_item(store, grn):  # noqa: F811
     assert ledger(store, grn).status_code == 400
+
+
+def test_items_show_their_stock_in_the_company(store, grn, received):  # noqa: F811
+    path = f"companies/{grn['company']}/item-stock/"
+    every = call(store, "get", path).json()["items"]
+    assert every[str(grn["tea"])] == "600.000000"
+    one = call(store, "get", f"{path}?item={grn['tea']}").json()
+    assert (one["qty"], one["value"], one["unit"]) == ("600.000000", "156000.00", "kg")
+    assert [b["qty"] for b in one["branches"]] == ["600.000000"]
+    assert [(b["number"], b["qty"]) for b in one["batches"]] == [("DTT-26-118", "600.000000")]
+    last = one["last_received"]
+    assert last["number"] == received["number"] and last["page"] == "goods-receipts"

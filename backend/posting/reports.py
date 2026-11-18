@@ -306,3 +306,73 @@ class StockLedgerView(APIView):
                 ],
             }
         )
+
+
+def _last_in(move: StockMove | None) -> dict | None:
+    if move is None:
+        return None
+    return {"date": move.date, **entry(move.voucher_type, move.voucher_id, move.voucher_no)}
+
+
+class ItemStockView(APIView):
+    """GET companies/<id>/item-stock/            -> {"items": {item id: qty}}
+    GET companies/<id>/item-stock/?item=<id>      -> that item's stock today
+
+    For the Items master (Sidharth, 2026-11-18, preview
+    mockups/reports/2-items-stock-preview.png): the "In Stock" column, and the
+    "Stock" box beside an item with each warehouse's quantity and value, its
+    batches and when it was last received."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _see_stock(request)
+        company = _company(request, pk)
+        moves = StockMove.objects.filter(company=company)
+        item_id = _id(request, "item")
+        if item_id is None:
+            rows = moves.values("item").annotate(q=Sum("qty"))
+            return Response({"items": {r["item"]: str(r["q"]) for r in rows}})
+
+        item = Item.objects.select_related("stock_unit").filter(pk=item_id).first()
+        if item is None:
+            raise NotFound("No such item.")
+        moves = moves.filter(item=item)
+        revals = StockRevaluation.objects.filter(company=company, item=item)
+        per_branch: dict[int, list[Decimal]] = defaultdict(lambda: [ZERO, ZERO])
+        for r in moves.values("branch", "branch__name").annotate(
+            q=Sum("qty"), v=Sum("value", filter=Q(valued=True))
+        ):
+            per_branch[r["branch"]] = [r["q"] or ZERO, r["v"] or ZERO]
+        names = dict(moves.order_by().values_list("branch", "branch__name").distinct())
+        for r in revals.values("branch").annotate(v=Sum("value")):
+            per_branch[r["branch"]][1] += r["v"] or ZERO
+        branches = [
+            {"branch": b, "name": names.get(b, ""), "qty": str(q), "value": str(v)}
+            for b, (q, v) in sorted(per_branch.items(), key=lambda x: names.get(x[0], ""))
+            if q != 0 or v != 0
+        ]
+        batches = [
+            {
+                "number": r["batch__number"],
+                "expiry_date": r["batch__expiry_date"],
+                "qty": str(r["q"]),
+            }
+            for r in moves.exclude(batch=None)
+            .values("batch__number", "batch__expiry_date")
+            .annotate(q=Sum("qty"))
+            .exclude(q=0)
+            .order_by("batch__expiry_date", "batch__number")
+        ]
+        last = moves.filter(qty__gt=0, is_reversal=False).order_by("-date", "-id").first()
+        return Response(
+            {
+                "item": item.pk,
+                "unit": item.stock_unit.short_name,
+                "qty": str(sum((Decimal(b["qty"]) for b in branches), ZERO)),
+                "value": str(sum((Decimal(b["value"]) for b in branches), ZERO)),
+                "branches": branches,
+                "batches": batches,
+                "last_received": _last_in(last),
+            }
+        )
