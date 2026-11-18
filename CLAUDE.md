@@ -30,3 +30,19 @@ MyERP is Apurvam's own web ERP (books, stock, production, purchase, sales, GST, 
 - Unit names (Sidharth, 2026-11-13): in the masters a unit always reads with its short name in brackets, "Kilogram (Kg)" (`unitLabel` / `labelFor`, Units.tsx), in pickers and in shown values. Entry screens (vouchers, stock entries) and reports show the short name alone ("Kg"). Do not show a bare unit name in a master.
 - Entry screen buttons (Sidharth, 2026-11-15): every entry screen (vouchers, orders, stock entries) keeps its page open after "Save" and "Submit" (a submitted entry shows "Submitted as <number> on <date> at <time>"), and has, with its other buttons: "Close" (closes the tab), "Print ▾" (an `ActionsMenu` with `label="Print"` listing the print layouts plus "Download PDF"; new layouts join that list), and on a submitted entry "Create ▾" (`label="Create" main`) for the documents that follow from it (a PO makes a Purchase Receipt or Purchase Invoice; greyed out until built). Lists of entries offer "Print" beside "Open" for the selected entry.
 - Attachments (Sidharth, 2026-11-15): every entry screen has the "Attachments" box (`Attachments` in Attachments.tsx: File, Type, Added By, Added On; drop, choose files or take a photo; PDF, images, Word, Excel up to 10 MB) on its form and its view, and files can still be added after Submit. Each new entry type registers once with `attachments.register(record_type, find)` (core/attachments.py), whose `find` returns the entry and whether this person may change its files.
+
+## Checking staging data (read-only)
+
+When the environment has `MYERP_STAGING_READER_KEY` (set up once, deploy/gcp/README.md step 6), a session can read staging's databases and logs, never change them:
+
+```sh
+echo "$MYERP_STAGING_READER_KEY" | base64 -d > /tmp/reader.json && chmod 600 /tmp/reader.json
+gcloud auth activate-service-account --key-file=/tmp/reader.json --project=myerp-staging
+gcloud sql instances execute-sql myerp-staging --database=myerp_platform \
+  --sql="SELECT slug, db_name FROM tenancy_tenant"
+gcloud sql instances execute-sql myerp-staging --database=myerp_tenant_apurvam \
+  --sql="SELECT number, status FROM buying_purchaseorder ORDER BY id DESC LIMIT 5"
+gcloud logging read 'resource.type="cloud_run_revision" AND severity>=ERROR' --limit=20 --freshness=1d
+```
+
+The Data API stops a query after 30 seconds and returns at most 10 MB, so keep queries small (use LIMIT). Sign-in sessions are hidden. Never write the key to a file in the repository, print it, or use it for prod.

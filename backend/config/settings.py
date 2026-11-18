@@ -114,6 +114,11 @@ MYERP_PLATFORM_ADMINS = env("MYERP_PLATFORM_ADMINS", "")
 # The key that locks customers' API secrets (core/secrets.py): a Fernet key kept
 # outside the database. Blank in production means secrets cannot be saved yet.
 MYERP_SECRETS_KEY = env("MYERP_SECRETS_KEY", "")
+# Database login that may only read (staging: the "claude-reader" service
+# account, as Cloud SQL names its IAM user). Each deploy grants it SELECT on
+# the platform and every tenant database, except sign-in sessions
+# (tenancy/reader.py). Blank: nobody is granted anything.
+MYERP_READER_DB_USER = env("MYERP_READER_DB_USER", "")
 # A sign-in lasts a working day; closing the browser does not end it.
 SESSION_COOKIE_AGE = 60 * 60 * 12
 SESSION_COOKIE_HTTPONLY = True

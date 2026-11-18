@@ -10,6 +10,7 @@ from psycopg import sql
 from tenancy.context import use_tenant
 from tenancy.db import forget_tenant_database
 from tenancy.models import Tenant
+from tenancy.reader import grant_reader
 from tenancy.router import PLATFORM_ALIAS
 
 
@@ -27,6 +28,7 @@ def _execute_on_platform_server(statement: sql.Composed) -> None:
 def migrate_tenant(tenant: Tenant, verbosity: int = 0) -> None:
     with use_tenant(tenant):
         call_command("migrate", database=tenant.db_alias, interactive=False, verbosity=verbosity)
+        grant_reader(tenant.db_alias)
 
 
 def create_tenant(slug: str, name: str, db_name: str | None = None) -> Tenant:
