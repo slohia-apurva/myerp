@@ -8,6 +8,7 @@ import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
+import { useOnReturn } from "./Refresh";
 
 /** Brands: one list for every company in the group; an item picks its brand on the General section. */
 export type Brand = { id: number; name: string; notes: string; is_active: boolean; item_count: number };
@@ -20,6 +21,7 @@ export function useBrands() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { brands, reload, refresh };
 }
 

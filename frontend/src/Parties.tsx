@@ -16,6 +16,7 @@ import { useSalesPeople } from "./SalesPeople";
 import { usePriceLists } from "./PriceLists";
 import { PriceTable, rowFromServer, type PriceRow } from "./PriceLines";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
+import { useReturns } from "./Refresh";
 
 /** Customer or supplier details kept beside a debtor or creditor ledger. */
 export type PartyAddress = {
@@ -300,13 +301,14 @@ export function PartyFields({
   const modules = companies.find((c) => c.id === companyId)?.modules ?? [];
   const hasTransport = modules.includes(supplier ? "purchase" : "sales");
   const [transporters, setTransporters] = useState<CourierAccount[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   const refreshTransporters = useCallback(
     () => api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setTransporters),
     [companyId],
   );
   useEffect(() => {
     if (hasTransport) refreshTransporters();
-  }, [hasTransport, refreshTransporters]);
+  }, [hasTransport, refreshTransporters, visits]);
   const newTransporter = creatable("courier_account", `companies/${companyId}/couriers`, refreshTransporters);
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
   const ctx = { tab, fold };

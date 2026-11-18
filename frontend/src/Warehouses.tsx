@@ -8,6 +8,7 @@ import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { InUseNote, type LockInfo } from "./Lock";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useOnReturn } from "./Refresh";
 
 /** Masters > Warehouses: a company's warehouses (branches ticked "Warehouse") with their
  * racks, bins and areas. The details of the clicked row are on the right; Add and Edit open
@@ -59,6 +60,7 @@ function useWarehouses(companyId: number) {
     api<Warehouse[]>(`v1/companies/${companyId}/warehouses/`).then(setWarehouses);
   }, [companyId]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { warehouses, reload };
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { Combobox } from "./Combobox";
+import { useReturns } from "./Refresh";
 
 /** An item's own "Expense Account" in each company (Sidharth, 2026-11-16, preview 82): where a
  * purchase bill without goods receipt books the item. Empty uses the item group's
@@ -33,13 +34,14 @@ export const accountsSummary = (rows: ItemAccount[] | null) => {
 export function ItemAccountsEditor(props: { rows: ItemAccount[]; onChange: (rows: ItemAccount[]) => void }) {
   const [ledgers, setLedgers] = useState<Record<number, LedgerRow[]>>({});
   const companies = props.rows.map((r) => r.company).join(",");
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     for (const id of companies.split(",").filter(Boolean).map(Number)) {
       api<LedgerRow[]>(`v1/companies/${id}/ledgers/`).then((rows) =>
         setLedgers((all) => ({ ...all, [id]: rows.filter((l) => l.nature === "expense" && !l.party) })),
       );
     }
-  }, [companies]);
+  }, [companies, visits]);
   const set = (company: number, value: string) =>
     props.onChange(
       props.rows.map((r) =>

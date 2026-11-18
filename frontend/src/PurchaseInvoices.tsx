@@ -13,6 +13,7 @@ import { RateLinesTable, type RateLine } from "./RateLines";
 import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBills";
 import { TdsBox, type TdsInfo } from "./Tds";
 import { BillTypePicker, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
+import { useReturns } from "./Refresh";
 
 /** Entry > Purchase > Purchase Invoice (Sidharth, 2026-11-15, preview 67): the supplier's
  * bill, entered against goods receipts. Submit clears "Goods Received but Bills not
@@ -129,10 +130,11 @@ const printItems = [
 function useSetup(companyId: number) {
   const [setup, setSetup] = useState<Setup | null>(null);
   const [terms, setTerms] = useState<{ id: number; name: string }[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/`).then(setSetup, () => setSetup(null));
     api<{ id: number; name: string }[]>("v1/credit-terms/").then(setTerms, () => setTerms([]));
-  }, [companyId]);
+  }, [companyId, visits]);
   return { setup, terms };
 }
 

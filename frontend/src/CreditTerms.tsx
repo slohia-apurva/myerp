@@ -9,6 +9,7 @@ import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
+import { useOnReturn } from "./Refresh";
 
 /** Credit terms: how a party's bills are paid, split into parts. */
 export type TermPart = { percent: string; event: string; days: number };
@@ -37,6 +38,7 @@ export function useCreditTerms() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { terms, reload, refresh };
 }
 

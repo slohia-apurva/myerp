@@ -10,6 +10,7 @@ import { useExchange } from "./Exchange";
 import { InUseNote, type LockInfo } from "./Lock";
 import type { Ledger } from "./Ledgers";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useOnReturn, useReturns } from "./Refresh";
 
 /** Item groups: one tree for every company in the group, like ledger groups. */
 export type ItemGroup = {
@@ -47,6 +48,7 @@ export function useItemGroups() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { groups, reload, refresh };
 }
 
@@ -533,6 +535,7 @@ function AccountGrid(props: {
 }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [ledgers, setLedgers] = useState<Record<number, { ledgers: Ledger[]; stockGroups: Set<number> }>>({});
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Company[]>("v1/companies/").then((list) => {
       setCompanies(list);
@@ -552,7 +555,7 @@ function AccountGrid(props: {
         ),
       );
     });
-  }, []);
+  }, [visits]);
   const empty: Picks = { stock: "", cogs: "" };
   if (companies.length === 0) return <p className="small">Loading companies…</p>;
   return (

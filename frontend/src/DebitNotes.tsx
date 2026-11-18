@@ -11,6 +11,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
+import { useReturns } from "./Refresh";
 
 /** Entry > Purchase > Debit Note (Sidharth, 2026-11-15, preview 75): goods sent back on a
  * Purchase Return, debited against the supplier's bill at the bill's rate and GST. Submit
@@ -332,9 +333,10 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState("");
 
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<InvoiceRow[]>(`v1/companies/${companyId}/purchase-invoices/?view=submitted`).then(setInvoices, () => setInvoices([]));
-  }, [companyId]);
+  }, [companyId, visits]);
 
   const head = {
     supplier: from?.supplier_name ?? note?.supplier_name ?? "",

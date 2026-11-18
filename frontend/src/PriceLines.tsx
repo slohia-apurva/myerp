@@ -3,6 +3,7 @@ import { api } from "./api";
 import { Combobox } from "./Combobox";
 import { type Item } from "./Items";
 import { unitLabel, useUnits, type Unit } from "./Units";
+import { useReturns } from "./Refresh";
 
 /** One rate: an item (or, on an item's own page, a customer) in one unit, from a
  * quantity, from a date. Shared by price lists, a customer's Item Prices and an
@@ -59,17 +60,19 @@ export const priceBody = (rows: PriceRow[]) =>
 
 export function useItemChoices() {
   const [items, setItems] = useState<Item[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Item[]>("v1/items/").then(setItems);
-  }, []);
+  }, [visits]);
   return items;
 }
 
 export function useCustomerChoices() {
   const [parties, setParties] = useState<PartyOption[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<PartyOption[]>("v1/parties/").then(setParties, () => setParties([]));
-  }, []);
+  }, [visits]);
   return parties;
 }
 
