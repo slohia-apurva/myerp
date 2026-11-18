@@ -17,6 +17,11 @@ urlpatterns = [
         name="stock-ledger",
     ),
     path(
+        "companies/<int:pk>/item-stock/",
+        reports.ItemStockView.as_view(),
+        name="item-stock",
+    ),
+    path(
         "companies/<int:pk>/trial-balance/",
         books.TrialBalanceView.as_view(),
         name="trial-balance",

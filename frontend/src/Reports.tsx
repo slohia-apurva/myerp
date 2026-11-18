@@ -112,8 +112,8 @@ export function StockSummaryPage({ companyId }: { companyId: number }) {
   const branches = useBranches(companyId);
   const items = useItems();
   const [asOn, setAsOn] = useState(today());
-  const [branch, setBranch] = useState("");
-  const [item, setItem] = useState("");
+  const [branch, setBranch] = useState(hashParam("branch"));
+  const [item, setItem] = useState(hashParam("item"));
   const [levels, setLevels] = useState("3");
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState<unknown>("");
@@ -465,6 +465,114 @@ export function StockLedgerPage({ companyId }: { companyId: number }) {
         </table>
       )}
       {data && data.rows.length === 0 && <p className="small">No moves in this period.</p>}
+    </section>
+  );
+}
+
+// Stock on the Items master (Sidharth, 2026-11-18, preview mockups/reports/2-items-stock-preview.png)
+
+type ItemStock = {
+  item: number;
+  unit: string;
+  qty: string;
+  value: string;
+  branches: { branch: number; name: string; qty: string; value: string }[];
+  batches: { number: string; expiry_date: string | null; qty: string }[];
+  last_received: (Entry & { date: string }) | null;
+};
+
+/** Each item's quantity in stock in the company: item id → quantity. */
+export function useItemStock(companyId: number | undefined) {
+  const [stock, setStock] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!companyId) return;
+    api<{ items: Record<string, string> }>(`v1/companies/${companyId}/item-stock/`).then(
+      (d) => setStock(d.items),
+      () => setStock({}),
+    );
+  }, [companyId]);
+  return stock;
+}
+
+/** Opens the Stock Summary of one item, down to its batches and bins, in a new tab. */
+export function openItemStock(companyId: number, itemId: number) {
+  openTab(`#/companies/${companyId}/stock-summary?item=${itemId}`);
+}
+
+/** The "Stock" box beside an item: quantity and value per warehouse, batches, last receipt. */
+export function ItemStockBox({ companyId, itemId }: { companyId: number; itemId: number }) {
+  const [s, setS] = useState<ItemStock | null>(null);
+  useEffect(() => {
+    setS(null);
+    api<ItemStock>(`v1/companies/${companyId}/item-stock/?item=${itemId}`).then(setS, () => setS(null));
+  }, [companyId, itemId]);
+  if (!s) return null;
+  return (
+    <section className="side-panel">
+      <h3>
+        Stock<em>as on today</em>
+      </h3>
+      <div className="side-body">
+        {s.branches.length === 0 ? (
+          <p className="small">Nothing in stock in this company.</p>
+        ) : (
+          <table className="side-table no-print">
+            <thead>
+              <tr>
+                <th>Warehouse</th>
+                <th className="num">Qty ({s.unit})</th>
+                <th className="num">Value ₹</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.branches.map((b) => (
+                <tr key={b.branch}>
+                  <td>{b.name}</td>
+                  <td className="num">{qty(b.qty)}</td>
+                  <td className="num">{rupees(b.value)}</td>
+                </tr>
+              ))}
+              {s.branches.length > 1 && (
+                <tr className="report-total">
+                  <td>Total</td>
+                  <td className="num">{qty(s.qty)}</td>
+                  <td className="num">{rupees(s.value)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
+        {s.batches.length > 0 && (
+          <div className="side-row">
+            <span>Batches</span>
+            <span>
+              {s.batches
+                .map((b) => `${b.number}${b.expiry_date ? `, expiry ${dmy(b.expiry_date)}` : ""} (${qty(b.qty)})`)
+                .join("; ")}
+            </span>
+          </div>
+        )}
+        {s.last_received && (
+          <div className="side-row">
+            <span>Last received</span>
+            <span>
+              {dmy(s.last_received.date)}, <EntryLink companyId={companyId} entry={s.last_received} />
+            </span>
+          </div>
+        )}
+        <div className="side-buttons">
+          <button type="button" className="link" onClick={() => openItemStock(companyId, itemId)}>
+            Bins and batches
+          </button>
+          <button
+            type="button"
+            className="link"
+            onClick={() => openTab(`#/companies/${companyId}/stock-ledger?item=${itemId}`)}
+          >
+            Stock Ledger
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

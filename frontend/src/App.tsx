@@ -216,7 +216,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         ) : page === "terms" && canSeeMasters ? (
           <TermsPage session={session} />
         ) : page === "items" && canSeeMasters ? (
-          <ItemsPage session={session} />
+          <ItemsPage session={session} company={current.company} />
         ) : page === "reset" && session.user.is_owner ? (
           <DataResetPage session={session} />
         ) : page === "central" && session.user.is_platform_admin ? (

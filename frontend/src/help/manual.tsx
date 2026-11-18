@@ -646,6 +646,17 @@ export const MANUAL: Chapter[] = [
           name, number, HSN or barcode.
         </p>
         <p>
+          People whose role may see stock also get an "In Stock" column: the
+          quantity of each item in stock today in the company picked at the top
+          right, in its stock unit. Click the figure to open the "Stock Summary"
+          of that item in a new tab, with its batches and the bins they are in.
+          Under "Item Details" a "Stock" box shows the quantity and value in each
+          warehouse, the batches with their expiry dates, and when the item was
+          last received (click the entry number to open it). Its "Bins and
+          batches" button opens the same Stock Summary, and "Stock Ledger" lists
+          every move of the item in and out. See the chapter "Stock reports".
+        </p>
+        <p>
           Double-click an item, press Enter, or click "View" under "Item Details" to see its own
           page, which opens in a new browser tab so the list stays open. It has folding sections: "General", "Sales", "Purchase", "GST
           Rates", "Stock And Quality", "Units Of Measure", "Customer And Supplier
