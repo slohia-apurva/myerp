@@ -33,7 +33,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from buying import tds
-from buying.api import CANCEL, CREATE, SUBMIT, VIEW, _check, _company, _plain
+from buying.api import CANCEL, CREATE, SUBMIT, VIEW, _check, _company, _plain, orders_insurance
 from buying.models import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -41,6 +41,7 @@ from buying.models import (
     PurchaseInvoiceCharge,
     PurchaseInvoiceDue,
     PurchaseInvoiceLine,
+    PurchaseOrder,
 )
 from buying.receipts import _factor
 from core import attachments, numbering
@@ -238,6 +239,11 @@ def _invoice_out(inv: PurchaseInvoice, lines: bool = True) -> dict:
             inv
         )
         data["orders"] = sorted({(r["order_number"]) for r in data["lines"] if r["order_number"]})
+        data["insurance"] = orders_insurance(
+            PurchaseOrder.objects.filter(receipts__in=receipts)
+            .distinct()
+            .select_related("insurance_policy__insurer")
+        )
         data["entries"] = _entries(inv)
         data["tds"] = tds.box(inv)
         if inv.kind == PurchaseInvoice.SUPPLEMENTARY:

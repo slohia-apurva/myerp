@@ -49,6 +49,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
     },
     "branch": {"gstin": "GSTIN", "state_code": "state"},
     "courier_account": {"carrier_id": "courier", "service": "service"},
+    "insurance_policy": {"insurer": "insurer", "kind": "type of insurance"},
 }
 
 # A function per master that returns why the record is in use, or "".

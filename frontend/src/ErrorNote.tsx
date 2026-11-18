@@ -42,6 +42,8 @@ export function existingHref(e: Existing): string | null {
       return company && `${company}/warehouses?open=${e.id}`;
     case "courier_account":
       return company && `${company}/couriers?open=${e.id}`;
+    case "insurance_policy":
+      return company && `${company}/insurance?open=${e.id}`;
     default:
       return null;
   }

@@ -1,4 +1,5 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { TransitInsuranceView, type OrderInsurance } from "./Insurance";
 import { api, type SignedIn } from "./api";
 import { Attachments, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -93,6 +94,8 @@ type Invoice = {
   charges?: Charge[];
   dues?: { due_date: string; amount: string }[];
   orders?: string[];
+  /** The transit insurance of the orders behind the bill (Sidharth, 2026-11-18). */
+  insurance?: (OrderInsurance & { order: string })[];
   entries?: Entry[];
   tds_total?: string;
   tds?: TdsInfo;
@@ -1202,6 +1205,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
               <p className="pre">{inv.notes}</p>
             </Fold>
           )}
+          <TransitInsuranceView rows={inv.insurance ?? []} />
           <Attachments type="purchase_invoice" id={inv.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
         <div className="doc-foot">

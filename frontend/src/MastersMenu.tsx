@@ -130,6 +130,7 @@ export function MastersMenu(props: { active: boolean; company?: Company; canSeeM
           company ? `#/companies/${company.id}/couriers` : "",
           props.canSeeMasters && !!company?.modules.includes("sales"),
         ],
+        ["Insurance policies", company ? `#/companies/${company.id}/insurance` : "", props.canSeeMasters && !!company],
         ["Warehouses", company ? `#/companies/${company.id}/warehouses` : "", props.canSeeMasters && !!company],
         ["Item groups", "#/item-groups", props.canSeeMasters],
         ["Items", "#/items", props.canSeeMasters],

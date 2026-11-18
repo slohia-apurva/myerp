@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { TransitInsuranceView, type OrderInsurance } from "./Insurance";
 import { api, type SignedIn } from "./api";
 import { Attachments, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -86,6 +87,8 @@ export type GoodsReceipt = {
   receipt_date: string;
   orders: number[];
   order_numbers: string[];
+  /** The transit insurance of its orders (Sidharth, 2026-11-18). */
+  insurance?: (OrderInsurance & { order: string })[];
   challan_no: string;
   challan_date: string | null;
   transporter: number | null;
@@ -1550,6 +1553,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
               <p className="pre">{r.notes}</p>
             </Fold>
           )}
+          <TransitInsuranceView rows={r.insurance ?? []} />
           <Attachments type="goods_receipt" id={r.id} onChange={() => setFiles((n) => n + 1)} />
           <LedgerPosting url={`v1/goods-receipts/${r.id}/ledger-posting/`} stamp={r.status} />
         </div>

@@ -2144,6 +2144,85 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "insurance-policies",
+    title: "Insurance policies",
+    summary:
+      "The company's marine, fire and stock policies, the cover left on each, and the top-ups that refill it.",
+    body: (
+      <>
+        <p>
+          Keep here every insurance policy the company holds: marine policies
+          for goods moving inland or exported, and fire and stock policies. A
+          marine policy is an open policy. Each order whose goods travel under
+          it uses up part of its sum insured, and the insurer tops it up with an
+          endorsement when it runs low. Policies belong to one company; pick
+          the company at the top right, then click "Masters" in the top menu,
+          then "Insurance policies".
+        </p>
+        <p>
+          The list shows each policy with its "Total Cover" and, for a marine
+          policy, the "Balance" left; a balance shown in red is below the
+          policy's alert. Click a row to see its summary and Activity on the
+          right. "Add policy", "Open" and "Duplicate" open the form in a new
+          browser tab.
+        </p>
+        <h3>The form</h3>
+        <ul>
+          <li>
+            "Policy Number", "Insurer" (the insurance company, picked from the
+            company's suppliers; type a new name and click 'Create "…"' to add
+            it), "Type of Insurance", "Valid From" and "Valid To" are required.
+            The same policy number cannot be entered twice in a company.
+          </li>
+          <li>
+            For a marine policy: "Covers" (purchases, sales or both), "Limit
+            per Transit" (an order above it is flagged), "Insured Value" (the
+            invoice value, or the invoice value plus 10%) and "Default For"
+            (new orders start with this policy; only one policy is the default
+            for purchases, and one for sales).
+          </li>
+          <li>
+            Under "Sum Insured and Top-ups", give the "Starting Sum Insured"
+            and its "Premium". Each time the insurer tops up the cover, click
+            "+ Add Top-up" and fill in the "Date", "Endorsement No.", "Cover
+            Added" and "Premium". "Total Cover" is the starting sum plus every
+            top-up.
+          </li>
+          <li>
+            "Alert When Balance Falls Below": when a submitted order takes the
+            balance below this amount, Owners and Accountants get a notice under
+            the bell asking for a top-up. "When Cover Runs Out" is either "Warn,
+            keep insuring" (orders go on, with a warning on the order) or "Stop
+            until topped up" (an order the balance cannot cover cannot be
+            submitted until the top-up is added).
+          </li>
+          <li>
+            "Send Declaration To" and "Copy To" are the insurer's or broker's
+            email addresses for the daily list of insured orders, which is
+            being built next.
+          </li>
+          <li>
+            Once the policy is saved, add its copy and the endorsements under
+            "Attachments". The "Disabled" tick on the right stops the policy
+            being offered on new orders.
+          </li>
+        </ul>
+        <p>
+          The balance is the "Total Cover" less the insured value of every
+          submitted purchase order naming the policy (cancelled orders give
+          their cover back). Once an order names a policy, its "Insurer" and
+          "Type of Insurance" are locked; the number, dates, cover and top-ups
+          stay open.
+        </p>
+        <p>
+          "Actions ▾" holds "Import from Excel…", "Export to Excel", "Print"
+          and "Download PDF" (see "Import, export and print"); the top-ups go
+          on a sheet of their own.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "shipments",
     title: "Shipments",
     summary:
@@ -2481,6 +2560,21 @@ export const MANUAL: Chapter[] = [
           "Added On"; "Open" shows the file and "×" removes it. Files stay with
           the order after Submit, and more can still be added later. Adding
           or removing a file is written to the order's Activity. Anyone who may make orders may add files; others, such as "Storekeeper", only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
+        </p>
+        <h3>Transit insurance</h3>
+        <p>
+          The "Transit Insurance" box says who insures the goods on the way.
+          "Insured By" is "Us" when they travel under one of the company's
+          marine policies (see the chapter "Insurance policies"), "Supplier"
+          when the supplier insures them, or "Not insured". A new order starts
+          with "Us" and the policy marked "Default For" purchases, when there
+          is one valid on the order date. Under "Us", pick the "Policy"; the
+          "Insured Value" is the order total, plus 10% when the policy says
+          so, worked out on "Save". A red line warns when the value is above
+          the policy's "Limit per Transit" or above the cover left. Submitting
+          the order uses up the policy's cover; the goods receipts and purchase
+          invoices of the order show the same box, which cannot be changed
+          there.
         </p>
         <Note>
           Who may do what follows the role: "Purchase" may make, change and

@@ -65,6 +65,21 @@ class PurchaseOrder(models.Model):
     transporter = models.ForeignKey(
         CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # Transit insurance (Sidharth, 2026-11-18, preview 93b): who insures the goods
+    # on the way, and, when we do, under which of our marine policies and for how
+    # much (the order total, plus 10% where the policy says so). The goods
+    # receipts and purchase invoices of the order show it.
+    US, SUPPLIER, NOT_INSURED = "us", "supplier", "none"
+    INSURED_BY = [(US, "Us"), (SUPPLIER, "Supplier"), (NOT_INSURED, "Not insured")]
+    insured_by = models.CharField(max_length=10, choices=INSURED_BY, default=NOT_INSURED)
+    insurance_policy = models.ForeignKey(
+        "insurance.InsurancePolicy",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="purchase_orders",
+    )
+    insured_value = models.DecimalField(**MONEY, default=Decimal("0"))
     # A buying agent: a firm from the company's suppliers (a broker, say), or one of
     # the Purchasers (Masters > Salesmen and Purchasers), which starts as the
     # supplier's own Purchaser in this company. At most one of the two.

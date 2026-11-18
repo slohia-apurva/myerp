@@ -34,6 +34,7 @@ from core.api import Signed
 from core.credit_terms import STANDARD_TERMS
 from core.ledger_groups import ensure_cash_ledger
 from core.models import (
+    Attachment,
     Branch,
     Brand,
     Certificate,
@@ -102,6 +103,13 @@ def _certificates(company):
     return Certificate.objects.filter(company=company) if company else Certificate.objects.all()
 
 
+def _policies(company):
+    from insurance.models import InsurancePolicy
+
+    rows = InsurancePolicy.objects.all()
+    return rows.filter(company=company) if company else rows
+
+
 def _orphan_parties(company):
     """Parties that no ledger outside the cleared scope still uses."""
     inside = _scope_ledgers(company).values("pk")
@@ -123,6 +131,7 @@ def _plan(level: str, company):
     if level in ("masters", "all"):
         rows += [
             ("Opening bills", LedgerOpeningBill.objects.filter(ledger__in=_scope_ledgers(company))),
+            ("Insurance policies", _policies(company)),
             ("Ledgers", _scope_ledgers(company)),
             ("Customers and suppliers", _orphan_parties(company)),
             ("Ledger groups you added", _own_groups(company)),
@@ -222,6 +231,10 @@ def run(level: str, company, user) -> dict:
 def _delete_masters(scope) -> None:
     parties = list(_orphan_parties(scope).values_list("pk", flat=True))
     LedgerOpeningBill.objects.filter(ledger__in=_scope_ledgers(scope)).delete()
+    # Insurance policies name their insurer's ledger; their top-ups and files go with them.
+    policies = list(_policies(scope).values_list("pk", flat=True))
+    Attachment.objects.filter(record_type="insurance_policy", record_id__in=policies).delete()
+    _policies(scope).delete()
     ItemAccount.objects.filter(expense_ledger__in=_scope_ledgers(scope)).delete()
     _scope_ledgers(scope).delete()
     Party.objects.filter(pk__in=parties).delete()

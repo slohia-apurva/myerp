@@ -21,6 +21,7 @@ export function helpTopicFor(hash: string): string {
   if (sub === "purchase-returns") return "purchase-returns";
   if (sub === "debit-notes") return "debit-notes";
   if (sub === "couriers") return "transporters";
+  if (sub === "insurance") return "insurance-policies";
   if (sub === "years") return "fiscal-years";
   if (sub === "warehouses") return "warehouses";
   if (sub === "stock-summary" || sub === "stock-ledger") return "stock-reports";
