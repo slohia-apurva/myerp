@@ -86,6 +86,18 @@ export const MANUAL: Chapter[] = [
           goes through all the usual checks, including "No duplicates" below.
         </Note>
 
+        <h3>Lists stay up to date</h3>
+        <p>
+          You can also add a missing record the long way: open its master
+          (for example "Masters", "Ledgers", "Add ledger") in another tab or
+          window, save it there, and come back. Every screen reads its lists
+          again the moment you return to its tab or click into its window, so
+          the new record is already in the list when you open it. What you
+          had filled in on the form stays as it was. The same happens for
+          records someone else added, or ones brought in with "Import from
+          Excel…".
+        </p>
+
         <h3>No duplicates</h3>
         <p>
           MyERP will not save a second record that means the same as one already

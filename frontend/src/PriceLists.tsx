@@ -11,6 +11,7 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
 import { ColumnSearch } from "./ColumnSearch";
+import { useOnReturn } from "./Refresh";
 
 /** Price lists: named sets of rates for selling or buying, each rate from a date and a quantity. */
 export type PriceList = {
@@ -46,6 +47,7 @@ export function usePriceLists() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { lists, reload, refresh };
 }
 

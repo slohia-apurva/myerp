@@ -10,6 +10,7 @@ import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { ColumnSearch } from "./ColumnSearch";
+import { useOnReturn } from "./Refresh";
 
 /** Units of measure: one list for every company in the group. */
 export type Unit = {
@@ -40,6 +41,7 @@ export function useUnits() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { units, reload, refresh };
 }
 

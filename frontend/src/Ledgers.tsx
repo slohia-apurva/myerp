@@ -12,6 +12,7 @@ import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { Chevron, LevelPicker, PageHeader } from "./Brand";
 import { useExchange } from "./Exchange";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
+import { useOnReturn } from "./Refresh";
 
 export type Ledger = {
   id: number;
@@ -397,6 +398,7 @@ function LedgerFormTab(props: { companyId: number; form: string; session: Signed
     loadDetail();
     api<Ledger[]>(`v1/companies/${props.companyId}/ledgers/`).then(setLedgers);
   }, [loadDetail, props.companyId]);
+  useOnReturn(loadDetail); // a ledger group added in another tab joins the Group list
   const canEdit = props.session.permissions.includes("masters.edit");
   // `&new=<name>`: opened by "Create …" in a picker (a purchase order's supplier, say).
   const startName = useNewName();

@@ -11,6 +11,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { GrnPrint, type PrintKind } from "./GrnPrint";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useOnReturn, useReturns } from "./Refresh";
 
 /** Entry > Purchase > Goods Receipt: what arrived against a supplier's purchase orders, and
  * which bins and batches it went into. Submit posts the stock (Dr Stock, Cr Goods Received
@@ -168,6 +169,7 @@ function useSetup(companyId: number) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+  useOnReturn(refresh);
   return { setup, refresh };
 }
 
@@ -543,10 +545,11 @@ function ReceiptForm(props: {
   const [saves, setSaves] = useState(0); // reads the Ledger Posting again after each save
 
   // The supplier's open orders (with what is still to come), once a supplier is picked.
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     if (!supplier) return setPending([]);
     api<PendingOrder[]>(`v1/companies/${companyId}/goods-receipts/pending/?supplier=${supplier}`).then(setPending, () => setPending([]));
-  }, [companyId, supplier]);
+  }, [companyId, supplier, visits]);
   // Opened from a purchase order's "Create ▾": that order's supplier, warehouse and items.
   const [fromOrder, setFromOrder] = useState(props.fromOrder);
   useEffect(() => {

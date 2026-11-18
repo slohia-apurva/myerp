@@ -10,6 +10,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { EntriesBox, type Entry } from "./PurchaseInvoices";
+import { useReturns } from "./Refresh";
 
 /** Entry > Purchase > Purchase Return (Sidharth, 2026-11-15, preview 74): goods sent back
  * to the supplier against a goods receipt. Submit takes them out of the bin they were put
@@ -355,13 +356,14 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState("");
 
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Returnable[]>(`v1/companies/${companyId}/purchase-returns/returnable/`).then(setReceipts, () => setReceipts([]));
     api<{ transporters: { id: number; name: string }[] }>(`v1/companies/${companyId}/goods-receipts/setup/`).then(
       (s) => setTransporters(s.transporters),
       () => setTransporters([]),
     );
-  }, [companyId]);
+  }, [companyId, visits]);
 
   const pickReceipt = async (v: string) => {
     setReceipt(v);

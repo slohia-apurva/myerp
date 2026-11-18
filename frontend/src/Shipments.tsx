@@ -6,6 +6,7 @@ import { PageHeader, Section } from "./Brand";
 import { usePrintMenu } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { type Company, type Contact } from "./Companies";
+import { useOnReturn, useReturns } from "./Refresh";
 
 /** Couriers, transporters and shipments (spec 06, step 1). Statuses are
  * typed by hand until each courier's tracking API is connected. */
@@ -167,6 +168,7 @@ export function useCourierAccounts(companyId: number) {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { accounts, reload, refresh };
 }
 
@@ -432,9 +434,10 @@ function ShipmentForm(props: {
   const s = props.shipment;
   const [parties, setParties] = useState<Party[]>([]);
   const branches = useCompanyDetail(props.companyId)?.branches ?? [];
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Party[]>("v1/parties/").then(setParties);
-  }, []);
+  }, [visits]);
   const [account, setAccount] = useState(s ? String(s.account) : "");
   const [awb, setAwb] = useState(s?.awb ?? "");
   const [bookedOn, setBookedOn] = useState(s?.booked_on ?? today());

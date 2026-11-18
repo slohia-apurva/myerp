@@ -15,6 +15,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { STOCK_COST } from "./Items";
 import { PoPrint } from "./PoPrint";
 import { OrderMail, SupplierMail } from "./SupplierMail";
+import { useOnReturn, useReturns } from "./Refresh";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -241,6 +242,7 @@ function useSetup(companyId: number) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+  useOnReturn(refresh);
   return { setup, refresh };
 }
 
@@ -635,10 +637,11 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   };
   const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
   const br = setup?.branches.find((b) => String(b.id) === branch);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     if (!supplier) return setItems([]);
     api<BuyItem[]>(`v1/companies/${companyId}/purchase-orders/items/?supplier=${supplier}&date=${orderDate}`).then(setItems, () => setItems([]));
-  }, [companyId, supplier, orderDate]);
+  }, [companyId, supplier, orderDate, visits]);
   // A supplier just made with 'Create "…"' is not in the list until it reloads: its
   // credit term and contacts are filled in once it is there.
   const [pending, setPending] = useState("");

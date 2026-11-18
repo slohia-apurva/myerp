@@ -18,6 +18,7 @@ import { longDate } from "./Companies";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
 import { ColumnSearch } from "./ColumnSearch";
 import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts, type ItemAccount } from "./ItemAccounts";
+import { useReturns } from "./Refresh";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -831,9 +832,10 @@ function ItemForm(props: {
   // A duplicate starts with no customer or supplier names: a party's code belongs to one item only.
   const [names, setNames] = useState<PartyName[]>(props.copyOf ? [] : (from?.party_names ?? []).map((r) => ({ ...r })));
   const [parties, setParties] = useState<PartyRow[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<PartyRow[]>("v1/parties/").then(setParties);
-  }, []);
+  }, [visits]);
   // Its own Expense Account per company (bills without goods receipt).
   const [accounts, setAccounts] = useItemAccounts(it && !props.copyOf ? it.id : null);
   // What customers pay for this item: one set of data with each customer's Item Prices.

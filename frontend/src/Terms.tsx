@@ -10,6 +10,7 @@ import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
+import { useOnReturn } from "./Refresh";
 
 /** Terms and conditions: named sets of the terms printed on orders, for purchase or sales. */
 export type TermsSet = {
@@ -40,6 +41,7 @@ export function useTermsSets() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { sets, reload, refresh };
 }
 

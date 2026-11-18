@@ -9,6 +9,7 @@ import { useExchange } from "./Exchange";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
+import { useOnReturn } from "./Refresh";
 
 /** People (Sidharth, 2026-11-16, preview 83; "Stores" added 2026-11-17, preview 88): the
  * people who sell to customers, buy from suppliers or receive goods in the stores, with or
@@ -37,6 +38,7 @@ export function useSalesPeople() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { people, reload, refresh };
 }
 

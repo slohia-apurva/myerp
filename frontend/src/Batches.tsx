@@ -10,6 +10,7 @@ import type { Item } from "./Items";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
+import { useOnReturn, useReturns } from "./Refresh";
 
 /** Batches (lots) of batch-tracked items. A batch number is unique within its
  * item only: two items may both have batch 1234 (Sidharth, 2026-11-15). */
@@ -44,15 +45,17 @@ export function useBatches() {
     refresh();
   }, [refresh]);
   useEffect(reload, [reload]);
+  useOnReturn(reload);
   return { batches, reload, refresh };
 }
 
 /** The items that keep batches, for the item picker. */
 function useBatchItems() {
   const [items, setItems] = useState<Item[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Item[]>("v1/items/").then((rows) => setItems(rows.filter((i) => i.batch_tracked)));
-  }, []);
+  }, [visits]);
   return items;
 }
 

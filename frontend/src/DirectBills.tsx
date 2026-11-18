@@ -10,6 +10,7 @@ import { ActionsMenu } from "./Exchange";
 import { Fold } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { TdsBox, type TdsInfo } from "./Tds";
+import { useReturns } from "./Refresh";
 
 /** Purchase Invoice of type "Without goods receipt" (Sidharth, 2026-11-16, preview 82): services
  * and goods not kept in stock. Each line picks an item, booked to the item's "Expense Account"
@@ -106,11 +107,12 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
   const [setup, setSetup] = useState<Setup | null>(null);
   const [lists, setLists] = useState<Lists | null>(null);
   const [terms, setTerms] = useState<{ id: number; name: string }[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/`).then(setSetup, () => setSetup(null));
     api<Lists>(`v1/companies/${companyId}/direct-bills/setup/`).then(setLists, () => setLists(null));
     api<{ id: number; name: string }[]>("v1/credit-terms/").then(setTerms, () => setTerms([]));
-  }, [companyId]);
+  }, [companyId, visits]);
   const [supplier, setSupplier] = useState(String(bill?.supplier ?? ""));
   const [branch, setBranch] = useState(String(bill?.branch ?? ""));
   const [billNo, setBillNo] = useState(bill?.bill_no ?? "");

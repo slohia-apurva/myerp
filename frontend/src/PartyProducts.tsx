@@ -3,6 +3,7 @@ import { api } from "./api";
 import { Combobox } from "./Combobox";
 import { Section } from "./Brand";
 import { usePrintMenu } from "./Exchange";
+import { useReturns } from "./Refresh";
 
 export type PartyProduct = {
   item: number;
@@ -33,9 +34,10 @@ export function PartyProducts({
   partyName?: string;
 }) {
   const [items, setItems] = useState<ItemRow[]>([]);
+  const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<ItemRow[]>("v1/items/").then(setItems);
-  }, []);
+  }, [visits]);
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const listed = new Set(value.map((r) => r.item));
   const options = items
