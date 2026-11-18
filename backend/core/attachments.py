@@ -45,11 +45,18 @@ class Found:
 _TYPES: dict[str, Callable] = {}
 # Entry types a company may tick under "Attachment Needed to Submit", in menu order.
 LABELS: dict[str, str] = {}
+# Masters that keep files: kept by the Owner's "Reset data", which clears entries.
+MASTER_TYPES: set[str] = set()
 
 
-def register(record_type: str, find: Callable, label: str) -> None:
+def register(record_type: str, find: Callable, label: str, entry: bool = True) -> None:
+    """`entry=False` for a master that keeps files (an insurance policy's copy):
+    it is left out of the company's "Attachment Needed to Submit" ticks."""
     _TYPES[record_type] = find
-    LABELS[record_type] = label
+    if entry:
+        LABELS[record_type] = label
+    else:
+        MASTER_TYPES.add(record_type)
 
 
 def check_required(value: list) -> list:
@@ -231,7 +238,7 @@ class AttachmentDetailView(APIView):
 
 
 def _company_files(company):
-    rows = Attachment.objects.all()
+    rows = Attachment.objects.exclude(record_type__in=MASTER_TYPES)
     return rows.filter(company=company) if company else rows
 
 

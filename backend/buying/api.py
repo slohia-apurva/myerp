@@ -47,6 +47,8 @@ from core.models import (
 from core.parties import items_for_party
 from core.price_lists import find_rate
 from core.terms import terms_for
+from insurance import api as insurance
+from insurance.models import InsurancePolicy
 from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
 from tenancy.models import GstRate
@@ -348,6 +350,30 @@ def _with_purchaser(o: PurchaseOrder, rows: list[dict]) -> list[dict]:
     return [*rows, {**me, "mail": True, "whatsapp": False}]
 
 
+def insurance_out(o: PurchaseOrder) -> dict:
+    """An order's transit insurance, as the order, its receipts and bills show it."""
+    p = o.insurance_policy
+    return {
+        "insured_by": o.insured_by,
+        "insured_by_label": o.get_insured_by_display(),
+        "insurance_policy": o.insurance_policy_id,
+        "insurance_policy_label": (
+            f"{p.number} · {p.insurer.name} · {p.get_kind_display()}" if p else ""
+        ),
+        "insured_value": str(o.insured_value),
+    }
+
+
+def orders_insurance(orders) -> list[dict]:
+    """The transit insurance of the orders behind a receipt or a bill, one row
+    per order that names who insures it."""
+    return [
+        {"order": o.number, **insurance_out(o)}
+        for o in sorted(orders, key=lambda o: o.number)
+        if o.insured_by != PurchaseOrder.NOT_INSURED
+    ]
+
+
 def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
     party = o.supplier.party
     data = {
@@ -370,6 +396,7 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "credit_term_name": o.credit_term.name if o.credit_term else "",
         "transporter": o.transporter_id,
         "transporter_name": o.transporter.name if o.transporter else "By Supplier",
+        **insurance_out(o),
         "agent": o.agent_id,
         "agent_name": o.agent.name if o.agent else "",
         "purchaser": o.purchaser_id,
@@ -441,6 +468,7 @@ def _orders(company):
             "bill_to__company",
             "credit_term",
             "transporter",
+            "insurance_policy__insurer",
             "terms_set",
             "created_by",
         )
@@ -500,6 +528,13 @@ class OrderSerializer(serializers.Serializer):
     )
     purchaser = serializers.PrimaryKeyRelatedField(
         queryset=SalesPerson.objects.all(), required=False, allow_null=True
+    )
+    # Left out: "Not insured".
+    insured_by = serializers.ChoiceField(
+        choices=PurchaseOrder.INSURED_BY, required=False, default=PurchaseOrder.NOT_INSURED
+    )
+    insurance_policy = serializers.PrimaryKeyRelatedField(
+        queryset=InsurancePolicy.objects.all(), required=False, allow_null=True
     )
     mail_to = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
     whatsapp_to = serializers.ListField(
@@ -586,6 +621,17 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
             errors["transporter"] = ["Pick a transporter of this company."]
         elif not transporter.is_active and transporter.pk != o.transporter_id:
             errors["transporter"] = [f"{transporter.name} is disabled."]
+    insured_by = data.get("insured_by") or PurchaseOrder.NOT_INSURED
+    policy = data.get("insurance_policy") if insured_by == PurchaseOrder.US else None
+    if insured_by == PurchaseOrder.US:
+        if policy is None:
+            errors["insurance_policy"] = ['Pick the policy, or set "Insured By" to another choice.']
+        else:
+            why = insurance.check_pick(
+                policy, o.company_id, "purchase", data["order_date"], o.insurance_policy_id
+            )
+            if why:
+                errors["insurance_policy"] = [why]
     bill_to = data.get("bill_to") or _default_bill_to(o.company_id)
     if bill_to is not None:
         if bill_to.company_id != o.company_id:
@@ -688,6 +734,7 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     o.order_date, o.expected_date = data["order_date"], expected
     o.credit_term = term
     o.transporter = transporter
+    o.insured_by, o.insurance_policy = insured_by, policy
     o.bill_to = bill_to
     o.supplier_address = _party_address(place) if place else {}
     o.terms_set = terms_set
@@ -714,6 +761,11 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
     # A rupee order rounds to the rupee; a foreign currency order is not rounded.
     o.total = exact.quantize(RUPEE, rounding=ROUND_HALF_UP) if o.currency == "INR" else exact
     o.round_off = o.total - exact
+    if policy is not None and o.currency != "INR":
+        raise ValidationError(
+            {"insurance_policy": ["Our marine policies insure rupee orders; this one is not."]}
+        )
+    o.insured_value = insurance.insured_value(policy, o.total) if policy else Decimal("0")
     o.save()
     o.lines.all().delete()
     for r in rows:
@@ -807,8 +859,11 @@ def _submit(o: PurchaseOrder, user) -> None:
     if not o.expected_date:
         raise ValidationError({"expected_date": ["Give the date the goods should be received by."]})
     fiscal.assert_open(o.company, o.order_date)
+    if o.insured_by == PurchaseOrder.US and o.insurance_policy is None:
+        raise ValidationError({"insurance_policy": ["Pick the policy the goods travel under."]})
     o.number = numbering.next_document_number(o.company, "purchase_order", o.order_date, o.branch)
     o.status = PurchaseOrder.ORDERED
+    insurance.on_submit(o)
     o.submitted_at = timezone.now()
     o.submitted_by = user
     o.save()
@@ -1140,6 +1195,8 @@ class OrderSetupView(APIView):
                     {"id": t.pk, "name": t.name, "is_active": t.is_active}
                     for t in company.courier_accounts.order_by("name")
                 ],
+                # Masters > Insurance Policies: the marine policies covering purchases.
+                "insurance_policies": insurance.picker_rows(company, "purchase"),
                 # The sets of purchase terms, and the company's default set.
                 "terms_sets": [
                     {"id": t.pk, "name": t.name, "is_active": t.is_active, "text": t.text}

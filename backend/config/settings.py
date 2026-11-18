@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "core",
     "audit",
     "shipping",
+    "insurance",
     "buying",
     "posting",
 ]

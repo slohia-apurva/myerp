@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.models import AuditEntry
-from buying.api import _addresses_out, _company, _letterhead
+from buying.api import _addresses_out, _company, _letterhead, orders_insurance
 from buying.models import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -95,7 +95,7 @@ def _receipts(company):
         GoodsReceipt.objects.filter(company=company)
         .select_related("supplier", "branch", "transporter", "received_by", "qc_by", "submitted_by")
         .prefetch_related(
-            "orders",
+            "orders__insurance_policy__insurer",
             "lines__item",
             "lines__unit",
             "lines__order_line__order",
@@ -170,6 +170,7 @@ def _receipt_out(r: GoodsReceipt, lines: bool = True) -> dict:
         "receipt_date": r.receipt_date,
         "orders": [o.pk for o in r.orders.all()],
         "order_numbers": [o.number for o in r.orders.all()],
+        "insurance": orders_insurance(r.orders.all()),
         "challan_no": r.challan_no,
         "challan_date": r.challan_date,
         "transporter": r.transporter_id,

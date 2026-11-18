@@ -204,6 +204,7 @@ def _register() -> None:
         WarehouseLocation,
     )
     from core.parties import party_extras
+    from insurance.models import InsurancePolicy
     from shipping.models import CourierAccount, Shipment
 
     def state(code):
@@ -382,6 +383,31 @@ def _register() -> None:
                 "Transporter",
                 by_company,
                 formats={"carrier_id": carrier_name},
+            ),
+            InsurancePolicy: Tracked(
+                "insurance_policy",
+                "Insurance policy",
+                by_company,
+                labels={
+                    "number": "Policy number",
+                    "kind": "Type of insurance",
+                    "sum_insured": "Starting sum insured",
+                    "transit_limit": "Limit per transit",
+                    "insured_basis": "Insured value",
+                    "alert_below": "Alert when balance falls below",
+                    "when_out": "When cover runs out",
+                    "declare_to": "Send declaration to",
+                },
+                extras={
+                    "top_ups": (
+                        "Top-ups",
+                        lambda p: "; ".join(
+                            f"{t.date:%d-%m-%Y} {t.endorsement_no or 'top-up'} ₹{t.amount:,.2f}"
+                            for t in p.top_ups.all()
+                        )
+                        or None,
+                    )
+                },
             ),
             Shipment: Tracked(
                 "shipment",

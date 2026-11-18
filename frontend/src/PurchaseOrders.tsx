@@ -13,6 +13,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { STOCK_COST } from "./Items";
+import { defaultPolicy, TransitInsuranceFold, TransitInsuranceView, type OrderInsurance, type PolicyPick } from "./Insurance";
 import { PoPrint } from "./PoPrint";
 import { OrderMail, SupplierMail } from "./SupplierMail";
 import { useOnReturn, useReturns } from "./Refresh";
@@ -62,7 +63,7 @@ export type Charge = {
   igst: string;
   add_to_stock: string;
 };
-export type PurchaseOrder = {
+export type PurchaseOrder = OrderInsurance & {
   id: number;
   company: number;
   number: string;
@@ -186,6 +187,7 @@ type Setup = {
   branches: BranchRow[];
   purchasers: Purchaser[];
   transporters: Transporter[];
+  insurance_policies: PolicyPick[];
   terms_sets: { id: number; name: string; is_active: boolean; text: string }[];
   default_terms: number | null;
   import_choices: Record<string, [string, string][]>;
@@ -569,6 +571,9 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   // "" is "By Supplier": the supplier sends the goods.
   const [transporter, setTransporter] = useState(from?.transporter ? String(from.transporter) : "");
   const [ref, setRef] = useState(order?.supplier_ref ?? "");
+  // Transit insurance (preview 93b): a new order starts with the default policy, if any.
+  const [insuredBy, setInsuredBy] = useState(from?.insured_by ?? "");
+  const [policy, setPolicy] = useState(from?.insurance_policy ? String(from.insurance_policy) : "");
   // The agent picker holds "l<ledger id>" for a supplier firm or "u<user id>" for an employee.
   // The agent picker holds "l<ledger id>" for a supplier firm or "p<id>" for a purchaser.
   const [agent, setAgentId] = useState(from?.agent ? `l${from.agent}` : from?.purchaser ? `p${from.purchaser}` : "");
@@ -613,6 +618,12 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       if (first) setBranch(String(first.id));
     }
   }, [setup, branch]);
+  useEffect(() => {
+    if (insuredBy || !setup) return;
+    const start = defaultPolicy(setup.insurance_policies, orderDate);
+    setInsuredBy(start ? "us" : "none");
+    if (start) setPolicy(String(start.id));
+  }, [setup, insuredBy, orderDate]);
   // Bill To starts as the default billing branch (else the head office).
   useEffect(() => {
     if (!billTo && setup) {
@@ -814,6 +825,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       expected_date: expected || null,
       credit_term: term ? Number(term) : null,
       transporter: transporter ? Number(transporter) : null,
+      insured_by: insuredBy || "none",
+      insurance_policy: insuredBy === "us" && policy ? Number(policy) : null,
       bill_to: billTo ? Number(billTo) : null,
       supplier_address: supAddr,
       supplier_ref: ref,
@@ -1200,6 +1213,19 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               const it = items.find((x) => String(x.id) === w.line.item);
               return { name: it?.name ?? "", qty: Number(w.line.qty) || 0, unit: it?.units.find((u) => String(u.unit) === w.line.unit)?.name ?? "", taxable: w.taxable };
             })}
+          />
+          <TransitInsuranceFold
+            companyId={companyId}
+            insuredBy={insuredBy || "none"}
+            setInsuredBy={setInsuredBy}
+            policy={policy}
+            setPolicy={setPolicy}
+            policies={setup?.insurance_policies ?? []}
+            orderDate={orderDate}
+            total={rounded}
+            rupeeOrder={!sup || sup.currency === "INR"}
+            canAdd={mayAddMasters}
+            refresh={refreshSetup}
           />
           <Fold title="Terms and Notes" summary="Terms for the supplier, internal note" open={!!(termsText || notes)}>
             <div className="item-fields">
@@ -1851,6 +1877,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           )}
           {!!order.supplier_response?.rows.length && <SupplierReplies box={order.supplier_response} />}
           {!!order.charges?.length && <ChargesView order={order} />}
+          {order.insured_by !== "none" && <TransitInsuranceView rows={[order]} />}
           {(order.terms || order.notes) && (
             <Fold title="Terms and Notes" open>
               {order.terms && (
