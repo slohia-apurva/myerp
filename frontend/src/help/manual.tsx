@@ -3079,6 +3079,66 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "accounts-reports",
+    title: "Accounts reports",
+    summary:
+      "The Trial Balance of every ledger under its groups, and the Ledger Statement of one ledger with each entry.",
+    body: (
+      <>
+        <p>
+          Open them from "Reports" in the top menu. They show the company picked
+          at the top right and read straight from the books, so every submitted
+          entry is in them. Anyone whose role may see accounts can open them.
+          Each has the "Actions ▾" button with "Print" and "Download PDF".
+        </p>
+        <h3>Trial Balance</h3>
+        <ul>
+          <li>
+            "From" starts at the first day of the financial year and "To" at
+            today. The "Opening ₹" of each ledger is the opening balance entered
+            on it plus everything posted before From; "Debit ₹" and "Credit ₹"
+            are what was posted between From and To; "Closing ₹" is the balance
+            on To. Balances show "Dr" or "Cr".
+          </li>
+          <li>
+            Ledgers sit under their ledger groups, and each group shows the
+            totals of everything under it. Fold a group with its arrow, or use
+            "Show levels" to fold the list to a depth. Ledgers with no balance
+            and no entries are left out.
+          </li>
+          <li>
+            "Total" at the bottom must show the same debits and credits. If they
+            differ, a red line under the list says by how much: the opening
+            balances entered on the ledgers do not add up.
+          </li>
+          <li>Click a ledger to open its Ledger Statement in a new tab.</li>
+        </ul>
+        <h3>Ledger Statement</h3>
+        <ul>
+          <li>Pick the "Ledger", and the "From" and "To" dates.</li>
+          <li>
+            The first line is the "Opening" balance on From. Each line after it
+            is one entry: its date, its number (click it to open the entry in a
+            new tab), "Particulars" (the ledgers on the other side of that
+            entry), the debit or credit, and the "Balance ₹" after it. The last
+            line is the "Closing" balance with the totals of the period.
+          </li>
+          <li>
+            A cancelled entry shows twice: once as made and once, greyed and
+            marked "(cancelled)", taking it back out.
+          </li>
+        </ul>
+        <Note>
+          To check a goods receipt: its Stock ledger (set on the item's main
+          item group) shows a debit and "Goods Received but Bills not Received"
+          shows the same amount as a credit, with the receipt's number on both.
+          The amount is the order rate before GST, plus any charge added to
+          stock cost.
+        </Note>
+      </>
+    ),
+  },
+  {
     id: "users",
     title: "Users",
     summary: "Letting people sign in and choosing what they can do.",
