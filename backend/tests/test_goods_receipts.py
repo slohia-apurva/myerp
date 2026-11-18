@@ -371,8 +371,8 @@ def test_bags_in_bins_get_their_own_numbers_on_submit(store, grn, alpha):
     bags = done["packages"]
     assert [b["number"] for b in bags] == [f"PK-{n:06d}" for n in range(1, 7)]
     assert [(b["location_name"], b["qty"]) for b in bags[4:]] == [
-        ("F01 / A-02", "20.000000"),
-        ("F01 / A-06", "10.000000"),
+        ("A-02", "20.000000"),
+        ("A-06", "10.000000"),
     ]
     assert (bags[5]["batch"], bags[5]["position"], bags[5]["of_count"]) == ("DTT-9", 6, 6)
     assert {b["status_label"] for b in bags} == {"In stock"}
@@ -409,7 +409,7 @@ def test_the_print_brings_the_letterhead_and_a_bin_shows_its_bags(store, grn, al
     assert printed["packages"][0]["seq"] == 1 and printed["packages"][0]["location"] == grn["bin1"]
 
     there = call(store, "get", f"bins/{grn['bin1']}/").json()
-    assert there["code"] == f"LOC-{grn['bin1']:06d}" and there["name"] == "F01 / A-02"
+    assert there["code"] == f"LOC-{grn['bin1']:06d}" and there["name"] == "A-02"
     assert [(s["item_name"], s["batch"], s["qty"]) for s in there["stock"]] == [
         ("CTC Tea", "DTT-7", "60.000000")
     ]

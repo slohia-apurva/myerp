@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api import Signed, _company
-from core.models import Batch, Item, WarehouseLocation
+from core.models import Batch, Branch, Item, WarehouseLocation
 from posting.models import StockMove, StockRevaluation
 
 ZERO = Decimal("0")
@@ -63,9 +63,25 @@ def _id(request, key: str) -> int | None:
         raise ValidationError({key: "Not a valid choice."}) from exc
 
 
+def short_branch(branch) -> str:
+    """The branch's name without the company's name in front: "Apurvam Organics LLP
+    (Sankrail-2)" reads "Sankrail-2" (Sidharth, 2026-11-18)."""
+    name, company = branch.name, branch.company.name
+    if name.lower().startswith(company.lower()):
+        rest = name[len(company) :].strip(" -,:()")
+        if rest:
+            return rest
+    return name
+
+
+def short_bin(loc) -> str:
+    """The bin or area alone (see WarehouseLocation.__str__)."""
+    return str(loc)
+
+
 def _place(loc) -> str:
-    """Branch name, then the rack and bin (or area)."""
-    return f"{loc.branch.name} / {loc}"
+    """The bin or area alone; the warehouse has its own filter."""
+    return short_bin(loc)
 
 
 def entry(voucher_type: str, voucher_id: int, voucher_no: str) -> dict:
@@ -118,62 +134,43 @@ class StockSummaryView(APIView):
 
         items = Item.objects.select_related("stock_unit").in_bulk({k[0] for k in cells})
         batches = Batch.objects.in_bulk({k[1] for k in cells if k[1]})
-        places = WarehouseLocation.objects.select_related("parent", "branch").in_bulk(
+        places = WarehouseLocation.objects.select_related("parent", "branch__company").in_bulk(
             {k[2] for k in cells}
         )
 
-        tree: dict[int, dict[int | None, list]] = defaultdict(lambda: defaultdict(list))
+        # One flat line per item, batch and bin (Sidharth, 2026-11-18, preview
+        # mockups/reports/3-stock-summary-flat-preview.png).
+        lines = []
         for (it, bt, loc), (q, v) in cells.items():
-            tree[it][bt].append((loc, q, v))
-        out = []
-        for it in sorted(tree, key=lambda i: items[i].name.lower()):
-            item_obj = items[it]
-            batch_rows = []
-            order = sorted(tree[it], key=lambda b: (b is not None, batches[b].number if b else ""))
-            for bt in order:
-                bins = sorted(tree[it][bt], key=lambda r: _place(places[r[0]]).lower())
-                b = batches.get(bt)
-                batch_rows.append(
-                    {
-                        "batch": bt,
-                        "number": b.number if b else "",
-                        "expiry_date": b.expiry_date if b else None,
-                        "status": b.get_status_display() if b else "",
-                        "qty": str(sum((r[1] for r in bins), ZERO)),
-                        "value": str(sum((r[2] for r in bins), ZERO)),
-                        "bins": [
-                            {
-                                "location": loc,
-                                "place": _place(places[loc]),
-                                "qty": str(q),
-                                "value": str(v),
-                            }
-                            for loc, q, v in bins
-                        ],
-                    }
-                )
-            qty = sum((Decimal(b["qty"]) for b in batch_rows), ZERO)
-            value = sum((Decimal(b["value"]) for b in batch_rows), ZERO)
-            out.append(
+            item_obj, place = items[it], places[loc]
+            lines.append(
                 {
                     "item": it,
                     "item_number": item_obj.item_number,
                     "item_name": item_obj.name,
+                    "batch": batches[bt].number if bt else "",
+                    "warehouse": short_branch(place.branch),
+                    "bin": short_bin(place),
                     "unit": item_obj.stock_unit.short_name,
-                    "batch_tracked": item_obj.batch_tracked,
-                    "qty": str(qty),
-                    "value": str(value),
-                    "rate": str((value / qty).quantize(Decimal("0.01"))) if qty else "",
-                    "batches": batch_rows,
+                    "qty": str(q),
+                    "rate": str((v / q).quantize(Decimal("0.01"))) if q else "",
+                    "value": str(v),
                 }
             )
-        total = sum((Decimal(r["value"]) for r in out), ZERO)
+        lines.sort(
+            key=lambda r: (
+                r["item_name"].lower(),
+                r["batch"].lower(),
+                r["warehouse"].lower(),
+                r["bin"].lower(),
+            )
+        )
         return Response(
             {
                 "company_name": company.name,
                 "as_on": as_on,
-                "items": out,
-                "total_value": str(total),
+                "lines": lines,
+                "total_value": str(sum((Decimal(r["value"]) for r in lines), ZERO)),
             }
         )
 
@@ -227,7 +224,7 @@ class StockLedgerView(APIView):
             revals = revals.filter(date__gte=start)
 
         rows = []
-        for m in moves.select_related("batch", "location__parent", "location__branch"):
+        for m in moves.select_related("batch", "location__parent", "location__branch__company"):
             rows.append(
                 (
                     m.date,
@@ -247,7 +244,9 @@ class StockLedgerView(APIView):
                 )
             )
         for r in revals.select_related(
-            "lot__move__batch", "lot__move__location__parent", "lot__move__location__branch"
+            "lot__move__batch",
+            "lot__move__location__parent",
+            "lot__move__location__branch__company",
         ):
             mv = r.lot.move
             rows.append(
@@ -279,7 +278,7 @@ class StockLedgerView(APIView):
             row.update(value=str(moved), balance_qty=str(q), balance_value=str(v))
             out.append(row)
 
-        options = every.select_related("batch", "location__parent", "location__branch")
+        options = every.select_related("batch", "location__parent", "location__branch__company")
         batch_opts = {m.batch_id: m.batch.number for m in options if m.batch_id}
         place_opts = {m.location_id: _place(m.location) for m in options}
         return Response(
@@ -344,7 +343,10 @@ class ItemStockView(APIView):
             q=Sum("qty"), v=Sum("value", filter=Q(valued=True))
         ):
             per_branch[r["branch"]] = [r["q"] or ZERO, r["v"] or ZERO]
-        names = dict(moves.order_by().values_list("branch", "branch__name").distinct())
+        names = {
+            b.pk: short_branch(b)
+            for b in Branch.objects.select_related("company").filter(pk__in=list(per_branch))
+        }
         for r in revals.values("branch").annotate(v=Sum("value")):
             per_branch[r["branch"]][1] += r["v"] or ZERO
         branches = [

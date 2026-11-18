@@ -1,10 +1,13 @@
 """Stock Summary and Stock Ledger: read from the stock ledger after a goods receipt."""
 
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 
 from accounts.models import Role
+from core.models import Branch, WarehouseLocation
+from posting.reports import short_branch
 from tenancy.context import use_tenant
 from tests.test_goods_receipts import (  # noqa: F401  (fixtures)
     box_line,
@@ -49,35 +52,39 @@ def test_summary_shows_items_batches_and_bins_with_values(store, grn, received):
     body = res.json()
     # Tea 600 x 250 + 6,000 freight; box 30 x 20 + 300 freight (see the goods receipt test).
     assert body["total_value"] == "156900.00"
-    tea, box = sorted(body["items"], key=lambda i: i["item_name"])
-    assert (tea["item_name"], tea["unit"], tea["qty"], tea["value"], tea["rate"]) == (
-        "CTC Tea",
-        "kg",
-        "600.000000",
-        "156000.00",
-        "260.00",
-    )
-    [batch] = tea["batches"]
-    assert (batch["number"], batch["qty"], batch["value"]) == (
-        "DTT-26-118",
-        "600.000000",
-        "156000.00",
-    )
-    assert [(b["place"].split(" / ")[-1], b["qty"], b["value"]) for b in batch["bins"]] == [
-        ("A-02", "300.000000", "78000.00"),
-        ("A-06", "300.000000", "78000.00"),
+    got = [(r["item_name"], r["batch"], r["bin"], r["unit"], r["qty"], r["rate"], r["value"])
+           for r in body["lines"]]  # fmt: skip
+    assert got == [
+        ("CTC Tea", "DTT-26-118", "A-02", "kg", "300.000000", "260.00", "78000.00"),
+        ("CTC Tea", "DTT-26-118", "A-06", "kg", "300.000000", "260.00", "78000.00"),
+        ("Tea Box", "", "Store", "pkt", "30.000000", "30.00", "900.00"),
     ]
-    assert box["qty"] == "30.000000" and box["batches"][0]["number"] == ""
+    assert all(r["warehouse"] for r in body["lines"])
+
+
+def test_names_do_not_repeat_the_company_or_branch(alpha):
+    company = SimpleNamespace(name="Apurvam Organics LLP")
+    branch = SimpleNamespace(name="Apurvam Organics LLP (Sankrail-2)", company=company)
+    assert short_branch(branch) == "Sankrail-2"
+    assert short_branch(SimpleNamespace(name="Head Office", company=company)) == "Head Office"
+    # A bin or area reads alone everywhere: the default store drops its branch's name,
+    # and a bin drops its rack.
+    with use_tenant(alpha):
+        here = Branch(name="Apurvam Organics LLP (Sankrail-2)")
+        store_area = WarehouseLocation(branch=here, name=f"{here.name} Store", is_default=True)
+        assert str(store_area) == "Store"
+        rack = WarehouseLocation(branch=here, kind="rack", name="F01")
+        assert str(WarehouseLocation(branch=here, kind="bin", name="A-02", parent=rack)) == "A-02"
 
 
 def test_summary_on_a_day_before_the_receipt_is_empty(store, grn, received):  # noqa: F811
     body = summary(store, grn, as_on=(TODAY - timedelta(days=1)).isoformat()).json()
-    assert body["items"] == [] and body["total_value"] == "0"
+    assert body["lines"] == [] and body["total_value"] == "0"
 
 
 def test_summary_filters_by_item(store, grn, received):  # noqa: F811
     body = summary(store, grn, item=grn["box"]).json()
-    assert [i["item_name"] for i in body["items"]] == ["Tea Box"]
+    assert [r["item_name"] for r in body["lines"]] == ["Tea Box"]
 
 
 def test_stock_ledger_lists_each_move_with_a_running_balance(store, grn, received):  # noqa: F811
@@ -113,7 +120,7 @@ def test_a_cancelled_receipt_shows_its_reversal_and_leaves_nothing(owner, store,
     body = ledger(store, grn, item=grn["tea"]).json()
     assert [r["cancel"] for r in body["rows"]] == [False, False, True, True]
     assert body["closing_qty"] == "0.000000" and body["closing_value"] == "0.00"
-    assert summary(store, grn).json()["items"] == []
+    assert summary(store, grn).json()["lines"] == []
 
 
 def test_stock_reports_need_the_right_to_see_stock(alpha, grn):  # noqa: F811

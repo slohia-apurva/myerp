@@ -3914,3 +3914,22 @@ table.report td:nth-child(4) {
   color: var(--ink);
   font-weight: 400;
 }
+/* Reports read in a smaller type than the forms, to fit more lines (Sidharth, 2026-11-18). */
+table.report td {
+  font-size: 13px;
+  padding: 5px 8px;
+}
+table.report th {
+  font-size: 11px;
+  padding: 6px 8px;
+}
+table.report .col-search input {
+  font-size: 12px;
+  padding: 3px 6px;
+}
+.side-panel table td {
+  font-size: 13px;
+}
+.report-filters > label {
+  max-width: 320px;
+}

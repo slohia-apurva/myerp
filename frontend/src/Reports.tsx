@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import { Chevron, PageHeader, Section } from "./Brand";
+import { PageHeader, Section } from "./Brand";
+import { ColumnSearch } from "./ColumnSearch";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
@@ -13,10 +14,8 @@ import { openTab } from "./Master";
 type Branch = { id: number; name: string };
 type ItemRow = { id: number; name: string; item_number: string; maintain_stock?: boolean };
 
-type Bin = { location: number; place: string; qty: string; value: string };
-type BatchRow = { batch: number | null; number: string; expiry_date: string | null; status: string; qty: string; value: string; bins: Bin[] };
-type SummaryItem = { item: number; item_number: string; item_name: string; unit: string; batch_tracked: boolean; qty: string; value: string; rate: string; batches: BatchRow[] };
-type Summary = { company_name: string; as_on: string; items: SummaryItem[]; total_value: string };
+type SummaryLine = { item: number; item_number: string; item_name: string; batch: string; warehouse: string; bin: string; unit: string; qty: string; rate: string; value: string };
+type Summary = { company_name: string; as_on: string; lines: SummaryLine[]; total_value: string };
 
 type Entry = { type: string; type_label: string; id: number; number: string; page: string };
 type LedgerRow = {
@@ -101,55 +100,49 @@ export function EntryLink({ companyId, entry }: { companyId: number; entry: Entr
   );
 }
 
-const LEVELS = [
-  { value: "1", label: "Items" },
-  { value: "2", label: "Items › Batches" },
-  { value: "3", label: "Items › Batches › Bins" },
-];
+/** Does every word typed in a column's box appear in the cell (capitals ignored)? */
+const matches = (text: string, typed: string) =>
+  typed
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => text.toLowerCase().includes(w));
 
-/** Reports › Stock Summary: what is on hand on a day, by item, batch and bin. */
+/** Reports › Stock Summary: what is on hand on a day, one line per item, batch and bin, every
+ * field its own column with a search box under its heading (Sidharth, 2026-11-18, preview
+ * mockups/reports/3-stock-summary-flat-preview.png). The totals add up the lines shown. */
 export function StockSummaryPage({ companyId }: { companyId: number }) {
-  const branches = useBranches(companyId);
-  const items = useItems();
   const [asOn, setAsOn] = useState(today());
-  const [branch, setBranch] = useState(hashParam("branch"));
+  // From the Items screen: one item only, until "Show all items".
   const [item, setItem] = useState(hashParam("item"));
-  const [levels, setLevels] = useState("3");
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState<unknown>("");
-  // Items and batches folded by hand, on top of the "Show" level.
-  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState<string[]>([]);
   useEffect(() => {
     const params = new URLSearchParams({ as_on: asOn });
-    if (branch) params.set("branch", branch);
     if (item) params.set("item", item);
     setError("");
     api<Summary>(`v1/companies/${companyId}/stock-summary/?${params}`).then(setData, setError);
-  }, [companyId, asOn, branch, item]);
-  const branchName = branches.find((b) => String(b.id) === branch)?.name;
+  }, [companyId, asOn, item]);
+  const cells = (r: SummaryLine) => [r.item_number, r.item_name, r.batch, r.warehouse, r.bin, r.unit, qty(r.qty), r.rate ? rupees(r.rate) : "", rupees(r.value)];
+  const shown = useMemo(
+    () => (data?.lines ?? []).filter((r) => cells(r).every((text, i) => !search[i]?.trim() || matches(text, search[i]))),
+    [data, search],
+  );
+  const units = new Set(shown.map((r) => r.unit));
+  const totalQty = shown.reduce((t, r) => t + Number(r.qty), 0);
+  const totalValue = shown.reduce((t, r) => t + Number(r.value), 0);
+  const typed = search.filter((v) => v.trim()).length > 0;
   const printing = usePrintMenu({
     title: "Stock Summary",
-    scope: [data?.company_name, `As on ${dmy(asOn)}`, branchName].filter(Boolean).join(" · "),
+    scope: [data?.company_name, `As on ${dmy(asOn)}`].filter(Boolean).join(" · "),
   });
-  const toggle = (key: string) =>
-    setFolded((f) => {
-      const next = new Set(f);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  const openLedger = (id: number) => {
-    const params = new URLSearchParams({ item: String(id), to: asOn });
-    if (branch) params.set("branch", branch);
-    openTab(`#/companies/${companyId}/stock-ledger?${params}`);
-  };
-  const depth = Number(levels);
 
   return (
     <section className="page">
       <PageHeader
         title="Stock Summary"
-        sub={`${data?.company_name ?? ""}: what is in stock on a day, by item, batch and bin.`}
+        sub={`${data?.company_name ?? ""}: what is in stock on a day, one line per item, batch and bin.`}
         actions={printing.buttons}
       />
       {printing.panel}
@@ -159,143 +152,86 @@ export function StockSummaryPage({ companyId }: { companyId: number }) {
             As On
             <input type="date" value={asOn} max="9999-12-31" onChange={(e) => setAsOn(e.target.value || today())} />
           </label>
-          <label>
-            Warehouse
-            <Combobox
-              options={branches.map((b) => ({ value: String(b.id), label: b.name }))}
-              value={branch}
-              onChange={setBranch}
-              empty="All"
-              ariaLabel="Warehouse"
-            />
-          </label>
-          <label>
-            Item
-            <Combobox
-              options={items.map((i) => ({ value: String(i.id), label: i.name, hint: i.item_number }))}
-              value={item}
-              onChange={setItem}
-              empty="All"
-              ariaLabel="Item"
-            />
-          </label>
-          <label>
-            Show
-            <Combobox
-              options={LEVELS}
-              value={levels}
-              onChange={(v) => {
-                setLevels(v || "3");
-                setFolded(new Set());
-              }}
-              ariaLabel="Show"
-            />
-          </label>
         </div>
+        {item && (
+          <p className="small">
+            One item only.{" "}
+            <button type="button" className="link" onClick={() => setItem("")}>
+              Show all items
+            </button>
+          </p>
+        )}
       </Section>
       <ErrorNote error={error} />
-      {data && data.items.length === 0 ? (
-        <p className="small">Nothing in stock on {dmy(data.as_on)}.</p>
-      ) : (
-        data && (
-          <table className="report" data-title="Stock Summary">
-            <thead>
+      {data && (
+        <table className="report" data-title="Stock Summary">
+          <thead>
+            <tr>
+              <th>Item No</th>
+              <th>Item Name</th>
+              <th>Batch</th>
+              <th>Warehouse</th>
+              <th>Bin</th>
+              <th>Unit</th>
+              <th className="num">Quantity</th>
+              <th className="num">Rate ₹</th>
+              <th className="num">Value ₹</th>
+            </tr>
+            <ColumnSearch onSearch={setSearch} />
+          </thead>
+          <tbody>
+            {shown.length === 0 && (
               <tr>
-                <th>Item / Batch / Bin</th>
-                <th>Unit</th>
-                <th className="num">Quantity</th>
-                <th className="num">Rate ₹</th>
-                <th className="num">Value ₹</th>
+                <td colSpan={9} className="small">
+                  {typed ? "Nothing matches the column searches." : `Nothing in stock on ${dmy(data.as_on)}.`}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {data.items.flatMap((it) => {
-                const itemKey = `i${it.item}`;
-                const itemOpen = depth > 1 && !folded.has(itemKey);
-                const rows = [
-                  <tr key={itemKey} className="report-l1">
-                    <td>
-                      {depth > 1 && (
-                        <button
-                          className="fold no-print"
-                          aria-expanded={itemOpen}
-                          aria-label={`${itemOpen ? "Hide" : "Show"} batches of ${it.item_name}`}
-                          onClick={() => toggle(itemKey)}
-                        >
-                          <Chevron open={itemOpen} />
-                        </button>
-                      )}{" "}
-                      <a
-                        href={`#/companies/${companyId}/stock-ledger?item=${it.item}`}
-                        title="Open the Stock Ledger of this item"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          openLedger(it.item);
-                        }}
-                      >
-                        {it.item_number} {it.item_name}
-                      </a>
-                    </td>
-                    <td>{it.unit}</td>
-                    <td className="num">{qty(it.qty)}</td>
-                    <td className="num">{it.rate ? rupees(it.rate) : ""}</td>
-                    <td className="num">{rupees(it.value)}</td>
-                  </tr>,
-                ];
-                if (!itemOpen) return rows;
-                for (const b of it.batches) {
-                  const batchKey = `${itemKey}b${b.batch ?? 0}`;
-                  const batchOpen = depth > 2 && !folded.has(batchKey);
-                  const label = b.number
-                    ? `Batch ${b.number}${b.expiry_date ? `, expiry ${dmy(b.expiry_date)}` : ""}${b.status ? `, ${b.status}` : ""}`
-                    : "No batch";
-                  rows.push(
-                    <tr key={batchKey} className="report-l2">
-                      <td>
-                        {depth > 2 && (
-                          <button
-                            className="fold no-print"
-                            aria-expanded={batchOpen}
-                            aria-label={`${batchOpen ? "Hide" : "Show"} bins of ${label}`}
-                            onClick={() => toggle(batchKey)}
-                          >
-                            <Chevron open={batchOpen} />
-                          </button>
-                        )}{" "}
-                        {label}
-                      </td>
-                      <td>{it.unit}</td>
-                      <td className="num">{qty(b.qty)}</td>
-                      <td />
-                      <td className="num">{rupees(b.value)}</td>
-                    </tr>,
-                  );
-                  if (batchOpen)
-                    for (const bin of b.bins)
-                      rows.push(
-                        <tr key={`${batchKey}l${bin.location}`} className="report-l3">
-                          <td>{bin.place}</td>
-                          <td>{it.unit}</td>
-                          <td className="num">{qty(bin.qty)}</td>
-                          <td />
-                          <td className="num">{rupees(bin.value)}</td>
-                        </tr>,
-                      );
-                }
-                return rows;
-              })}
+            )}
+            {shown.map((r, n) => (
+              <tr key={n}>
+                <td>
+                  <a
+                    href={`#/companies/${companyId}/stock-ledger?item=${r.item}`}
+                    title="Open the Stock Ledger of this item"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openTab(`#/companies/${companyId}/stock-ledger?${new URLSearchParams({ item: String(r.item), to: asOn })}`);
+                    }}
+                  >
+                    {r.item_number}
+                  </a>
+                </td>
+                <td>{r.item_name}</td>
+                <td>{r.batch}</td>
+                <td>{r.warehouse}</td>
+                <td>{r.bin}</td>
+                <td>{r.unit}</td>
+                <td className="num">{qty(r.qty)}</td>
+                <td className="num">{r.rate ? rupees(r.rate) : ""}</td>
+                <td className="num">{rupees(r.value)}</td>
+              </tr>
+            ))}
+            {shown.length > 0 && (
               <tr className="report-total">
                 <td>Total</td>
                 <td />
                 <td />
                 <td />
-                <td className="num">{rupees(data.total_value)}</td>
+                <td />
+                <td>{units.size === 1 ? [...units][0] : ""}</td>
+                <td className="num">{units.size === 1 ? qty(String(totalQty)) : ""}</td>
+                <td />
+                <td className="num">{rupees(String(totalValue))}</td>
               </tr>
-            </tbody>
-          </table>
-        )
+            )}
+          </tbody>
+        </table>
       )}
-      {data && data.items.length > 0 && <p className="small no-print">Click an item to open its Stock Ledger.</p>}
+      {data && data.lines.length > 0 && (
+        <p className="small no-print">
+          Click an item number to open its Stock Ledger. The totals add up the lines shown; the quantity total shows when they are all in one unit.
+        </p>
+      )}
     </section>
   );
 }
@@ -516,7 +452,7 @@ export function ItemStockBox({ companyId, itemId }: { companyId: number; itemId:
         {s.branches.length === 0 ? (
           <p className="small">Nothing in stock in this company.</p>
         ) : (
-          <table className="side-table no-print">
+          <table className="report side-table no-print">
             <thead>
               <tr>
                 <th>Warehouse</th>
