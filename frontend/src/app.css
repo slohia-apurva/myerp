@@ -3986,3 +3986,46 @@ table.pick .col-search input {
     display: none;
   }
 }
+
+/* Sales order: its pick list note and the count of documents made from it
+   (Odoo-like, approved preview mockups/sales 5). */
+.pick-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.pick-note.all-in {
+  background: #eef7f1;
+  border-color: #b9dcc7;
+  color: var(--green);
+}
+.pick-note.all-in b {
+  color: var(--green);
+}
+.doc-counts {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.doc-counts > * {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 96px;
+  padding: 6px 12px;
+  border: 1px solid #b9dcc7;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--green);
+  font-size: 13px;
+  text-decoration: none;
+}
+.doc-counts b {
+  font-size: 18px;
+}
+.doc-counts .none {
+  color: #8a94a0;
+  border-color: #dde3e8;
+}

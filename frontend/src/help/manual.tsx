@@ -3324,13 +3324,81 @@ export const MANUAL: Chapter[] = [
           The order's page says "Submitted as …" with the date and time.
           "Email Customer" mails the order confirmation, with the order as a
           PDF, to the ticked contacts; a copy goes in the order's Activity.
-          "Print ▾" holds "Sales order" and "Download PDF". "Create ▾" will
-          hold the Pick List, Delivery Note and Sales Invoice as they are
-          built. The "Delivered" box shows, per item, what was ordered, sent
+          "Print ▾" holds "Sales order" and "Download PDF". Submit also makes
+          the order's pick list (see "Pick lists"): a note at the top says
+          whether every item was found in stock, with "Open Pick List", and
+          the boxes under it count the pick lists, delivery notes and
+          invoices made from the order. "Create ▾" holds "Pick List" (a new
+          one, when the order has none that is open or picked); the Delivery
+          Note and Sales Invoice join it as they are built. The "Delivered" box shows, per item, what was ordered, sent
           and still to go; "Close Line" (with a reason) closes a balance that
           will not be sent, and "Reopen Line" opens it again. "Cancel order"
           (with a reason) works on a draft or an order nothing has gone
-          against. "Duplicate" makes a new draft from the order.
+          against, and cancels its pick list too. "Duplicate" makes a new
+          draft from the order.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "pick-lists",
+    title: "Pick lists",
+    summary: "Which bin and batch the stores take a sales order's goods from: made on Submit, changed while open, final once submitted.",
+    body: (
+      <>
+        <p>
+          A pick list tells the stores where to take an order's goods from:
+          the bin, the batch and how much, item by item. It is made by itself
+          when a sales order is submitted. It posts nothing to the books or to
+          stock; the delivery note moves the goods.
+        </p>
+        <h3>How the bins and batches are chosen</h3>
+        <ul>
+          <li>
+            Only places in the order's "Despatch From": the area and the racks
+            and bins in it, or the whole branch.
+          </li>
+          <li>Earliest expiry first, then the oldest received.</li>
+          <li>A batch held back ("Quarantine" or "Rejected") is never picked.</li>
+          <li>
+            Stock on another open or picked pick list is kept aside, so two
+            orders never pick the same bags.
+          </li>
+        </ul>
+        <p>
+          When not enough is found, the list picks what there is and the
+          note at the top says "Not all in stock", with what was ordered,
+          found and short for each item. The same note shows on the sales
+          order.
+        </p>
+        <h3>Find the pick lists</h3>
+        <p>
+          Click "Entry", point at "Sales" and click "Pick List", or click
+          "Open Pick List" on the sales order. The list shows "Open" lists
+          first; pick "Picked", "Cancelled" or "All" in the box above it.
+          Every column has its own "Search" box. Click a list to see it at the
+          right, with "Open" and "Print".
+        </p>
+        <h3>Change an open list</h3>
+        <p>
+          Click "Edit". Each item shows its rows with "Bin and Batch" and
+          "Pick Qty (Stock Unit)". The bin picker offers only places in the
+          Despatch From where the item is free, with the expiry and how much
+          is free. Change a row, remove it with ✕, or click "+ Add bin" to
+          take some from another place. "Still Short" shows what is left.
+          Click "Save"; a row asking for more than is free, or a line picking
+          more than was ordered, is refused with the reason.
+          "Discard changes" leaves the list as it was.
+        </p>
+        <h3>Submit, print and cancel</h3>
+        <p>
+          When the goods are picked, click "Submit": the list is "Picked" and
+          final. "Print ▾" holds "Pick list" (a sheet for the stores, with a
+          blank "Picked" column to tick) and "Download PDF". "Cancel" (with a
+          reason) frees the stock the list kept aside; then "Create ▾ › Pick
+          List" on the sales order makes a new one. Files go under
+          "Attachments". Who may see or change pick lists: people whose role
+          may see or make sales or stock entries.
         </p>
       </>
     ),

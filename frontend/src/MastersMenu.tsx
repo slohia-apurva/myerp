@@ -240,6 +240,9 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
                 <a role="menuitem" href={`#/companies/${id}/sales-orders`} onClick={() => setOpen(false)}>
                   Sales Order
                 </a>
+                <a role="menuitem" href={`#/companies/${id}/pick-lists`} onClick={() => setOpen(false)}>
+                  Pick List
+                </a>
               </div>
             </div>
           )}

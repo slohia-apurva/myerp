@@ -206,7 +206,7 @@ def _register() -> None:
     )
     from core.parties import party_extras
     from insurance.models import InsurancePolicy
-    from selling.models import SalesOrder
+    from selling.models import PickList, SalesOrder
     from shipping.models import CourierAccount, Shipment
 
     def state(code):
@@ -562,6 +562,23 @@ def _register() -> None:
                             f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
                             f" at {_number(ln.rate)}"
                             for ln in o.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            PickList: Tracked(
+                "pick_list",
+                "Pick list",
+                by_company,
+                extras={
+                    "pick_status": ("Status", lambda p: p.get_status_display()),
+                    "rows": (
+                        "Picked from",
+                        lambda p: "; ".join(
+                            f"{r.item} {_number(r.qty)} from {r.location}"
+                            + (f" batch {r.batch}" if r.batch_id else "")
+                            for r in p.lines.select_related("item", "location", "batch")
                         )
                         or None,
                     ),
