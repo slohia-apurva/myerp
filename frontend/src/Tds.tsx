@@ -30,6 +30,8 @@ export type TdsInfo = {
   year_so_far: { section: string; amount: string }[];
   rows: TdsRow[];
   total: string;
+  adjusted?: { id: number; number: string; date: string; section: string; amount: string }[];
+  with_adjusted?: string;
 };
 
 let cached: Promise<TdsSection[]> | null = null;
@@ -63,7 +65,7 @@ export function TdsSectionPicker(props: { value: string; onChange: (code: string
 const n = (v: string | undefined) => Number(v) || 0;
 
 /** The bill's "TDS" box. On a draft each line's section can be changed (saved at once). */
-export function TdsBox<T>(props: { billId: number; tds?: TdsInfo; total: string; draft: boolean; onChanged?: (fresh: T) => void }) {
+export function TdsBox<T>(props: { billId: number; companyId?: number; tds?: TdsInfo; total: string; draft: boolean; onChanged?: (fresh: T) => void }) {
   const { tds, draft } = props;
   const [error, setError] = useState<unknown>("");
   if (!tds) return null;
@@ -123,8 +125,30 @@ export function TdsBox<T>(props: { billId: number; tds?: TdsInfo; total: string;
             <tr>
               <td colSpan={4}>TDS Deducted</td>
               <td className="num">{money(tds.total)}</td>
-              <td className="small">{n(tds.total) ? `The supplier is paid ₹${money(String(Math.round((n(props.total) - n(tds.total)) * 100) / 100))}` : ""}</td>
+              <td className="small">{n(tds.total) && !tds.adjusted?.length ? `The supplier is paid ₹${money(String(Math.round((n(props.total) - n(tds.total)) * 100) / 100))}` : ""}</td>
             </tr>
+            {(tds.adjusted ?? []).map((a) => (
+              <tr key={a.id}>
+                <td colSpan={4}>
+                  TDS adjusted later:{" "}
+                  <a href={`#/companies/${props.companyId ?? ""}/tds-adjustments?view=${a.id}`} target="_blank" rel="noreferrer">
+                    {a.number}
+                  </a>{" "}
+                  <span className="small">
+                    {a.date.split("-").reverse().join("-")} · {a.section}
+                  </span>
+                </td>
+                <td className="num">{n(a.amount) < 0 ? `(${money(-n(a.amount))})` : money(a.amount)}</td>
+                <td />
+              </tr>
+            ))}
+            {(tds.adjusted ?? []).length > 0 && (
+              <tr>
+                <td colSpan={4}>Total TDS on This Bill</td>
+                <td className="num">{money(tds.with_adjusted ?? tds.total)}</td>
+                <td className="small">{`The supplier is paid ₹${money(String(Math.round((n(props.total) - n(tds.with_adjusted)) * 100) / 100))}`}</td>
+              </tr>
+            )}
           </tfoot>
         </table>
       )}

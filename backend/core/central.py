@@ -300,6 +300,7 @@ class TdsSectionAdminSerializer(serializers.ModelSerializer):
             "year_limit",
             "above_limit_only",
             "for_goods",
+            "late_interest",
             "is_active",
         ]
         validators = []  # the clash is refused in validate(), in words
@@ -314,7 +315,7 @@ class TdsSectionAdminSerializer(serializers.ModelSerializer):
         return re.sub(r"\(([A-Z]+)\)", lambda m: f"({m.group(1).lower()})", value)
 
     def validate(self, data):
-        for field in ("rate_other", "rate_individual", "rate_no_pan"):
+        for field in ("rate_other", "rate_individual", "rate_no_pan", "late_interest"):
             if field in data and not 0 <= data[field] <= 100:
                 raise serializers.ValidationError({field: ["A rate is between 0 and 100."]})
         code = data.get("code", getattr(self.instance, "code", ""))

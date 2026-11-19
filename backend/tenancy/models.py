@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -177,6 +179,9 @@ class TdsSection(models.Model):
     above_limit_only = models.BooleanField(default=False)
     # Purchase of goods (194Q): used for goods only when the company ticks it.
     for_goods = models.BooleanField(default=False)
+    # Interest for deducting late, % a month or part of one, from the date TDS
+    # was due to be deducted to the date it is (shown on a TDS Adjustment).
+    late_interest = models.DecimalField(max_digits=6, decimal_places=3, default=Decimal("1"))
     is_active = models.BooleanField(default=True)
 
     class Meta:

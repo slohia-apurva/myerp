@@ -1,6 +1,6 @@
 """Purchase orders and goods receipts keep files in the Attachments box."""
 
-from buying import debit_notes, invoices, receipts, returns
+from buying import debit_notes, invoices, receipts, returns, tds_check
 from buying.api import _order
 from core import attachments
 
@@ -40,3 +40,13 @@ attachments.register("goods_receipt", _goods_receipt, "Goods Receipt")
 attachments.register("purchase_invoice", _purchase_invoice, "Purchase Invoice")
 attachments.register("purchase_return", _purchase_return, "Purchase Return")
 attachments.register("debit_note", _debit_note, "Debit Note")
+
+
+def _tds_adjustment(request, pk: int) -> attachments.Found:
+    if not request.user.can("accounts.view"):
+        raise attachments.NotFound("No such TDS adjustment.")
+    found = tds_check._adjustment(request, pk)
+    return attachments.Found(found, request.user.can("accounts.create"))
+
+
+attachments.register("tds_adjustment", _tds_adjustment, "TDS Adjustment")

@@ -833,3 +833,98 @@ class DebitNoteLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item_id}: {self.qty} @ {self.rate}"
+
+
+class TdsReturnFiled(models.Model):
+    """A quarter whose TDS return is filed (Sidharth, 2026-11-19): its bills'
+    TDS can no longer be put right by a TDS Adjustment, and its bills with TDS
+    cannot be cancelled. Quarters run April-June, July-September,
+    October-December, January-March; `quarter_start` is the first day."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="tds_returns")
+    quarter_start = models.DateField()
+    filed_on = models.DateField()
+    ack_no = models.CharField(max_length=30, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["quarter_start"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "quarter_start"], name="tds_return_once_a_quarter"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"TDS return from {self.quarter_start}"
+
+
+class TdsAdjustment(models.Model):
+    """TDS put right after the bills were submitted (Sidharth, 2026-11-19,
+    previews 95a-c), made from the TDS Check: a submitted bill is never
+    changed, so TDS missed is deducted now (Dr supplier, Cr TDS Payable) and TDS
+    deducted in excess is given back (the other way). One supplier, one section;
+    its lines name the bills (buying/tds_check.py)."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="tds_adjustments")
+    supplier = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="tds_adjustments")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="tds_adjustments")
+    number = models.CharField(max_length=30, blank=True)
+    adj_date = models.DateField()
+    section = models.CharField(max_length=12)
+    remarks = models.TextField(blank=True)
+    # Signed: + TDS deducted now, - TDS given back.
+    total = models.DecimalField(**MONEY, default=Decimal("0"))
+    interest = models.DecimalField(**MONEY, default=Decimal("0"))  # for information only
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-adj_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company", "number", condition=~models.Q(number=""), name="tdsa_number_unique"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft TDS adjustment {self.pk}"
+
+
+class TdsAdjustmentLine(models.Model):
+    """One bill put right: the TDS due on it (worked out again by the TDS
+    Check), what the bill and earlier adjustments deducted, and the difference
+    taken now (signed). Interest is on TDS deducted late only."""
+
+    adjustment = models.ForeignKey(TdsAdjustment, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    invoice = models.ForeignKey(
+        PurchaseInvoice, on_delete=models.PROTECT, related_name="tds_adjustment_lines"
+    )
+    base = models.DecimalField(**MONEY, default=Decimal("0"))
+    rate = models.DecimalField(max_digits=6, decimal_places=3, default=Decimal("0"))
+    due = models.DecimalField(**MONEY, default=Decimal("0"))
+    deducted = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY, default=Decimal("0"))
+    months = models.PositiveSmallIntegerField(default=0)
+    interest = models.DecimalField(**MONEY, default=Decimal("0"))
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.invoice_id}: {self.amount}"

@@ -11,6 +11,7 @@ from buying import (
     supplier_link,
     supplier_mail,
     tds,
+    tds_check,
 )
 
 urlpatterns = [
@@ -185,5 +186,47 @@ urlpatterns = [
         "debit-notes/<int:pk>/cancel/",
         debit_notes.NoteCancelView.as_view(),
         name="debit-note-cancel",
+    ),
+    path("companies/<int:pk>/tds-check/", tds_check.CheckView.as_view(), name="tds-check"),
+    path(
+        "companies/<int:pk>/tds-check/supplier/",
+        tds_check.CheckSupplierView.as_view(),
+        name="tds-check-supplier",
+    ),
+    path(
+        "companies/<int:pk>/tds-returns/",
+        tds_check.ReturnListView.as_view(),
+        name="tds-returns",
+    ),
+    path("tds-returns/<int:pk>/", tds_check.ReturnDetailView.as_view(), name="tds-return"),
+    path(
+        "companies/<int:pk>/tds-adjustments/",
+        tds_check.AdjustmentListView.as_view(),
+        name="tds-adjustments",
+    ),
+    path(
+        "companies/<int:pk>/tds-adjustments/draft-from/",
+        tds_check.AdjustmentDraftFromView.as_view(),
+        name="tds-adjustment-draft-from",
+    ),
+    path(
+        "companies/<int:pk>/tds-adjustments/preview/",
+        tds_check.AdjustmentPreviewView.as_view(),
+        name="tds-adjustment-preview",
+    ),
+    path(
+        "tds-adjustments/<int:pk>/",
+        tds_check.AdjustmentDetailView.as_view(),
+        name="tds-adjustment",
+    ),
+    path(
+        "tds-adjustments/<int:pk>/cancel/",
+        tds_check.AdjustmentCancelView.as_view(),
+        name="tds-adjustment-cancel",
+    ),
+    path(
+        "tds-adjustments/<int:pk>/ledger-posting/",
+        tds_check.AdjustmentPostingView.as_view(),
+        name="tds-adjustment-posting",
     ),
 ]

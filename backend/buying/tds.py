@@ -201,6 +201,64 @@ def _limits(sec: TdsSection) -> str:
     return " and ".join(parts)
 
 
+def work_out(
+    sec: TdsSection, taxables: list[Decimal], so_far: Decimal, so_far_base: Decimal
+) -> tuple[list[Decimal], list[tuple[str, bool]]]:
+    """What TDS is worked out on, for one bill's lines in one section, given the
+    supplier's year so far in the section (the amount, and the part TDS was
+    deducted on). Also each line's note: (text, whether it adds to the line's
+    own note); no text keeps the line's own. Used by every bill and by the
+    TDS Check, which runs the year again (buying/tds_check.py)."""
+    bases = [ZERO] * len(taxables)
+    notes: list[tuple[str, bool]] = [("", False)] * len(taxables)
+    if sec.above_limit_only:
+        limit = sec.year_limit or ZERO
+        running = so_far
+        for n, taxable in enumerate(taxables):
+            bases[n] = max(ZERO, running + taxable - limit) - max(ZERO, running - limit)
+            running += taxable
+            notes[n] = (
+                (f"Year so far ₹{_plain(so_far)}: TDS on what passes ₹{_plain(limit)}.", False)
+                if bases[n]
+                else (f"Year so far ₹{_plain(so_far)}: below ₹{_plain(limit)}.", False)
+            )
+        return bases, notes
+    bill = sum(taxables, ZERO)
+    over_bill = bool(sec.bill_limit) and bill > sec.bill_limit
+    over_year = bool(sec.year_limit) and so_far + bill > sec.year_limit
+    no_limits = not sec.bill_limit and not sec.year_limit
+    if not (over_bill or over_year or no_limits):
+        return bases, [(f"Below the limits ({_limits(sec)}).", False)] * len(taxables)
+    bases = list(taxables)
+    catch_up = so_far - so_far_base if over_year else ZERO
+    if catch_up > 0 and bases:
+        bases[0] += catch_up
+        notes[0] = (
+            f"The year passes ₹{_plain(sec.year_limit)}: includes "
+            f"₹{_plain(catch_up)} of earlier bills.",
+            False,
+        )
+    elif over_year:
+        code = sec.code
+        text = f"The supplier's {code} this year passes ₹{_plain(sec.year_limit)}."
+        notes = [(text, True)] * len(taxables)
+    return bases, notes
+
+
+def lines_now(inv: PurchaseInvoice) -> list[tuple[Line, str, str]]:
+    """The bill's lines with the section each takes by today's masters (or the
+    one chosen on the bill), and why: for the TDS Check."""
+    chosen = {(r.line_kind, r.line_position): r.section for r in inv.tds_rows.filter(by_hand=True)}
+    out = []
+    for ln in _lines(inv):
+        key = (ln.kind, ln.position)
+        if key in chosen:
+            out.append((ln, chosen[key], "Chosen on the bill."))
+        else:
+            out.append((ln, ln.default, ln.why))
+    return out
+
+
 def refresh(inv: PurchaseInvoice) -> None:
     """Work the bill's TDS out again from its lines, keeping what the person
     chose by hand, and set inv.tds_total. Only for drafts and on Submit."""
@@ -243,42 +301,12 @@ def refresh(inv: PurchaseInvoice) -> None:
                 r.note = f"{code} is not in the TDS sections list on {day:%d-%m-%Y}."
             continue
         rate = rate_for(sec, party)
-        bill = sum((r.taxable for r in group), ZERO)
         so_far, so_far_base = year_so_far(inv, code)
-        if sec.above_limit_only:
-            limit = sec.year_limit or ZERO
-            running = so_far
-            for r in group:
-                r.base = max(ZERO, running + r.taxable - limit) - max(ZERO, running - limit)
-                running += r.taxable
-                r.note = (
-                    f"Year so far ₹{_plain(so_far)}: TDS on what passes ₹{_plain(limit)}."
-                    if r.base
-                    else f"Year so far ₹{_plain(so_far)}: below ₹{_plain(limit)}."
-                )
-        else:
-            over_bill = bool(sec.bill_limit) and bill > sec.bill_limit
-            over_year = bool(sec.year_limit) and so_far + bill > sec.year_limit
-            no_limits = not sec.bill_limit and not sec.year_limit
-            if over_bill or over_year or no_limits:
-                for r in group:
-                    r.base = r.taxable
-                catch_up = so_far - so_far_base if over_year else ZERO
-                if catch_up > 0:
-                    group[0].base += catch_up
-                    group[0].note = (
-                        f"The year passes ₹{_plain(sec.year_limit)}: includes "
-                        f"₹{_plain(catch_up)} of earlier bills."
-                    )
-                elif over_year:
-                    for r in group:
-                        r.note = (
-                            r.note + f" The supplier's {code} this year passes "
-                            f"₹{_plain(sec.year_limit)}."
-                        ).strip()
-            else:
-                for r in group:
-                    r.note = f"Below the limits ({_limits(sec)})."
+        bases, notes = work_out(sec, [r.taxable for r in group], so_far, so_far_base)
+        for r, b, (text, append) in zip(group, bases, notes, strict=True):
+            r.base = b
+            if text:
+                r.note = (r.note + " " + text).strip() if append else text
         for r in group:
             r.rate = rate if r.base else ZERO
             r.amount = rupees(r.base * rate / 100) if r.base else ZERO
@@ -393,6 +421,31 @@ def row_out(r: PurchaseInvoiceTds, day: datetime.date, individual: bool) -> dict
     }
 
 
+def adjusted_on(inv: PurchaseInvoice) -> list[dict]:
+    """Submitted TDS Adjustments naming the bill (buying/tds_check.py), so the bill,
+    and later a supplier's payment advice, show all the TDS deducted against it."""
+    from buying.models import TdsAdjustment, TdsAdjustmentLine
+
+    rows = TdsAdjustmentLine.objects.filter(
+        invoice=inv, adjustment__status=TdsAdjustment.SUBMITTED
+    ).select_related("adjustment")
+    return [
+        {
+            "id": ln.adjustment_id,
+            "number": ln.adjustment.number,
+            "date": ln.adjustment.adj_date,
+            "section": ln.adjustment.section,
+            "amount": ln.amount,
+        }
+        for ln in rows.order_by("adjustment__adj_date", "adjustment_id")
+    ]
+
+
+def deducted_on(inv: PurchaseInvoice) -> Decimal:
+    """All TDS deducted against the bill: on it, and by TDS Adjustments."""
+    return inv.tds_total + sum((a["amount"] for a in adjusted_on(inv)), ZERO)
+
+
 def box(inv: PurchaseInvoice) -> dict:
     party = inv.supplier.party
     codes = sorted({r.section for r in inv.tds_rows.all() if r.section})
@@ -402,11 +455,14 @@ def box(inv: PurchaseInvoice) -> dict:
         taxable, _ = year_so_far(inv, code)
         so_far.append({"section": tds_sections.shown(code, day), "amount": taxable})
     individual = deductee_type(party) == Party.INDIVIDUAL
+    adjusted = adjusted_on(inv)
     return {
         "deductee": deductee_label(party),
         "year_so_far": so_far,
         "rows": [row_out(r, day, individual) for r in inv.tds_rows.all()],
         "total": inv.tds_total,
+        "adjusted": adjusted,
+        "with_adjusted": inv.tds_total + sum((a["amount"] for a in adjusted), ZERO),
     }
 
 
@@ -446,10 +502,10 @@ class InvoiceTdsView(APIView):
     permission_classes = [Signed]
 
     def get(self, request, pk: int):
-        from buying.invoices import _invoice
+        from buying.invoices import _invoice, _text
 
         _check(request, VIEW)
-        return Response(box(_invoice(request, pk)))
+        return Response(_text(box(_invoice(request, pk))))
 
     @tenant_atomic()
     def put(self, request, pk: int):

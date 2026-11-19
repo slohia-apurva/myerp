@@ -719,6 +719,14 @@ def _submit(inv: PurchaseInvoice, user) -> None:
 
 def _cancel(inv: PurchaseInvoice, user, reason: str) -> None:
     from buying.debit_notes import invoice_debited
+    from buying.tds_check import covering, tds_in_quarter
+
+    if adjusted := covering(inv):
+        raise ValidationError(
+            {"detail": f"TDS Adjustment {adjusted} names this bill; cancel it first."}
+        )
+    if inv.status == PurchaseInvoice.SUBMITTED:
+        tds_in_quarter(inv)
 
     if notes := invoice_debited(inv):
         raise ValidationError(

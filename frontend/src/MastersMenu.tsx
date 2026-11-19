@@ -196,9 +196,9 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
 /** "Entry" in the top menu: the entry screens, grouped. "Purchase ▸" opens its own list
  * to the right on hover (or on a click, for touch screens). Purchase
  * Invoice and Purchase Return are shown as coming next until they are built. */
-export function EntryMenu(props: { active: boolean; company: Company; orders: boolean }) {
+export function EntryMenu(props: { active: boolean; company: Company; orders: boolean; tds?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [sub, setSub] = useState(false);
+  const [sub, setSub] = useState("");
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -224,15 +224,15 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
         aria-expanded={open}
         onClick={() => {
           setOpen(!open);
-          setSub(false);
+          setSub("");
         }}
       >
         Entry <span aria-hidden="true">▾</span>
       </button>
       {open && (
         <div className="menu-panel" role="menu">
-          <div className={`menu-sub${sub ? " open" : ""}`}>
-            <button type="button" aria-haspopup="true" aria-expanded={sub} onClick={() => setSub(!sub)}>
+          <div className={`menu-sub${sub === "purchase" ? " open" : ""}`}>
+            <button type="button" aria-haspopup="true" aria-expanded={sub === "purchase"} onClick={() => setSub(sub === "purchase" ? "" : "purchase")}>
               Purchase <span aria-hidden="true">▸</span>
             </button>
             <div className="menu-flyout" role="menu" aria-label="Purchase">
@@ -259,6 +259,21 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
               )}
             </div>
           </div>
+          {props.tds && (
+            <div className={`menu-sub${sub === "accounts" ? " open" : ""}`}>
+              <button type="button" aria-haspopup="true" aria-expanded={sub === "accounts"} onClick={() => setSub(sub === "accounts" ? "" : "accounts")}>
+                Accounts <span aria-hidden="true">▸</span>
+              </button>
+              <div className="menu-flyout" role="menu" aria-label="Accounts">
+                <a role="menuitem" href={`#/companies/${id}/tds-check`} onClick={() => setOpen(false)}>
+                  TDS Check
+                </a>
+                <a role="menuitem" href={`#/companies/${id}/tds-adjustments`} onClick={() => setOpen(false)}>
+                  TDS Adjustment
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

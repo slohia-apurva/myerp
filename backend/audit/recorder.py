@@ -180,6 +180,7 @@ def _register() -> None:
         PurchaseInvoice,
         PurchaseOrder,
         PurchaseReturn,
+        TdsAdjustment,
     )
     from core import india
     from core import modules as company_modules
@@ -479,6 +480,23 @@ def _register() -> None:
                         lambda n: "; ".join(
                             f"{ln.item} {_number(ln.qty)} @ {_number(ln.rate)}"
                             for ln in n.lines.select_related("item")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            TdsAdjustment: Tracked(
+                "tds_adjustment",
+                "TDS adjustment",
+                by_company,
+                labels={"adj_date": "Date", "branch": "Branch", "total": "TDS adjusted"},
+                extras={
+                    "adjustment_status": ("Status", lambda a: a.get_status_display()),
+                    "bills": (
+                        "Bills",
+                        lambda a: "; ".join(
+                            f"{ln.invoice.number} {_number(ln.amount)}"
+                            for ln in a.lines.select_related("invoice")
                         )
                         or None,
                     ),
