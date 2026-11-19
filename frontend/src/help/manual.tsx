@@ -2843,7 +2843,7 @@ export const MANUAL: Chapter[] = [
           receipts" is the usual bill for goods received into stock. "Without
           goods receipt" is for services and for goods not kept in stock (see
           "Bills without goods receipt" below). It is fixed once the bill is
-          saved.
+          saved, and from then on shows greyed with a "Locked" tag.
         </p>
         <ul>
           <li>

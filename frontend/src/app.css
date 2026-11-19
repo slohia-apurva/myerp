@@ -2407,6 +2407,10 @@ table.grid {
 .locked-field:has(.combo)::after {
   right: 34px;
 }
+/* Long text stops before the "Locked" tag instead of running under it. */
+.locked-field .combo input {
+  padding-right: 100px;
+}
 
 /* Ledger form: its folding sections stack like the item form's. */
 #ledger-form fieldset.plain {
