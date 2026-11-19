@@ -261,7 +261,22 @@ type OrderDraft = {
 };
 
 /** "Email PO": the submitted order to the supplier, its PDF attached. */
-export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClose: () => void; onSent: (to: string[]) => void }) {
+/** "Email PO" on a purchase order, or "Email Customer" on a sales order (`path`
+ * "sales-orders", Sidharth 2026-11-19: the order confirmation, no reply link). */
+export function OrderMail({
+  orderId,
+  onClose,
+  onSent,
+  path = "purchase-orders",
+  title = "Email PO",
+}: {
+  orderId: number;
+  onClose: () => void;
+  onSent: (to: string[]) => void;
+  path?: string;
+  title?: string;
+}) {
+  const sale = path === "sales-orders";
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [to, setTo] = useState<Person[]>([]);
   const [cc, setCc] = useState<Person[]>([]);
@@ -269,7 +284,7 @@ export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClo
   const [message, setMessage] = useState("");
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const link = `v1/purchase-orders/${orderId}/mail/`;
+  const link = `v1/${path}/${orderId}/mail/`;
   useEffect(() => {
     api<OrderDraft>(link).then((d) => {
       setDraft(d);
@@ -281,7 +296,7 @@ export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClo
   }, [link]);
   if (!draft)
     return (
-      <Fold title="Email PO" open>
+      <Fold title={title} open>
         <ErrorNote error={error} />
       </Fold>
     );
@@ -299,7 +314,7 @@ export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClo
     }
   };
   return (
-    <Fold title="Email PO" open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
+    <Fold title={title} open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
       {!draft.mail_ready && (
         <p className="use-note">
           The company's mail account is not set up yet. An Owner sets it under Admin › Company › Edit › "Mail Account".
@@ -315,7 +330,7 @@ export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClo
           </label>
           <div className="field">
             <span className="fact-label">Attached</span>
-            <a href={`/api/v1/purchase-orders/${orderId}/pdf/`} target="_blank" rel="noreferrer">
+            <a href={`/api/v1/${path}/${orderId}/pdf/`} target="_blank" rel="noreferrer">
               {draft.attachment}
             </a>
           </div>
@@ -324,10 +339,14 @@ export function OrderMail({ orderId, onClose, onSent }: { orderId: number; onClo
           <span className="fact-label">The Mail (the text box can be changed)</span>
           <p>Dear {greeting},</p>
           <textarea rows={5} value={message} onChange={(e) => setMessage(e.target.value)} aria-label="Message" />
-          <p>
-            <span className="mail-button">View and Accept Order</span>
-          </p>
-          <p className="small">The supplier's private link is added here: they can accept the order or report an issue without signing in.</p>
+          {!sale && (
+            <>
+              <p>
+                <span className="mail-button">View and Accept Order</span>
+              </p>
+              <p className="small">The supplier's private link is added here: they can accept the order or report an issue without signing in.</p>
+            </>
+          )}
           <p className="pre">Regards,{"\n" + draft.signature}</p>
         </div>
       </div>

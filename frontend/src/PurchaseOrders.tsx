@@ -143,7 +143,7 @@ export type Place = {
   email?: string;
   is_billing?: boolean;
 };
-type Contact = { id: number; name: string; designation: string; phone: string; email: string; is_primary: boolean; kinds: string[] };
+export type Contact = { id: number; name: string; designation: string; phone: string; email: string; is_primary: boolean; kinds: string[] };
 /** Who gets the order by mail unless changed: purchase contacts and the main contact, if they have an email. */
 const mailedFirst = (contacts: Contact[]) => contacts.filter((c) => c.email && (c.is_primary || c.kinds.includes("purchase"))).map((c) => c.id);
 type Supplier = {
@@ -1299,7 +1299,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   );
 }
 
-function ContactTicks(props: {
+export function ContactTicks(props: {
   title: string;
   contacts: Contact[];
   ticked: number[];
@@ -1491,7 +1491,7 @@ function ImportView({ order }: { order: PurchaseOrder }) {
   );
 }
 
-function TotalsPanel(p: {
+export function TotalsPanel(p: {
   items?: number;
   charges?: number;
   taxable: number;
@@ -1528,7 +1528,7 @@ function TotalsPanel(p: {
 
 /** An address as lines: name, street, "City - PIN", "State (code) - Country", then
  * GSTIN, FSSAI, contact, phone and email, each on its own line (as printed). */
-function AddressBlock({ place, title }: { place: Place | null | undefined; title?: string }) {
+export function AddressBlock({ place, title }: { place: Place | null | undefined; title?: string }) {
   if (!place) return <p className="small">No address.</p>;
   const india = !place.country || place.country === "India";
   const cityLine = [place.city, place.pincode].filter(Boolean).join(" - ");
@@ -1562,12 +1562,12 @@ function AddressBlock({ place, title }: { place: Place | null | undefined; title
   );
 }
 
-function PaymentPanel({ term }: { term: CreditTerm | undefined }) {
+export function PaymentPanel({ term, on = "purchase invoice" }: { term: CreditTerm | undefined; on?: string }) {
   const parts = termParts(term);
   return (
     <SidePanel title="Payment Due">
       {parts.length ? parts.map((p) => <p key={p}>{p}</p>) : <p className="small">No credit term.</p>}
-      <p className="small">The exact dates are set on the purchase invoice.</p>
+      <p className="small">The exact dates are set on the {on}.</p>
     </SidePanel>
   );
 }

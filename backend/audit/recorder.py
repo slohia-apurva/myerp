@@ -206,6 +206,7 @@ def _register() -> None:
     )
     from core.parties import party_extras
     from insurance.models import InsurancePolicy
+    from selling.models import SalesOrder
     from shipping.models import CourierAccount, Shipment
 
     def state(code):
@@ -518,6 +519,49 @@ def _register() -> None:
                         lambda i: "; ".join(
                             f"{ln.item} {_number(ln.qty)} @ {_number(ln.rate)}"
                             for ln in i.lines.select_related("item")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            SalesOrder: Tracked(
+                "sales_order",
+                "Sales order",
+                by_company,
+                labels={"branch": "Despatch from", "area": "Despatch area"},
+                extras={
+                    "order_status": ("Status", lambda o: o.get_status_display()),
+                    "bill_address_label": (
+                        "Billing address",
+                        lambda o: (o.bill_address or {}).get("label") or None,
+                    ),
+                    "ship_address_label": (
+                        "Ship to",
+                        lambda o: (o.ship_address or {}).get("label") or None,
+                    ),
+                    "charges": (
+                        "Charges",
+                        lambda o: "; ".join(
+                            f"{c.item} {c.amount}"
+                            + (f" + GST {_number(c.gst_rate)}%" if c.gst_rate else "")
+                            for c in o.charges.select_related("item")
+                        )
+                        or None,
+                    ),
+                    "mail_contacts": (
+                        "Mail to",
+                        lambda o: ", ".join(
+                            f"{c.name} <{c.email}>"
+                            for c in PartyContact.objects.filter(pk__in=o.mail_to)
+                        )
+                        or None,
+                    ),
+                    "items": (
+                        "Items",
+                        lambda o: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            f" at {_number(ln.rate)}"
+                            for ln in o.lines.select_related("item", "unit")
                         )
                         or None,
                     ),

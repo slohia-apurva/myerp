@@ -75,6 +75,7 @@ export type Item = {
   maintain_stock: boolean;
   allow_purchase: boolean;
   purchase_charge: boolean;
+  sales_charge: boolean;
   add_to_stock: string;
   allow_sales: boolean;
   offer_to_all: boolean;
@@ -728,6 +729,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                       ] as [string, string][])
                     : []),
                   ["Allow sales", i.allow_sales ? "Yes" : "No"],
+                  ...(i.item_type === "service" ? ([["Use as Sales Charge", i.sales_charge ? "Yes" : "No"]] as [string, string][]) : []),
                   ["Offer to all", i.offer_to_all ? "Yes" : "No"],
                   ["Maintain stock", i.maintain_stock ? "Yes" : "No"],
                 ]}
@@ -812,6 +814,7 @@ function ItemForm(props: {
   const [disabled, setDisabled] = useState(it ? !it.is_active : false);
   const [allowPurchase, setAllowPurchase] = useState(from?.allow_purchase ?? true);
   const [purchaseCharge, setPurchaseCharge] = useState(from?.purchase_charge ?? false);
+  const [salesCharge, setSalesCharge] = useState(from?.sales_charge ?? false);
   const [addToStock, setAddToStock] = useState(from?.add_to_stock ?? "value");
   const [allowSales, setAllowSales] = useState(from?.allow_sales ?? true);
   const [offerAll, setOfferAll] = useState(from?.offer_to_all ?? false);
@@ -980,6 +983,7 @@ function ItemForm(props: {
       maintain_stock: stocked,
       allow_purchase: allowPurchase,
       purchase_charge: type === "service" && purchaseCharge,
+      sales_charge: type === "service" && salesCharge,
       add_to_stock: addToStock,
       allow_sales: allowSales,
       offer_to_all: offerAll,
@@ -1763,6 +1767,12 @@ function ItemForm(props: {
                 <input type="checkbox" checked={allowSales} onChange={(e) => setAllowSales(e.target.checked)} />
                 Allow sales
               </label>
+              {type === "service" && (
+                <label className="check">
+                  <input type="checkbox" checked={salesCharge} onChange={(e) => setSalesCharge(e.target.checked)} />
+                  Use as Sales Charge
+                </label>
+              )}
               <label className="check">
                 <input type="checkbox" checked={offerAll} onChange={(e) => setOfferAll(e.target.checked)} />
                 Offer to all

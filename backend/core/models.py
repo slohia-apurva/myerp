@@ -999,6 +999,9 @@ class Item(models.Model):
     # Stock Cost" from here. A charge not added to stock cost goes to the
     # expense account of the item's group.
     purchase_charge = models.BooleanField(default=False)
+    # A service billed to customers as an extra (freight outward, packing):
+    # offered in the "Charges" section of a sales order.
+    sales_charge = models.BooleanField(default=False)
     NO_STOCK_COST, BY_QTY, BY_VALUE = "no", "qty", "value"
     STOCK_COST = [(NO_STOCK_COST, "No"), (BY_QTY, "By Quantity"), (BY_VALUE, "By Value")]
     add_to_stock = models.CharField(max_length=5, choices=STOCK_COST, default=BY_VALUE)

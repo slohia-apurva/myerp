@@ -713,7 +713,8 @@ export const MANUAL: Chapter[] = [
             offers it under "Charges" on a purchase order (freight, packing,
             insurance and the like), and "Add to Stock Cost" ("No", "By
             Quantity" or "By Value") is how it is spread into the cost of the
-            goods unless changed on the order.
+            goods unless changed on the order. "Use as Sales Charge" in the
+            same panel offers it under "Charges" on a sales order.
           </li>
           <li>
             On the "Sales" tab, write the "Sales description" customers should
@@ -3224,6 +3225,113 @@ export const MANUAL: Chapter[] = [
           entries. The interest rate and the treatment of excess TDS are to be
           confirmed by the CA.
         </Note>
+      </>
+    ),
+  },
+  {
+    id: "sales-orders",
+    title: "Sales orders",
+    summary:
+      "What a customer asks the company for: the rate it pays, where the goods go out from, stock on hand, and the order confirmation mail.",
+    body: (
+      <>
+        <p>
+          A sales order says what a customer asked for, at what rate and by
+          when. It is the first step of sales: the pick list, the delivery note
+          and the sales invoice follow from it. A sales order posts nothing to
+          the books or to stock.
+        </p>
+        <h3>Find the sales orders</h3>
+        <p>
+          Click "Entry" in the top menu, point at "Sales" and click "Sales
+          Order". "Entry" shows the sales part only when the company picked at
+          the top right uses the Sales module and your role may see sales. The
+          list works like the purchase order list: "Open (drafts and ordered)"
+          shows first, every column has its own "Search" box, and clicking an
+          order shows its details at the right with "Open" and "Print".
+        </p>
+        <h3>Make a sales order</h3>
+        <ol>
+          <li>Click "New sales order" (it opens in a new browser tab).</li>
+          <li>
+            Under "Customer and Dates" pick the "Customer". The line under it
+            shows its GSTIN, what it owes now ("Outstanding") and its credit
+            limit. A new customer can be made with 'Create "…"', which opens the
+            "Add ledger" form under "Sundry Debtors". The customer's "Salesman",
+            "Credit Term" and "Transporter" fill in by themselves; you can
+            change them for this order. "Transporter" is "By Customer" when the
+            customer collects the goods.
+          </li>
+          <li>
+            Fill in the "Order Date" and the "Delivery Date" (the date the
+            customer wants the goods by; an order cannot be saved without it),
+            and if you like the "Customer's PO No" and "Customer's PO Date".
+          </li>
+          <li>
+            Pick "Despatch From": a branch, or one area of a branch (shown as
+            "Branch › Area", with how many racks it has). With an area picked,
+            stock is counted only in that area and the racks and bins in it;
+            with a branch, in the whole branch. Branches that keep no stock are
+            not offered.
+          </li>
+          <li>
+            Under "Addresses", "Bill From" starts as the despatch branch. Pick
+            the "Customer Billing Address" and the "Ship To" address from the
+            customer's addresses (its billing and shipping ones to start with).
+            The billing address's state decides the GST: the same state as
+            "Bill From" gives CGST + SGST, another state IGST. An overseas
+            customer pays no GST.
+          </li>
+          <li>
+            Under "Customer Contacts" tick who gets the order confirmation by
+            mail. The main contact and the sales contacts are ticked to start
+            with.
+          </li>
+          <li>
+            Under "Items" pick each item. Only items the customer may buy are
+            offered (as set on the customer's "Products" tab). The "Unit"
+            starts as the item's sales unit; you can pick any other unit of the
+            item, and no other. The "Rate" fills in by itself, with where it
+            came from under it: first the customer's own price, then its price
+            list, and last the item's MRP ("MRP (no price set)"). Type another
+            rate to change it. "In Stock" shows what is at the "Despatch From"
+            place, in the line's unit; it turns red when the quantity ordered
+            is more than that.
+          </li>
+          <li>
+            Under "Charges" add freight, packing or other charges billed to the
+            customer. Each is a service item ticked "Use as Sales Charge" in
+            the Items master (in the "Switches" panel).
+          </li>
+          <li>
+            Under "Terms and Notes" the customer's own set of sales terms (else
+            the company's default) fills in; change the text if needed. The
+            "Internal Note" is not printed. Add files under "Attachments".
+          </li>
+          <li>
+            Click "Save" to keep a draft (the page stays open) or "Submit" to
+            give the order its number. "Close" closes the tab.
+          </li>
+        </ol>
+        <h3>Credit limit</h3>
+        <p>
+          When what the customer owes plus this order is more than its credit
+          limit, a note says so at the top of the form and of the order. It is
+          a warning only: the order can still be saved and submitted.
+        </p>
+        <h3>After Submit</h3>
+        <p>
+          The order's page says "Submitted as …" with the date and time.
+          "Email Customer" mails the order confirmation, with the order as a
+          PDF, to the ticked contacts; a copy goes in the order's Activity.
+          "Print ▾" holds "Sales order" and "Download PDF". "Create ▾" will
+          hold the Pick List, Delivery Note and Sales Invoice as they are
+          built. The "Delivered" box shows, per item, what was ordered, sent
+          and still to go; "Close Line" (with a reason) closes a balance that
+          will not be sent, and "Reopen Line" opens it again. "Cancel order"
+          (with a reason) works on a draft or an order nothing has gone
+          against. "Duplicate" makes a new draft from the order.
+        </p>
       </>
     ),
   },
