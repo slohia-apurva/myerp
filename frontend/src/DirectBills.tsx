@@ -3,6 +3,7 @@ import { api } from "./api";
 import { Attachments, keptDraft } from "./Attachments";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
+import { Locked } from "./Lock";
 import { money } from "./Companies";
 import { announceSaved, closeThisTab } from "./Create";
 import { ErrorNote } from "./ErrorNote";
@@ -82,9 +83,8 @@ export function BillTypePicker(props: { companyId: number; direct: boolean; lock
   return (
     <label>
       <span className="req">Bill Type</span>
-      {props.locked ? (
-        <input value={props.direct ? "Without goods receipt (services, goods not kept in stock)" : "Against goods receipts"} readOnly />
-      ) : (
+      {/* Once saved the type is fixed, but it still reads as a dropdown: arrow faded, tagged "Locked" (as other locked pickers). */}
+      <Locked on={props.locked}>
         <Combobox
           value={props.direct ? "direct" : "regular"}
           options={[
@@ -92,11 +92,11 @@ export function BillTypePicker(props: { companyId: number; direct: boolean; lock
             { value: "direct", label: "Without goods receipt (services, goods not kept in stock)" },
           ]}
           onChange={(v) => {
-            if (v === (props.direct ? "direct" : "regular")) return;
+            if (props.locked || v === (props.direct ? "direct" : "regular")) return;
             window.location.hash = `${base(props.companyId)}?form=new${v === "direct" ? "&type=direct" : ""}`;
           }}
         />
-      )}
+      </Locked>
       <span className="small">{props.locked ? "Fixed once saved" : "Against goods receipts, Without goods receipt"}</span>
     </label>
   );
