@@ -1490,15 +1490,17 @@ export const MANUAL: Chapter[] = [
   {
     id: "warehouses",
     title: "Warehouses",
-    summary: "A warehouse's racks, bins and areas.",
+    summary: "A warehouse's areas, racks and bins.",
     body: (
       <>
         <p>
           A warehouse is a branch of the company: every branch holds goods
-          unless it is ticked "No stock". Inside it there are
-          racks, a rack holds bins, and a bin is a physical location where stock
-          is kept. Apart from the bins, the warehouse has areas, which are named
-          zones such as Receiving, Production and Despatch.
+          unless it is ticked "No stock". It has areas, which are named zones
+          such as Finished Goods, Receiving, Production and Despatch. Racks
+          stand in an area (or straight in the warehouse), a rack holds bins,
+          and a bin is a physical location where stock is kept. For example,
+          the Finished Goods area of Sankrail-2 can hold five racks, each with
+          its bins.
         </p>
         <h3>The default store</h3>
         <p>
@@ -1542,6 +1544,17 @@ export const MANUAL: Chapter[] = [
             "Save".
           </li>
         </ol>
+        <h3>Put racks in an area</h3>
+        <p>
+          On the rack's form, pick the area in "In Area" and click "Save"; leave
+          it empty for a rack straight in the warehouse. The list then shows the
+          area with its racks under it (fold it with the arrow), and "Add rack"
+          on the area's row adds a rack already in that area. You can give a
+          rack an area, or move it to another, at any time: its bins and their
+          stock go with it. Rack names still do not repeat within the
+          warehouse. An area can be disabled only after its racks are disabled
+          or moved out.
+        </p>
         <p>
           Names cannot repeat: a warehouse has one rack of each name, a rack has
           one bin of each name, and a warehouse has one area of each name. Use
@@ -1553,8 +1566,9 @@ export const MANUAL: Chapter[] = [
           bins are disabled. A branch that has racks,
           bins or areas besides its default store cannot be ticked "No stock". To add many at once, use "Actions" at
           the top of the "Warehouses" screen (see "Import, export and print"); in the
-          file a bin names its rack in "On rack", and a rack must come before
-          the bins on it.
+          file a bin names its rack in "On rack / in area" and a rack names its
+          area there (or leaves it blank); an area must come before its racks,
+          and a rack before the bins on it.
         </p>
       </>
     ),

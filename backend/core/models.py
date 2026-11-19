@@ -280,10 +280,12 @@ class Branch(models.Model):
 
 
 class WarehouseLocation(models.Model):
-    """A place inside a warehouse branch. A rack stands in the warehouse and
-    holds bins; a bin is a physical storage location on a rack; an area is a
-    named zone of the warehouse (production, receiving, despatch...) that
-    stock can also sit in. Stock entries will point at a bin or an area."""
+    """A place inside a warehouse branch. An area is a named zone of the
+    warehouse (finished goods, receiving, despatch...) that stock can sit in;
+    a rack stands in an area or straight in the warehouse and holds bins; a
+    bin is a physical storage location on a rack (Sidharth, 2026-11-19: "the
+    Finished Goods area in Sankrail-2 will have 5 racks with bins under
+    them"). Stock entries point at a bin or an area."""
 
     RACK, BIN, AREA = "rack", "bin", "area"
     KINDS = [(RACK, "Rack"), (BIN, "Bin"), (AREA, "Area")]
@@ -302,7 +304,7 @@ class WarehouseLocation(models.Model):
     kind = models.CharField(max_length=4, choices=KINDS)
     parent = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.PROTECT, related_name="children"
-    )  # a bin's rack
+    )  # a bin's rack, or the area a rack stands in
     name = models.CharField(max_length=60)
     purpose = models.CharField(max_length=12, choices=PURPOSES, blank=True)  # areas only
     notes = models.CharField(max_length=200, blank=True)
@@ -322,13 +324,13 @@ class WarehouseLocation(models.Model):
                 "branch",
                 "kind",
                 Lower("name"),
-                condition=models.Q(parent__isnull=True),
+                condition=models.Q(kind__in=["rack", "area"]),
                 name="location_name_unique_in_branch",
             ),
             models.UniqueConstraint(
                 "parent",
                 Lower("name"),
-                condition=models.Q(parent__isnull=False),
+                condition=models.Q(kind="bin"),
                 name="bin_name_unique_in_rack",
             ),
         ]

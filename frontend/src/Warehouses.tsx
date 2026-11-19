@@ -69,7 +69,9 @@ export function WarehousesPage({ companyId, session }: { companyId: number; sess
   const { warehouses, reload } = useWarehouses(companyId);
   const form = formParam();
   if (form) return <LocationFormTab companyId={companyId} form={form} canEdit={canEdit} warehouses={warehouses} />;
-  return <WarehouseList companyId={companyId} canEdit={canEdit} session={session} warehouses={warehouses ?? []} reload={reload} />;
+  return (
+    <WarehouseList companyId={companyId} canEdit={canEdit} session={session} warehouses={warehouses ?? []} reload={reload} />
+  );
 }
 
 function WarehouseList(props: {
@@ -112,11 +114,96 @@ function WarehouseList(props: {
     setShut(next);
   };
   const add = (what: string) => openTab(pageHash(companyId, `?form=${what}`));
+  /** A rack's row and, unless folded, its bins; `pad` indents racks standing in an area. */
+  const rackRows = (r: Rack, pad: number) => [
+    <tr
+      key={`r${r.id}`}
+      className={`${r.is_active ? "" : "off"}${selectedId === r.id ? " selected" : ""}`}
+      onClick={() => setSelected(r.id)}
+      onDoubleClick={() => add(String(r.id))}
+    >
+      <td style={{ paddingLeft: pad }}>
+        <button
+          type="button"
+          className="fold"
+          aria-expanded={!shut.has(r.id)}
+          aria-label={shut.has(r.id) ? `Show bins of ${r.name}` : `Hide bins of ${r.name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            fold(r.id);
+          }}
+        >
+          <Chevron open={!shut.has(r.id)} />
+        </button>{" "}
+        <strong>{r.name}</strong>
+        {!r.is_active && <span className="pill">Disabled</span>}
+      </td>
+      <td className="num">{r.bin_count}</td>
+      <td>{r.notes}</td>
+      <td className="row-actions">
+        {canEdit && r.is_active && (
+          <button
+            type="button"
+            className="link"
+            onClick={(e) => {
+              e.stopPropagation();
+              add(`new-bin-${r.id}`);
+            }}
+          >
+            Add bin
+          </button>
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            className="link"
+            onClick={(e) => {
+              e.stopPropagation();
+              add(String(r.id));
+            }}
+          >
+            Edit
+          </button>
+        )}
+      </td>
+    </tr>,
+    ...(shut.has(r.id)
+      ? []
+      : r.bins.map((b) => (
+          <tr
+            key={`b${b.id}`}
+            className={`${b.is_active ? "" : "off"}${selectedId === b.id ? " selected" : ""}`}
+            onClick={() => setSelected(b.id)}
+            onDoubleClick={() => add(String(b.id))}
+          >
+            <td style={{ paddingLeft: pad + 36 }}>
+              {b.name}
+              {!b.is_active && <span className="pill">Disabled</span>}
+            </td>
+            <td />
+            <td>{b.notes}</td>
+            <td className="row-actions">
+              {canEdit && (
+                <button
+                  type="button"
+                  className="link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    add(String(b.id));
+                  }}
+                >
+                  Edit
+                </button>
+              )}
+            </td>
+          </tr>
+        ))),
+  ];
   return (
     <section className="page">
       <PageHeader
         title="Warehouses"
-        sub="Every branch not ticked No stock is a warehouse, with a default store. Racks stand in it and hold bins; areas are its named zones, such as receiving, production and despatch."
+        sub="Every branch not ticked No stock is a warehouse, with a default store. Areas are its named zones, such as finished goods, receiving and despatch; racks stand in an area (or straight in the warehouse) and hold bins."
         actions={io.buttons}
       />
       {io.panel}
@@ -147,90 +234,52 @@ function WarehouseList(props: {
                   </tr>
                 </thead>
                 <tbody>
-                  {w.racks.flatMap((r) => [
-                    <tr
-                      key={`r${r.id}`}
-                      className={`${r.is_active ? "" : "off"}${selectedId === r.id ? " selected" : ""}`}
-                      onClick={() => setSelected(r.id)}
-                      onDoubleClick={() => add(String(r.id))}
-                    >
-                      <td>
-                        <button
-                          type="button"
-                          className="fold"
-                          aria-expanded={!shut.has(r.id)}
-                          aria-label={shut.has(r.id) ? `Show bins of ${r.name}` : `Hide bins of ${r.name}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fold(r.id);
-                          }}
-                        >
-                          <Chevron open={!shut.has(r.id)} />
-                        </button>{" "}
-                        <strong>{r.name}</strong>
-                        {!r.is_active && <span className="pill">Disabled</span>}
-                      </td>
-                      <td className="num">{r.bin_count}</td>
-                      <td>{r.notes}</td>
-                      <td className="row-actions">
-                        {canEdit && r.is_active && (
+                  {w.areas
+                    .filter((a) => w.racks.some((r) => r.parent === a.id))
+                    .flatMap((a) => [
+                      <tr key={`a${a.id}`} className={selectedId === a.id ? "selected" : ""} onClick={() => setSelected(a.id)}>
+                        <td>
                           <button
                             type="button"
-                            className="link"
+                            className="fold"
+                            aria-expanded={!shut.has(a.id)}
+                            aria-label={shut.has(a.id) ? `Show racks in ${a.name}` : `Hide racks in ${a.name}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              add(`new-bin-${r.id}`);
+                              fold(a.id);
                             }}
                           >
-                            Add bin
-                          </button>
-                        )}
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className="link"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              add(String(r.id));
-                            }}
-                          >
-                            Edit
-                          </button>
-                        )}
+                            <Chevron open={!shut.has(a.id)} />
+                          </button>{" "}
+                          <strong>{a.name}</strong> <span className="small">area</span>
+                        </td>
+                        <td className="num">{w.racks.filter((r) => r.parent === a.id).length} racks</td>
+                        <td>{a.notes}</td>
+                        <td className="row-actions">
+                          {canEdit && w.is_active && a.is_active && (
+                            <button
+                              type="button"
+                              className="link"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                add(`new-rack-${w.id}-${a.id}`);
+                              }}
+                            >
+                              Add rack
+                            </button>
+                          )}
+                        </td>
+                      </tr>,
+                      ...(shut.has(a.id) ? [] : w.racks.filter((r) => r.parent === a.id).flatMap((r) => rackRows(r, 28))),
+                    ])}
+                  {w.racks.some((r) => r.parent !== null) && w.racks.some((r) => r.parent === null) && (
+                    <tr>
+                      <td colSpan={4} className="small">
+                        Not in an area
                       </td>
-                    </tr>,
-                    ...(shut.has(r.id)
-                      ? []
-                      : r.bins.map((b) => (
-                          <tr
-                            key={`b${b.id}`}
-                            className={`${b.is_active ? "" : "off"}${selectedId === b.id ? " selected" : ""}`}
-                            onClick={() => setSelected(b.id)}
-                            onDoubleClick={() => add(String(b.id))}
-                          >
-                            <td style={{ paddingLeft: 36 }}>
-                              {b.name}
-                              {!b.is_active && <span className="pill">Disabled</span>}
-                            </td>
-                            <td />
-                            <td>{b.notes}</td>
-                            <td className="row-actions">
-                              {canEdit && (
-                                <button
-                                  type="button"
-                                  className="link"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    add(String(b.id));
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))),
-                  ])}
+                    </tr>
+                  )}
+                  {w.racks.filter((r) => r.parent === null).flatMap((r) => rackRows(r, 0))}
                   {w.racks.length === 0 && (
                     <tr>
                       <td colSpan={4} className="small">
@@ -309,6 +358,12 @@ function WarehouseList(props: {
                   ["Kind", selected.loc.kind === "rack" ? "Rack" : selected.loc.kind === "bin" ? "Bin" : "Area"],
                   ["Warehouse", selected.warehouse.name],
                   ["Rack", selected.rack?.name ?? ""],
+                  [
+                    "In Area",
+                    selected.loc.kind === "rack"
+                      ? (selected.warehouse.areas.find((a) => a.id === selected.loc.parent)?.name ?? "Not in an area")
+                      : "",
+                  ],
                   ["Used For", selected.loc.purpose_label],
                   ["Bins", selected.loc.kind === "rack" ? String(selected.loc.bin_count) : ""],
                   ["In Use", selected.loc.lock?.in_use.join(", ") ?? ""],
@@ -337,7 +392,7 @@ function WarehouseList(props: {
 /** The form of one rack, bin or area, alone in its own tab: Save and Cancel close the tab. */
 function LocationFormTab(props: { companyId: number; form: string; canEdit: boolean; warehouses: Warehouse[] | null }) {
   const startNew = props.form.startsWith("new-");
-  const [, newKind, newOf] = startNew ? props.form.split("-") : [];
+  const [, newKind, newOf, newArea] = startNew ? props.form.split("-") : [];
   const id = Number(props.form);
   const toList = () => {
     window.location.hash = pageHash(props.companyId);
@@ -394,6 +449,7 @@ function LocationFormTab(props: { companyId: number; form: string; canEdit: bool
       rack={rack}
       location={location}
       companyId={props.companyId}
+      startArea={newArea ? Number(newArea) : null}
       readOnly={!props.canEdit}
       onDone={finish}
       onCancel={() => finish()}
@@ -407,6 +463,7 @@ function LocationForm(props: {
   warehouse: Warehouse;
   rack?: Rack;
   location?: Location;
+  startArea?: number | null;
   companyId: number;
   readOnly?: boolean;
   onDone: (saved?: { id: number; name: string }) => void;
@@ -416,6 +473,8 @@ function LocationForm(props: {
   const [name, setName] = useState(location?.name ?? "");
   const [purpose, setPurpose] = useState(location?.purpose ?? "");
   const [notes, setNotes] = useState(location?.notes ?? "");
+  // A rack stands in an area of the warehouse, or straight in it (Sidharth, 2026-11-19).
+  const [area, setArea] = useState(String((kind === "rack" ? location?.parent : null) ?? props.startArea ?? ""));
   const [disabled, setDisabled] = useState(location ? !location.is_active : false);
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
@@ -425,6 +484,7 @@ function LocationForm(props: {
     setBusy(true);
     const body: Record<string, unknown> = { name, notes };
     if (kind === "area") body.purpose = purpose;
+    if (kind === "rack") body.parent = area ? Number(area) : null;
     try {
       if (location) {
         await api(
@@ -439,6 +499,7 @@ function LocationForm(props: {
           branch: warehouse.id,
           kind,
           parent: rack?.id ?? null,
+          ...body,
         });
         props.onDone(made);
       }
@@ -460,9 +521,7 @@ function LocationForm(props: {
       readOnly={props.readOnly}
       disabled={location && !location.is_default ? { value: disabled, set: setDisabled } : undefined}
       tips={
-        kind === "rack" ? (
-          <p className="small">A rack with open bins cannot be disabled; disable its bins first.</p>
-        ) : undefined
+        kind === "rack" ? <p className="small">A rack with open bins cannot be disabled; disable its bins first.</p> : undefined
       }
       activity={location ? <ChangeLog type="warehouse_location" id={location.id} stamp={JSON.stringify(location)} /> : undefined}
     >
@@ -482,6 +541,23 @@ function LocationForm(props: {
               placeholder={kind === "area" ? "e.g. Despatch bay" : kind === "rack" ? "e.g. R1" : "e.g. A1"}
             />
           </label>
+          {kind === "rack" && (
+            <label>
+              In Area
+              <Combobox
+                value={area}
+                onChange={setArea}
+                empty="Not in an area"
+                options={warehouse.areas
+                  .filter((a) => a.is_active || a.id === location?.parent)
+                  .map((a) => ({ value: String(a.id), label: a.name }))}
+              />
+              <span className="small">
+                Leave empty for a rack straight in the warehouse. You can give it an area at any time; its bins and their stock go
+                with it.
+              </span>
+            </label>
+          )}
           {kind === "area" && (
             <label>
               <span className="req">Used For</span>
