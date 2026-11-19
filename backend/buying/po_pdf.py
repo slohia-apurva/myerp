@@ -77,7 +77,12 @@ def _image(data_url: str | None):
 
 
 def order_pdf(o: dict) -> bytes:
-    """`o` is the order as the order screen gets it (buying.api._order_out)."""
+    """`o` is the order as the order screen gets it (buying.api._order_out), or a
+    sales order (selling.api._order_out, which has "customer_name"): the same
+    layout, titled SALES ORDER, with Customer / Bill From / Ship To boxes."""
+    sale = "customer_name" in o
+    doc_title = "SALES ORDER" if sale else "PURCHASE ORDER"
+    party_name = o["customer_name"] if sale else o["supplier_name"]
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_RIGHT
     from reportlab.lib.fonts import addMapping
@@ -217,7 +222,7 @@ def order_pdf(o: dict) -> bytes:
             lh_html.append(f)
     lh_par = Paragraph("<br/>".join(lh_html), style("lh", 7.5, 11, colour=MUTED))
     title_cell = [
-        Paragraph("PURCHASE ORDER", style("h1", 16, 19, bold, DEEP, "right")),
+        Paragraph(doc_title, style("h1", 16, 19, bold, DEEP, "right")),
         Paragraph(
             t(o["number"] or "Draft · number on Submit"), style("no", 11, 15, bold, INK, "right")
         ),
@@ -314,22 +319,30 @@ def order_pdf(o: dict) -> bytes:
         k_sup = k_bill = k_ship = ["gstin", "fssai", "contact", "phone", "email"]
     gap = 10
     cw = (width - 2 * gap) / 3
+    if sale:
+        boxes = [
+            card("Customer", party_name, ab.get("customer"), k_sup),
+            "",
+            card("Bill From", lh["name"], ab.get("bill_from"), ["gstin", "fssai"], label=True),
+            "",
+            card("Ship To", party_name, ab.get("ship_to"), ["gstin"]),
+        ]
+    else:
+        boxes = [
+            card("Supplier", o["supplier_name"], ab.get("supplier"), k_sup),
+            "",
+            card("Bill To", lh["name"], ab.get("bill_to"), k_bill, iec=lh.get("iec") or ""),
+            "",
+            card(
+                "Ship To",
+                (ab.get("ship_to") or {}).get("name") or lh["name"],
+                ab.get("ship_to"),
+                k_ship,
+                label=True,
+            ),
+        ]
     cards = Table(
-        [
-            [
-                card("Supplier", o["supplier_name"], ab.get("supplier"), k_sup),
-                "",
-                card("Bill To", lh["name"], ab.get("bill_to"), k_bill, iec=lh.get("iec") or ""),
-                "",
-                card(
-                    "Ship To",
-                    (ab.get("ship_to") or {}).get("name") or lh["name"],
-                    ab.get("ship_to"),
-                    k_ship,
-                    label=True,
-                ),
-            ]
-        ],
+        [boxes],
         colWidths=[cw, gap, cw, gap, cw],
     )
     cards.setStyle(
@@ -377,6 +390,19 @@ def order_pdf(o: dict) -> bytes:
             ("Our Contact", our),
         ]
         per_row = 4
+    elif sale:
+        po = o.get("customer_po_no") or ""
+        if po and o.get("customer_po_date"):
+            po += f" of {_dmy(o['customer_po_date'])}"
+        meta = [
+            ("Delivery Date", t(_dmy(o.get("delivery_date")))),
+            ("Credit Term", t(o.get("credit_term_name") or "")),
+            ("Transporter", t(o.get("transporter_name") or "")),
+            ("Your PO", t(po)),
+            ("Salesman", t(o.get("salesman_name") or "")),
+            ("Our Contact", our),
+        ]
+        per_row = 6
     else:
         meta = [
             ("Expected", t(_dmy(o.get("expected_date")))),
@@ -424,8 +450,8 @@ def order_pdf(o: dict) -> bytes:
     styles = []
     for i, x in enumerate(lines):
         text = f"<b>{t(x['item_name'])} · {t(x['item_number'])}</b>"
-        if x.get("supplier_code"):
-            text += f"<br/><font size=7 color='#3E4C59'>Your code {t(x['supplier_code'])}</font>"
+        if code := x.get("supplier_code") or x.get("customer_code"):
+            text += f"<br/><font size=7 color='#3E4C59'>Your code {t(code)}</font>"
         if x.get("description"):
             d = t(x["description"]).replace("\n", "<br/>")
             text += f"<br/><font size=7 color='#3E4C59'>{d}</font>"
@@ -754,9 +780,9 @@ def order_pdf(o: dict) -> bytes:
     mark = _image(lh.get("mark"))
     watermark = {"draft": "DRAFT", "cancelled": "CANCELLED"}.get(o["status"], "")
     foot = (
-        "Draft purchase order · not valid until submitted"
+        f"Draft {doc_title.lower()} · not valid until submitted"
         if o["status"] == "draft"
-        else f"{o['number']} · Computer-generated purchase order"
+        else f"{o['number']} · Computer-generated {doc_title.lower()}"
     )
     short_h = 26 * mm
 
@@ -793,13 +819,13 @@ def order_pdf(o: dict) -> bytes:
         x = page_w - right
         canvas.setFillColor(c(DEEP))
         canvas.setFont(bold, 11)
-        canvas.drawRightString(x, top - 8, "PURCHASE ORDER")
+        canvas.drawRightString(x, top - 8, doc_title)
         canvas.setFillColor(c(INK))
         canvas.setFont(bold, 9)
         canvas.drawRightString(x, top - 19, f"{o['number'] or 'Draft'} · {_dmy(o['order_date'])}")
         canvas.setFillColor(c(MUTED))
         canvas.setFont(regular, 8)
-        canvas.drawRightString(x, top - 29, f"{o['supplier_name']} · continued")
+        canvas.drawRightString(x, top - 29, f"{party_name} · continued")
         canvas.setStrokeColor(c(LEAF))
         canvas.setLineWidth(2.2)
         canvas.line(left, top - 35, page_w - right, top - 35)
@@ -822,7 +848,7 @@ def order_pdf(o: dict) -> bytes:
     doc = BaseDocTemplate(
         out,
         pagesize=A4,
-        title=f"{o['number'] or 'Draft purchase order'} - {o['supplier_name']}",
+        title=f"{o['number'] or 'Draft ' + doc_title.lower()} - {party_name}",
         author=lh["name"],
     )
     doc.addPageTemplates(

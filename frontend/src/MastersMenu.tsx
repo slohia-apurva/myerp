@@ -196,7 +196,7 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
 /** "Entry" in the top menu: the entry screens, grouped. "Purchase ▸" opens its own list
  * to the right on hover (or on a click, for touch screens). Purchase
  * Invoice and Purchase Return are shown as coming next until they are built. */
-export function EntryMenu(props: { active: boolean; company: Company; orders: boolean; tds?: boolean }) {
+export function EntryMenu(props: { active: boolean; company: Company; orders: boolean; tds?: boolean; purchase?: boolean; sales?: boolean }) {
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState("");
   const box = useRef<HTMLDivElement>(null);
@@ -231,6 +231,19 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
       </button>
       {open && (
         <div className="menu-panel" role="menu">
+          {props.sales && (
+            <div className={`menu-sub${sub === "sales" ? " open" : ""}`}>
+              <button type="button" aria-haspopup="true" aria-expanded={sub === "sales"} onClick={() => setSub(sub === "sales" ? "" : "sales")}>
+                Sales <span aria-hidden="true">▸</span>
+              </button>
+              <div className="menu-flyout" role="menu" aria-label="Sales">
+                <a role="menuitem" href={`#/companies/${id}/sales-orders`} onClick={() => setOpen(false)}>
+                  Sales Order
+                </a>
+              </div>
+            </div>
+          )}
+          {props.purchase !== false && (
           <div className={`menu-sub${sub === "purchase" ? " open" : ""}`}>
             <button type="button" aria-haspopup="true" aria-expanded={sub === "purchase"} onClick={() => setSub(sub === "purchase" ? "" : "purchase")}>
               Purchase <span aria-hidden="true">▸</span>
@@ -259,6 +272,7 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
               )}
             </div>
           </div>
+          )}
           {props.tds && (
             <div className={`menu-sub${sub === "accounts" ? " open" : ""}`}>
               <button type="button" aria-haspopup="true" aria-expanded={sub === "accounts"} onClick={() => setSub(sub === "accounts" ? "" : "accounts")}>

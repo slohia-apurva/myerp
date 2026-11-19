@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "insurance",
     "buying",
     "posting",
+    "selling",
 ]
 
 MIDDLEWARE = [
