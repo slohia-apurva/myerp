@@ -1,11 +1,11 @@
-"""Warehouses: a physical warehouse is a branch of the company ticked
-"Warehouse". It holds racks, a rack holds bins (the physical storage
-locations), and the warehouse also has named areas such as receiving,
-production and despatch (Sidharth, 2026-11-12). Stock entries will point at a
-bin or an area."""
+"""Warehouses: a physical warehouse is a branch of the company not ticked
+"No stock". It has named areas such as finished goods, receiving and despatch
+(Sidharth, 2026-11-12); racks stand in an area or straight in the warehouse
+(Sidharth, 2026-11-19) and hold bins, the physical storage locations. Stock
+entries point at a bin or an area."""
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Count, Q
+from django.db.models import Case, Count, Q, When
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
@@ -53,7 +53,8 @@ class LocationSerializer(serializers.ModelSerializer):
 
 
 class LocationExchangeSerializer(LocationSerializer):
-    """The file names a bin's rack ("rack") instead of pointing at it."""
+    """The file names a bin's rack, or a rack's area ("rack"), instead of
+    pointing at it."""
 
     rack = serializers.CharField(
         source="parent.name", required=False, allow_blank=True, default="", max_length=60
@@ -66,10 +67,10 @@ class LocationExchangeSerializer(LocationSerializer):
 
 def _same_scope(branch: Branch, kind: str, parent):
     """The records a new name must differ from: the rack's bins, or the
-    racks (areas) of the warehouse."""
-    if parent is not None:
-        return L.objects.filter(parent=parent)
-    return L.objects.filter(branch=branch, kind=kind, parent__isnull=True)
+    racks (areas) of the warehouse, whichever area a rack stands in."""
+    if kind == L.BIN:
+        return L.objects.filter(parent=parent, kind=L.BIN)
+    return L.objects.filter(branch=branch, kind=kind)
 
 
 def save_location(company, location: L | None, data: dict) -> L:
@@ -78,19 +79,20 @@ def save_location(company, location: L | None, data: dict) -> L:
     new = location is None or location.pk is None
     location = location or L()
     data = dict(data)
-    if isinstance(data.get("parent"), dict):  # from a file: the rack's name
-        rack_name = duplicates.tidy(data.pop("parent").get("name", ""))
+    if isinstance(data.get("parent"), dict):  # from a file: the rack's (area's) name
+        parent_name = duplicates.tidy(data.pop("parent").get("name", ""))
         data.pop("rack", None)
         data["parent"] = None
-        if rack_name:
+        if parent_name:
             branch = data.get("branch") or location.branch
+            want = L.AREA if data.get("kind", location.kind) == L.RACK else L.RACK
             found = (
-                L.objects.filter(branch=branch, kind=L.RACK, name__iexact=rack_name).first()
+                L.objects.filter(branch=branch, kind=want, name__iexact=parent_name).first()
                 if branch
                 else None
             )
             if found is None:
-                raise ValidationError({"rack": [f"There is no rack called {rack_name!r}."]})
+                raise ValidationError({"rack": [f"There is no {want} called {parent_name!r}."]})
             data["parent"] = found
 
     branch = data.get("branch", location.branch if location.pk else None)
@@ -116,8 +118,15 @@ def save_location(company, location: L | None, data: dict) -> L:
             raise ValidationError({"parent": ["Pick a rack of this warehouse."]})
         if not parent.is_active and parent.pk != location.parent_id:
             raise ValidationError({"parent": [f"The rack {parent.name} is disabled."]})
+    elif kind == L.RACK and parent is not None:
+        # A rack may stand in an area; it can be given one (or moved) at any time,
+        # its bins and their stock going with it.
+        if parent.kind != L.AREA or parent.branch_id != branch.pk:
+            raise ValidationError({"parent": ["Pick an area of this warehouse."]})
+        if not parent.is_active and parent.pk != location.parent_id:
+            raise ValidationError({"parent": [f"The area {parent.name} is disabled."]})
     elif parent is not None:
-        raise ValidationError({"parent": [f"A {kind} does not sit on a rack."]})
+        raise ValidationError({"parent": ["An area does not stand in anything else."]})
 
     purpose = data.get("purpose", location.purpose)
     if kind == L.AREA and not purpose:
@@ -147,7 +156,17 @@ def save_location(company, location: L | None, data: dict) -> L:
         )
 
     if not new:
-        refuse_key_changes("warehouse_location", location, {**data, "kind": kind, "parent": parent})
+        # A rack's area only groups its bins, so it stays open; a bin's rack is a key.
+        keys = {**data, "kind": kind}
+        if kind == L.BIN:
+            keys["parent"] = parent
+        refuse_key_changes("warehouse_location", location, keys)
+    if data.get("is_active") is False and location.kind == L.AREA:
+        open_racks = location.children.filter(is_active=True).count()
+        if open_racks:
+            raise ValidationError(
+                {"is_active": [f"Disable its {open_racks} rack(s) first, or move them out."]}
+            )
     if data.get("is_active") is False and location.kind == L.RACK:
         open_bins = location.children.filter(is_active=True).count()
         if open_bins:
@@ -189,15 +208,18 @@ exchange.register(
         label="Racks, bins and areas",
         noun="rack, bin or area",
         serializer=LocationExchangeSerializer,
-        # Racks before the bins on them, so a file can be loaded back in.
-        queryset=lambda ctx: _locations(ctx.company).order_by("branch__name", "kind", "name"),
+        # Areas, then racks, then bins, so a file can be loaded back in.
+        queryset=lambda ctx: _locations(ctx.company)
+        .annotate(step=Case(When(kind=L.AREA, then=0), When(kind=L.RACK, then=1), default=2))
+        .order_by("branch__name", "step", "name"),
         save=_exchange_save,
         per_company=True,
         exclude=("bin_count", "purpose_label", "is_default"),
-        labels={"branch": "Warehouse", "rack": "On rack", "purpose": "Area is for"},
+        labels={"branch": "Warehouse", "rack": "On rack / in area", "purpose": "Area is for"},
         hints={
             "kind": "Rack, Bin or Area",
-            "rack": "Only for a bin: the name of its rack. List a rack before its bins.",
+            "rack": "For a bin: its rack. For a rack: the area it stands in (or blank). "
+            "List an area before its racks, and a rack before its bins.",
             "purpose": "Only for an area: what it is for (Receiving, Production, Despatch...)",
             "branch": "The branch (one that is not ticked No stock)",
         },
