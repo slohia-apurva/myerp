@@ -1,6 +1,13 @@
 """Purchase orders count as entries for the Owner's "Reset data" tool."""
 
-from buying.models import DebitNote, GoodsReceipt, PurchaseInvoice, PurchaseOrder, PurchaseReturn
+from buying.models import (
+    DebitNote,
+    GoodsReceipt,
+    PurchaseInvoice,
+    PurchaseOrder,
+    PurchaseReturn,
+    TdsAdjustment,
+)
 from core.data_reset import register_entries
 from core.models import Package
 
@@ -35,6 +42,16 @@ def _returns(company):
     return rows.filter(company=company) if company else rows
 
 
+def _tds_adjustments(company):
+    rows = TdsAdjustment.objects.all()
+    return rows.filter(company=company) if company else rows
+
+
+register_entries(
+    "TDS adjustments",
+    lambda c: _tds_adjustments(c).count(),
+    lambda c: _tds_adjustments(c).delete(),
+)
 register_entries("Debit notes", lambda c: _notes(c).count(), lambda c: _notes(c).delete())
 register_entries("Purchase returns", lambda c: _returns(c).count(), lambda c: _returns(c).delete())
 

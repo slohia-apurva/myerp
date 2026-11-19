@@ -29,12 +29,14 @@ PAGES = {
     "purchase_invoice": "purchase-invoices",
     "purchase_return": "purchase-returns",
     "debit_note": "debit-notes",
+    "tds_adjustment": "tds-adjustments",
 }
 NAMES = {
     "goods_receipt": "Goods Receipt",
     "purchase_invoice": "Purchase Invoice",
     "purchase_return": "Purchase Return",
     "debit_note": "Debit Note",
+    "tds_adjustment": "TDS Adjustment",
 }
 
 

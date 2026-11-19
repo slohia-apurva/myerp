@@ -10,6 +10,7 @@ from buying.models import (
     PurchaseOrderCharge,
     PurchaseOrderLine,
     PurchaseReturn,
+    TdsAdjustment,
 )
 from core import locks
 
@@ -92,3 +93,12 @@ locks.register("warehouse_location", lambda loc: _returns(lines__location=loc))
 locks.register("ledger", lambda ledger: _notes(supplier=ledger))
 locks.register("branch", lambda branch: _notes(branch=branch))
 locks.register("item", lambda item: _notes(lines__item=item))
+
+
+def _tds_adjustments(**where) -> str:
+    rows = TdsAdjustment.objects.filter(**where).exclude(status=TdsAdjustment.DRAFT)
+    return locks._count(rows.distinct(), "TDS adjustment")
+
+
+locks.register("ledger", lambda ledger: _tds_adjustments(supplier=ledger))
+locks.register("branch", lambda branch: _tds_adjustments(branch=branch))

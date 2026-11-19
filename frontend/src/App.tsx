@@ -37,6 +37,8 @@ import { GoodsReceiptsPage } from "./GoodsReceipts";
 import { PurchaseInvoicesPage } from "./PurchaseInvoices";
 import { PurchaseReturnsPage } from "./PurchaseReturns";
 import { DebitNotesPage } from "./DebitNotes";
+import { TdsAdjustmentsPage } from "./TdsAdjustments";
+import { TdsCheckPage } from "./TdsCheck";
 import { NotificationBell } from "./Notifications";
 import { SupplierReplyPage } from "./SupplierReply";
 
@@ -135,7 +137,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             />
           )}
           {canReceive && current.company?.modules.includes("purchase") && (
-            <EntryMenu active={page === "companies" && (sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes")} company={current.company} orders={canSeePurchase} />
+            <EntryMenu active={page === "companies" && (sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments")} company={current.company} orders={canSeePurchase} tds={canSeeBooks} />
           )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
@@ -145,7 +147,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", ...REPORTS].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", ...REPORTS].includes(sub ?? ""))}
+              company={current.company}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -188,6 +191,10 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <PurchaseOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "purchase-invoices" && canSeePurchase ? (
           <PurchaseInvoicesPage key={id} companyId={id} session={session} />
+        ) : page === "companies" && id && sub === "tds-check" && (canSeeBooks || session.user.is_owner) ? (
+          <TdsCheckPage key={id} companyId={id} session={session} />
+        ) : page === "companies" && id && sub === "tds-adjustments" && (canSeeBooks || session.user.is_owner) ? (
+          <TdsAdjustmentsPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "debit-notes" && canSeePurchase ? (
           <DebitNotesPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "purchase-returns" && canReceive ? (

@@ -934,7 +934,9 @@ export const MANUAL: Chapter[] = [
           from that date has its "New Act Section" (for example "393(1) Sl.
           6(i)" for the old 194C) beside the "Old Section", and the "Payment
           Code" the challan and the TDS return ask for (where there are two,
-          the second is for an individual or HUF). The rows from 1 April 2025
+          the second is for an individual or HUF). "Late Interest % a Month" is
+          the interest for deducting TDS late, shown on a TDS Adjustment. The
+          rows from 1 April 2025
           have only the old number and serve bills dated before 1 April 2026.
           The list covers purchase and expense bills: contractors (194C),
           commission (194H), rent (194I(a), 194I(b)), buying land or a building
@@ -3116,6 +3118,91 @@ export const MANUAL: Chapter[] = [
         <Note>
           Debit notes are made and submitted by the Purchase role. The date must
           fall in an open month of a fiscal year.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "tds-check",
+    title: "TDS check and TDS adjustments",
+    summary:
+      "Check each supplier's TDS for the year, and put right a bill where TDS was missed or is wrong.",
+    body: (
+      <>
+        <p>
+          Run the TDS Check before each quarter's TDS return. Open it from
+          "Admin" in the top menu, then "TDS Check". It works out again every
+          submitted purchase bill of the "Financial Year", supplier by
+          supplier and in date order, with today's masters: the "TDS Section"
+          on the item or ledger (or the supplier's "Default TDS Section"), the
+          supplier's PAN and "Deductee Type", and the section's rates and
+          limits on the bill's date. A section chosen by hand on a bill stays
+          as chosen. So a bill entered before its item had a TDS Section shows
+          up here.
+        </p>
+        <ul>
+          <li>
+            The list has one line per supplier ledger and section: "Bills",
+            "Before GST ₹", "TDS Due ₹", "TDS Deducted ₹" (on the bills, plus
+            submitted TDS Adjustments), "Short (Excess) ₹" and "Result": "Short",
+            "Excess", "Matches" or "Below limit". "Show" picks "Only with a gap"
+            or "All suppliers"; each column has its own search. "Check Again"
+            runs it afresh.
+          </li>
+          <li>
+            Double-click a line (or click it, then "Open") to see that
+            supplier's bills one by one in a new tab: "Year So Far ₹", "Section
+            On Bill", "TDS Due ₹", "Deducted ₹", the gap and "Why".
+          </li>
+          <li>
+            "Put It Right" shows what can be put right. "Make TDS Adjustment"
+            opens a new TDS Adjustment for those bills in a new tab.
+          </li>
+          <li>
+            "TDS Returns" lists the year's four quarters. When a quarter's
+            return is filed, click "Mark Filed" and give "Filed On" and the
+            "Acknowledgement No". From then on that quarter's bills cannot be
+            adjusted, an adjustment cannot be dated in it or cancelled from it,
+            and its bills with TDS cannot be cancelled. Only an Owner can
+            "Remove mark" if it was marked by mistake.
+          </li>
+        </ul>
+        <p>
+          <b>TDS Adjustment.</b> A submitted bill is never changed, so a gap is
+          put right on a TDS Adjustment (also under "Entry" › "Purchase" ›
+          "TDS Adjustment", which lists them). "Date" is the day the TDS is
+          deducted. "Bills Covered" lists each bill with "TDS On ₹", "Rate %",
+          "TDS Due ₹", "Deducted ₹" and "This Adjustment ₹", the gap the TDS
+          Check finds; it cannot be typed and is worked out again on "Submit".
+          Untick a bill to leave it out. For TDS missed, "Months Late" and
+          "Interest ₹" show the interest for deducting late (a month or part of
+          one, from the bill's date), to pay with the TDS challan; it is not
+          posted.
+        </p>
+        <ul>
+          <li>
+            "Save" keeps a draft and shows "Ledger Posting". "Submit" gives it
+            its number and posts it. TDS missed ("Deduct short TDS"): the
+            supplier is debited and "TDS Payable" for the section credited, so
+            the supplier owes that much (or is paid that much less). TDS
+            deducted in excess ("Give back excess TDS"): the other way; use it
+            only while that TDS is not yet paid to the government.
+          </li>
+          <li>
+            "Cancel adjustment" asks why and reverses the entries; the bills show
+            their gap again. A bill named on a submitted adjustment cannot be
+            cancelled until the adjustment is.
+          </li>
+          <li>
+            The "Attachments" box keeps working papers. "Print ▾" prints the page
+            or saves it as a PDF.
+          </li>
+        </ul>
+        <Note>
+          The TDS Check and TDS Adjustments are for roles that may see the books
+          (Accountant, Owner); "Mark Filed" needs the right to submit accounts
+          entries. The interest rate and the treatment of excess TDS are to be
+          confirmed by the CA.
         </Note>
       </>
     ),

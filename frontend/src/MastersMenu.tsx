@@ -178,13 +178,14 @@ export function ReportsMenu(props: { active: boolean; company: Company; stock: b
 }
 
 /** "Admin" in the top menu, for Owners only: companies, users and roles. */
-export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canManageUsers: boolean }) {
+export function AdminMenu(props: { active: boolean; company: Company | null | undefined; canSeeMasters: boolean; canManageUsers: boolean }) {
   return (
     <DropMenu
       label="Admin"
       active={props.active}
       items={[
         ["Company", "#/companies", props.canSeeMasters],
+        ["TDS Check", props.company ? `#/companies/${props.company.id}/tds-check` : "#/companies", !!props.company?.modules.includes("purchase")],
         ["Users", "#/users", props.canManageUsers],
         ["User roles", "#/roles", props.canManageUsers],
         ["Reset data", "#/reset", true],
@@ -196,7 +197,7 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
 /** "Entry" in the top menu: the entry screens, grouped. "Purchase ▸" opens its own list
  * to the right on hover (or on a click, for touch screens). Purchase
  * Invoice and Purchase Return are shown as coming next until they are built. */
-export function EntryMenu(props: { active: boolean; company: Company; orders: boolean }) {
+export function EntryMenu(props: { active: boolean; company: Company; orders: boolean; tds?: boolean }) {
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -255,6 +256,11 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
               {props.orders && (
                 <a role="menuitem" href={`#/companies/${id}/debit-notes`} onClick={() => setOpen(false)}>
                   Debit Note
+                </a>
+              )}
+              {props.tds && (
+                <a role="menuitem" href={`#/companies/${id}/tds-adjustments`} onClick={() => setOpen(false)}>
+                  TDS Adjustment
                 </a>
               )}
             </div>

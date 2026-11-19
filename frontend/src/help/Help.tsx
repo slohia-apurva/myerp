@@ -20,6 +20,7 @@ export function helpTopicFor(hash: string): string {
   if (sub === "purchase-invoices") return "purchase-invoices";
   if (sub === "purchase-returns") return "purchase-returns";
   if (sub === "debit-notes") return "debit-notes";
+  if (sub === "tds-check" || sub === "tds-adjustments") return "tds-check";
   if (sub === "couriers") return "transporters";
   if (sub === "insurance") return "insurance-policies";
   if (sub === "years") return "fiscal-years";

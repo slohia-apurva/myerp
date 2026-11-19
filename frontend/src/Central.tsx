@@ -335,6 +335,7 @@ type CentralTds = {
   year_limit: string | null;
   above_limit_only: boolean;
   for_goods: boolean;
+  late_interest: string;
   is_active: boolean;
 };
 
@@ -352,6 +353,7 @@ const blankTds = (): CentralTds => ({
   year_limit: "",
   above_limit_only: false,
   for_goods: false,
+  late_interest: "1",
   is_active: true,
 });
 
@@ -447,6 +449,10 @@ function TdsSections() {
             <label>
               Year Over ₹
               <input className="num" inputMode="decimal" value={form.year_limit ?? ""} onChange={(e) => set({ year_limit: e.target.value })} />
+            </label>
+            <label>
+              <span className="req">Late Interest % a Month</span>
+              <input required className="num" inputMode="decimal" value={form.late_interest} onChange={(e) => set({ late_interest: e.target.value })} />
             </label>
           </div>
           <label className="check">
