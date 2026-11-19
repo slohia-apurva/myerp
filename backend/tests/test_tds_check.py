@@ -161,3 +161,18 @@ def test_the_check_needs_accounts_rights_and_skips_cancelled_bills(buyer, accoun
         Item.objects.filter(pk=o["amc"]).update(tds_section="194C")
         PurchaseInvoice.objects.filter(pk=bill["id"]).update(status=PurchaseInvoice.CANCELLED)
     assert _check(accounts, o)["rows"] == []
+
+
+def test_the_bill_shows_tds_adjusted_later(buyer, accounts, office, alpha):
+    o = office
+    bill = _submitted_bill(buyer, o)
+    with use_tenant(alpha):
+        Item.objects.filter(pk=o["amc"]).update(tds_section="194C")
+    adj = _adjust(accounts, o, [bill["id"]], submit=True).json()
+    tds = call(buyer, "get", f"purchase-invoices/{bill['id']}/tds/").json()
+    assert [(a["number"], a["amount"]) for a in tds["adjusted"]] == [(adj["number"], "800.00")]
+    assert tds["total"] == "0.00" and tds["with_adjusted"] == "800.00"
+    with use_tenant(alpha):
+        from buying import tds as tds_rules
+
+        assert tds_rules.deducted_on(PurchaseInvoice.objects.get(pk=bill["id"])) == D("800")

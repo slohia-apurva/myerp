@@ -421,6 +421,31 @@ def row_out(r: PurchaseInvoiceTds, day: datetime.date, individual: bool) -> dict
     }
 
 
+def adjusted_on(inv: PurchaseInvoice) -> list[dict]:
+    """Submitted TDS Adjustments naming the bill (buying/tds_check.py), so the bill,
+    and later a supplier's payment advice, show all the TDS deducted against it."""
+    from buying.models import TdsAdjustment, TdsAdjustmentLine
+
+    rows = TdsAdjustmentLine.objects.filter(
+        invoice=inv, adjustment__status=TdsAdjustment.SUBMITTED
+    ).select_related("adjustment")
+    return [
+        {
+            "id": ln.adjustment_id,
+            "number": ln.adjustment.number,
+            "date": ln.adjustment.adj_date,
+            "section": ln.adjustment.section,
+            "amount": ln.amount,
+        }
+        for ln in rows.order_by("adjustment__adj_date", "adjustment_id")
+    ]
+
+
+def deducted_on(inv: PurchaseInvoice) -> Decimal:
+    """All TDS deducted against the bill: on it, and by TDS Adjustments."""
+    return inv.tds_total + sum((a["amount"] for a in adjusted_on(inv)), ZERO)
+
+
 def box(inv: PurchaseInvoice) -> dict:
     party = inv.supplier.party
     codes = sorted({r.section for r in inv.tds_rows.all() if r.section})
@@ -430,11 +455,14 @@ def box(inv: PurchaseInvoice) -> dict:
         taxable, _ = year_so_far(inv, code)
         so_far.append({"section": tds_sections.shown(code, day), "amount": taxable})
     individual = deductee_type(party) == Party.INDIVIDUAL
+    adjusted = adjusted_on(inv)
     return {
         "deductee": deductee_label(party),
         "year_so_far": so_far,
         "rows": [row_out(r, day, individual) for r in inv.tds_rows.all()],
         "total": inv.tds_total,
+        "adjusted": adjusted,
+        "with_adjusted": inv.tds_total + sum((a["amount"] for a in adjusted), ZERO),
     }
 
 
@@ -474,10 +502,10 @@ class InvoiceTdsView(APIView):
     permission_classes = [Signed]
 
     def get(self, request, pk: int):
-        from buying.invoices import _invoice
+        from buying.invoices import _invoice, _text
 
         _check(request, VIEW)
-        return Response(box(_invoice(request, pk)))
+        return Response(_text(box(_invoice(request, pk))))
 
     @tenant_atomic()
     def put(self, request, pk: int):

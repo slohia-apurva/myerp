@@ -3189,6 +3189,12 @@ export const MANUAL: Chapter[] = [
             only while that TDS is not yet paid to the government.
           </li>
           <li>
+            The bill's own "TDS" box then lists "TDS adjusted later" with the
+            adjustment's number, and "Total TDS on This Bill", so the bill shows
+            all the TDS deducted against it (payment advices to suppliers will
+            show the same).
+          </li>
+          <li>
             "Cancel adjustment" asks why and reverses the entries; the bills show
             their gap again. A bill named on a submitted adjustment cannot be
             cancelled until the adjustment is.

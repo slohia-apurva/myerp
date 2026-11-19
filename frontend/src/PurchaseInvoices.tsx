@@ -1198,7 +1198,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
           <Fold title="Totals" open summary={`₹${money(inv.total)}`}>
             <Totals taxable={inv.taxable_total} cgst={inv.cgst_total} sgst={inv.sgst_total} igst={inv.igst_total} roundOff={inv.round_off} total={inv.total} />
           </Fold>
-          <TdsBox<Invoice> billId={inv.id} tds={inv.tds} total={inv.total} draft={draft && can("create")} onChanged={setInv} />
+          <TdsBox<Invoice> billId={inv.id} companyId={companyId} tds={inv.tds} total={inv.total} draft={draft && can("create")} onChanged={setInv} />
           <EntriesBox entries={inv.entries ?? []} dues={inv.dues ?? []} draft={draft} />
           {inv.notes && (
             <Fold title="Notes" open>
