@@ -54,7 +54,7 @@ from core.price_lists import find_rate
 from core.terms import terms_for
 from posting.models import GLEntry
 from selling import stock
-from selling.models import SalesOrder, SalesOrderCharge, SalesOrderLine
+from selling.models import PickList, SalesOrder, SalesOrderCharge, SalesOrderLine
 from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
 from tenancy.models import GstRate
@@ -276,6 +276,9 @@ def _order_out(o: SalesOrder, lines: bool = True) -> dict:
         data["submitted_by_signature"] = (
             o.submitted_by.signature_url() if o.submitted_by and o.status != "draft" else ""
         )
+        from selling.pick_lists import brief
+
+        data["pick_lists"] = [brief(p) for p in o.pick_lists.order_by("id")]
         data["credit_warning"] = (
             credit_note(o.customer, o.total)
             if o.status in (SalesOrder.DRAFT, *SalesOrder.OPEN)
@@ -627,6 +630,10 @@ def _submit(o: SalesOrder, user) -> None:
     o.submitted_at = timezone.now()
     o.submitted_by = user
     o.save()
+    # The stores' pick list, with bins and batches chosen (Sidharth, 2026-11-19).
+    from selling import picking
+
+    picking.make(o, user)
 
 
 def _order(request, pk: int, lock: bool = False) -> SalesOrder:
@@ -766,6 +773,11 @@ class OrderCancelView(APIView):
         o.status = SalesOrder.CANCELLED
         o.cancel_reason = reason[:200]
         o.save()
+        # Its pick lists free the stock they kept aside.
+        from selling.pick_lists import cancel
+
+        for p in o.pick_lists.filter(status__in=PickList.HOLDING):
+            cancel(p, request.user, "The sales order was cancelled.")
         return Response(_fresh(o))
 
 

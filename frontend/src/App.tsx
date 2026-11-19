@@ -33,6 +33,7 @@ import { StockLedgerPage, StockSummaryPage } from "./Reports";
 import { LedgerStatementPage, TrialBalancePage } from "./Books";
 import { PurchaseOrdersPage } from "./PurchaseOrders";
 import { SalesOrdersPage } from "./SalesOrders";
+import { PickListsPage } from "./PickLists";
 import { BinContentsPage } from "./BinContents";
 import { GoodsReceiptsPage } from "./GoodsReceipts";
 import { PurchaseInvoicesPage } from "./PurchaseInvoices";
@@ -139,7 +140,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             />
           )}
           {((canReceive && current.company?.modules.includes("purchase")) || (canSeeSales && current.company?.modules.includes("sales"))) && current.company && (
-            <EntryMenu purchase={canReceive && current.company.modules.includes("purchase")} sales={canSeeSales && current.company.modules.includes("sales")} active={page === "companies" && (sub === "sales-orders" || sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments" || sub === "tds-check")} company={current.company} orders={canSeePurchase} tds={canSeeBooks || session.user.is_owner} />
+            <EntryMenu purchase={canReceive && current.company.modules.includes("purchase")} sales={canSeeSales && current.company.modules.includes("sales")} active={page === "companies" && (sub === "sales-orders" || sub === "pick-lists" || sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments" || sub === "tds-check")} company={current.company} orders={canSeePurchase} tds={canSeeBooks || session.user.is_owner} />
           )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
@@ -149,7 +150,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", ...REPORTS].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", ...REPORTS].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />
@@ -188,6 +189,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <TrialBalancePage key={id} companyId={id} />
         ) : page === "companies" && id && sub === "ledger-statement" && canSeeBooks ? (
           <LedgerStatementPage key={id} companyId={id} />
+        ) : page === "companies" && id && sub === "pick-lists" && (canSeeSales || session.permissions.includes("stock.view")) ? (
+          <PickListsPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "sales-orders" && canSeeSales ? (
           <SalesOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "purchase-orders" && canSeePurchase ? (

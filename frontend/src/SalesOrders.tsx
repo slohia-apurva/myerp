@@ -13,6 +13,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { AddressBlock, ContactTicks, PaymentPanel, TotalsPanel, type Contact, type Place } from "./PurchaseOrders";
 import { OrderMail } from "./SupplierMail";
+import { type PickBrief } from "./PickLists";
 import { useOnReturn, useReturns } from "./Refresh";
 
 /** Entry > Sales > Sales Order: what a customer asked the company for. A draft can be
@@ -106,6 +107,8 @@ type SalesOrder = {
   mail_contacts?: Contact[];
   addresses?: { bill_from: Place | null; customer: Place & { name: string }; ship_to: (Place & { name: string }) | null };
   credit_warning?: string;
+  /** Made on Submit (Sidharth, 2026-11-19): the newest is the one that counts. */
+  pick_lists?: PickBrief[];
 };
 type Customer = {
   id: number;
@@ -214,11 +217,17 @@ const printMenu = (id: number | null) => [
   { label: "Download PDF", onClick: () => id && openTab(`/api/v1/sales-orders/${id}/pdf/?download=1`) },
 ];
 
-/** "Create ▾" on a submitted order: the documents that follow from it, built one by one. */
-const NEXT_DOCS = [
-  { label: "Pick List (coming next)", onClick: () => undefined, disabled: true },
-  { label: "Delivery Note (coming later)", onClick: () => undefined, disabled: true },
-  { label: "Sales Invoice (coming later)", onClick: () => undefined, disabled: true },
+/** "Create ▾" on a submitted order: the documents that follow from it, built one by one.
+ * "Pick List" makes a new one only when the order has no open or picked list. */
+const nextDocs = (makePick: (() => void) | null) => [
+  {
+    label: "Pick List",
+    onClick: () => makePick?.(),
+    disabled: !makePick,
+    title: makePick ? undefined : "The order already has a pick list (cancel it to make a new one)",
+  },
+  { label: "Delivery Note (coming next)", disabled: true },
+  { label: "Sales Invoice (coming later)", disabled: true },
 ];
 
 // The list ----------------------------------------------------------------------
@@ -1205,6 +1214,19 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
     );
   const draft = order.status === "draft";
   const open = order.status === "ordered" || order.status === "part_delivered";
+  const picks = order.pick_lists ?? [];
+  const livePick = [...picks].reverse().find((p) => p.status !== "cancelled");
+  const pickHref = (pid: number) => `#/companies/${companyId}/pick-lists?view=${pid}`;
+  const makePick = async () => {
+    setError("");
+    try {
+      const made = await api<PickBrief>(`v1/sales-orders/${order.id}/pick-list/`, {});
+      openTab(pickHref(made.id));
+      reload();
+    } catch (err) {
+      setError(err);
+    }
+  };
   const canCancel = can("cancel") && (draft || order.status === "ordered");
   const sumOf = (rows: { taxable?: string; amount: string }[] | undefined, key: "taxable" | "amount") =>
     round2((rows ?? []).reduce((s, r) => s + Number(r[key] ?? 0), 0));
@@ -1262,7 +1284,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Submit
               </button>
             )}
-            {open && <ActionsMenu label="Create" main items={NEXT_DOCS} />}
+            {open && <ActionsMenu label="Create" main items={nextDocs(livePick || !can("create") ? null : makePick)} />}
           </>
         }
       />
@@ -1294,6 +1316,36 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             </div>
           )}
           <ErrorNote error={error} />
+          {livePick && (
+            <div className={livePick.all_in ? "use-note pick-note all-in" : "use-note pick-note"}>
+              <span>
+                <b>
+                  Pick List{" "}
+                  <a href={pickHref(livePick.id)} target="_blank" rel="noreferrer">
+                    {livePick.number}
+                  </a>{" "}
+                  {livePick.status === "picked" ? "picked." : "made on Submit."}
+                </b>{" "}
+                {livePick.all_in ? "All items in stock." : livePick.text.replace(/^Not all in stock: /, "")}
+              </span>
+              <button type="button" className="link" onClick={() => openTab(pickHref(livePick.id))}>
+                Open Pick List
+              </button>
+            </div>
+          )}
+          {!draft && order.status !== "cancelled" && (
+            <div className="doc-counts no-print" aria-label="Documents made from this order">
+              <a className={picks.length ? "" : "none"} href={livePick ? pickHref(livePick.id) : `#/companies/${companyId}/pick-lists`} target="_blank" rel="noreferrer">
+                <b>{picks.filter((p) => p.status !== "cancelled").length}</b> Pick List
+              </a>
+              <span className="none">
+                <b>0</b> Delivery Notes
+              </span>
+              <span className="none">
+                <b>0</b> Invoices
+              </span>
+            </div>
+          )}
           {order.credit_warning && <p className="use-note">{order.credit_warning}</p>}
           {mailed && <p className="use-note">{mailed}</p>}
           {mailing && (

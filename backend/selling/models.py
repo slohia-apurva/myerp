@@ -14,6 +14,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 
 from core.models import (
+    Batch,
     Branch,
     Company,
     CreditTerm,
@@ -179,3 +180,65 @@ class SalesOrderCharge(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item} {self.amount}"
+
+
+class PickList(models.Model):
+    """Where the stores take an order's goods from: bin and batch per item
+    (Sidharth, 2026-11-19, preview 6). Made by itself when a sales order is
+    submitted; an open list can be changed, and once submitted ("Picked") it is
+    final. Stock on an open or picked list is kept aside, so the next order
+    does not pick the same bags. It posts nothing: the delivery note moves the
+    stock."""
+
+    OPEN, PICKED, CANCELLED = "open", "picked", "cancelled"
+    STATUSES = [(OPEN, "Open"), (PICKED, "Picked"), (CANCELLED, "Cancelled")]
+    HOLDING = (OPEN, PICKED)
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    order = models.ForeignKey(SalesOrder, on_delete=models.PROTECT, related_name="pick_lists")
+    # The order's Despatch From, as it was when the list was made.
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    area = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    number = models.CharField(max_length=30)
+    status = models.CharField(max_length=10, choices=STATUSES, default=OPEN)
+    notes = models.TextField(blank=True)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-id"]
+        constraints = [models.UniqueConstraint("company", "number", name="pick_list_number_unique")]
+
+    def __str__(self) -> str:
+        return self.number
+
+
+class PickListLine(models.Model):
+    """One bin and batch to take an order line's goods from. Quantities are in
+    the item's stock unit. An order line with nothing found has no rows; what is
+    short is the line's quantity less what its rows pick."""
+
+    pick_list = models.ForeignKey(PickList, on_delete=models.CASCADE, related_name="lines")
+    order_line = models.ForeignKey(SalesOrderLine, on_delete=models.PROTECT, related_name="+")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="+")
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} {self.qty} from {self.location}"

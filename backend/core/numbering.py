@@ -38,6 +38,7 @@ DOCUMENT_TYPES = [
     ("credit_note", "Credit note", "CN", True),
     ("debit_note", "Debit note", "DN", True),
     ("sales_order", "Sales order", "SO", False),
+    ("pick_list", "Pick list", "PL", False),
     ("delivery_challan", "Delivery challan", "DC", False),
     ("purchase_order", "Purchase order", "PO", False),
     ("goods_receipt", "Goods receipt (GRN)", "GRN", False),
