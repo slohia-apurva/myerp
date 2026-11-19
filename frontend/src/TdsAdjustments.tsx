@@ -11,7 +11,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 
-/** Entry › Purchase › TDS Adjustment (Sidharth, 2026-11-19, preview 95c): TDS missed on submitted bills
+/** Entry › Accounts › TDS Adjustment (Sidharth, 2026-11-19, preview 95c): TDS missed on submitted bills
  * is deducted now (Dr supplier, Cr "TDS Payable <section>"), or TDS deducted in excess is given back.
  * Made from the TDS Check (TdsCheck.tsx); each line's amount is the gap the check finds, never typed.
  * Bills in a quarter whose TDS return is filed cannot be adjusted. Served by buying/tds_check.py. */
@@ -124,8 +124,8 @@ function AdjustmentList({ companyId }: { companyId: number }) {
     <section className="page">
       <PageHeader
         title="TDS Adjustment"
-        crumbs={[{ label: "Entry › Purchase", href: base(companyId) }]}
-        sub={`${shown.length} ${shown.length === 1 ? "adjustment" : "adjustments"}. New ones are made from Admin › TDS Check.`}
+        crumbs={[{ label: "Entry › Accounts", href: base(companyId) }]}
+        sub={`${shown.length} ${shown.length === 1 ? "adjustment" : "adjustments"}. New ones are made from Entry › Accounts › TDS Check.`}
         actions={
           <>
             <button type="button" className="secondary" onClick={() => openTab(`#/companies/${companyId}/tds-check`)}>
@@ -304,7 +304,7 @@ function FormTab({ companyId, form, canSubmit }: { companyId: number; form: stri
       return;
     }
     if (!ledger || !section) {
-      setError('Make a TDS adjustment from Admin › TDS Check: open a supplier and click "Make TDS Adjustment".');
+      setError('Make a TDS adjustment from Entry › Accounts › TDS Check: open a supplier and click "Make TDS Adjustment".');
       return;
     }
     api<DraftFrom>(`v1/companies/${companyId}/tds-adjustments/draft-from/?ledger=${ledger}&section=${encodeURIComponent(section)}${year ? `&year=${year}` : ""}`).then(setFrom, setError);
@@ -312,7 +312,7 @@ function FormTab({ companyId, form, canSubmit }: { companyId: number; form: stri
   const title = form === "new" ? "New TDS Adjustment" : "Edit TDS Adjustment";
   const shell = (msg?: unknown) => (
     <section className="page">
-      <PageHeader title={title} crumbs={[{ label: "Entry › Purchase › TDS Adjustment", href: base(companyId) }]} />
+      <PageHeader title={title} crumbs={[{ label: "Entry › Accounts › TDS Adjustment", href: base(companyId) }]} />
       <ErrorNote error={msg} />
     </section>
   );
@@ -401,7 +401,7 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
       <PageHeader
         title={draftId && !adj ? "Edit TDS Adjustment" : props.title}
         sub={savedAt ? `Saved as a draft at ${savedAt}. Carry on, or click "Close" and finish it later.` : "Deducts TDS missed on submitted bills, or gives back TDS deducted in excess."}
-        crumbs={[{ label: "Entry › Purchase › TDS Adjustment", href: base(companyId) }]}
+        crumbs={[{ label: "Entry › Accounts › TDS Adjustment", href: base(companyId) }]}
         actions={
           <>
             <button type="button" className="link" onClick={close}>
@@ -506,7 +506,7 @@ function AdjustmentView({ companyId, id, can }: { companyId: number; id: number;
   if (!adj)
     return (
       <section className="page">
-        <PageHeader title="TDS Adjustment" crumbs={[{ label: "Entry › Purchase › TDS Adjustment", href: base(companyId) }]} />
+        <PageHeader title="TDS Adjustment" crumbs={[{ label: "Entry › Accounts › TDS Adjustment", href: base(companyId) }]} />
         <ErrorNote error={error} />
       </section>
     );
@@ -520,7 +520,7 @@ function AdjustmentView({ companyId, id, can }: { companyId: number; id: number;
             ? `Submitted as ${adj.number} on ${showDate(adj.submitted_at)} at ${new Date(adj.submitted_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`
             : undefined
         }
-        crumbs={[{ label: "Entry › Purchase › TDS Adjustment", href: base(companyId) }]}
+        crumbs={[{ label: "Entry › Accounts › TDS Adjustment", href: base(companyId) }]}
         actions={
           <>
             <button type="button" className="link" onClick={close}>

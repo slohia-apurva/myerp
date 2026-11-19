@@ -178,14 +178,13 @@ export function ReportsMenu(props: { active: boolean; company: Company; stock: b
 }
 
 /** "Admin" in the top menu, for Owners only: companies, users and roles. */
-export function AdminMenu(props: { active: boolean; company: Company | null | undefined; canSeeMasters: boolean; canManageUsers: boolean }) {
+export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canManageUsers: boolean }) {
   return (
     <DropMenu
       label="Admin"
       active={props.active}
       items={[
         ["Company", "#/companies", props.canSeeMasters],
-        ["TDS Check", props.company ? `#/companies/${props.company.id}/tds-check` : "#/companies", !!props.company?.modules.includes("purchase")],
         ["Users", "#/users", props.canManageUsers],
         ["User roles", "#/roles", props.canManageUsers],
         ["Reset data", "#/reset", true],
@@ -199,7 +198,7 @@ export function AdminMenu(props: { active: boolean; company: Company | null | un
  * Invoice and Purchase Return are shown as coming next until they are built. */
 export function EntryMenu(props: { active: boolean; company: Company; orders: boolean; tds?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [sub, setSub] = useState(false);
+  const [sub, setSub] = useState("");
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -225,15 +224,15 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
         aria-expanded={open}
         onClick={() => {
           setOpen(!open);
-          setSub(false);
+          setSub("");
         }}
       >
         Entry <span aria-hidden="true">▾</span>
       </button>
       {open && (
         <div className="menu-panel" role="menu">
-          <div className={`menu-sub${sub ? " open" : ""}`}>
-            <button type="button" aria-haspopup="true" aria-expanded={sub} onClick={() => setSub(!sub)}>
+          <div className={`menu-sub${sub === "purchase" ? " open" : ""}`}>
+            <button type="button" aria-haspopup="true" aria-expanded={sub === "purchase"} onClick={() => setSub(sub === "purchase" ? "" : "purchase")}>
               Purchase <span aria-hidden="true">▸</span>
             </button>
             <div className="menu-flyout" role="menu" aria-label="Purchase">
@@ -258,13 +257,23 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
                   Debit Note
                 </a>
               )}
-              {props.tds && (
+            </div>
+          </div>
+          {props.tds && (
+            <div className={`menu-sub${sub === "accounts" ? " open" : ""}`}>
+              <button type="button" aria-haspopup="true" aria-expanded={sub === "accounts"} onClick={() => setSub(sub === "accounts" ? "" : "accounts")}>
+                Accounts <span aria-hidden="true">▸</span>
+              </button>
+              <div className="menu-flyout" role="menu" aria-label="Accounts">
+                <a role="menuitem" href={`#/companies/${id}/tds-check`} onClick={() => setOpen(false)}>
+                  TDS Check
+                </a>
                 <a role="menuitem" href={`#/companies/${id}/tds-adjustments`} onClick={() => setOpen(false)}>
                   TDS Adjustment
                 </a>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

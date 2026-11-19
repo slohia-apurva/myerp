@@ -3131,7 +3131,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Run the TDS Check before each quarter's TDS return. Open it from
-          "Admin" in the top menu, then "TDS Check". It works out again every
+          "Entry" in the top menu, then "Accounts", then "TDS Check". It works out again every
           submitted purchase bill of the "Financial Year", supplier by
           supplier and in date order, with today's masters: the "TDS Section"
           on the item or ledger (or the supplier's "Default TDS Section"), the
@@ -3169,7 +3169,7 @@ export const MANUAL: Chapter[] = [
         </ul>
         <p>
           <b>TDS Adjustment.</b> A submitted bill is never changed, so a gap is
-          put right on a TDS Adjustment (also under "Entry" › "Purchase" ›
+          put right on a TDS Adjustment (also under "Entry" › "Accounts" ›
           "TDS Adjustment", which lists them). "Date" is the day the TDS is
           deducted. "Bills Covered" lists each bill with "TDS On ₹", "Rate %",
           "TDS Due ₹", "Deducted ₹" and "This Adjustment ₹", the gap the TDS

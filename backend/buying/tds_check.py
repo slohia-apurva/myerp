@@ -1,6 +1,6 @@
 """TDS Check and TDS Adjustment (Sidharth, 2026-11-19, previews 95a-c).
 
-TDS Check (Admin › TDS Check) runs a supplier's year again: every submitted
+TDS Check (Entry › Accounts › TDS Check) runs a supplier's year again: every submitted
 purchase bill of the financial year, in date order, worked out with today's
 masters (the TDS Section on the item or ledger, the supplier's PAN and type,
 and the section's rates and limits on the bill's date; a section chosen by hand

@@ -137,7 +137,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             />
           )}
           {canReceive && current.company?.modules.includes("purchase") && (
-            <EntryMenu active={page === "companies" && (sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments")} company={current.company} orders={canSeePurchase} tds={canSeeBooks} />
+            <EntryMenu active={page === "companies" && (sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments" || sub === "tds-check")} company={current.company} orders={canSeePurchase} tds={canSeeBooks || session.user.is_owner} />
           )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
@@ -147,8 +147,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )}
           {session.user.is_owner && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", ...REPORTS].includes(sub ?? ""))}
-              company={current.company}
+              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", ...REPORTS].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
             />

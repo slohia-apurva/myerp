@@ -9,7 +9,7 @@ import { usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useReturns } from "./Refresh";
 
-/** Admin › TDS Check (Sidharth, 2026-11-19, previews 95a/95b): every supplier's TDS for the year worked
+/** Entry › Accounts › TDS Check (Sidharth, 2026-11-19, previews 95a/95b): every supplier's TDS for the year worked
  * out again with today's masters, against what was deducted; a gap is put right by a TDS Adjustment
  * (TdsAdjustments.tsx). A quarter marked "Return Filed" is locked. Served by buying/tds_check.py. */
 
@@ -135,7 +135,7 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
     <section className="page">
       <PageHeader
         title="TDS Check"
-        crumbs={[{ label: "Admin", href: base(companyId) }]}
+        crumbs={[{ label: "Entry › Accounts", href: base(companyId) }]}
         sub="The TDS each supplier's bills should have had this year, against what they had. Run it before each quarter's TDS return."
         actions={printing.buttons}
       />
@@ -381,7 +381,7 @@ function SupplierPage({ companyId, session, ledger, section, year }: { companyId
     <section className="page">
       <PageHeader
         title={`TDS Check: ${s?.supplier_name ?? ""}`}
-        crumbs={[{ label: "Admin › TDS Check", href: base(companyId) }]}
+        crumbs={[{ label: "Entry › Accounts › TDS Check", href: base(companyId) }]}
         sub={
           data
             ? `${s?.section_shown} ${data.section_name} · ${dmy(data.start)} to ${dmy(data.end)} · ${data.deductee}${data.limits ? ` · limits: ${data.limits}${data.above_limit_only ? " (TDS on what passes the year limit)" : ""}` : ""}`
