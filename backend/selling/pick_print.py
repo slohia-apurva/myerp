@@ -216,20 +216,16 @@ def pick_pdf(data: dict, letterhead: dict, transporter: str) -> bytes:
         )
         bars.hAlign = "LEFT"
         opened = Decimal(r["qty"]) < Decimal(r["package_left"] or "0")
-        under = (
-            Paragraph(
-                f"OPEN: take {t(r['qty'])} of {t(r['package_left'])} {t(i['stock_unit_name'])}",
-                style("op", 7, 8.5, bold, AMBER_INK),
-            )
-            if opened
-            else Paragraph(t(r["package_label"]), style("pl", 7, 8.5, colour=MUTED))
-        )
-        return [
-            Paragraph(t(r["package_number"]), style("pk", 8.5, 10, bold)),
-            bars,
-            Spacer(1, 2),
-            under,
-        ]
+        cell = [Paragraph(t(r["package_number"]), style("pk", 8.5, 10, bold)), bars]
+        if opened:
+            cell += [
+                Spacer(1, 2),
+                Paragraph(
+                    f"OPEN: take {t(r['qty'])} of {t(r['package_left'])} {t(i['stock_unit_name'])}",
+                    style("op", 7, 8.5, bold, AMBER_INK),
+                ),
+            ]
+        return cell
 
     if rows:
         cols = [22, width * 0.19, None, width * 0.13, width * 0.17, width * 0.15, width * 0.1]
