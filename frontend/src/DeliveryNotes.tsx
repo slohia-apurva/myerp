@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type SignedIn } from "./api";
-import { Attachments } from "./Attachments";
+import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -700,10 +700,9 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
                 : "Rates come from the order; they print on the challan and go on to the sales invoice."}
             </p>
           </Fold>
-          <Attachments type="delivery_note" id={note.id} onChange={() => setFiles((n) => n + 1)} />
           <LedgerPosting url={`v1/delivery-notes/${note.id}/ledger-posting/`} stamp={`${saved}-${note.status}`} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="delivery_note" id={note.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Details">
             <SideRows
               rows={[
@@ -717,7 +716,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="delivery_note" id={note.id} stamp={JSON.stringify(note) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
       {problems && <ProblemsPopup problems={problems} onGo={goTo} onClose={() => setProblems(null)} />}
       {noLedgers && <MissingLedgersPopup refusal={noLedgers} document={`the delivery note to ${note.customer_name}`} onClose={() => setNoLedgers(null)} />}

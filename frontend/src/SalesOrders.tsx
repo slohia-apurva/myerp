@@ -1,7 +1,7 @@
 import { deliveryBase, makeDeliveryNote } from "./DeliveryNotes";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
@@ -1150,9 +1150,8 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
               </label>
             </div>
           </Fold>
-          <Attachments type="sales_order" id={draftId} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="sales_order" id={draftId}>
           <TotalsPanel
             items={chargeRows.length ? itemsValue : undefined}
             charges={chargeRows.length ? chargesValue : undefined}
@@ -1170,7 +1169,7 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
               <ChangeLog company={companyId} type="sales_order" id={order.id} stamp={JSON.stringify(order)} />
             </SidePanel>
           )}
-        </div>
+        </DocSide>
       </form>
     </section>
   );
@@ -1553,9 +1552,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               )}
             </Fold>
           )}
-          <Attachments type="sales_order" id={order.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="sales_order" id={order.id} onChange={() => setFiles((n) => n + 1)}>
           <TotalsPanel
             items={order.charges?.length ? sumOf(order.lines, "taxable") : undefined}
             charges={order.charges?.length ? sumOf(order.charges, "amount") : undefined}
@@ -1571,7 +1569,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="sales_order" id={order.id} stamp={JSON.stringify(order) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -466,8 +466,8 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
             </p>
           </Fold>
           {draftId && <LedgerPosting url={`v1/tds-adjustments/${draftId}/ledger-posting/`} stamp={saved} />}
-          <Attachments type="tds_adjustment" id={draftId} />
         </div>
+        <DocSide type="tds_adjustment" id={draftId} />
       </form>
     </section>
   );
@@ -600,13 +600,12 @@ function AdjustmentView({ companyId, id, can }: { companyId: number; id: number;
             {Number(adj.interest) > 0 && <p className="small">Interest is for information, to pay with the TDS challan; it is not posted here.</p>}
           </Fold>
           <LedgerPosting url={`v1/tds-adjustments/${adj.id}/ledger-posting/`} stamp={adj.status} />
-          <Attachments type="tds_adjustment" id={adj.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="tds_adjustment" id={adj.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="tds_adjustment" id={adj.id} stamp={JSON.stringify(adj) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );

@@ -2574,15 +2574,21 @@ export const MANUAL: Chapter[] = [
         </ul>
         <h3>Attachments</h3>
         <p>
-          Every entry screen has an "Attachments" box near the foot. Once the
-          order is saved, drop files on it, or click "choose files" (or "take a
-          photo" on a phone) to add the supplier's challan or invoice, the lorry
-          receipt (LR), the e-way bill, photos and other papers: PDF, pictures,
-          Word or Excel, up to 10 MB each. The list shows each "File", its
-          "Type" (pick another from the list to change it), "Added By" and
-          "Added On"; "Open" shows the file and "×" removes it. Files stay with
-          the order after Submit, and more can still be added later. Adding
-          or removing a file is written to the order's Activity. Anyone who may make orders may add files; others, such as "Storekeeper", only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
+          Every entry screen has an "Attachments" box at the top of the
+          column on the right of the page (below the form on a phone or a
+          narrow window). Once the order is saved, drop files on it, or click
+          "choose files" (or "take a photo" on a phone) to add the supplier's
+          challan or invoice, the lorry receipt (LR), the e-way bill, photos and
+          other papers: PDF, pictures, Word or Excel, up to 10 MB each. Each file
+          shows as a button with its name and type; click one to see it right
+          there beside the form, so you can check the paper against the entry
+          as you read or type. PDFs and photos show in the page; Word, Excel
+          and iPhone (HEIC) photos cannot, so use "Open in New Tab". Under the
+          file are who added it and when, "Open in New Tab", "Remove" and its
+          "Type" (pick another from the list to change it). Files stay with the
+          order after Submit, and more can still be added later. Adding or
+          removing a file is written to the order's Activity, which sits below
+          in the same column. Anyone who may make orders may add files; others, such as "Storekeeper", only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
         </p>
         <h3>Transit insurance</h3>
         <p>
@@ -2820,15 +2826,21 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Attachments</h3>
         <p>
-          Every entry screen has an "Attachments" box near the foot. Once the
-          receipt is saved, drop files on it, or click "choose files" (or "take a
-          photo" on a phone) to add the supplier's challan or invoice, the lorry
-          receipt (LR), the e-way bill, photos and other papers: PDF, pictures,
-          Word or Excel, up to 10 MB each. The list shows each "File", its
-          "Type" (pick another from the list to change it), "Added By" and
-          "Added On"; "Open" shows the file and "×" removes it. Files stay with
-          the receipt after Submit, and more can still be added later. Adding
-          or removing a file is written to the receipt's Activity. Anyone who may make receipts may add files; others only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
+          Every entry screen has an "Attachments" box at the top of the
+          column on the right of the page (below the form on a phone or a
+          narrow window). Once the receipt is saved, drop files on it, or click
+          "choose files" (or "take a photo" on a phone) to add the supplier's
+          challan or invoice, the lorry receipt (LR), the e-way bill, photos and
+          other papers: PDF, pictures, Word or Excel, up to 10 MB each. Each file
+          shows as a button with its name and type; click one to see it right
+          there beside the form, so you can check the paper against the entry
+          as you read or type. PDFs and photos show in the page; Word, Excel
+          and iPhone (HEIC) photos cannot, so use "Open in New Tab". Under the
+          file are who added it and when, "Open in New Tab", "Remove" and its
+          "Type" (pick another from the list to change it). Files stay with the
+          receipt after Submit, and more can still be added later. Adding or
+          removing a file is written to the receipt's Activity, which sits below
+          in the same column. Anyone who may make receipts may add files; others only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
         </p>
         <Note>
           Receipts are made and submitted by the Purchase or Storekeeper roles;
@@ -2948,8 +2960,10 @@ export const MANUAL: Chapter[] = [
             invoice.
           </li>
           <li>
-            The "Attachments" box keeps the supplier's bill (PDF or photo) and any
-            other papers, on the draft and after Submit.
+            The "Attachments" box, at the top of the right-hand column, keeps the
+            supplier's bill (PDF or photo) and any other papers, on the draft and
+            after Submit. Click a file's name to see it beside the invoice, so the
+            bill can be checked line by line without leaving the page.
             If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
           </li>
           <li>

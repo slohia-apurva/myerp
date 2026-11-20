@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
 import { Locked } from "./Lock";
@@ -445,8 +445,8 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
           <Fold title="Notes" open={!!notes}>
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           </Fold>
-          <Attachments type="purchase_invoice" id={draftId} />
         </div>
+        <DocSide type="purchase_invoice" id={draftId} />
       </form>
     </section>
   );
