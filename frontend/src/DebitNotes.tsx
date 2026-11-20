@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -602,8 +602,8 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
           <Fold title="Notes" open={!!notes}>
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           </Fold>
-          <Attachments type="debit_note" id={draftId} />
         </div>
+        <DocSide type="debit_note" id={draftId} />
       </form>
     </section>
   );
@@ -820,13 +820,12 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
               <p className="pre">{note.notes}</p>
             </Fold>
           )}
-          <Attachments type="debit_note" id={note.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="debit_note" id={note.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="debit_note" id={note.id} stamp={JSON.stringify(note) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );

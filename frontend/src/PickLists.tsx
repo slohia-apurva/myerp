@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments } from "./Attachments";
+import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -521,9 +521,8 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
               bags.
             </p>
           </Fold>
-          <Attachments type="pick_list" id={pick.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="pick_list" id={pick.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Details">
             <SideRows
               rows={[
@@ -538,7 +537,7 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="pick_list" id={pick.id} stamp={JSON.stringify(pick) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );

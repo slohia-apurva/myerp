@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -582,8 +582,8 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
           <Fold title="Notes" open={!!notes}>
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           </Fold>
-          <Attachments type="purchase_return" id={draftId} />
         </div>
+        <DocSide type="purchase_return" id={draftId} />
       </form>
     </section>
   );
@@ -782,13 +782,12 @@ function ReturnView({ companyId, id, can, canDebit }: { companyId: number; id: n
               <p className="pre">{ret.notes}</p>
             </Fold>
           )}
-          <Attachments type="purchase_return" id={ret.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="purchase_return" id={ret.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="purchase_return" id={ret.id} stamp={JSON.stringify(ret) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );

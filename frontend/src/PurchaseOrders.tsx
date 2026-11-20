@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
@@ -1262,9 +1262,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               </label>
             </div>
           </Fold>
-          <Attachments type="purchase_order" id={draftId} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="purchase_order" id={draftId}>
           <TotalsPanel
             items={chargesOn.length ? itemsValue : undefined}
             charges={chargesOn.length ? chargesValue : undefined}
@@ -1293,7 +1292,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
               <ChangeLog company={companyId} type="purchase_order" id={order.id} stamp={JSON.stringify(order)} />
             </SidePanel>
           )}
-        </div>
+        </DocSide>
       </form>
     </section>
   );
@@ -1894,9 +1893,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               )}
             </Fold>
           )}
-          <Attachments type="purchase_order" id={order.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="purchase_order" id={order.id} onChange={() => setFiles((n) => n + 1)}>
           <TotalsPanel
             items={order.charges?.length ? sumOf(order.lines, "taxable") : undefined}
             charges={order.charges?.length ? sumOf(order.charges, "amount") : undefined}
@@ -1913,7 +1911,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="purchase_order" id={order.id} stamp={JSON.stringify(order) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );

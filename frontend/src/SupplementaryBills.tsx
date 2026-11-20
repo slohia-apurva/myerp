@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { PageHeader } from "./Brand";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab } from "./Create";
@@ -280,8 +280,8 @@ function SupplementaryForm(props: { companyId: number; from: DraftFrom; bill?: S
           <Fold title="Notes" open={!!notes}>
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           </Fold>
-          <Attachments type="purchase_invoice" id={draftId} />
         </div>
+        <DocSide type="purchase_invoice" id={draftId} />
       </form>
     </section>
   );

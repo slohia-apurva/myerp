@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, upload } from "./api";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
-import { Fold } from "./Master";
+import { SidePanel } from "./Master";
 
 /** The "Attachments" box every entry screen carries (Sidharth, 2026-11-15): the supplier's
  * challan, LR, photos of the truck… Files stay with the entry after Submit and can still be
- * added later. Served by core/attachments.py; each entry type registers there. */
+ * added later. Served by core/attachments.py; each entry type registers there.
+ *
+ * Since 2026-11-20 (Sidharth, like Odoo) it sits at the top of the entry's right-hand column
+ * (`DocSide`) and shows the chosen file in the page, beside the form. */
 
 type Row = {
   id: number;
@@ -20,6 +23,8 @@ type Row = {
 type Listing = { can_change: boolean; kinds: [string, string][]; rows: Row[] };
 
 const MAX_SIZE = 10 * 1024 * 1024;
+const SHOWN_IMAGES = [".jpg", ".jpeg", ".png", ".webp"];
+const fileUrl = (row: Row) => `/api/v1/attachments/${row.id}/`;
 const ACCEPT = ".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,.xls,.xlsx";
 const sizeText = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const when = (iso: string) =>
@@ -44,6 +49,8 @@ export function Attachments(props: {
   const [data, setData] = useState<Listing | null>(null);
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState("");
+  // The file shown in the viewer; the first one until another is clicked.
+  const [picked, setPicked] = useState<number | null>(null);
 
   const load = useCallback(() => {
     if (id === null) return;
@@ -98,54 +105,53 @@ export function Attachments(props: {
   const rows = data?.rows ?? [];
   const kinds = (data?.kinds ?? []).map(([value, label]) => ({ value, label }));
   const canChange = !!data?.can_change;
+  const shown = rows.find((r) => r.id === picked) ?? rows[0];
   return (
-    <Fold title="Attachments" open={rows.length > 0} summary={id === null ? "" : rows.length ? `${rows.length} file${rows.length > 1 ? "s" : ""}` : "None"}>
+    <SidePanel title="Attachments" tag={id === null ? "" : rows.length ? `${rows.length} file${rows.length > 1 ? "s" : ""}` : "None"}>
       {id === null ? (
         <p className="small">Save the entry first, then add the supplier's challan, LR, photos and other papers here.</p>
       ) : (
         <>
           {rows.length > 0 && (
-            <div className="table-wrap">
-              <table className="list attach-list">
-                <thead>
-                  <tr>
-                    <th>File</th>
-                    <th>Type</th>
-                    <th>Added By</th>
-                    <th>Added On</th>
-                    <th className="no-print" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        {row.filename} <span className="small">{sizeText(row.size)}</span>
-                      </td>
-                      <td className="attach-kind">
-                        {canChange ? (
-                          <Combobox value={row.kind} onChange={(k) => k && k !== row.kind && retype(row, k)} options={kinds} ariaLabel={`Type of ${row.filename}`} />
-                        ) : (
-                          row.kind_label
-                        )}
-                      </td>
-                      <td>{row.added_by_name}</td>
-                      <td>{when(row.added_at)}</td>
-                      <td className="no-print attach-acts">
-                        <a className="link" href={`/api/v1/attachments/${row.id}/`} target="_blank" rel="noreferrer">
-                          Open
-                        </a>
-                        {canChange && (
-                          <button type="button" className="link danger" title={`Remove ${row.filename}`} onClick={() => remove(row)}>
-                            ×
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="attach-files" role="tablist" aria-label="Attached files">
+              {rows.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={row === shown}
+                  className={row === shown ? "attach-file on" : "attach-file"}
+                  onClick={() => setPicked(row.id)}
+                >
+                  {row.filename}
+                  <span className="small">· {row.kind_label}</span>
+                </button>
+              ))}
             </div>
+          )}
+          {shown && <Preview row={shown} />}
+          {shown && (
+            <div className="attach-bar">
+              <span className="small">
+                Added by {shown.added_by_name} · {when(shown.added_at)} · {sizeText(shown.size)}
+              </span>
+              <span className="attach-acts no-print">
+                <a className="button" href={fileUrl(shown)} target="_blank" rel="noreferrer">
+                  Open in New Tab
+                </a>
+                {canChange && (
+                  <button type="button" className="link danger" onClick={() => remove(shown)}>
+                    Remove
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
+          {shown && canChange && (
+            <label className="attach-kind no-print">
+              Type
+              <Combobox value={shown.kind} onChange={(k) => k && k !== shown.kind && retype(shown, k)} options={kinds} ariaLabel={`Type of ${shown.filename}`} />
+            </label>
           )}
           {canChange && (
             <div
@@ -176,6 +182,38 @@ export function Attachments(props: {
         </>
       )}
       <ErrorNote error={error} />
-    </Fold>
+    </SidePanel>
+  );
+}
+
+/** The chosen file shown in the page: a PDF in the browser's own viewer, a photo as a
+ * picture. Word, Excel and HEIC photos cannot be shown inside a page, so they get a note. */
+function Preview({ row }: { row: Row }) {
+  const ext = row.filename.slice(row.filename.lastIndexOf(".")).toLowerCase();
+  if (ext === ".pdf")
+    return (
+      <>
+        <iframe className="attach-view no-print" src={fileUrl(row)} title={row.filename} />
+        <p className="attach-none attach-phone small">On a phone the PDF opens on its own: tap "Open in New Tab".</p>
+      </>
+    );
+  if (SHOWN_IMAGES.includes(ext))
+    return (
+      <div className="attach-view attach-image no-print">
+        <img src={fileUrl(row)} alt={row.filename} />
+      </div>
+    );
+  return <p className="attach-none small">This kind of file cannot be shown here. Use "Open in New Tab" to open or download it.</p>;
+}
+
+/** The right-hand column of an entry screen (Sidharth, 2026-11-20): the Attachments box
+ * with the file shown, then the screen's own panels (totals, details, Activity). On a
+ * narrow screen it drops below the form. */
+export function DocSide(props: { type: string; id: number | null; onChange?: () => void; children?: ReactNode }) {
+  return (
+    <div className="doc-side">
+      <Attachments type={props.type} id={props.id} onChange={props.onChange} />
+      {props.children}
+    </div>
   );
 }

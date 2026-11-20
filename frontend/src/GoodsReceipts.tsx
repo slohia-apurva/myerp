@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { TransitInsuranceView, type OrderInsurance } from "./Insurance";
 import { api, type SignedIn } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -1001,10 +1001,9 @@ function ReceiptForm(props: {
               <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
           </Fold>
-          <Attachments type="goods_receipt" id={draftId} />
           <LedgerPosting url={draftId ? `v1/goods-receipts/${draftId}/ledger-posting/` : null} stamp={saves} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="goods_receipt" id={draftId}>
           <SidePanel title="Against Purchase Order">
             {lines.length ? (
               <SideRows rows={lines.map((l) => [l.info.item_name, `${qty(round6(num(l.info.earlier) + accepted(l)))} of ${qty(l.info.ordered)} ${l.info.unit_name}`])} />
@@ -1016,7 +1015,7 @@ function ReceiptForm(props: {
             <SideRows rows={[...lines.map((l): [string, string] => [l.info.item_name, money(accepted(l) * num(l.info.rate) * toInr)]), ["Total ₹", money(value)]]} />
             <p className="small">The order's charges marked "Add to Stock Cost" (freight, packing…) are added on Submit, by quantity or value. The supplier's bill (Purchase Invoice) settles the final cost.</p>
           </SidePanel>
-        </div>
+        </DocSide>
       </form>
     </section>
   );
@@ -1554,14 +1553,13 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
             </Fold>
           )}
           <TransitInsuranceView rows={r.insurance ?? []} />
-          <Attachments type="goods_receipt" id={r.id} onChange={() => setFiles((n) => n + 1)} />
           <LedgerPosting url={`v1/goods-receipts/${r.id}/ledger-posting/`} stamp={r.status} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="goods_receipt" id={r.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="goods_receipt" id={r.id} stamp={JSON.stringify(r) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );

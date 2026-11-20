@@ -1,7 +1,7 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { TransitInsuranceView, type OrderInsurance } from "./Insurance";
 import { api, type SignedIn } from "./api";
-import { Attachments, keptDraft } from "./Attachments";
+import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -803,8 +803,8 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
           <Fold title="Notes" open={!!notes}>
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           </Fold>
-          <Attachments type="purchase_invoice" id={draftId} />
         </div>
+        <DocSide type="purchase_invoice" id={draftId} />
       </form>
     </section>
   );
@@ -1206,13 +1206,12 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
             </Fold>
           )}
           <TransitInsuranceView rows={inv.insurance ?? []} />
-          <Attachments type="purchase_invoice" id={inv.id} onChange={() => setFiles((n) => n + 1)} />
         </div>
-        <div className="doc-foot">
+        <DocSide type="purchase_invoice" id={inv.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">
             <ChangeLog company={companyId} type="purchase_invoice" id={inv.id} stamp={JSON.stringify(inv) + files} />
           </SidePanel>
-        </div>
+        </DocSide>
       </div>
     </section>
   );
