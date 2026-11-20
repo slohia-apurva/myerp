@@ -3409,11 +3409,32 @@ export const MANUAL: Chapter[] = [
           more than was ordered, is refused with the reason.
           "Discard changes" leaves the list as it was.
         </p>
+        <h3>Pick from another branch</h3>
+        <p>
+          When the goods are not where the order said, an open list can pick
+          from somewhere else. Open "Despatch From" on the list. The picker
+          lists every branch that keeps stock, and the areas in each, with how
+          many of the order's items each place holds in full ("1 of 1 items
+          ✓"); the order's own place is marked "(the order's)". Pick one and
+          click "Pick again from …": the bins and batches are chosen again by
+          the same rule, in that place only, and the tag at the top shows the
+          new place. The sales order's "Bill From" and tax do not change; the
+          delivery note sends the goods from the pick list's branch. One list
+          takes from one branch, and once it is submitted its place is fixed.
+        </p>
         <h3>Submit, print and cancel</h3>
         <p>
           When the goods are picked, click "Submit": the list is "Picked" and
-          final. "Print ▾" holds "Pick list" (a sheet for the stores, with a
-          blank "Picked" column to tick) and "Download PDF". "Cancel" (with a
+          final. "Print ▾" holds "Pick list" and "Download PDF". The print is
+          an A4 sheet for the stores: the list's number with its barcode, the
+          sales order, customer, Despatch From, delivery date and transporter,
+          then the rows bin by bin so the picker walks rack by rack. Each bin
+          is printed large with its barcode (the same code as on the bin
+          sheets), then the item, batch and expiry, the quantity to pick in
+          the order's unit, a box to tick and a space to write what was
+          picked. Anything not found is listed under "Short: not found in
+          stock", and the foot has "Picked By", "Checked By" and "Date and
+          Time" lines to sign. "Cancel" (with a
           reason) frees the stock the list kept aside; then "Create ▾ › Pick
           List" on the sales order makes a new one. Files go under
           "Attachments". Who may see or change pick lists: people whose role
