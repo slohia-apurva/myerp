@@ -378,3 +378,155 @@ class DeliveryNoteBin(models.Model):
 
     def __str__(self) -> str:
         return f"{self.line.item} {self.qty} from {self.location}"
+
+
+class SalesInvoice(models.Model):
+    """The tax invoice for one or more submitted delivery notes of one customer
+    (Sidharth, 2026-11-20, previews 14a/14b in mockups/sales; several notes on one
+    invoice, so one e-invoice, asked the same day). Quantities are what the notes
+    sent; rates and the credit term are the order's and cannot change; an order's
+    charges go on its first invoice. Submit books the sale: Dr the customer, Cr
+    each item group's Sales Ledger and Output GST, and moves the notes' cost from
+    "Goods Delivered but Bills not Made" to Cost of Goods Sold.
+
+    The e-invoice (IRN) and e-way bill numbers are typed in from the portal for
+    now (a JSON download feeds the portal); a provider's API comes later. The
+    transport details stay open after Submit ("Update Transport"): they touch
+    no ledger."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    customer = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="sales_invoices")
+    # The notes billed: same customer, Despatch From, Bill From, addresses and
+    # credit term (selling.invoices.match_key).
+    delivery_notes = models.ManyToManyField(DeliveryNote, related_name="invoices")
+    # The notes' Despatch From branch: the voucher's branch.
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    bill_from = models.ForeignKey(
+        Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Given on Submit, from the "Sales invoice" series of the Bill From branch.
+    number = models.CharField(max_length=30, blank=True)
+    invoice_date = models.DateField()
+    bill_address = models.JSONField(default=dict, blank=True)
+    ship_address = models.JSONField(default=dict, blank=True)
+    place_of_supply = models.CharField(max_length=2, blank=True)  # state code
+    credit_term = models.ForeignKey(
+        CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Transport, for the e-way bill: from the note, changeable even after Submit.
+    transporter = models.ForeignKey(
+        CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    mode = models.CharField(max_length=5, choices=DeliveryNote.MODES, default=DeliveryNote.ROAD)
+    vehicle_no = models.CharField(max_length=20, blank=True)
+    distance_km = models.PositiveIntegerField(null=True, blank=True)
+    lr_no = models.CharField(max_length=40, blank=True)
+    lr_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    interstate = models.BooleanField(default=False)
+    taxable_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    cgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    round_off = models.DecimalField(**MONEY, default=Decimal("0"))
+    total = models.DecimalField(**MONEY, default=Decimal("0"))
+    # The note's FIFO cost, moved to Cost of Goods Sold on Submit.
+    cost_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    # From the government portal, typed in after Submit.
+    irn = models.CharField(max_length=64, blank=True)
+    ack_no = models.CharField(max_length=20, blank=True)
+    ack_date = models.DateTimeField(null=True, blank=True)
+    signed_qr = models.TextField(blank=True)
+    eway_bill_no = models.CharField(max_length=12, blank=True)
+    eway_bill_date = models.DateTimeField(null=True, blank=True)
+    eway_valid_until = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-invoice_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company",
+                "number",
+                condition=~models.Q(number=""),
+                name="sales_invoice_number_unique",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft sales invoice {self.pk}"
+
+
+class SalesInvoiceLine(models.Model):
+    """One delivery note line billed: its quantity as sent, at the invoice's rate."""
+
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    note_line = models.ForeignKey(DeliveryNoteLine, on_delete=models.PROTECT, related_name="+")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(**QTY)
+    rate = models.DecimalField(**QTY, validators=[MinValueValidator(0)])
+    taxable = models.DecimalField(**MONEY, default=Decimal("0"))
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY, default=Decimal("0"))
+    cost = models.DecimalField(**MONEY, default=Decimal("0"))  # the note line's cost
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} × {self.qty}"
+
+
+class SalesInvoiceCharge(models.Model):
+    """An extra billed, such as freight: from the order, or added on the invoice."""
+
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.CASCADE, related_name="charges")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    basis = models.CharField(
+        max_length=10, choices=SalesOrderCharge.BASES, default=SalesOrderCharge.FIXED
+    )
+    rate = models.DecimalField(**QTY, validators=[MinValueValidator(0)])
+    amount = models.DecimalField(**MONEY)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item} {self.amount}"
+
+
+class SalesInvoiceDue(models.Model):
+    """When the customer is to pay: one row per part of the credit term."""
+
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.CASCADE, related_name="dues")
+    position = models.PositiveSmallIntegerField()
+    due_date = models.DateField()
+    amount = models.DecimalField(**MONEY)
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.due_date}: {self.amount}"

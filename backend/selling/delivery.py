@@ -75,17 +75,21 @@ def _unit_name(unit) -> str:
 
 
 def _notes(company):
-    return DeliveryNote.objects.filter(company=company).select_related(
-        "company",
-        "customer__party",
-        "order",
-        "pick_list",
-        "branch",
-        "area",
-        "bill_from",
-        "transporter",
-        "created_by",
-        "submitted_by",
+    return (
+        DeliveryNote.objects.filter(company=company)
+        .select_related(
+            "company",
+            "customer__party",
+            "order",
+            "pick_list",
+            "branch",
+            "area",
+            "bill_from",
+            "transporter",
+            "created_by",
+            "submitted_by",
+        )
+        .prefetch_related("invoices")
     )
 
 
@@ -140,6 +144,10 @@ def _line_out(ln: DeliveryNoteLine, note: DeliveryNote) -> dict:
 
 
 def note_out(n: DeliveryNote, lines: bool = True) -> dict:
+    from selling.invoices import brief as invoice_brief
+    from selling.invoices import live_invoice
+
+    billed = invoice_brief(live_invoice(n))
     data = {
         "id": n.pk,
         "company": n.company_id,
@@ -181,7 +189,8 @@ def note_out(n: DeliveryNote, lines: bool = True) -> dict:
         "igst_total": str(n.igst_total),
         "total": str(n.total),
         "cost_total": str(n.cost_total),
-        "billed": False,  # the sales invoice, when built, says otherwise
+        "billed": billed is not None and billed["status"] == "submitted",
+        "invoice": billed,
         "cancel_reason": n.cancel_reason,
         "created_by_name": n.created_by.display_name if n.created_by else "",
         "created_at": n.created_at,
@@ -619,6 +628,12 @@ def _use_package(package_id: int, qty: Decimal) -> None:
 
 
 def _cancel(n: DeliveryNote, user, reason: str) -> None:
+    from selling.invoices import live_invoice
+
+    if (inv := live_invoice(n)) is not None:
+        raise ValidationError(
+            {"detail": f"Cancel sales invoice {inv.number or '(draft)'} of this note first."}
+        )
     if n.status == DeliveryNote.SUBMITTED:
         service.cancel(KIND, n.pk, user)
         for ln in n.lines.all():

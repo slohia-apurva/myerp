@@ -145,3 +145,34 @@ def test_accounts_can_change_while_unused(accountant, books, alpha):
     assert res.json()["accounts"][0]["cogs_ledger"] is None
     with use_tenant(alpha):
         assert ItemGroup.objects.get(pk=main["id"]).accounts.count() == 1
+
+
+def test_sales_ledger_is_an_income_ledger_and_can_be_added_once_in_use(
+    accountant, books, monkeypatch, alpha
+):
+    with use_tenant(alpha):
+        income = LedgerGroup.objects.get(company_id=books["company"], code="sales_accounts")
+        sales = Ledger.objects.create(company_id=books["company"], group=income, name="Sales Tea")
+    bad = call(
+        accountant,
+        "post",
+        "item-groups/",
+        {"name": "A", "accounts_in": [row(books, sales_ledger=books["cogs"])]},
+    )
+    assert "income ledger" in str(bad.json())
+    main = call(
+        accountant, "post", "item-groups/", {"name": "Tea", "accounts_in": [row(books)]}
+    ).json()
+    monkeypatch.setattr(locks, "_ACCOUNT_USES", [lambda g, c: "3 stock entries"])
+    # A Sales Ledger still blank may be set on a row in use (preview 14a) ...
+    added = call(
+        accountant,
+        "patch",
+        f"item-groups/{main['id']}/",
+        {"accounts_in": [row(books, sales_ledger=sales.pk)]},
+    )
+    assert added.status_code == 200, added.json()
+    assert added.json()["accounts"][0]["sales_ledger_name"] == "Sales Tea"
+    # ... but once set, it is locked like the others.
+    cleared = call(accountant, "patch", f"item-groups/{main['id']}/", {"accounts_in": [row(books)]})
+    assert cleared.status_code == 400

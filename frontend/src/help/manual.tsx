@@ -1276,12 +1276,15 @@ export const MANUAL: Chapter[] = [
           The accounts that the items of a group post to are set once, on the
           main group, and every group and item under it uses them. Open a
           main group and fill the "Accounts" box: there is one row for each
-          company, with two ledgers to pick (click the box and type a few
+          company, with three ledgers to pick (click the box and type a few
           letters). "Stock Ledger" holds the value of the stock on hand and
           lists the ledgers under Stock-in-Hand. "COGS/Expense Ledger" takes
           the cost of stock goods when they are sold, of stock used inside the
           company or written off, and of items that keep no stock, such as
-          stationery or a service; it lists expense ledgers. Leave a company empty
+          stationery or a service; it lists expense ledgers. "Sales Ledger"
+          takes the group's sales on sales invoices (and of a service group,
+          charges such as freight); it lists income ledgers, such as one under
+          Sales Accounts. Leave a company empty
           if it does not use the group. A group under a main group shows the
           same accounts read only, with a link to open the main group. The
           "Accounts" panel on the right of the list shows them too. An entry
@@ -1292,7 +1295,8 @@ export const MANUAL: Chapter[] = [
         <p>
           Once any stock entry or purchase is posted against a company's
           accounts, that company's row is greyed with the tag "Locked" and the
-          reason; the other companies' rows stay open.
+          reason; the other companies' rows stay open. A "Sales Ledger" still
+          empty can be picked on a locked row; once picked, it locks too.
         </p>
       </>
     ),
@@ -3547,8 +3551,10 @@ export const MANUAL: Chapter[] = [
           and bag counts stay true. "Print ▾" holds "Delivery
           Challan" (items, HSN, quantities, values and GST, with the
           transport), "Packing List" (bins, batches and packages, with a "Checked"
-          column) and "Download PDF". "Create ▾" will hold the "Sales
-          Invoice" once it is built. "Cancel Note" (with a reason) puts the
+          column) and "Download PDF". "Create ▾ › Sales Invoice" makes the
+          note's invoice (see Sales invoices); the note then shows "Billed on"
+          with the invoice number. A billed note cannot be cancelled until its
+          invoice is cancelled. "Cancel Note" (with a reason) puts the
           goods back in their bins and packages, reverses the entries and makes the
           order's quantities pending again; the pick list is "Picked" again.
         </p>
@@ -3559,6 +3565,141 @@ export const MANUAL: Chapter[] = [
           list; every column has its own "Search" box. Click a note to see it
           at the right with "Open" and "Print". Who may see or make delivery
           notes: people whose role may see or make sales or stock entries.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "sales-invoices",
+    title: "Sales invoices",
+        summary: "The tax invoice for one or more delivery notes: books the sale and GST, gives the e-invoice JSON and keeps the e-invoice and e-way bill numbers.",
+    body: (
+      <>
+        <p>
+          A sales invoice is the tax invoice for the goods on one or more
+          submitted delivery notes of a customer, so several despatches can go
+          on one invoice and one e-invoice. Its quantities are what the notes
+          sent; its rates, charges and credit term are the sales order's and
+          cannot be changed on the invoice. On Submit it gets its number from
+          the "Sales invoice" series of the "Bill From" branch and books the
+          sale.
+        </p>
+        <h3>Make one</h3>
+        <ol>
+          <li>
+            On the submitted delivery note click "Create ▾" and "Sales
+            Invoice". The invoice opens in a new tab as a draft. Doing it
+            again opens the same draft.
+          </li>
+          <li>
+            "Customer and Billing" shows the customer and GSTIN, "Bill From",
+            "Place of Supply", "Bill To", "Ship To", the customer's PO and the
+            salesman, from the order and the note. Set the "Invoice Date" (not
+            before the delivery note's date).
+          </li>
+          <li>
+            "Delivery Notes" lists the notes on the invoice. To bill more of
+            the customer's notes on it, click "Add Delivery Notes": it lists
+            the customer's other notes not billed yet that go from the same
+            place to the same address on the same credit term; click "Add" on
+            each, and "Done". "Remove" takes a note off again (one must stay).
+            Adding or removing a note saves the draft.
+          </li>
+          <li>
+            "Payment" shows the "Credit Term" from the order and the due dates,
+            which split the total by the term, counted from the invoice date.
+          </li>
+          <li>
+            "Items" lists the notes' lines with "Qty", "Unit", "Rate",
+            "Taxable", "GST %", "GST" and "Amount", at the order's rates. With
+            several notes each line names its note under the item.
+          </li>
+          <li>
+            "Charges" has the order's charges (freight, packing) on the
+            order's first invoice. A "% of items" or "Per unit" charge counts
+            what is billed on this invoice.
+          </li>
+          <li>
+            "Transport (for the e-way bill)" comes from the delivery note:
+            "Transporter", "Mode", "Vehicle No", "Distance (km)", "LR / Docket
+            No" and "LR Date".
+          </li>
+          <li>
+            The "Totals" panel on the right shows the taxable value, CGST and
+            SGST (same state) or IGST (another state), the round off and the
+            total. Add files under "Attachments", at the top of the right
+            column.
+          </li>
+          <li>
+            Click "Save" to keep the draft, or "Submit". The page stays open
+            and says "Submitted as …" with the date and time.
+          </li>
+        </ol>
+        <h3>When Submit is refused</h3>
+        <p>
+          If an item group has no "Sales Ledger" (or "COGS/Expense Ledger")
+          for the company, a popup lists the groups with the lines and
+          charges that need them, with "Set ledgers" (it opens the item group
+          at its "Accounts" box) or "Ask to set" for someone who may not
+          change masters. The draft is kept.
+        </p>
+        <h3>What it posts</h3>
+        <p>
+          The "Ledger Posting" box shows, on a draft, what Submit will post
+          and, once submitted, what was posted: the customer is debited with
+          the total; each item group's "Sales Ledger" is credited with its
+          items and charges; "Output CGST" and "Output SGST" (or "Output
+          IGST") with the tax; "Round Off" with the rounding to the rupee.
+          The cost the delivery note set aside in "Goods Delivered but Bills
+          not Made" moves to the item group's "COGS/Expense Ledger".
+        </p>
+        <h3>e-Invoice and e-Way Bill</h3>
+        <p>
+          A submitted invoice has the "e-Invoice and e-Way Bill" box at the
+          top. For a registered customer (or an SEZ or an export) click
+          "Download e-Invoice JSON" and upload the file on the government
+          e-invoice portal; with the transport details filled in, the portal
+          makes the e-way bill with it. Then click "Enter Portal Numbers" and
+          either click "Read Portal File" and pick the JSON file the portal
+          gives back (it fills everything below), or type the "IRN", "Ack
+          No", "Ack Date", the "Signed QR Code" (paste it), the "e-Way Bill
+          No", "e-Way Bill Date" and "Valid Until"; click "Save". The signed
+          QR code prints at the top right of the invoice; until it is in,
+          that place says the QR code prints there once the IRN is entered. The
+          portal makes the e-way bill with the e-invoice only for goods. A
+          job-work service billed under its SAC carries the item's "Delivery
+          HSN" on the "e-Way Bill" print; for an invoice of services alone,
+          make the e-way bill on the e-way bill portal under that code. A link to the portal
+          that does this by itself comes later.
+        </p>
+        <p>
+          "Update Transport" changes the transporter, mode, vehicle, distance
+          and LR even after Submit, as they post nothing. Until the portal is
+          linked, make the same change on the e-way bill portal too.
+        </p>
+        <h3>After Submit</h3>
+        <p>
+          The delivery note shows "Billed on" with the invoice. The print
+          shows our "Bill From" address with GSTIN and FSSAI, the customer's
+          address with GSTIN, FSSAI and contact, the ship-to address, and the
+          terms and conditions of the sales order (else the customer's or
+          the company's default sales terms). "Print ▾" holds
+          "Tax Invoice (Original for Recipient)", "Tax Invoice (3 copies:
+          Original, Duplicate, Triplicate)", "e-Way Bill" and "Download PDF".
+          "Create ▾" will hold the receipt and the sales return or credit
+          note once they are built. "Cancel Invoice" (with a reason) reverses
+          the entries; its delivery notes can then be billed again. If the
+          e-invoice was made, cancel it on the portal too (allowed within 24
+          hours).
+        </p>
+        <h3>Find the sales invoices</h3>
+        <p>
+          Click "Entry", point at "Sales" and click "Sales Invoice". Pick
+          "Draft", "Submitted", "Cancelled" or "All" in the box above the
+          list; every column has its own "Search" box, and "e-Invoice" shows
+          "Pending" for an invoice still to be uploaded. Click an invoice to
+          see it at the right with "Open" and "Print". Who may see or make
+          sales invoices: people whose role may see or make sales entries.
         </p>
       </>
     ),

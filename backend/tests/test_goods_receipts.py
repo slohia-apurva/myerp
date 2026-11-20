@@ -309,7 +309,11 @@ def test_ask_to_set_notifies_those_who_may_change_masters(store, owner, grn, alp
     with use_tenant(alpha):
         ItemGroupAccount.objects.update(cogs_ledger=None)
         group = ItemGroupAccount.objects.get().group_id
-    body = {"group": group, "document": "the goods receipt from Darjeeling Tea Traders"}
+    body = {
+        "group": group,
+        "document": "the goods receipt from Darjeeling Tea Traders",
+        "needs": ["Stock Ledger", "COGS/Expense Ledger"],  # as the refusal names them
+    }
     res = call(store, "post", f"companies/{grn['company']}/ask-ledgers/", body)
     assert res.status_code == 200, res.json()
     with use_tenant(alpha):

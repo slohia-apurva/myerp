@@ -720,6 +720,7 @@ dl.kv div {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 dl.kv dt {
   font-size: 14px;
@@ -729,6 +730,7 @@ dl.kv dt {
 }
 dl.kv dd {
   margin: 0;
+  overflow-wrap: anywhere;
   font-weight: 400;
   color: var(--ink);
 }

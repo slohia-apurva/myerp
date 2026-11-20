@@ -148,6 +148,7 @@ export function MissingLedgersPopup(props: {
     api(`v1/companies/${refusal.company}/ask-ledgers/`, {
       group,
       document: props.document,
+      needs: refusal.missing_accounts.find((g) => g.group === group)?.missing ?? [],
     }).then(
       () => setAsked((a) => ({ ...a, [group]: "" })),
       (err) =>
@@ -172,8 +173,9 @@ export function MissingLedgersPopup(props: {
             : "these item groups"}
         </h3>
         <p>
-          Each item posts to the "Stock Ledger" and "COGS/Expense Ledger" set on
-          its main item group for this company. These are missing:
+          Each item posts to the ledgers ("Stock Ledger", "COGS/Expense
+          Ledger", "Sales Ledger") set on its main item group for this
+          company. These are missing:
         </p>
         <table className="grid">
           <thead>

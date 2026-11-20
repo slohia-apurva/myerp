@@ -61,6 +61,9 @@ def posted(voucher_type: str, voucher_id: int) -> dict:
 class AskSerializer(serializers.Serializer):
     group = serializers.IntegerField()
     document = serializers.CharField(max_length=120)
+    # The ledgers this entry needs ("Stock Ledger", ...): a goods receipt does
+    # not need the Sales Ledger, so the notice does not ask for it.
+    needs = serializers.ListField(child=serializers.CharField(max_length=60), required=False)
 
 
 class AskLedgersView(APIView):
@@ -81,6 +84,9 @@ class AskLedgersView(APIView):
         if group is None:
             raise NotFound("No such item group.")
         missing = _missing_of(company, group)
+        needs = serializer.validated_data.get("needs")
+        if needs:
+            missing = [label for label in missing if label in needs]
         if not missing:
             done = f"The ledgers of {group.name} are set now. Submit again."
             raise ValidationError({"detail": done})

@@ -206,7 +206,7 @@ def _register() -> None:
     )
     from core.parties import party_extras
     from insurance.models import InsurancePolicy
-    from selling.models import DeliveryNote, DeliveryNoteBin, PickList, SalesOrder
+    from selling.models import DeliveryNote, DeliveryNoteBin, PickList, SalesInvoice, SalesOrder
     from shipping.models import CourierAccount, Shipment
 
     def state(code):
@@ -616,6 +616,53 @@ def _register() -> None:
                     ),
                 },
             ),
+            SalesInvoice: Tracked(
+                "sales_invoice",
+                "Sales invoice",
+                by_company,
+                labels={
+                    "branch": "Despatch from",
+                    "irn": "IRN",
+                    "ack_date": "Ack date",
+                    "eway_bill_no": "e-Way bill no",
+                    "eway_bill_date": "e-Way bill date",
+                    "eway_valid_until": "e-Way bill valid until",
+                },
+                formats={
+                    "ack_date": _local_time,
+                    "eway_bill_date": _local_time,
+                    "eway_valid_until": _local_time,
+                    "signed_qr": lambda v: "Given" if v else None,
+                    "bill_address": lambda v: (v or {}).get("label") or None,
+                    "ship_address": lambda v: (v or {}).get("label") or None,
+                },
+                extras={
+                    "invoice_status": ("Status", lambda i: i.get_status_display()),
+                    "notes_billed": (
+                        "Delivery notes",
+                        lambda i: ", ".join(
+                            n.number for n in i.delivery_notes.order_by("note_date", "number")
+                        )
+                        or None,
+                    ),
+                    "items": (
+                        "Items",
+                        lambda i: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            f" at {_number(ln.rate)}"
+                            for ln in i.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                    "charge_rows": (
+                        "Charges",
+                        lambda i: "; ".join(
+                            f"{c.item} {c.amount}" for c in i.charges.select_related("item")
+                        )
+                        or None,
+                    ),
+                },
+            ),
             PurchaseOrder: Tracked(
                 "purchase_order",
                 "Purchase order",
@@ -708,6 +755,18 @@ def _shown(f: models.Field, record: models.Model, formats) -> Any:
     if isinstance(value, list):
         return ", ".join(map(str, value)) or None
     return value if isinstance(value, str | int | float) else str(value)
+
+
+def _local_time(value) -> str:
+    """A portal date and time as people read it: 20-11-2026 09:13 pm."""
+    from django.utils import timezone
+
+    return (
+        timezone.localtime(value)
+        .strftime("%d-%m-%Y %I:%M %p")
+        .replace("AM", "am")
+        .replace("PM", "pm")
+    )
 
 
 def snapshot(record: models.Model) -> Snapshot:

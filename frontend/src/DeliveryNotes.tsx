@@ -10,6 +10,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { invoiceBase, makeSalesInvoice } from "./SalesInvoices";
 
 /** Entry > Sales > Delivery Note: the goods going out to the customer (Sidharth, 2026-11-20,
  * previews 7-9 in mockups/sales). Made from a picked pick list with its bins and batches; Submit
@@ -90,6 +91,8 @@ type Note = {
   igst_total: string;
   total: string;
   cost_total: string;
+  billed: boolean;
+  invoice: { id: number; number: string; status: string; status_label: string } | null;
   cancel_reason: string;
   created_at: string;
   created_by_name: string;
@@ -137,8 +140,10 @@ const printItems = (id: number) => [
   { label: "Download PDF", onClick: () => pdf(id, "challan", true) },
 ];
 /** "Create ▾" on a submitted note: the documents that follow from it, built one by one. */
-const NEXT = [
-  { label: "Sales Invoice (coming next)", disabled: true },
+const nextOf = (companyId: number, note: Note, fail: (err: unknown) => void) => [
+  note.billed
+    ? { label: "Sales Invoice (made)", disabled: true }
+    : { label: note.invoice ? "Sales Invoice (open the draft)" : "Sales Invoice", onClick: () => makeSalesInvoice(companyId, note.id).catch(fail) },
   { label: "Sales Return (later)", disabled: true },
 ];
 
@@ -487,7 +492,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
                 Submit
               </button>
             )}
-            {submitted && <ActionsMenu label="Create" main items={NEXT} />}
+            {submitted && <ActionsMenu label="Create" main items={nextOf(companyId, note, setError)} />}
           </>
         }
       />
@@ -498,7 +503,15 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
             <p className="item-sub">
               {note.number && <b>{note.number}</b>}
               <span className={pillClass(note.status)}>{note.status_label}</span>
-              {submitted && <span className="tag">Not billed</span>}
+              {submitted && !note.billed && <span className="tag">Not billed</span>}
+              {note.invoice && (
+                <span className="tag">
+                  {note.billed ? "Billed on " : "Draft invoice "}
+                  <a href={`${invoiceBase(companyId)}?view=${note.invoice.id}`} target="_blank" rel="noreferrer">
+                    {note.invoice.number || "Open"}
+                  </a>
+                </span>
+              )}
               <span className="tag">{note.despatch_from}</span>
               <span className="tag">
                 From Pick List{" "}

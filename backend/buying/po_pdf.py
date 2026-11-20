@@ -76,12 +76,18 @@ def _image(data_url: str | None):
         return None
 
 
-def order_pdf(o: dict) -> bytes:
+def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_only=False):
     """`o` is the order as the order screen gets it (buying.api._order_out), or a
     sales order (selling.api._order_out, which has "customer_name"): the same
-    layout, titled SALES ORDER, with Customer / Bill From / Ship To boxes."""
+    layout, titled SALES ORDER, with Customer / Bill From / Ship To boxes. A
+    sales invoice (selling.invoices) gives its own "doc_title", "print_meta"
+    and "signed_qr".
+
+    Copies (an invoice's Original, Duplicate, Triplicate): `copy_label` prints
+    under the title; `story_only` returns the pages' contents for `prefix` of
+    the next copy, which builds the one file."""
     sale = "customer_name" in o
-    doc_title = "SALES ORDER" if sale else "PURCHASE ORDER"
+    doc_title = o.get("doc_title") or ("SALES ORDER" if sale else "PURCHASE ORDER")
     party_name = o["customer_name"] if sale else o["supplier_name"]
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_RIGHT
@@ -228,6 +234,45 @@ def order_pdf(o: dict) -> bytes:
         ),
         Paragraph(f"Date {_dmy(o['order_date'])}", style("dt", 10, 13, align="right")),
     ]
+    if copy_label:
+        title_cell.append(Paragraph(t(copy_label), style("cp", 8, 11, bold, LEAF, "right")))
+    if o.get("signed_qr"):
+        from reportlab.graphics.barcode.qr import QrCodeWidget
+        from reportlab.graphics.shapes import Drawing
+
+        qr = QrCodeWidget(o["signed_qr"])
+        x0, y0, x1, y1 = qr.getBounds()
+        side = 78
+        art = Drawing(side, side, transform=[side / (x1 - x0), 0, 0, side / (y1 - y0), 0, 0])
+        art.add(qr)
+        art.hAlign = "RIGHT"
+        title_cell.insert(0, art)
+    elif o.get("qr_pending"):
+        # An e-invoice prints the portal's signed QR code; until the IRN is in,
+        # its place says so.
+        held = Table(
+            [
+                [
+                    Paragraph(
+                        "e-Invoice QR code<br/>prints here once<br/>the IRN is entered",
+                        style("qrp", 6.5, 9, bold, MUTED, "center"),
+                    )
+                ]
+            ],
+            colWidths=[78],
+            rowHeights=[78],
+        )
+        held.setStyle(
+            TableStyle(
+                [
+                    ("BOX", (0, 0), (-1, -1), 0.8, c(MUTED), None, (2, 2)),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ]
+            )
+        )
+        held.hAlign = "RIGHT"
+        title_cell.insert(0, held)
     band = Table(
         [[[brand, Spacer(1, 5), lh_par], title_cell]],
         colWidths=[width * 0.6, width * 0.4],
@@ -389,6 +434,9 @@ def order_pdf(o: dict) -> bytes:
             ("Insurance By", t(il("insurance_by"))),
             ("Our Contact", our),
         ]
+        per_row = 4
+    elif o.get("print_meta") is not None:
+        meta = [(k, t(v)) for k, v in o["print_meta"]]
         per_row = 4
     elif sale:
         po = o.get("customer_po_no") or ""
@@ -861,5 +909,9 @@ def order_pdf(o: dict) -> bytes:
     if meta_table is not None:
         story.append(meta_table)
     story += [items, *story_tail]
+    if story_only:
+        return story
+    if prefix:
+        story = [*prefix, *story]
     doc.build(story, canvasmaker=printout._numbered_canvas(footer))
     return out.getvalue()
