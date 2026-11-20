@@ -30,6 +30,7 @@ PAGES = {
     "purchase_return": "purchase-returns",
     "debit_note": "debit-notes",
     "tds_adjustment": "tds-adjustments",
+    "credit_note": "credit-notes",
 }
 NAMES = {
     "goods_receipt": "Goods Receipt",
@@ -37,6 +38,7 @@ NAMES = {
     "purchase_return": "Purchase Return",
     "debit_note": "Debit Note",
     "tds_adjustment": "TDS Adjustment",
+    "credit_note": "Credit Note",
 }
 
 

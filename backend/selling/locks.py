@@ -3,6 +3,8 @@ is not yet an entry; a submitted order (even one cancelled later) is."""
 
 from core import locks
 from selling.models import (
+    CreditNote,
+    CreditNoteLine,
     DeliveryNote,
     DeliveryNoteLine,
     SalesInvoice,
@@ -77,3 +79,20 @@ locks.register("ledger", lambda ledger: _invoices(customer=ledger))
 locks.register("party", lambda party: _invoices(customer__party=party))
 locks.register("branch", lambda branch: _invoices(bill_from=branch))
 locks.register("courier_account", lambda account: _invoices(transporter=account))
+
+
+def _credit_notes(**where) -> str:
+    rows = CreditNote.objects.filter(**where).exclude(status=CreditNote.DRAFT)
+    return locks._count(rows, "credit note")
+
+
+def _line_credit_notes(**where) -> str:
+    lines = CreditNoteLine.objects.filter(**where).exclude(note__status=CreditNote.DRAFT)
+    return locks._count(CreditNote.objects.filter(pk__in=lines.values("note")), "credit note")
+
+
+locks.register("item", lambda item: _line_credit_notes(item=item))
+locks.register("unit", lambda unit: _line_credit_notes(unit=unit))
+locks.register("ledger", lambda ledger: _credit_notes(customer=ledger))
+locks.register("party", lambda party: _credit_notes(customer__party=party))
+locks.register("branch", lambda branch: _credit_notes(bill_from=branch))

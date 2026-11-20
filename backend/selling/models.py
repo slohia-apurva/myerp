@@ -530,3 +530,127 @@ class SalesInvoiceDue(models.Model):
 
     def __str__(self) -> str:
         return f"{self.due_date}: {self.amount}"
+
+
+class CreditNote(models.Model):
+    """A GST credit note against a submitted sales invoice (Sidharth, 2026-11-21,
+    previews 18a/18b/18c in mockups/sales), of one of three types, all with GST:
+
+    * "Sales Return – goods come back": the quantity returned, at the invoice's
+      rate and GST; the goods go back into a bin, in the batch that went out, at
+      the cost they left at (Dr Stock, Cr Cost of Goods Sold);
+    * "Sales Return – goods not coming back": the same credit, with no stock
+      (the cost stays in Cost of Goods Sold);
+    * "Rate Difference": the billed quantity at a lower rate; no stock or cost.
+
+    Every type posts Dr each item group's Sales Ledger and Output GST, Cr the
+    customer. Numbers come from the one "Credit note" series. The e-invoice
+    (document type CRN) is made from its JSON on the portal, as for the invoice."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+    GOODS_BACK, GOODS_KEPT, RATE = "goods_back", "goods_kept", "rate"
+    KINDS = [
+        (GOODS_BACK, "Sales Return – goods come back"),
+        (GOODS_KEPT, "Sales Return – goods not coming back"),
+        (RATE, "Rate Difference"),
+    ]
+    REASONS = [
+        ("damaged", "Damaged in transit"),
+        ("destroyed", "Damaged, destroyed at customer"),
+        ("wrong_item", "Wrong item sent"),
+        ("excess", "Excess sent"),
+        ("quality", "Quality complaint"),
+        ("short", "Short received by customer"),
+        ("rate_lower", "Rate agreed lower"),
+        ("wrong_rate", "Billed at wrong rate"),
+        ("other", "Other"),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    customer = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="credit_notes")
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.PROTECT, related_name="credit_notes")
+    # The invoice's Despatch From branch: the voucher's branch, where goods come back.
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    bill_from = models.ForeignKey(
+        Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    kind = models.CharField(max_length=10, choices=KINDS, default=GOODS_BACK)
+    reason = models.CharField(max_length=12, choices=REASONS, default="damaged")
+    # Given on Submit, from the "Credit note" series of the Bill From branch.
+    number = models.CharField(max_length=30, blank=True)
+    note_date = models.DateField()
+    customer_ref = models.CharField(max_length=60, blank=True)
+    remarks = models.CharField(max_length=200, blank=True)
+    place_of_supply = models.CharField(max_length=2, blank=True)
+    interstate = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    taxable_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    cgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    round_off = models.DecimalField(**MONEY, default=Decimal("0"))
+    total = models.DecimalField(**MONEY, default=Decimal("0"))
+    # The cost of the goods that came back (goods_back only), set on Submit.
+    cost_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    irn = models.CharField(max_length=64, blank=True)
+    ack_no = models.CharField(max_length=20, blank=True)
+    ack_date = models.DateTimeField(null=True, blank=True)
+    signed_qr = models.TextField(blank=True)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-note_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company",
+                "number",
+                condition=~models.Q(number=""),
+                name="credit_note_number_unique",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft credit note {self.pk}"
+
+
+class CreditNoteLine(models.Model):
+    """One invoice line credited. A return of goods that come back has one line
+    per batch that went out, with the bin it comes back into. For a rate
+    difference, `rate` is the reduction per unit and `new_rate` the correct rate."""
+
+    note = models.ForeignKey(CreditNote, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    invoice_line = models.ForeignKey(SalesInvoiceLine, on_delete=models.PROTECT, related_name="+")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    location = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    qty = models.DecimalField(**QTY, default=Decimal("0"))
+    rate = models.DecimalField(**QTY, default=Decimal("0"))
+    new_rate = models.DecimalField(**QTY, null=True, blank=True)
+    taxable = models.DecimalField(**MONEY, default=Decimal("0"))
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY, default=Decimal("0"))
+    cost = models.DecimalField(**MONEY, default=Decimal("0"))  # goods back: set on Submit
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} × {self.qty}"

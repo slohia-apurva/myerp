@@ -1,6 +1,6 @@
 from django.urls import path
 
-from selling import api, customer_mail, delivery, invoices, pick_lists
+from selling import api, credit_notes, customer_mail, delivery, invoices, pick_lists
 
 urlpatterns = [
     path("companies/<int:pk>/sales-orders/", api.OrderListView.as_view(), name="sales-orders"),
@@ -141,4 +141,39 @@ urlpatterns = [
     path(
         "sales-invoices/<int:pk>/pdf/", invoices.InvoicePdfView.as_view(), name="sales-invoice-pdf"
     ),
+    path(
+        "sales-invoices/<int:pk>/credit-note/",
+        credit_notes.NoteFromInvoiceView.as_view(),
+        name="sales-invoice-credit-note",
+    ),
+    path(
+        "companies/<int:pk>/credit-notes/",
+        credit_notes.NoteListView.as_view(),
+        name="credit-notes",
+    ),
+    path("credit-notes/<int:pk>/", credit_notes.NoteDetailView.as_view(), name="credit-note"),
+    path(
+        "credit-notes/<int:pk>/submit/",
+        credit_notes.NoteSubmitView.as_view(),
+        name="credit-note-submit",
+    ),
+    path(
+        "credit-notes/<int:pk>/cancel/",
+        credit_notes.NoteCancelView.as_view(),
+        name="credit-note-cancel",
+    ),
+    path(
+        "credit-notes/<int:pk>/e-invoice/",
+        credit_notes.NoteEInvoiceView.as_view(),
+        name="credit-note-einvoice",
+    ),
+    path(
+        "credit-notes/<int:pk>/ledger-posting/",
+        credit_notes.NoteLedgerPostingView.as_view(),
+        name="credit-note-posting",
+    ),
+    path(
+        "credit-notes/<int:pk>/json/", credit_notes.NoteJsonView.as_view(), name="credit-note-json"
+    ),
+    path("credit-notes/<int:pk>/pdf/", credit_notes.NotePdfView.as_view(), name="credit-note-pdf"),
 ]

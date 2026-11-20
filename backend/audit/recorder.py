@@ -206,7 +206,14 @@ def _register() -> None:
     )
     from core.parties import party_extras
     from insurance.models import InsurancePolicy
-    from selling.models import DeliveryNote, DeliveryNoteBin, PickList, SalesInvoice, SalesOrder
+    from selling.models import (
+        CreditNote,
+        DeliveryNote,
+        DeliveryNoteBin,
+        PickList,
+        SalesInvoice,
+        SalesOrder,
+    )
     from shipping.models import CourierAccount, Shipment
 
     def state(code):
@@ -658,6 +665,35 @@ def _register() -> None:
                         "Charges",
                         lambda i: "; ".join(
                             f"{c.item} {c.amount}" for c in i.charges.select_related("item")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            CreditNote: Tracked(
+                "credit_note",
+                "Credit note",
+                by_company,
+                labels={
+                    "branch": "Despatch from",
+                    "irn": "IRN",
+                    "ack_date": "Ack date",
+                    "customer_ref": "Customer's ref",
+                },
+                formats={
+                    "ack_date": _local_time,
+                    "signed_qr": lambda v: "Given" if v else None,
+                },
+                extras={
+                    "note_status": ("Status", lambda n: n.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda n: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            + (f" less {_number(ln.rate)}" if n.kind == "rate" else "")
+                            + (f" into {ln.location}" if ln.location_id else "")
+                            for ln in n.lines.select_related("item", "unit", "location")
+                            if ln.qty and ln.taxable
                         )
                         or None,
                     ),

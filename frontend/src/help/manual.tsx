@@ -3686,11 +3686,13 @@ export const MANUAL: Chapter[] = [
           the company's default sales terms). "Print ▾" holds
           "Tax Invoice (Original for Recipient)", "Tax Invoice (3 copies:
           Original, Duplicate, Triplicate)", "e-Way Bill" and "Download PDF".
-          "Create ▾" will hold the receipt and the sales return or credit
-          note once they are built. "Cancel Invoice" (with a reason) reverses
-          the entries; its delivery notes can then be billed again. If the
-          e-invoice was made, cancel it on the portal too (allowed within 24
-          hours).
+          "Create ▾" holds "Credit Note" (see "Credit notes"); the receipt
+          comes later. On the right, "Credit Notes" lists the notes made
+          against the invoice. "Cancel Invoice" (with a reason) reverses the
+          entries; its delivery notes can then be billed again. An invoice
+          with a submitted credit note cannot be cancelled until the note is.
+          If the e-invoice was made, cancel it on the portal too (allowed
+          within 24 hours).
         </p>
         <h3>Find the sales invoices</h3>
         <p>
@@ -3700,6 +3702,125 @@ export const MANUAL: Chapter[] = [
           "Pending" for an invoice still to be uploaded. Click an invoice to
           see it at the right with "Open" and "Print". Who may see or make
           sales invoices: people whose role may see or make sales entries.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "credit-notes",
+    title: "Credit notes",
+    summary:
+      "A GST credit note against a sales invoice: goods coming back, goods not coming back, or a rate difference.",
+    body: (
+      <>
+        <p>
+          A credit note lowers what a customer owes on a sales invoice, with
+          its GST. It has one of three types, picked under "Type":
+        </p>
+        <ul>
+          <li>
+            "Sales Return – goods come back": the customer sends goods back.
+            They go back into stock, in the same batch they went out in, into
+            the bin you pick, at the cost they left at.
+          </li>
+          <li>
+            "Sales Return – goods not coming back": the customer keeps or
+            destroys the goods (damaged, short received) and is credited as for
+            a return. No stock moves.
+          </li>
+          <li>
+            "Rate Difference": the customer is charged a lower rate on what was
+            billed. No stock moves.
+          </li>
+        </ul>
+        <p>
+          All three take the rate, GST and place of supply from the invoice and
+          share one number series ("Credit note" in the company's numbering),
+          as GST needs.
+        </p>
+        <h3>Make one</h3>
+        <ol>
+          <li>
+            On the submitted sales invoice click "Create ▾" and "Credit Note".
+            The credit note opens in a new tab as a draft. While a draft is
+            open for that invoice, doing it again opens the same draft.
+          </li>
+          <li>
+            In "Credit Note Details" pick the "Type". Changing it shows
+            "Change Type", which starts the lines again from the invoice.
+            Set the "Credit Note Date" (not before the invoice), the "Reason",
+            and if you like the "Customer's Ref" (their return or debit note
+            number) and "Remarks".
+          </li>
+          <li>
+            For a sales return, "Items" lists every invoice line with
+            "Billed" and "Already Returned"; type the "Return Qty". For goods
+            that come back there is one line per batch that went out, and
+            "Into Bin" (from the bin it went out of; pick another, such as a
+            returns bin, if you like). The quantity cannot be more than went
+            out less what earlier credit notes returned.
+          </li>
+          <li>
+            For a rate difference, "Items" lists the "Billed Qty" (less what
+            was returned) and the "Bill Rate ₹"; type the "Correct Rate ₹".
+            "Less / Unit ₹" shows the difference. A higher rate is refused: that
+            needs a supplementary invoice.
+          </li>
+          <li>
+            The "Totals" panel on the right shows the taxable value, GST,
+            round off and total. Add files (photo of damaged goods, the
+            customer's mail) under "Attachments".
+          </li>
+          <li>
+            Click "Save" to keep the draft, or "Submit". Lines left at 0 (or at
+            the bill rate) are dropped on Submit. The page stays open and says
+            "Submitted as …" with the date and time.
+          </li>
+        </ol>
+        <h3>What it posts</h3>
+        <p>
+          The "Ledger Posting" box shows what Submit will post on a draft, and
+          what was posted once submitted. Every type debits each item group's
+          "Sales Ledger" with the taxable value and "Output CGST" and "Output
+          SGST" (or "Output IGST") with the tax, and credits the customer with
+          the total; "Round Off" takes the rounding to the rupee. For goods
+          that come back it also debits the item group's "Stock Ledger" and
+          credits its "COGS/Expense Ledger" with the cost they left at. For goods
+          not coming back, their cost stays in Cost of Goods Sold. If an item
+          group has no ledger set, Submit shows the usual popup with "Set
+          ledgers" or "Ask to set"; the draft is kept.
+        </p>
+        <p>
+          "Invoice Due After This Note" shows the invoice's due dates less
+          its credit notes, taken off the latest due date first. A return does
+          not change the sales order's delivered quantity: if the customer
+          wants the goods again, send them on a new delivery.
+        </p>
+        <h3>e-Invoice</h3>
+        <p>
+          A credit note to a registered customer needs an e-invoice, as the
+          invoice did. After Submit, click "Download e-Invoice JSON" in the
+          "e-Invoice" box and upload it on the e-invoice portal. Then click
+          "Enter Portal Numbers" and either "Read Portal File" (pick the JSON
+          the portal gives back) or type the "IRN", "Ack No", "Ack Date" and
+          "Signed QR Code"; click "Save". The QR code prints on the credit
+          note. No e-way bill is made for a credit note.
+        </p>
+        <h3>After Submit</h3>
+        <p>
+          "Print ▾" holds "Credit Note" (the GST credit note to send to the
+          customer) and "Download PDF". "Create ▾" will hold the refund
+          payment once it is built. "Cancel Credit Note" (with a reason)
+          reverses the entries, and takes goods that came back out of stock
+          again. If the e-invoice was made, cancel it on the portal too.
+        </p>
+        <h3>Find the credit notes</h3>
+        <p>
+          Click "Entry", point at "Sales" and click "Credit Note". Pick
+          "Draft", "Submitted", "Cancelled" or "All" in the box above the list;
+          every column has its own "Search" box. Click a credit note to see it
+          at the right with "Open" and "Print". Who may see or make credit
+          notes: people whose role may see or make sales entries.
         </p>
       </>
     ),
