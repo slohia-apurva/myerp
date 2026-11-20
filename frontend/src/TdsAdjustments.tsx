@@ -59,7 +59,7 @@ const dmy = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse()
 const today = () => new Date().toISOString().slice(0, 10);
 const signed = (v: string) => (Number(v) < 0 ? `(${money(-Number(v))})` : money(v));
 const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pill");
-const kindOf = (total: number) => (total >= 0 ? "Deduct short TDS" : "Give back excess TDS");
+const kindOf = (total: number) => (total > 0 ? "Deduct short TDS" : total < 0 ? "Give back excess TDS" : "Set section only");
 /** "Print ▾": the adjustment as this page prints, and a PDF through the browser's own "Save as PDF". */
 const printItems = [
   { label: "TDS Adjustment", onClick: () => window.print() },
@@ -270,7 +270,7 @@ function BillsTable(props: { lines: Line[]; lateInterest?: string; picked?: Set<
               <td className="num">{l.rate}</td>
               <td className="num">{money(l.due)}</td>
               <td className="num">{money(l.deducted)}</td>
-              <td className="num">{signed(l.amount)}</td>
+              <td className="num">{Number(l.amount) ? signed(l.amount) : <span className="small">Section only</span>}</td>
               <td className="num">{l.months || ""}</td>
               <td className="num">{Number(l.interest) ? money(l.interest) : ""}</td>
             </tr>
@@ -400,7 +400,7 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
     <section className="page item-edit">
       <PageHeader
         title={draftId && !adj ? "Edit TDS Adjustment" : props.title}
-        sub={savedAt ? `Saved as a draft at ${savedAt}. Carry on, or click "Close" and finish it later.` : "Deducts TDS missed on submitted bills, or gives back TDS deducted in excess."}
+        sub={savedAt ? `Saved as a draft at ${savedAt}. Carry on, or click "Close" and finish it later.` : "Deducts TDS missed on submitted bills, gives back TDS deducted in excess, or sets a TDS section the bills missed."}
         crumbs={[{ label: "Entry › Accounts › TDS Adjustment", href: base(companyId) }]}
         actions={
           <>
@@ -461,8 +461,8 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
           <Fold title="Bills Covered" open summary={`₹${signed(String(total))}`}>
             <BillsTable lines={lines} lateInterest={late} picked={picked} onPick={pick} />
             <p className="small">
-              Each bill's amount is the gap the TDS Check finds today; it is worked out again on Submit. Untick a bill to leave it out. Interest is for information, to pay with the TDS challan; it is not
-              posted here.
+              Each bill's amount is the gap the TDS Check finds today; it is worked out again on Submit. A bill that owes nothing but missed the section ("Section only") gets the section recorded,
+              at ₹0. Untick a bill to leave it out. Interest is for information, to pay with the TDS challan; it is not posted here.
             </p>
           </Fold>
           {draftId && <LedgerPosting url={`v1/tds-adjustments/${draftId}/ledger-posting/`} stamp={saved} />}

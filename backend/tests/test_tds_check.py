@@ -197,3 +197,55 @@ def test_a_bill_billed_before_its_item_had_194q_counts_towards_the_year(buyer, o
     row = second["tds"]["rows"][0]
     assert (row["section"], row["base"], row["amount"]) == ("194Q", "1000000.00", "1000.00")
     assert second["tds"]["year_so_far"][0]["amount"] == "4000000.00"
+
+
+def test_a_missing_section_is_set_by_an_adjustment_with_nothing_posted(
+    buyer, accounts, office, alpha
+):
+    # Sidharth, 2026-11-20 (previews 98a-c): a goods bill entered before its item had
+    # 194Q owes nothing, but should carry the section. A ₹0 adjustment records it.
+    o = office
+    body = _body(o)
+    body["lines"] = [{"item": o["paper"], "qty": "10", "rate": "26000", "gst_rate": "12"}]
+    first = call(buyer, "post", _url(o), body).json()
+    bill = call(buyer, "patch", f"direct-bills/{first['id']}/",
+                {**body, "bill_total": first["total"], "submit": True}).json()  # fmt: skip
+    with use_tenant(alpha):
+        Item.objects.filter(pk=o["paper"]).update(tds_section="194Q")
+    row = _row(_check(accounts, o), o, "194Q")
+    assert (row["result"], row["result_label"], row["gap"]) == (
+        "missing", "Section missing", "0.00",
+    )  # fmt: skip
+    assert (row["no_section"], row["to_set"]) == (1, 1)
+    q = f"?ledger={o['local']}&section=194Q"
+    line = call(accounts, "get", f"companies/{o['company']}/tds-check/supplier/{q}").json()
+    assert (
+        line["bills"][0]["needs_section"]
+        and "194Q missing on the bill" in (line["bills"][0]["why"])
+    )
+    made = call(accounts, "get", f"companies/{o['company']}/tds-adjustments/draft-from/{q}")
+    assert made.json()["invoices"] == [bill["id"]]
+    res = call(accounts, "post", f"companies/{o['company']}/tds-adjustments/",
+               {"supplier": o["local"], "section": "194Q", "adj_date": TODAY.isoformat(),
+                "invoices": [bill["id"]], "submit": True})  # fmt: skip
+    assert res.status_code == 201, res.json()
+    adj = res.json()
+    assert (adj["total"], adj["kind_label"], adj["status"]) == (
+        "0.00", "Set section only", "submitted",
+    )  # fmt: skip
+    posting = call(accounts, "get", f"tds-adjustments/{adj['id']}/ledger-posting/").json()
+    assert posting["rows"] == [] and "only sets the TDS section" in posting["note"]
+    row = _row(_check(accounts, o), o, "194Q")
+    assert (row["result"], row["no_section"]) == ("below", 0)
+    tds = call(buyer, "get", f"purchase-invoices/{bill['id']}/tds/").json()
+    assert [(a["number"], a["section"], a["amount"]) for a in tds["adjusted"]] == [
+        (adj["number"], "194Q", "0.00")
+    ]
+    # Nothing more to set; cancelling the adjustment takes the section off again.
+    again = call(accounts, "post", f"companies/{o['company']}/tds-adjustments/",
+                 {"supplier": o["local"], "section": "194Q", "adj_date": TODAY.isoformat(),
+                  "invoices": [bill["id"]]})  # fmt: skip
+    assert again.status_code == 400 and "has no 194Q to put right" in str(again.json())
+    res = call(accounts, "post", f"tds-adjustments/{adj['id']}/cancel/", {"reason": "Wrong"})
+    assert res.status_code == 200 and res.json()["status"] == "cancelled"
+    assert _row(_check(accounts, o), o, "194Q")["result"] == "missing"

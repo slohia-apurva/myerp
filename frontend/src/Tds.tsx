@@ -30,7 +30,7 @@ export type TdsInfo = {
   year_so_far: { section: string; amount: string }[];
   rows: TdsRow[];
   total: string;
-  adjusted?: { id: number; number: string; date: string; section: string; amount: string }[];
+  adjusted?: { id: number; number: string; date: string; section: string; section_shown?: string; base?: string; rate?: string; amount: string; by?: string }[];
   with_adjusted?: string;
 };
 
@@ -130,12 +130,15 @@ export function TdsBox<T>(props: { billId: number; companyId?: number; tds?: Tds
             {(tds.adjusted ?? []).map((a) => (
               <tr key={a.id}>
                 <td colSpan={4}>
-                  TDS adjusted later:{" "}
+                  {n(a.amount) ? "TDS adjusted later" : `Section ${a.section_shown || a.section} set later`}:{" "}
                   <a href={`#/companies/${props.companyId ?? ""}/tds-adjustments?view=${a.id}`} target="_blank" rel="noreferrer">
                     {a.number}
                   </a>{" "}
                   <span className="small">
-                    {a.date.split("-").reverse().join("-")} · {a.section}
+                    {a.date.split("-").reverse().join("-")}
+                    {n(a.amount) ? ` · ${a.section}` : ""}
+                    {a.by ? ` · ${a.by}` : ""}
+                    {!n(a.amount) && n(a.base ?? "0") ? ` · on ₹${money(a.base ?? "0")}` : ""}
                   </span>
                 </td>
                 <td className="num">{n(a.amount) < 0 ? `(${money(-n(a.amount))})` : money(a.amount)}</td>

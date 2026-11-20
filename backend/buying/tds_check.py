@@ -16,6 +16,12 @@ adjustment is saved and again on Submit, so it cannot be typed. Interest for
 deducting late (the section's rate a month or part of one, from the bill's
 date to the adjustment's) is shown for information, to pay with the challan.
 
+A bill whose lines had no section when billed (the item got its section
+later) but owes nothing shows as "Section missing" (Sidharth, 2026-11-20,
+previews 98a-c): a TDS Adjustment naming it records the section with ₹0 and
+posts nothing ("Set section only"). Any submitted adjustment naming a bill
+under a section counts as setting that section on it.
+
 Sidharth: the check is run before each quarter's TDS return. Once a quarter is
 marked "Return Filed", its bills cannot be adjusted, an adjustment cannot be
 dated in it or cancelled from it, and its bills with TDS cannot be cancelled.
@@ -125,6 +131,11 @@ class BillRow:
     missed: list[str] = field(default_factory=list)
     why: str = ""
     filed: bool = False
+    section_set_by: str = ""  # a submitted TDS Adjustment naming the bill under the section
+
+    @property
+    def needs_section(self) -> bool:
+        return bool(self.missed) and not self.section_set_by
 
     @property
     def deducted(self) -> Decimal:
@@ -154,12 +165,18 @@ def run(
     if supplier is not None:
         bills = bills.filter(supplier_id=supplier)
     adjusted: dict[tuple[int, str], Decimal] = defaultdict(lambda: ZERO)
-    for ln in TdsAdjustmentLine.objects.filter(
-        adjustment__company=company,
-        adjustment__status=TdsAdjustment.SUBMITTED,
-        invoice__in=bills,
-    ).select_related("adjustment"):
+    set_by: dict[tuple[int, str], str] = {}
+    for ln in (
+        TdsAdjustmentLine.objects.filter(
+            adjustment__company=company,
+            adjustment__status=TdsAdjustment.SUBMITTED,
+            invoice__in=bills,
+        )
+        .select_related("adjustment")
+        .order_by("adjustment__adj_date", "adjustment_id")
+    ):
         adjusted[(ln.invoice_id, ln.adjustment.section)] += ln.amount
+        set_by.setdefault((ln.invoice_id, ln.adjustment.section), ln.adjustment.number)
     running: dict[tuple[int, str], tuple[Decimal, Decimal]] = {}
     out: dict[tuple[int, str], list[BillRow]] = defaultdict(list)
     for inv in bills:
@@ -206,18 +223,21 @@ def run(
                 here.setdefault(code, BillRow(inv, code)).adjusted += amount
         for code, row in here.items():
             row.filed = quarter_start(inv.posting_date) in filed
+            row.section_set_by = set_by.get((inv.pk, code), "")
             if not row.why and row.due == 0 and row.on_bill:
                 row.why = f"No {code} is due on this bill by today's masters."
             out[(inv.supplier_id, code)].append(row)
     return out
 
 
-def result(due: Decimal, deducted: Decimal) -> tuple[str, str]:
+def result(due: Decimal, deducted: Decimal, missing: int = 0) -> tuple[str, str]:
     gap = due - deducted
     if gap > 0:
         return "short", "Short"
     if gap < 0:
         return "excess", "Excess"
+    if missing:
+        return "missing", "Section missing"
     if due == 0:
         return "below", "Below limit"
     return "matches", "Matches"
@@ -227,7 +247,8 @@ def _summary(supplier: Ledger, code: str, rows: list[BillRow], day: datetime.dat
     due = sum((r.due for r in rows), ZERO)
     deducted = sum((r.deducted for r in rows), ZERO)
     fixable = sum((r.gap for r in rows if not r.filed), ZERO)
-    key, label = result(due, deducted)
+    missing = [r for r in rows if r.needs_section]
+    key, label = result(due, deducted, len(missing))
     party = supplier.party
     return {
         "supplier": supplier.pk,
@@ -241,6 +262,8 @@ def _summary(supplier: Ledger, code: str, rows: list[BillRow], day: datetime.dat
         "deducted": money(deducted),
         "gap": money(due - deducted),
         "fixable": money(fixable),
+        "no_section": len(missing),
+        "to_set": sum(1 for r in missing if not r.filed),
         "result": key,
         "result_label": label,
     }
@@ -255,6 +278,11 @@ def _bill_out(r: BillRow) -> dict:
         why = f"Not under {r.code} on the bill when billed: {names}. " + why
     elif r.gap < 0:
         why = "Deducted more than is due. " + why
+    elif r.needs_section:
+        names = ", ".join(dict.fromkeys(r.missed))
+        why = f"{r.code} missing on the bill: {names}. " + why
+    if r.section_set_by:
+        why = (why + f" {r.code} set by {r.section_set_by}.").strip()
     if r.filed:
         why = (why + " The quarter's TDS return is filed.").strip()
     return {
@@ -275,6 +303,8 @@ def _bill_out(r: BillRow) -> dict:
         "deducted": money(r.deducted),
         "gap": money(r.gap),
         "filed": r.filed,
+        "needs_section": r.needs_section,
+        "section_set_by": r.section_set_by,
         "why": why.strip(),
     }
 
@@ -490,7 +520,7 @@ def _lines_for(adj: TdsAdjustment, invoice_ids: list[int]) -> list[TdsAdjustment
     lines = []
     for n, inv in enumerate(invoices, start=1):
         row = gaps.get(inv.pk)
-        if row is None or row.gap == 0:
+        if row is None or (row.gap == 0 and not row.needs_section):
             raise ValidationError(
                 {"lines": [f"Bill {inv.number} has no {adj.section} to put right."]}
             )
@@ -547,7 +577,18 @@ def _save(adj: TdsAdjustment, data: dict) -> None:
     TdsAdjustmentLine.objects.bulk_create(lines)
 
 
+def kind_label(total: Decimal) -> str:
+    if total > 0:
+        return "Deduct short TDS"
+    if total < 0:
+        return "Give back excess TDS"
+    return "Set section only"
+
+
 def _plan(adj: TdsAdjustment, preview: bool = False) -> list[GLLine]:
+    """Nothing when the adjustment only sets the section (₹0)."""
+    if adj.total == 0:
+        return []
     payable = tds.tds_ledger(adj.company, adj.section, preview)
     bills = ", ".join(ln.invoice.number for ln in adj.lines.select_related("invoice"))
     amount = abs(adj.total)
@@ -575,7 +616,8 @@ def _submit(adj: TdsAdjustment, user) -> None:
     adj.number = numbering.next_document_number(adj.company, KIND, adj.adj_date, adj.branch)
     adj.save()
     voucher = Voucher(adj.company, adj.branch, adj.adj_date, KIND, adj.pk, adj.number, user)
-    service.post(voucher, gl=_plan(adj))
+    if plan := _plan(adj):
+        service.post(voucher, gl=plan)
     adj.status = TdsAdjustment.SUBMITTED
     adj.submitted_at = timezone.now()
     adj.submitted_by = user
@@ -585,7 +627,11 @@ def _submit(adj: TdsAdjustment, user) -> None:
 def _cancel(adj: TdsAdjustment, user, reason: str) -> None:
     if adj.status == TdsAdjustment.SUBMITTED:
         refuse_if_filed(adj.company, adj.adj_date, "this adjustment")
-        service.cancel(KIND, adj.pk, user)
+        for ln in adj.lines.select_related("invoice"):
+            day, number = ln.invoice.posting_date, ln.invoice.number
+            refuse_if_filed(adj.company, day, f"the TDS of bill {number}")
+        if adj.total:
+            service.cancel(KIND, adj.pk, user)
     adj.status = TdsAdjustment.CANCELLED
     adj.cancel_reason = reason[:200]
     adj.save()
@@ -619,7 +665,7 @@ def _out(adj: TdsAdjustment, lines: bool = True) -> dict:
         "adj_date": adj.adj_date,
         "section": adj.section,
         "section_shown": tds_sections.shown(adj.section, adj.adj_date),
-        "kind_label": "Deduct short TDS" if adj.total >= 0 else "Give back excess TDS",
+        "kind_label": kind_label(adj.total),
         "remarks": adj.remarks,
         "total": adj.total,
         "interest": adj.interest,
@@ -756,9 +802,15 @@ class AdjustmentPostingView(APIView):
         _check(request, VIEW)
         adj = _adjustment(request, pk)
         if adj.status != TdsAdjustment.DRAFT:
-            return Response(posting_api.posted(KIND, adj.pk))
+            out = posting_api.posted(KIND, adj.pk)
+            if adj.total == 0:
+                out["note"] = "Nothing posted: this adjustment only sets the TDS section."
+            return Response(out)
         if not adj.lines.exists():
             return Response(posting_api.preview([]))
+        if adj.total == 0:
+            note = "Nothing to post: this adjustment only sets the TDS section."
+            return Response(posting_api.preview([], note))
         rows = []
         for g in _plan(adj, preview=True):
             row = posting_api.ledger_row(g.ledger, g.debit, g.credit)
@@ -785,7 +837,7 @@ class AdjustmentDraftFromView(APIView):
         if supplier is None or not code:
             raise ValidationError({"detail": "Name the supplier ledger and the section."})
         rows = run(company, start, end, supplier.pk).get((supplier.pk, code), [])
-        invoices = [r.invoice.pk for r in rows if r.gap and not r.filed]
+        invoices = [r.invoice.pk for r in rows if (r.gap or r.needs_section) and not r.filed]
         if not invoices:
             raise ValidationError(
                 {"detail": f"{supplier.name} has no {code} to put right in an open quarter."}
@@ -827,6 +879,7 @@ class AdjustmentPreviewView(APIView):
                     "late_interest": f"{sec.late_interest.normalize():f}" if sec else "",
                     "lines": [_line_out(ln) for ln in lines],
                     "total": sum((ln.amount for ln in lines), ZERO),
+                    "kind_label": kind_label(sum((ln.amount for ln in lines), ZERO)),
                     "interest": sum((ln.interest for ln in lines), ZERO),
                 }
             )

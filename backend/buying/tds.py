@@ -452,14 +452,18 @@ def adjusted_on(inv: PurchaseInvoice) -> list[dict]:
 
     rows = TdsAdjustmentLine.objects.filter(
         invoice=inv, adjustment__status=TdsAdjustment.SUBMITTED
-    ).select_related("adjustment")
+    ).select_related("adjustment__submitted_by")
     return [
         {
             "id": ln.adjustment_id,
             "number": ln.adjustment.number,
             "date": ln.adjustment.adj_date,
             "section": ln.adjustment.section,
+            "section_shown": tds_sections.shown(ln.adjustment.section, ln.adjustment.adj_date),
+            "base": ln.base,
+            "rate": f"{ln.rate.normalize():f}" if ln.rate else "0",
             "amount": ln.amount,
+            "by": ln.adjustment.submitted_by.display_name if ln.adjustment.submitted_by else "",
         }
         for ln in rows.order_by("adjustment__adj_date", "adjustment_id")
     ]
