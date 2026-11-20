@@ -490,7 +490,7 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                           <td>
                             {r?.package_number ? (
                               <>
-                                <b>{r.package_number}</b> <span className="small">{r.package_label}</span>
+                                <b>{r.package_number}</b>
                                 {Number(r.qty) < Number(r.package_left) && (
                                   <span className="small">
                                     {" "}
@@ -632,7 +632,7 @@ function EditRows(p: { pick: PickList; rows: DraftRow[]; setRows: (f: (r: DraftR
               const packages = uniq(
                 inBatch.map((s) => ({
                   value: idOr(s.package),
-                  label: s.package_number ? `${s.package_number} ${s.package_label}` : "No package",
+                  label: s.package_number || "No package",
                   hint: free([s]),
                 })),
               );
