@@ -104,6 +104,11 @@ urlpatterns = [
     ),
     path("sales-invoices/<int:pk>/", invoices.InvoiceDetailView.as_view(), name="sales-invoice"),
     path(
+        "sales-invoices/<int:pk>/more-notes/",
+        invoices.InvoiceMoreNotesView.as_view(),
+        name="sales-invoice-more-notes",
+    ),
+    path(
         "sales-invoices/<int:pk>/submit/",
         invoices.InvoiceSubmitView.as_view(),
         name="sales-invoice-submit",

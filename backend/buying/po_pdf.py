@@ -247,6 +247,32 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
         art.add(qr)
         art.hAlign = "RIGHT"
         title_cell.insert(0, art)
+    elif o.get("qr_pending"):
+        # An e-invoice prints the portal's signed QR code; until the IRN is in,
+        # its place says so.
+        held = Table(
+            [
+                [
+                    Paragraph(
+                        "e-Invoice QR code<br/>prints here once<br/>the IRN is entered",
+                        style("qrp", 6.5, 9, bold, MUTED, "center"),
+                    )
+                ]
+            ],
+            colWidths=[78],
+            rowHeights=[78],
+        )
+        held.setStyle(
+            TableStyle(
+                [
+                    ("BOX", (0, 0), (-1, -1), 0.8, c(MUTED), None, (2, 2)),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ]
+            )
+        )
+        held.hAlign = "RIGHT"
+        title_cell.insert(0, held)
     band = Table(
         [[[brand, Spacer(1, 5), lh_par], title_cell]],
         colWidths=[width * 0.6, width * 0.4],

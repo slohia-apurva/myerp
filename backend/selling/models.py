@@ -381,11 +381,12 @@ class DeliveryNoteBin(models.Model):
 
 
 class SalesInvoice(models.Model):
-    """The tax invoice for one submitted delivery note (Sidharth, 2026-11-20,
-    previews 14a/14b in mockups/sales). Quantities are what the note sent; rates
-    start at the order's and may change until Submit; the order's charges go on
-    the order's first invoice. Submit books the sale: Dr the customer, Cr each
-    item group's Sales Ledger and Output GST, and moves the note's cost from
+    """The tax invoice for one or more submitted delivery notes of one customer
+    (Sidharth, 2026-11-20, previews 14a/14b in mockups/sales; several notes on one
+    invoice, so one e-invoice, asked the same day). Quantities are what the notes
+    sent; rates and the credit term are the order's and cannot change; an order's
+    charges go on its first invoice. Submit books the sale: Dr the customer, Cr
+    each item group's Sales Ledger and Output GST, and moves the notes' cost from
     "Goods Delivered but Bills not Made" to Cost of Goods Sold.
 
     The e-invoice (IRN) and e-way bill numbers are typed in from the portal for
@@ -398,11 +399,10 @@ class SalesInvoice(models.Model):
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     customer = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="sales_invoices")
-    delivery_note = models.ForeignKey(
-        DeliveryNote, on_delete=models.PROTECT, related_name="invoices"
-    )
-    order = models.ForeignKey(SalesOrder, on_delete=models.PROTECT, related_name="invoices")
-    # The note's Despatch From branch: the voucher's branch.
+    # The notes billed: same customer, Despatch From, Bill From, addresses and
+    # credit term (selling.invoices.match_key).
+    delivery_notes = models.ManyToManyField(DeliveryNote, related_name="invoices")
+    # The notes' Despatch From branch: the voucher's branch.
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
     bill_from = models.ForeignKey(
         Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"

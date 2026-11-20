@@ -1,5 +1,6 @@
 """Sales invoices (Sidharth, 2026-11-20, previews 14a/14b in mockups/sales): made
-from a submitted delivery note. Submit books the sale (Dr customer, Cr each item
+from one or more submitted delivery notes of a customer, at the orders' rates
+and credit term (fixed on the invoice). Submit books the sale (Dr customer, Cr each item
 group's Sales Ledger and Output GST) and moves the note's cost from "Goods
 Delivered but Bills not Made" to Cost of Goods Sold. The e-invoice JSON goes to
 the portal; the IRN and e-way bill numbers are typed in after Submit."""
@@ -50,7 +51,6 @@ def sales_ledger(w):
 def body(inv, **more):
     return {
         "invoice_date": TODAY.isoformat(),
-        "credit_term": inv["credit_term"],
         "transporter": inv["transporter"],
         "mode": inv["mode"],
         "vehicle_no": inv["vehicle_no"],
@@ -91,12 +91,12 @@ def test_from_delivery_note_to_posting(seller, owner, books):  # noqa: F811
     # The same note gives the same draft.
     again = call(seller, "post", f"delivery-notes/{note['id']}/invoice/", {})
     assert again.json()["id"] == inv["id"]
-    # The rate can change until Submit.
-    rated = body(inv, rates=[{"line": line["id"], "rate": "2300"}])
+    # The rate and the credit term are the order's: what is sent is ignored.
+    rated = body(inv, rates=[{"line": line["id"], "rate": "2300"}], credit_term=None)
     saved = call(seller, "patch", f"sales-invoices/{inv['id']}/", rated)
     assert saved.status_code == 200, saved.json()
-    assert saved.json()["lines"][0]["taxable"] == "23000.00"
-    assert saved.json()["lines"][0]["order_rate"] == "2280"
+    assert saved.json()["lines"][0]["taxable"] == "22800.00"
+    assert saved.json()["credit_term"] == inv["credit_term"]
     # No Sales Ledger yet: the popup's refusal, naming the line and the charge.
     path = f"sales-invoices/{inv['id']}/submit/"
     res = call(seller, "post", path, {})
@@ -108,10 +108,10 @@ def test_from_delivery_note_to_posting(seller, owner, books):  # noqa: F811
     preview = call(seller, "get", f"sales-invoices/{inv['id']}/ledger-posting/").json()
     assert preview["posted"] is False
     assert [(r["ledger_name"], r["debit"], r["credit"]) for r in preview["rows"]] == [
-        ("Organic Harvest Foods", "24740.00", "0.00"),
-        ("Sales Tea", "0.00", "23500.00"),
-        ("Output CGST", "0.00", "620.00"),
-        ("Output SGST", "0.00", "620.00"),
+        ("Organic Harvest Foods", "24530.00", "0.00"),
+        ("Sales Tea", "0.00", "23300.00"),
+        ("Output CGST", "0.00", "615.00"),
+        ("Output SGST", "0.00", "615.00"),
         ("Cost of Tea", "2400.00", "0.00"),
         ("Goods Delivered but Bills not Made", "0.00", "2400.00"),
     ]
@@ -119,12 +119,12 @@ def test_from_delivery_note_to_posting(seller, owner, books):  # noqa: F811
     assert done.status_code == 200, done.json()
     billed = done.json()
     assert billed["status"] == "submitted" and "/SI/" in billed["number"]
-    assert billed["dues"] == [{"due_date": TODAY.isoformat(), "amount": "24740.00"}]
+    assert billed["dues"] == [{"due_date": TODAY.isoformat(), "amount": "24530.00"}]
     assert entries(w, billed["id"]) == {
-        ("Organic Harvest Foods", Decimal("24740.00"), Decimal("0.00")),
-        ("Sales Tea", Decimal("0.00"), Decimal("23500.00")),
-        ("Output CGST", Decimal("0.00"), Decimal("620.00")),
-        ("Output SGST", Decimal("0.00"), Decimal("620.00")),
+        ("Organic Harvest Foods", Decimal("24530.00"), Decimal("0.00")),
+        ("Sales Tea", Decimal("0.00"), Decimal("23300.00")),
+        ("Output CGST", Decimal("0.00"), Decimal("615.00")),
+        ("Output SGST", Decimal("0.00"), Decimal("615.00")),
         ("Cost of Tea", Decimal("2400.00"), Decimal("0.00")),
         ("Goods Delivered but Bills not Made", Decimal("0.00"), Decimal("2400.00")),
     }
@@ -171,7 +171,7 @@ def test_from_delivery_note_to_posting(seller, owner, books):  # noqa: F811
     assert doc["TranDtls"]["SupTyp"] == "B2B" and doc["BuyerDtls"]["Pos"] == "27"
     assert [i["HsnCd"] for i in doc["ItemList"]] == ["0902", "9965"]
     assert doc["ItemList"][0]["Unit"] in ("CTN", "OTH")
-    assert doc["ValDtls"]["TotInvVal"] == 24740.0 and doc["ValDtls"]["CgstVal"] == 620.0
+    assert doc["ValDtls"]["TotInvVal"] == 24530.0 and doc["ValDtls"]["CgstVal"] == 615.0
     assert doc["EwbDtls"]["VehNo"] == "MH12AB1234" and doc["EwbDtls"]["Distance"] == 150
     eurl = f"sales-invoices/{inv['id']}/e-invoice/"
     bad = call(seller, "post", eurl, {"irn": "abc", "eway_bill_no": "12"}).json()
@@ -228,3 +228,43 @@ def test_draft_note_cannot_be_billed(seller, books):  # noqa: F811
     note = new_note(seller, pl)
     res = call(seller, "post", f"delivery-notes/{note['id']}/invoice/", {})
     assert "Submit the delivery note first" in str(res.json())
+
+
+def test_several_notes_on_one_invoice(seller, books):  # noqa: F811
+    """Two orders' notes for one customer go on one invoice (one e-invoice)."""
+    w = books
+    sales_ledger(w)
+    charges = [{"item": w[FREIGHT], "basis": "fixed", "rate": "500"}]
+    first = sent_note(seller, w, charges=charges)
+    second = sent_note(seller, w)
+    elsewhere = sent_note(seller, w, customer="far")
+    inv = call(seller, "post", f"delivery-notes/{first['id']}/invoice/", {}).json()
+    more = call(seller, "get", f"sales-invoices/{inv['id']}/more-notes/").json()
+    assert [n["number"] for n in more] == [second["number"]]  # not the other customer's
+    url = f"sales-invoices/{inv['id']}/"
+    wrong = call(seller, "patch", url, body(inv, delivery_notes=[first["id"], elsewhere["id"]]))
+    assert wrong.status_code == 400 and "not billed yet" in str(wrong.json())
+    both = call(seller, "patch", url, body(inv, delivery_notes=[first["id"], second["id"]]))
+    assert both.status_code == 200, both.json()
+    got = both.json()
+    assert [n["number"] for n in got["delivery_notes"]] == [first["number"], second["number"]]
+    assert [(ln["position"], ln["qty"], ln["note_number"]) for ln in got["lines"]] == [
+        (1, "10", first["number"]),
+        (2, "10", second["number"]),
+    ]
+    assert len(got["charges"]) == 1 and got["cost_total"] == "4800.00"
+    # 45,600 at 5% + 500 at 18%.
+    assert got["total"] == "48470.00"
+    # The second note is on this draft now, so it makes no invoice of its own.
+    own = call(seller, "post", f"delivery-notes/{second['id']}/invoice/", {})
+    assert own.json()["id"] == inv["id"]
+    done = call(seller, "post", f"sales-invoices/{inv['id']}/submit/", {})
+    assert done.status_code == 200, done.json()
+    assert ("Goods Delivered but Bills not Made", Decimal("0.00"), Decimal("4800.00")) in entries(
+        w, inv["id"]
+    )
+    for n in (first, second):
+        shown = call(seller, "get", f"delivery-notes/{n['id']}/").json()
+        assert shown["billed"] is True and shown["invoice"]["id"] == inv["id"]
+    # Submitted: its notes cannot change.
+    assert "cannot be changed" in str(call(seller, "patch", url, body(inv)).json())

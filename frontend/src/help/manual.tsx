@@ -3572,14 +3572,17 @@ export const MANUAL: Chapter[] = [
   {
     id: "sales-invoices",
     title: "Sales invoices",
-    summary: "The tax invoice for a delivery note: books the sale and GST, gives the e-invoice JSON and keeps the e-invoice and e-way bill numbers.",
+        summary: "The tax invoice for one or more delivery notes: books the sale and GST, gives the e-invoice JSON and keeps the e-invoice and e-way bill numbers.",
     body: (
       <>
         <p>
-          A sales invoice is the tax invoice for the goods on one submitted
-          delivery note. Its quantities are what the note sent; its rates
-          start at the order's. On Submit it gets its number from the "Sales
-          invoice" series of the "Bill From" branch and books the sale.
+          A sales invoice is the tax invoice for the goods on one or more
+          submitted delivery notes of a customer, so several despatches can go
+          on one invoice and one e-invoice. Its quantities are what the notes
+          sent; its rates, charges and credit term are the sales order's and
+          cannot be changed on the invoice. On Submit it gets its number from
+          the "Sales invoice" series of the "Bill From" branch and books the
+          sale.
         </p>
         <h3>Make one</h3>
         <ol>
@@ -3595,21 +3598,26 @@ export const MANUAL: Chapter[] = [
             before the delivery note's date).
           </li>
           <li>
-            "Payment" has the "Credit Term" from the order; change it if
-            needed. The due dates below split the total by the term, counted
-            from the invoice date.
+            "Delivery Notes" lists the notes on the invoice. To bill more of
+            the customer's notes on it, click "Add Delivery Notes": it lists
+            the customer's other notes not billed yet that go from the same
+            place to the same address on the same credit term; click "Add" on
+            each, and "Done". "Remove" takes a note off again (one must stay).
+            Adding or removing a note saves the draft.
           </li>
           <li>
-            "Items" lists the note's lines with "Qty", "Unit", "Rate",
-            "Taxable", "GST %", "GST" and "Amount". The quantity cannot change.
-            A rate can: type the new rate, and the line shows the order's rate
-            under the item. The change shows in the activity.
+            "Payment" shows the "Credit Term" from the order and the due dates,
+            which split the total by the term, counted from the invoice date.
+          </li>
+          <li>
+            "Items" lists the notes' lines with "Qty", "Unit", "Rate",
+            "Taxable", "GST %", "GST" and "Amount", at the order's rates. With
+            several notes each line names its note under the item.
           </li>
           <li>
             "Charges" has the order's charges (freight, packing) on the
-            order's first invoice. Click "+ Add charge" to add one, or ✕ to
-            remove one. A "% of items" or "Per unit" charge counts what is
-            billed on this invoice.
+            order's first invoice. A "% of items" or "Per unit" charge counts
+            what is billed on this invoice.
           </li>
           <li>
             "Transport (for the e-way bill)" comes from the delivery note:
@@ -3652,9 +3660,12 @@ export const MANUAL: Chapter[] = [
           "Download e-Invoice JSON" and upload the file on the government
           e-invoice portal; with the transport details filled in, the portal
           makes the e-way bill with it. Then click "Enter Portal Numbers" and
-          type the "IRN", "Ack No", "Ack Date", the "Signed QR Code" (paste
-          it; it prints on the invoice), the "e-Way Bill No", "e-Way Bill
-          Date" and "Valid Until", and click "Save". A link to the portal
+          either click "Read Portal File" and pick the JSON file the portal
+          gives back (it fills everything below), or type the "IRN", "Ack
+          No", "Ack Date", the "Signed QR Code" (paste it), the "e-Way Bill
+          No", "e-Way Bill Date" and "Valid Until"; click "Save". The signed
+          QR code prints at the top right of the invoice; until it is in,
+          that place says the QR code prints there once the IRN is entered. A link to the portal
           that does this by itself comes later.
         </p>
         <p>
@@ -3664,12 +3675,16 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>After Submit</h3>
         <p>
-          The delivery note shows "Billed on" with the invoice. "Print ▾" holds
+          The delivery note shows "Billed on" with the invoice. The print
+          shows our "Bill From" address with GSTIN and FSSAI, the customer's
+          address with GSTIN, FSSAI and contact, the ship-to address, and the
+          terms and conditions of the sales order (else the customer's or
+          the company's default sales terms). "Print ▾" holds
           "Tax Invoice (Original for Recipient)", "Tax Invoice (3 copies:
           Original, Duplicate, Triplicate)", "e-Way Bill" and "Download PDF".
           "Create ▾" will hold the receipt and the sales return or credit
           note once they are built. "Cancel Invoice" (with a reason) reverses
-          the entries; the delivery note can then be billed again. If the
+          the entries; its delivery notes can then be billed again. If the
           e-invoice was made, cancel it on the portal too (allowed within 24
           hours).
         </p>

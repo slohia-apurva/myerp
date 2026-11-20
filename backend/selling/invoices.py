@@ -1,10 +1,15 @@
-"""Sales invoices (Entry > Sales > Sales Invoice): the tax invoice for a
-submitted delivery note (Sidharth, 2026-11-20, previews 14a/14b in mockups/sales).
+"""Sales invoices (Entry > Sales > Sales Invoice): the tax invoice for one or
+more submitted delivery notes (Sidharth, 2026-11-20, previews 14a/14b in
+mockups/sales).
 
-A draft is made from the note ("Create ▾ › Sales Invoice"): one invoice per
-note, its quantities what the note sent, its rates the order's (changeable
-until Submit), the order's charges on the order's first invoice, the credit
-term from the order and the transport details from the note.
+A draft is made from a note ("Create ▾ › Sales Invoice"); "Add Delivery Notes"
+puts more of the customer's unbilled notes on it, so they go on one invoice and
+one e-invoice. Notes go together only when they share the customer, Despatch
+From, Bill From, the billing and shipping addresses and the credit term
+(`match_key`). Quantities are what the notes sent; the rates, charges and
+credit term are the orders' and cannot be changed on the invoice (Sidharth,
+2026-11-20); an order's charges go on its first invoice. The transport details
+come from the first note.
 
 Submit (posting.service):
 * Dr the customer for the total, with due dates from the credit term;
@@ -44,7 +49,7 @@ from core import attachments, india, numbering, words
 from core.api import Signed
 from core.companies import visible_companies
 from core.credit_terms import summary as term_summary
-from core.models import CreditTerm, Item, Ledger, Party
+from core.models import Item, Ledger, Party
 from posting import accounts, service
 from posting import api as posting_api
 from posting.service import GLLine, Voucher
@@ -55,7 +60,6 @@ from selling.models import (
     SalesInvoiceCharge,
     SalesInvoiceDue,
     SalesInvoiceLine,
-    SalesOrderCharge,
 )
 from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
@@ -92,8 +96,6 @@ def _invoices(company):
     return SalesInvoice.objects.filter(company=company).select_related(
         "company",
         "customer__party",
-        "delivery_note",
-        "order__salesman",
         "branch",
         "bill_from",
         "credit_term",
@@ -118,7 +120,7 @@ def _line_out(ln: SalesInvoiceLine) -> dict:
         "unit_name": _unit_name(ln.unit),
         "qty": _plain(ln.qty),
         "rate": _plain(ln.rate),
-        "order_rate": _plain(ol.rate),
+        "note_number": ln.note_line.note.number,
         "rate_source": source_words(ol.rate_source) if ol.rate_source else "",
         "taxable": str(ln.taxable),
         "gst_rate": _plain(ln.gst_rate),
@@ -165,11 +167,31 @@ def _due_rows(inv: SalesInvoice) -> list[dict]:
     return rows
 
 
+def notes_of(inv: SalesInvoice) -> list[DeliveryNote]:
+    return sorted(inv.delivery_notes.all(), key=lambda n: (n.note_date, n.number, n.pk))
+
+
+def orders_of(notes: list[DeliveryNote]) -> list:
+    found: dict = {}
+    for n in notes:
+        found.setdefault(n.order_id, n.order)
+    return list(found.values())
+
+
+def _joined(values) -> str:
+    out: list[str] = []
+    for v in values:
+        if v and v not in out:
+            out.append(v)
+    return ", ".join(out)
+
+
 def invoice_out(inv: SalesInvoice, lines: bool = True) -> dict:
     party = inv.customer.party
     dues = list(inv.dues.all()) if inv.status == SalesInvoice.SUBMITTED else []
     due_rows = [{"due_date": d.due_date, "amount": d.amount} for d in dues] or _due_rows(inv)
-    n = inv.delivery_note
+    notes = notes_of(inv)
+    orders = orders_of(notes)
     data = {
         "id": inv.pk,
         "company": inv.company_id,
@@ -179,14 +201,22 @@ def invoice_out(inv: SalesInvoice, lines: bool = True) -> dict:
         "customer": inv.customer_id,
         "customer_name": inv.customer.name,
         "customer_gstin": (inv.bill_address or {}).get("gstin") or (party.gstin if party else ""),
-        "delivery_note": n.pk,
-        "delivery_note_number": n.number,
-        "note_date": n.note_date,
-        "order": inv.order_id,
-        "order_number": inv.order.number,
-        "customer_po_no": inv.order.customer_po_no,
-        "customer_po_date": inv.order.customer_po_date,
-        "salesman_name": inv.order.salesman.name if inv.order.salesman_id else "",
+        "delivery_notes": [
+            {
+                "id": n.pk,
+                "number": n.number,
+                "note_date": n.note_date,
+                "order": n.order_id,
+                "order_number": n.order.number,
+                "cost_total": str(n.cost_total),
+            }
+            for n in notes
+        ],
+        "delivery_note_number": _joined(n.number for n in notes),
+        "orders": [{"id": o.pk, "number": o.number} for o in orders],
+        "order_number": _joined(o.number for o in orders),
+        "customer_po_no": _joined(o.customer_po_no for o in orders),
+        "salesman_name": _joined(o.salesman.name for o in orders if o.salesman_id),
         "invoice_date": inv.invoice_date,
         "bill_from": inv.bill_from_id,
         "bill_from_name": inv.bill_from.name if inv.bill_from else "",
@@ -213,8 +243,8 @@ def invoice_out(inv: SalesInvoice, lines: bool = True) -> dict:
         "distance_km": inv.distance_km,
         "lr_no": inv.lr_no,
         "lr_date": inv.lr_date,
-        "packages": n.packages,
-        "gross_weight": _plain(n.gross_weight),
+        "packages": sum((n.packages or 0) for n in notes),
+        "gross_weight": _plain(sum((n.gross_weight or ZERO for n in notes), ZERO)),
         "notes": inv.notes,
         "interstate": inv.interstate,
         "taxable_total": str(inv.taxable_total),
@@ -239,7 +269,7 @@ def invoice_out(inv: SalesInvoice, lines: bool = True) -> dict:
         "submitted_by_name": inv.submitted_by.display_name if inv.submitted_by else "",
     }
     if lines:
-        rows = inv.lines.select_related("item", "unit", "note_line__order_line")
+        rows = inv.lines.select_related("item", "unit", "note_line__order_line", "note_line__note")
         data["lines"] = [_line_out(ln) for ln in rows]
         data["charges"] = [_charge_out(c) for c in inv.charges.select_related("item")]
     return data
@@ -295,10 +325,50 @@ def _totals(inv: SalesInvoice, lines: list, charges: list) -> None:
     inv.round_off = inv.total - exact
 
 
-def _first_of_order(inv: SalesInvoice) -> bool:
-    """Whether this is the order's first invoice (the one that bills its charges)."""
-    others = SalesInvoice.objects.filter(order=inv.order, status__in=LIVE).exclude(pk=inv.pk)
-    return not others.exists()
+def term_of(n: DeliveryNote):
+    """The credit term a note bills with: its order's, else the customer's."""
+    party = n.customer.party
+    return n.order.credit_term or (party.credit_term if party else None)
+
+
+def _same(value) -> str:
+    return json.dumps(value or {}, sort_keys=True, default=str)
+
+
+def match_key(n: DeliveryNote) -> tuple:
+    """What notes on one invoice must share: one customer, one despatch place and
+    Bill From (one e-way bill, one series), one billing and shipping address and
+    one credit term."""
+    term = term_of(n)
+    return (
+        n.company_id,
+        n.customer_id,
+        n.branch_id,
+        n.bill_from_id or n.order.bill_from_id,
+        _same(n.order.bill_address),
+        _same(n.ship_address),
+        n.interstate,
+        term.pk if term else None,
+    )
+
+
+def unbilled(company, customer_id) -> list[DeliveryNote]:
+    """The customer's submitted notes that are on no live invoice."""
+    return list(
+        DeliveryNote.objects.filter(
+            company=company, customer_id=customer_id, status=DeliveryNote.SUBMITTED
+        )
+        .exclude(invoices__status__in=LIVE)
+        .select_related("order", "customer__party", "order__credit_term")
+        .order_by("note_date", "number")
+    )
+
+
+def _billed_before(inv: SalesInvoice, order) -> bool:
+    """Whether another live invoice bills a note of this order (and so carried
+    its charges)."""
+    others = SalesInvoice.objects.filter(delivery_notes__order=order, status__in=LIVE)
+    return others.exclude(pk=inv.pk).exists()
 
 
 def make(n: DeliveryNote, user) -> SalesInvoice:
@@ -310,15 +380,13 @@ def make(n: DeliveryNote, user) -> SalesInvoice:
     inv = SalesInvoice.objects.create(
         company=n.company,
         customer=n.customer,
-        delivery_note=n,
-        order=o,
         branch=n.branch,
         bill_from=n.bill_from or o.bill_from,
         invoice_date=max(timezone.localdate(), n.note_date),
         bill_address=bill,
         ship_address=n.ship_address,
         place_of_supply=place_state(party.state_code, bill) if with_gst else "",
-        credit_term=o.credit_term or (party.credit_term if party else None),
+        credit_term=term_of(n),
         transporter=n.transporter,
         mode=n.mode,
         vehicle_no=n.vehicle_no,
@@ -326,53 +394,70 @@ def make(n: DeliveryNote, user) -> SalesInvoice:
         lr_no=n.lr_no,
         lr_date=n.lr_date,
         interstate=n.interstate,
-        cost_total=n.cost_total,
         created_by=user,
     )
-    lines = []
-    for nl in n.lines.select_related("item", "unit").filter(qty__gt=0):
-        ln = SalesInvoiceLine(
-            invoice=inv,
-            position=nl.position,
-            note_line=nl,
-            item=nl.item,
-            unit=nl.unit,
-            qty=nl.qty,
-            rate=nl.rate,
-            gst_rate=nl.gst_rate,
-            cost=nl.cost,
-        )
-        _price(ln, inv.interstate)
-        lines.append(ln)
+    _fill(inv, [n])
+    return inv
+
+
+def _fill(inv: SalesInvoice, notes: list[DeliveryNote]) -> None:
+    """The invoice's lines and charges for these notes, at the orders' rates."""
+    notes = sorted(notes, key=lambda n: (n.note_date, n.number, n.pk))
+    inv.delivery_notes.set(notes)
+    inv.lines.all().delete()
+    inv.charges.all().delete()
+    lines, by_order = [], defaultdict(list)
+    for n in notes:
+        for nl in n.lines.select_related("item", "unit").filter(qty__gt=0).order_by("position"):
+            ln = SalesInvoiceLine(
+                invoice=inv,
+                position=len(lines) + 1,
+                note_line=nl,
+                item=nl.item,
+                unit=nl.unit,
+                qty=nl.qty,
+                rate=nl.rate,
+                gst_rate=nl.gst_rate,
+                cost=nl.cost,
+            )
+            _price(ln, inv.interstate)
+            lines.append(ln)
+            by_order[n.order_id].append(ln)
     SalesInvoiceLine.objects.bulk_create(lines)
     charges = []
-    if _first_of_order(inv):
+    for o in orders_of(notes):
+        if _billed_before(inv, o):
+            continue
         given = [
             {"item": c.item, "basis": c.basis, "rate": c.rate, "gst_rate": c.gst_rate}
             for c in o.charges.select_related("item")
         ]
-        charges = _invoice_charges(inv, given, lines)
+        if given:
+            charges += _order_charges(inv, o, given, by_order[o.pk], len(charges))
+    SalesInvoiceCharge.objects.bulk_create(charges)
+    inv.cost_total = sum((n.cost_total for n in notes), ZERO)
+    latest = max(n.note_date for n in notes)
+    if inv.invoice_date < latest:
+        inv.invoice_date = latest
     _totals(inv, lines, charges)
     inv.save()
-    return inv
 
 
-def _invoice_charges(inv: SalesInvoice, given: list[dict], lines: list) -> list:
-    """The charges worked out on this invoice's own lines (a share of the items'
-    value or a rate per unit counts what is billed here)."""
-    party = inv.customer.party
+def _order_charges(inv: SalesInvoice, o, given: list[dict], lines: list, before: int) -> list:
+    """An order's charges worked out on its lines billed here (a share of the
+    items' value or a rate per unit counts what is billed here)."""
     found = _charges(
         given,
         lines,
-        inv.order,
-        charges_gst(party),
+        o,
+        charges_gst(inv.customer.party),
         inv.interstate,
         {"order_date": inv.invoice_date},
     )
-    rows = [
+    return [
         SalesInvoiceCharge(
             invoice=inv,
-            position=c.position,
+            position=before + k,
             item=c.item,
             basis=c.basis,
             rate=c.rate,
@@ -382,28 +467,11 @@ def _invoice_charges(inv: SalesInvoice, given: list[dict], lines: list) -> list:
             sgst=c.sgst,
             igst=c.igst,
         )
-        for c in found
+        for k, c in enumerate(found, start=1)
     ]
-    inv.charges.all().delete()
-    SalesInvoiceCharge.objects.bulk_create(rows)
-    return rows
 
 
 # Saving a draft ----------------------------------------------------------------
-
-
-class RateSerializer(serializers.Serializer):
-    line = serializers.IntegerField()
-    rate = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=Decimal("0"))
-
-
-class ChargeSerializer(serializers.Serializer):
-    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
-    basis = serializers.ChoiceField(choices=SalesOrderCharge.BASES)
-    rate = serializers.DecimalField(max_digits=18, decimal_places=6)
-    gst_rate = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, allow_null=True
-    )
 
 
 class TransportSerializer(serializers.Serializer):
@@ -417,10 +485,9 @@ class TransportSerializer(serializers.Serializer):
 
 class InvoiceSerializer(TransportSerializer):
     invoice_date = serializers.DateField()
-    credit_term = serializers.IntegerField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, default="")
-    rates = RateSerializer(many=True, required=False)
-    charges = ChargeSerializer(many=True, required=False)
+    # The delivery notes to bill (the ones on it, plus any "Add Delivery Notes" picks).
+    delivery_notes = serializers.ListField(child=serializers.IntegerField(), required=False)
     submit = serializers.BooleanField(required=False, default=False)
 
 
@@ -442,43 +509,50 @@ def _set_transport(inv: SalesInvoice, data: dict) -> None:
     inv.lr_date = data.get("lr_date")
 
 
+def _pick_notes(inv: SalesInvoice, ids: list[int]) -> list[DeliveryNote]:
+    """The notes asked for, each on this invoice already or unbilled and
+    matching it."""
+    if not ids:
+        raise ValidationError({"delivery_notes": ["Keep at least one delivery note."]})
+    have = {n.pk: n for n in inv.delivery_notes.select_related("order", "customer__party")}
+    free = {n.pk: n for n in unbilled(inv.company, inv.customer_id)}
+    first = next(iter(have.values()), None)
+    key = match_key(first) if first else None
+    picked, errors = [], []
+    for pk in dict.fromkeys(ids):
+        n = have.get(pk) or free.get(pk)
+        if n is None:
+            errors.append("Pick delivery notes of this customer that are not billed yet.")
+        elif key is not None and pk not in have and match_key(n) != key:
+            errors.append(
+                f"{n.number} goes from another place, to another address or on another "
+                "credit term, so it needs an invoice of its own."
+            )
+        else:
+            picked.append(n)
+    if errors:
+        raise ValidationError({"delivery_notes": list(dict.fromkeys(errors))})
+    return picked
+
+
 def _save(inv: SalesInvoice, data: dict) -> None:
-    n = inv.delivery_note
-    if data["invoice_date"] < n.note_date:
+    if "delivery_notes" in data:
+        notes = _pick_notes(inv, data["delivery_notes"])
+        if {n.pk for n in notes} != set(inv.delivery_notes.values_list("pk", flat=True)):
+            _fill(inv, notes)
+    latest = max(n.note_date for n in inv.delivery_notes.all())
+    if data["invoice_date"] < latest:
         raise ValidationError(
             {
                 "invoice_date": [
-                    f"The delivery note is dated {n.note_date:%d-%m-%Y}; "
+                    f"The delivery note is dated {latest:%d-%m-%Y}; "
                     "date the invoice on or after it."
                 ]
             }
         )
-    term = None
-    if data.get("credit_term"):
-        term = CreditTerm.objects.filter(pk=data["credit_term"]).first()
-        if term is None:
-            raise ValidationError({"credit_term": ["Pick a credit term from the list."]})
-        if not term.is_active and term.pk != inv.credit_term_id:
-            raise ValidationError({"credit_term": ["These credit terms are disabled."]})
     _set_transport(inv, data)
     inv.invoice_date = data["invoice_date"]
-    inv.credit_term = term
     inv.notes = data.get("notes", "").strip()
-    lines = list(inv.lines.select_related("item"))
-    by_id = {ln.pk: ln for ln in lines}
-    for row in data.get("rates") or []:
-        ln = by_id.get(row["line"])
-        if ln is None:
-            raise ValidationError({"rates": ["Pick a line of this invoice."]})
-        ln.rate = row["rate"]
-    for ln in lines:
-        _price(ln, inv.interstate)
-        ln.save()
-    if "charges" in data:
-        charges = _invoice_charges(inv, data["charges"], lines)
-    else:
-        charges = list(inv.charges.all())
-    _totals(inv, lines, charges)
     inv.save()
 
 
@@ -556,8 +630,8 @@ def _gl(inv: SalesInvoice) -> list[GLLine]:
     if cost:
         gl += [GLLine(led, debit=v, remarks="Cost of goods billed") for led, v in cogs.values()]
         gdnb = accounts.system_ledger(company, accounts.GOODS_DELIVERED_NOT_BILLED)
-        note = inv.delivery_note.number
-        gl.append(GLLine(gdnb, credit=cost, remarks=f"Goods of {note} billed"))
+        note = ", ".join(n.number for n in notes_of(inv))
+        gl.append(GLLine(gdnb, credit=cost, remarks=f"Goods of {note} billed"[:200]))
     return gl
 
 
@@ -576,11 +650,15 @@ def refused(inv: SalesInvoice, user) -> Response | None:
 def _submit(inv: SalesInvoice, user) -> None:
     if not may(user, "submit"):
         raise PermissionDenied("Your role may save drafts but not submit them.")
-    n = DeliveryNote.objects.select_for_update().get(pk=inv.delivery_note_id)
-    if n.status != DeliveryNote.SUBMITTED:
-        raise ValidationError({"detail": f"Delivery note {n.number or 'draft'} is not submitted."})
-    if SalesInvoice.objects.filter(delivery_note=n, status=SalesInvoice.SUBMITTED).exists():
-        raise ValidationError({"detail": f"Delivery note {n.number} is billed already."})
+    ids = list(inv.delivery_notes.values_list("pk", flat=True))
+    for n in DeliveryNote.objects.select_for_update().filter(pk__in=ids).order_by("pk"):
+        if n.status != DeliveryNote.SUBMITTED:
+            raise ValidationError(
+                {"detail": f"Delivery note {n.number or 'draft'} is not submitted."}
+            )
+        billed = n.invoices.filter(status=SalesInvoice.SUBMITTED).exclude(pk=inv.pk)
+        if billed.exists():
+            raise ValidationError({"detail": f"Delivery note {n.number} is billed already."})
     attachments.require_file(inv, KIND)
     if not inv.lines.exists():
         raise ValidationError({"detail": "There is nothing to bill."})
@@ -816,7 +894,7 @@ def _invoice(request, pk: int, lock: bool = False) -> SalesInvoice:
     rows = SalesInvoice.objects.filter(pk=pk, company__in=visible_companies(request.user))
     if lock:
         rows = rows.select_for_update(of=("self",))
-    inv = rows.select_related("company", "delivery_note", "order", "customer__party").first()
+    inv = rows.select_related("company", "customer__party").first()
     if inv is None or "sales" not in inv.company.modules:
         raise NotFound("No such sales invoice.")
     return inv
@@ -833,7 +911,7 @@ class InvoiceListView(APIView):
     def get(self, request, pk: int):
         _check(request, "view")
         company = _company(request, pk)
-        rows = _invoices(company).prefetch_related("dues")
+        rows = _invoices(company).prefetch_related("dues", "delivery_notes__order__salesman")
         view = request.query_params.get("view", "all")
         if view in VIEWS:
             rows = rows.filter(status=view)
@@ -841,9 +919,9 @@ class InvoiceListView(APIView):
             rows = rows.filter(
                 Q(number__icontains=word)
                 | Q(customer__name__icontains=word)
-                | Q(delivery_note__number__icontains=word)
-                | Q(order__number__icontains=word)
-            )
+                | Q(delivery_notes__number__icontains=word)
+                | Q(delivery_notes__order__number__icontains=word)
+            ).distinct()
         return Response([invoice_out(i, lines=False) for i in rows[:1000]])
 
 
@@ -870,6 +948,34 @@ class InvoiceFromNoteView(APIView):
                 {"detail": "Submit the delivery note first: an invoice is made from a sent note."}
             )
         return Response(_fresh(make(n, request.user)), status=status.HTTP_201_CREATED)
+
+
+class InvoiceMoreNotesView(APIView):
+    """GET: the customer's other unbilled delivery notes that can go on this
+    draft ("Add Delivery Notes")."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, "view")
+        inv = _invoice(request, pk)
+        have = notes_of(inv)
+        if inv.status != SalesInvoice.DRAFT or not have:
+            return Response([])
+        key = match_key(have[0])
+        return Response(
+            [
+                {
+                    "id": n.pk,
+                    "number": n.number,
+                    "note_date": n.note_date,
+                    "order_number": n.order.number,
+                    "customer_po_no": n.order.customer_po_no,
+                }
+                for n in unbilled(inv.company, inv.customer_id)
+                if match_key(n) == key
+            ]
+        )
 
 
 class InvoiceDetailView(APIView):
@@ -1050,29 +1156,34 @@ COPIES = [
 
 def print_data(inv: SalesInvoice) -> dict:
     """The invoice in the shape of the sales order print (buying.po_pdf)."""
-    from selling.api import _party_fssai
+    from core.models import TermsSet
+    from core.terms import terms_for
+    from selling.api import _addresses_out
 
     data = _fresh(inv)
     party = inv.customer.party
-    bill = inv.bill_address or {}
+    notes = notes_of(inv)
+    orders = orders_of(notes)
     ship = inv.ship_address or {}
     data["order_date"] = inv.invoice_date
     data["doc_title"] = "TAX INVOICE"
     data["currency"], data["currency_symbol"] = "INR", "₹"
     data["letterhead"] = _letterhead(inv.company)
-    data["addresses"] = {
-        "bill_from": _branch_address(inv.bill_from) if inv.bill_from else None,
-        "customer": {
-            "name": inv.customer.name,
-            **bill,
-            "gstin": bill.get("gstin") or (party.gstin if party else ""),
-            "fssai": _party_fssai(party, bill.get("label", "")),
-        },
-        "ship_to": {"name": inv.customer.name, **ship} if ship else None,
+    # The order's print gives the customer's address with its GSTIN, FSSAI and
+    # the people the order went to; the bill and ship addresses are the invoice's.
+    data["addresses"] = _addresses_out(orders[0])
+    data["addresses"]["bill_from"] = _branch_address(inv.bill_from or inv.branch)
+    data["addresses"]["customer"].update(inv.bill_address or {})
+    # Shipped to the billing address when the note names no other.
+    data["addresses"]["ship_to"] = {
+        "name": inv.customer.name,
+        **(ship or data["addresses"]["customer"]),
     }
-    po = inv.order.customer_po_no
-    if po and inv.order.customer_po_date:
-        po += f" of {inv.order.customer_po_date:%d-%m-%Y}"
+    po = _joined(
+        o.customer_po_no + (f" of {o.customer_po_date:%d-%m-%Y}" if o.customer_po_date else "")
+        for o in orders
+        if o.customer_po_no
+    )
     due = data["first_due"]
     lr = data["lr_no"] and f"LR {data['lr_no']}"
     transport = " · ".join(x for x in [data["transporter_name"], data["vehicle_no"], lr] if x)
@@ -1081,8 +1192,8 @@ def print_data(inv: SalesInvoice) -> dict:
         ("Due Date", due.strftime("%d-%m-%Y") if due else ""),
         ("Credit Term", data["credit_term_name"]),
         ("Your PO", po),
-        ("Delivery Note", inv.delivery_note.number),
-        ("Sales Order", inv.order.number),
+        ("Delivery Note" + ("s" if len(notes) > 1 else ""), data["delivery_note_number"]),
+        ("Sales Order" + ("s" if len(orders) > 1 else ""), data["order_number"]),
         ("Transport", transport),
         ("Salesman", data["salesman_name"]),
         ("IRN", inv.irn),
@@ -1090,11 +1201,18 @@ def print_data(inv: SalesInvoice) -> dict:
         ("e-Way Bill", " · ".join(x for x in [inv.eway_bill_no, _dt(inv.eway_bill_date)] if x)),
     ]
     data["signed_qr"] = inv.signed_qr
+    # Until the IRN is in, the QR's place says so (an e-invoice must carry it).
+    data["qr_pending"] = (
+        not inv.signed_qr and inv.status != SalesInvoice.CANCELLED and einvoice_party(party)
+    )
     data["amount_words"] = words.amount(inv.total, "INR", "Indian Rupee")
     data["submitted_by_signature"] = (
         inv.submitted_by.signature_url() if inv.submitted_by and inv.status != "draft" else ""
     )
-    data["terms"] = inv.order.terms
+    default = terms_for(inv.company, party, TermsSet.SALES)
+    data["terms"] = next((o.terms for o in orders if o.terms.strip()), "") or (
+        default.text if default else ""
+    )
     return data
 
 

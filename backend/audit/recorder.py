@@ -638,6 +638,13 @@ def _register() -> None:
                 },
                 extras={
                     "invoice_status": ("Status", lambda i: i.get_status_display()),
+                    "notes_billed": (
+                        "Delivery notes",
+                        lambda i: ", ".join(
+                            n.number for n in i.delivery_notes.order_by("note_date", "number")
+                        )
+                        or None,
+                    ),
                     "items": (
                         "Items",
                         lambda i: "; ".join(
