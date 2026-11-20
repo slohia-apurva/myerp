@@ -25,6 +25,8 @@ type Summary = {
   deducted: string;
   gap: string;
   fixable: string;
+  no_section: number;
+  to_set: number;
   result: string;
   result_label: string;
 };
@@ -47,6 +49,8 @@ type Bill = {
   deducted: string;
   gap: string;
   filed: boolean;
+  needs_section: boolean;
+  section_set_by: string;
   why: string;
 };
 type Adjustment = { id: number; number: string; status: string; status_label: string; adj_date: string; total: string };
@@ -66,7 +70,9 @@ type SupplierCheck = {
 const base = (companyId: number) => `#/companies/${companyId}/tds-check`;
 const dmy = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("-") : "");
 const today = () => new Date().toISOString().slice(0, 10);
-const pill = (result: string) => (result === "short" ? "pill bad" : result === "excess" ? "pill warn" : result === "matches" ? "pill on" : "pill");
+const pill = (result: string) => (result === "short" ? "pill bad" : result === "excess" || result === "missing" ? "pill warn" : result === "matches" ? "pill on" : "pill");
+/** Something to put right: TDS short or in excess, or a section missing on a bill. */
+const toFix = (r: Summary) => Number(r.gap) !== 0 || r.no_section > 0;
 const gapText = (v: string) => (Number(v) < 0 ? `(${money(-Number(v))})` : money(v));
 const gapClass = (v: string) => (Number(v) > 0 ? "num bad-note" : "num");
 const balanceText = (v: string) => (Number(v) < 0 ? `₹${money(-Number(v))} Cr` : `₹${money(v)} Dr`);
@@ -81,7 +87,7 @@ export function TdsCheckPage({ companyId, session }: { companyId: number; sessio
 // The list: one line per supplier ledger and section ------------------------------------------
 
 const SHOW = [
-  { value: "gaps", label: "Only with a gap" },
+  { value: "gaps", label: "Only with something to put right" },
   { value: "all", label: "All suppliers" },
 ];
 const COLUMNS: [key: string, label: string, text: (r: Summary) => string, num?: boolean][] = [
@@ -93,6 +99,7 @@ const COLUMNS: [key: string, label: string, text: (r: Summary) => string, num?: 
   ["due", "TDS Due ₹", (r) => `${r.due} ${money(r.due)}`, true],
   ["deducted", "TDS Deducted ₹", (r) => `${r.deducted} ${money(r.deducted)}`, true],
   ["gap", "Short (Excess) ₹", (r) => `${r.gap} ${gapText(r.gap)}`, true],
+  ["no_section", "No Section On Bill", (r) => String(r.no_section), true],
   ["result", "Result", (r) => r.result_label],
 ];
 
@@ -113,7 +120,7 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
   const rows = useMemo(
     () =>
       (data?.rows ?? [])
-        .filter((r) => show === "all" || Number(r.gap) !== 0)
+        .filter((r) => show === "all" || toFix(r))
         .filter((r) =>
           COLUMNS.every(([key, , text]) => {
             const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
@@ -188,7 +195,7 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
               {data && rows.length === 0 && (
                 <tr>
                   <td colSpan={COLUMNS.length} className="small">
-                    {show === "gaps" ? "No supplier has a gap this year." : "No bills with TDS sections this year."}
+                    {show === "gaps" ? "Nothing to put right this year." : "No bills with TDS sections this year."}
                   </td>
                 </tr>
               )}
@@ -213,6 +220,7 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
                   <td className="num">{money(r.due)}</td>
                   <td className="num">{money(r.deducted)}</td>
                   <td className={gapClass(r.gap)}>{gapText(r.gap)}</td>
+                  <td className="num">{r.no_section ? <b>{r.no_section}</b> : 0}</td>
                   <td>
                     <span className={pill(r.result)}>{r.result_label}</span>
                   </td>
@@ -234,6 +242,7 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
                   ["TDS Deducted", `₹${money(chosen.deducted)}`],
                   ["Short (Excess)", `₹${gapText(chosen.gap)}`],
                   ["Can Be Put Right", Number(chosen.fixable) ? `₹${gapText(chosen.fixable)}` : "Nothing"],
+                  ["No Section On Bill", chosen.no_section ? `${chosen.no_section} ${chosen.no_section === 1 ? "bill" : "bills"}` : "None"],
                 ]}
               />
               <div className="side-buttons">
@@ -251,6 +260,7 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
                     ["Suppliers Checked", String(new Set(all.map((r) => r.supplier)).size)],
                     ["Short", count("short").length ? `${count("short").length} · ₹${money(sum(count("short")))}` : "None"],
                     ["Excess", count("excess").length ? `${count("excess").length} · ₹${money(sum(count("excess")))}` : "None"],
+                    ["Section Missing", count("missing").length ? String(count("missing").length) : "None"],
                     ["Matches / Below Limit", String(count("matches").length + count("below").length)],
                     ["Checked On", new Date(data.checked_at).toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit" })],
                   ]}
@@ -262,7 +272,8 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
           <SidePanel title="How It Checks">
             <p className="small">
               Every submitted bill of the year is worked out again, in date order, with today's masters: the item's or ledger's "TDS Section", the supplier's PAN and type, and the section's rates and
-              limits on the bill's date. So a bill entered before an item got its TDS Section shows here as Short. Submitted TDS Adjustments count as deducted.
+              limits on the bill's date. So a bill entered before an item got its TDS Section shows here as Short, or as "Section missing" when it owes nothing. Submitted TDS
+              Adjustments count as deducted, and set the section on the bills they name.
             </p>
           </SidePanel>
         </div>
@@ -375,7 +386,8 @@ function SupplierPage({ companyId, session, ledger, section, year }: { companyId
   const s = data?.summary;
   const canAdjust = session.permissions.includes("accounts.create") || session.user.is_owner;
   const shortBills = (data?.bills ?? []).filter((b) => Number(b.gap) !== 0 && !b.filed);
-  const filedGaps = (data?.bills ?? []).filter((b) => Number(b.gap) !== 0 && b.filed);
+  const filedGaps = (data?.bills ?? []).filter((b) => (Number(b.gap) !== 0 || b.needs_section) && b.filed);
+  const bills = (n: number) => `${n} ${n === 1 ? "bill" : "bills"}`;
   const total = (key: keyof Bill) => (data?.bills ?? []).reduce((n, b) => n + Number(b[key]), 0);
   return (
     <section className="page">
@@ -469,8 +481,25 @@ function SupplierPage({ companyId, session, ledger, section, year }: { companyId
           </div>
           <div className="side-col">
             <SidePanel title="Put It Right" tag={s.result_label}>
-              {Number(s.fixable) === 0 ? (
-                <p className="small">{filedGaps.length ? "The bills with a gap are in quarters whose TDS return is filed, so they cannot be adjusted." : "Nothing to put right."}</p>
+              {Number(s.fixable) === 0 && s.to_set === 0 ? (
+                <p className="small">{filedGaps.length ? "The bills to put right are in quarters whose TDS return is filed, so they cannot be adjusted." : "Nothing to put right."}</p>
+              ) : Number(s.fixable) === 0 ? (
+                <>
+                  <p className="use-note">
+                    <b>
+                      {section} missing on {bills(s.to_set)}
+                    </b>
+                    . No TDS is owed on them, so the TDS Adjustment only records the section ("Set section only", ₹0) and posts nothing. The bills themselves are not changed.
+                  </p>
+                  {filedGaps.length > 0 && <p className="small">Bills in quarters whose TDS return is filed are left out.</p>}
+                  {canAdjust && (
+                    <div className="side-buttons">
+                      <button type="button" onClick={() => openTab(`#/companies/${companyId}/tds-adjustments?form=new&${query.replace(/(^|&)year=[^&]*/, "")}&year=${data.start}`)}>
+                        Set Section
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <>
                   <p className="use-note">
@@ -484,6 +513,7 @@ function SupplierPage({ companyId, session, ledger, section, year }: { companyId
                       ? `The adjustment, dated the day it is made, debits the supplier and credits "TDS Payable ${section}". The supplier then owes us that much, or is paid that much less. Interest for deducting late is shown on it, to pay with the challan.`
                       : `The adjustment debits "TDS Payable ${section}" and credits the supplier. Use it only while that TDS is not yet paid to the government.`}
                   </p>
+                  {s.to_set > 0 && <p className="small">The same adjustment sets {section} on the {bills(s.to_set)} that missed it.</p>}
                   {filedGaps.length > 0 && <p className="small">Bills in quarters whose TDS return is filed are left out.</p>}
                   {canAdjust && (
                     <div className="side-buttons">

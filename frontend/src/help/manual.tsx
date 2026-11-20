@@ -3153,16 +3153,24 @@ export const MANUAL: Chapter[] = [
           supplier's PAN and "Deductee Type", and the section's rates and
           limits on the bill's date. A section chosen by hand on a bill stays
           as chosen. So a bill entered before its item had a TDS Section shows
-          up here.
+          up here. Such a bill also counts in the supplier's "Year So Far" on
+          later bills: a goods bill entered before its items had 194Q still
+          counts towards the year's ₹50,00,000, even though no TDS was due on
+          it. With "Show" at "Only with something to put right" a supplier
+          below the limit with its sections all on its bills is not listed;
+          pick "All suppliers" to see it as "Below limit".
         </p>
         <ul>
           <li>
             The list has one line per supplier ledger and section: "Bills",
             "Before GST ₹", "TDS Due ₹", "TDS Deducted ₹" (on the bills, plus
-            submitted TDS Adjustments), "Short (Excess) ₹" and "Result": "Short",
-            "Excess", "Matches" or "Below limit". "Show" picks "Only with a gap"
-            or "All suppliers"; each column has its own search. "Check Again"
-            runs it afresh.
+            submitted TDS Adjustments), "Short (Excess) ₹", "No Section On Bill"
+            and "Result": "Short", "Excess", "Section missing", "Matches" or
+            "Below limit". "Section missing" means no TDS is owed, but bills had
+            no section (or another one) when billed, because the item or ledger
+            got its section later. "Show" picks "Only with something to put
+            right" or "All suppliers"; each column has its own search. "Check
+            Again" runs it afresh.
           </li>
           <li>
             Double-click a line (or click it, then "Open") to see that
@@ -3171,7 +3179,8 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             "Put It Right" shows what can be put right. "Make TDS Adjustment"
-            opens a new TDS Adjustment for those bills in a new tab.
+            (or "Set Section", when only sections are missing) opens a new TDS
+            Adjustment for those bills in a new tab.
           </li>
           <li>
             "TDS Returns" lists the year's four quarters. When a quarter's
@@ -3204,14 +3213,23 @@ export const MANUAL: Chapter[] = [
             only while that TDS is not yet paid to the government.
           </li>
           <li>
+            A section missed on a bill that owes nothing ("Set section only"):
+            the bill's line shows "Section only" at ₹0, and nothing is posted.
+            The adjustment records the section against the bill, so it counts
+            under that section from then on. A bill that is short gets its
+            section recorded by the same adjustment that deducts the TDS.
+          </li>
+          <li>
             The bill's own "TDS" box then lists "TDS adjusted later" with the
-            adjustment's number, and "Total TDS on This Bill", so the bill shows
+            adjustment's number (or "Section … set later" for a ₹0 one, with
+            the date and who submitted it), and "Total TDS on This Bill", so the
+            bill shows
             all the TDS deducted against it (payment advices to suppliers will
             show the same).
           </li>
           <li>
             "Cancel adjustment" asks why and reverses the entries; the bills show
-            their gap again. A bill named on a submitted adjustment cannot be
+            their gap (or missing section) again. A bill named on a submitted adjustment cannot be
             cancelled until the adjustment is.
           </li>
           <li>
