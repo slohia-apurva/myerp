@@ -243,6 +243,9 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
                 <a role="menuitem" href={`#/companies/${id}/pick-lists`} onClick={() => setOpen(false)}>
                   Pick List
                 </a>
+                <a role="menuitem" href={`#/companies/${id}/delivery-notes`} onClick={() => setOpen(false)}>
+                  Delivery Note
+                </a>
               </div>
             </div>
           )}

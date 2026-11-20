@@ -1,6 +1,6 @@
 from django.urls import path
 
-from selling import api, customer_mail, pick_lists
+from selling import api, customer_mail, delivery, pick_lists
 
 urlpatterns = [
     path("companies/<int:pk>/sales-orders/", api.OrderListView.as_view(), name="sales-orders"),
@@ -57,4 +57,34 @@ urlpatterns = [
         "pick-lists/<int:pk>/places/", pick_lists.PickPlacesView.as_view(), name="pick-list-places"
     ),
     path("pick-lists/<int:pk>/pdf/", pick_lists.PickPdfView.as_view(), name="pick-list-pdf"),
+    path(
+        "pick-lists/<int:pk>/delivery-note/",
+        delivery.NoteFromPickView.as_view(),
+        name="pick-list-delivery-note",
+    ),
+    path(
+        "companies/<int:pk>/delivery-notes/", delivery.NoteListView.as_view(), name="delivery-notes"
+    ),
+    path("delivery-notes/<int:pk>/", delivery.NoteDetailView.as_view(), name="delivery-note"),
+    path(
+        "delivery-notes/<int:pk>/submit/",
+        delivery.NoteSubmitView.as_view(),
+        name="delivery-note-submit",
+    ),
+    path(
+        "delivery-notes/<int:pk>/cancel/",
+        delivery.NoteCancelView.as_view(),
+        name="delivery-note-cancel",
+    ),
+    path(
+        "delivery-notes/<int:pk>/ledger-posting/",
+        delivery.NoteLedgerPostingView.as_view(),
+        name="delivery-note-posting",
+    ),
+    path(
+        "delivery-notes/<int:pk>/places/",
+        delivery.NotePlacesView.as_view(),
+        name="delivery-note-places",
+    ),
+    path("delivery-notes/<int:pk>/pdf/", delivery.NotePdfView.as_view(), name="delivery-note-pdf"),
 ]

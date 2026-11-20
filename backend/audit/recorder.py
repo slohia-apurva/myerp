@@ -206,7 +206,7 @@ def _register() -> None:
     )
     from core.parties import party_extras
     from insurance.models import InsurancePolicy
-    from selling.models import PickList, SalesOrder
+    from selling.models import DeliveryNote, DeliveryNoteBin, PickList, SalesOrder
     from shipping.models import CourierAccount, Shipment
 
     def state(code):
@@ -579,6 +579,38 @@ def _register() -> None:
                             f"{r.item} {_number(r.qty)} from {r.location}"
                             + (f" batch {r.batch}" if r.batch_id else "")
                             for r in p.lines.select_related("item", "location", "batch")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            DeliveryNote: Tracked(
+                "delivery_note",
+                "Delivery note",
+                by_company,
+                labels={"branch": "Despatch from", "area": "Despatch area"},
+                extras={
+                    "note_status": ("Status", lambda n: n.get_status_display()),
+                    "ship_address_label": (
+                        "Ship to",
+                        lambda n: (n.ship_address or {}).get("label") or None,
+                    ),
+                    "items": (
+                        "Items",
+                        lambda n: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            for ln in n.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                    "bins": (
+                        "Sent from",
+                        lambda n: "; ".join(
+                            f"{b.line.item} {_number(b.qty)} from {b.location}"
+                            + (f" batch {b.batch}" if b.batch_id else "")
+                            for b in DeliveryNoteBin.objects.filter(
+                                line__note=n, qty__gt=0
+                            ).select_related("line__item", "location", "batch")
                         )
                         or None,
                     ),

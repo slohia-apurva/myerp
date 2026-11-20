@@ -6,6 +6,7 @@ import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
 import { longDate } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
+import { makeDeliveryNote } from "./DeliveryNotes";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
@@ -69,6 +70,7 @@ type Spot = { location: number; location_name: string; batch: number | null; bat
 const VIEWS: [string, string][] = [
   ["open", "Open"],
   ["picked", "Picked"],
+  ["delivered", "Delivered"],
   ["cancelled", "Cancelled"],
   ["all", "All"],
 ];
@@ -76,7 +78,7 @@ const base = (companyId: number) => `#/companies/${companyId}/pick-lists`;
 const CRUMB = "Entry › Sales › Pick List";
 const shortDate = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
 const at = (iso: string) => `${shortDate(iso)} at ${new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`;
-const pillClass = (s: string) => (s === "open" ? "pill on" : s === "picked" ? "pill on" : "pill");
+const pillClass = (s: string) => (s === "open" || s === "picked" || s === "delivered" ? "pill on" : "pill");
 const plain = (n: number) => String(Number(n.toFixed(3)));
 const can = (session: SignedIn, action: string) => session.permissions.includes(`sales.${action}`) || session.permissions.includes(`stock.${action}`);
 
@@ -355,8 +357,19 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                 Submit
               </button>
             )}
-            {pick.status === "picked" && (
-              <ActionsMenu label="Create" main items={[{ label: "Delivery Note (coming next)", disabled: true }]} />
+            {(pick.status === "picked" || pick.status === "delivered") && (
+              <ActionsMenu
+                label="Create"
+                main
+                items={[
+                  {
+                    label: "Delivery Note",
+                    onClick: () => makeDeliveryNote(companyId, pick.id).catch((err) => setError(err)),
+                    disabled: pick.status !== "picked" || !can(session, "create"),
+                    title: pick.status === "delivered" ? "This list has gone out on a delivery note" : undefined,
+                  },
+                ]}
+              />
             )}
           </>
         }

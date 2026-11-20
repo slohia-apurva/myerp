@@ -1,3 +1,4 @@
+import { deliveryBase, makeDeliveryNote } from "./DeliveryNotes";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { Attachments, keptDraft } from "./Attachments";
@@ -109,6 +110,7 @@ type SalesOrder = {
   credit_warning?: string;
   /** Made on Submit (Sidharth, 2026-11-19): the newest is the one that counts. */
   pick_lists?: PickBrief[];
+  delivery_notes?: { id: number; number: string; status: string; status_label: string }[];
 };
 type Customer = {
   id: number;
@@ -219,14 +221,19 @@ const printMenu = (id: number | null) => [
 
 /** "Create ▾" on a submitted order: the documents that follow from it, built one by one.
  * "Pick List" makes a new one only when the order has no open or picked list. */
-const nextDocs = (makePick: (() => void) | null) => [
+const nextDocs = (makePick: (() => void) | null, makeNote: (() => void) | null) => [
   {
     label: "Pick List",
     onClick: () => makePick?.(),
     disabled: !makePick,
     title: makePick ? undefined : "The order already has a pick list (cancel it to make a new one)",
   },
-  { label: "Delivery Note (coming next)", disabled: true },
+  {
+    label: "Delivery Note",
+    onClick: () => makeNote?.(),
+    disabled: !makeNote,
+    title: makeNote ? undefined : "Made from a picked pick list: submit the pick list first",
+  },
   { label: "Sales Invoice (coming later)", disabled: true },
 ];
 
@@ -1215,7 +1222,14 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const draft = order.status === "draft";
   const open = order.status === "ordered" || order.status === "part_delivered";
   const picks = order.pick_lists ?? [];
-  const livePick = [...picks].reverse().find((p) => p.status !== "cancelled");
+  // The list still holding stock for the order (open or picked); a delivered one is done.
+  const livePick = [...picks].reverse().find((p) => p.status === "open" || p.status === "picked");
+  const notes = (order.delivery_notes ?? []).filter((n) => n.status !== "cancelled");
+  const lastNote = notes[notes.length - 1];
+  const makeNote =
+    livePick?.status === "picked" && can("create")
+      ? () => makeDeliveryNote(companyId, livePick.id).catch((err) => setError(err))
+      : null;
   const pickHref = (pid: number) => `#/companies/${companyId}/pick-lists?view=${pid}`;
   const makePick = async () => {
     setError("");
@@ -1284,7 +1298,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Submit
               </button>
             )}
-            {open && <ActionsMenu label="Create" main items={nextDocs(livePick || !can("create") ? null : makePick)} />}
+            {open && <ActionsMenu label="Create" main items={nextDocs(livePick || !can("create") ? null : makePick, makeNote)} />}
           </>
         }
       />
@@ -1338,9 +1352,14 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               <a className={picks.length ? "" : "none"} href={livePick ? pickHref(livePick.id) : `#/companies/${companyId}/pick-lists`} target="_blank" rel="noreferrer">
                 <b>{picks.filter((p) => p.status !== "cancelled").length}</b> Pick List
               </a>
-              <span className="none">
-                <b>0</b> Delivery Notes
-              </span>
+              <a
+                className={notes.length ? "" : "none"}
+                href={notes.length === 1 && lastNote ? `${deliveryBase(companyId)}?view=${lastNote.id}` : deliveryBase(companyId)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <b>{notes.length}</b> {notes.length === 1 ? "Delivery Note" : "Delivery Notes"}
+              </a>
               <span className="none">
                 <b>0</b> Invoices
               </span>

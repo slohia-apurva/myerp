@@ -188,10 +188,15 @@ class PickList(models.Model):
     submitted; an open list can be changed, and once submitted ("Picked") it is
     final. Stock on an open or picked list is kept aside, so the next order
     does not pick the same bags. It posts nothing: the delivery note moves the
-    stock."""
+    stock, and the list is then "Delivered"."""
 
-    OPEN, PICKED, CANCELLED = "open", "picked", "cancelled"
-    STATUSES = [(OPEN, "Open"), (PICKED, "Picked"), (CANCELLED, "Cancelled")]
+    OPEN, PICKED, DELIVERED, CANCELLED = "open", "picked", "delivered", "cancelled"
+    STATUSES = [
+        (OPEN, "Open"),
+        (PICKED, "Picked"),
+        (DELIVERED, "Delivered"),
+        (CANCELLED, "Cancelled"),
+    ]
     HOLDING = (OPEN, PICKED)
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -242,3 +247,125 @@ class PickListLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item} {self.qty} from {self.location}"
+
+
+class DeliveryNote(models.Model):
+    """The goods going out to the customer (Sidharth, 2026-11-20, previews 7-9 in
+    mockups/sales): made from a picked pick list, with its bins and batches.
+    Submit takes the stock out at FIFO cost into "Goods Delivered but Bills not
+    Made" (decided 2026-11-19); the sales invoice later moves that cost to Cost
+    of Goods Sold and books the sale. The transport details are kept for the
+    e-way bill, which comes with the invoice."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+    ROAD, RAIL, AIR, SHIP = "road", "rail", "air", "ship"
+    MODES = [(ROAD, "Road"), (RAIL, "Rail"), (AIR, "Air"), (SHIP, "Ship")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    customer = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="delivery_notes")
+    order = models.ForeignKey(SalesOrder, on_delete=models.PROTECT, related_name="delivery_notes")
+    pick_list = models.ForeignKey(PickList, on_delete=models.PROTECT, related_name="delivery_notes")
+    # The pick list's Despatch From.
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    area = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Given on Submit, from the "Delivery challan" series.
+    number = models.CharField(max_length=30, blank=True)
+    note_date = models.DateField()
+    bill_from = models.ForeignKey(
+        Branch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    ship_address = models.JSONField(default=dict, blank=True)
+    # None: "By Customer" (the customer collects).
+    transporter = models.ForeignKey(
+        CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    mode = models.CharField(max_length=5, choices=MODES, default=ROAD)
+    vehicle_no = models.CharField(max_length=20, blank=True)
+    distance_km = models.PositiveIntegerField(null=True, blank=True)
+    lr_no = models.CharField(max_length=40, blank=True)
+    lr_date = models.DateField(null=True, blank=True)
+    packages = models.PositiveIntegerField(null=True, blank=True)
+    gross_weight = models.DecimalField(**QTY, null=True, blank=True)  # kg
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    interstate = models.BooleanField(default=False)
+    # At the order's rates, for the challan and the e-way bill.
+    taxable_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    cgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    total = models.DecimalField(**MONEY, default=Decimal("0"))
+    # Set on Submit: the FIFO cost of the goods sent.
+    cost_total = models.DecimalField(**MONEY, default=Decimal("0"))
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-note_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company",
+                "number",
+                condition=~models.Q(number=""),
+                name="delivery_note_number_unique",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft delivery note {self.pk}"
+
+
+class DeliveryNoteLine(models.Model):
+    """One order line going out; its quantity (in the line's unit) is what its
+    bins send."""
+
+    note = models.ForeignKey(DeliveryNote, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    order_line = models.ForeignKey(SalesOrderLine, on_delete=models.PROTECT, related_name="+")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(**QTY, default=Decimal("0"))
+    rate = models.DecimalField(**QTY, default=Decimal("0"))
+    taxable = models.DecimalField(**MONEY, default=Decimal("0"))
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    amount = models.DecimalField(**MONEY, default=Decimal("0"))
+    cost = models.DecimalField(**MONEY, default=Decimal("0"))  # set on Submit
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} × {self.qty}"
+
+
+class DeliveryNoteBin(models.Model):
+    """A bin and batch a line's goods leave from. Quantities in the item's
+    stock unit; `picked` is what the pick list had there."""
+
+    line = models.ForeignKey(DeliveryNoteLine, on_delete=models.CASCADE, related_name="bins")
+    location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="+")
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    picked = models.DecimalField(**QTY, default=Decimal("0"))
+    qty = models.DecimalField(**QTY, default=Decimal("0"))
+    cost = models.DecimalField(**MONEY, default=Decimal("0"))  # set on Submit
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"{self.line.item} {self.qty} from {self.location}"

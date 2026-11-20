@@ -233,6 +233,7 @@ def _save(p: PickList, data: dict) -> None:
 VIEWS = {
     "open": [PickList.OPEN],
     "picked": [PickList.PICKED],
+    "delivered": [PickList.DELIVERED],
     "cancelled": [PickList.CANCELLED],
 }
 
