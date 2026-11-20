@@ -176,20 +176,44 @@ def year_range(company: Company, day: datetime.date) -> tuple[datetime.date, dat
 
 def year_so_far(inv: PurchaseInvoice, code: str) -> tuple[Decimal, Decimal]:
     """This supplier's submitted bills in the section this financial year,
-    before this bill: (amount before GST, the part TDS was deducted on)."""
+    before this bill: (amount before GST, the part TDS was deducted on).
+
+    The amount goes by each earlier line's section by today's masters, as the
+    TDS Check does (Sidharth, 2026-11-20): a bill entered before its item got
+    194Q still counts towards the year's ₹50 lakh. The part deducted on is what
+    the bills deducted on, plus what TDS Adjustments deducted for them."""
+    from buying.models import TdsAdjustment, TdsAdjustmentLine
+
     start, end = year_range(inv.company, bill_day(inv))
-    got = (
-        PurchaseInvoiceTds.objects.filter(
-            invoice__company=inv.company,
-            invoice__supplier=inv.supplier,
-            invoice__status=PurchaseInvoice.SUBMITTED,
-            invoice__posting_date__range=(start, end),
-            section=code,
+    earlier = (
+        PurchaseInvoice.objects.filter(
+            company=inv.company,
+            supplier=inv.supplier,
+            status=PurchaseInvoice.SUBMITTED,
+            posting_date__range=(start, end),
         )
-        .exclude(invoice=inv)
-        .aggregate(t=Sum("taxable"), b=Sum("base"))
+        .exclude(pk=inv.pk)
+        .select_related("company", "supplier__party")
     )
-    return got["t"] or ZERO, got["b"] or ZERO
+    amount = ZERO
+    for bill in earlier:
+        amount += sum((ln.taxable for ln, sec, _ in lines_now(bill) if sec == code), ZERO)
+    base = (
+        PurchaseInvoiceTds.objects.filter(invoice__in=earlier, section=code).aggregate(
+            b=Sum("base")
+        )["b"]
+        or ZERO
+    )
+    base += (
+        TdsAdjustmentLine.objects.filter(
+            invoice__in=earlier,
+            adjustment__section=code,
+            adjustment__status=TdsAdjustment.SUBMITTED,
+            amount__gt=0,
+        ).aggregate(b=Sum("base"))["b"]
+        or ZERO
+    )
+    return amount, base
 
 
 def _limits(sec: TdsSection) -> str:

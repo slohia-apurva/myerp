@@ -176,3 +176,24 @@ def test_the_bill_shows_tds_adjusted_later(buyer, accounts, office, alpha):
         from buying import tds as tds_rules
 
         assert tds_rules.deducted_on(PurchaseInvoice.objects.get(pk=bill["id"])) == D("800")
+
+
+def test_a_bill_billed_before_its_item_had_194q_counts_towards_the_year(buyer, office, alpha):
+    # Sidharth, 2026-11-20: a goods bill entered before the item had 194Q. It owes no
+    # TDS (below ₹50 lakh) but must count towards the supplier's year for later bills.
+    o = office
+    body = _body(o)
+    body["lines"] = [{"item": o["paper"], "qty": "40", "rate": "100000", "gst_rate": "12"}]
+    first = call(buyer, "post", _url(o), body).json()
+    done = call(buyer, "patch", f"direct-bills/{first['id']}/",
+                {**body, "bill_total": first["total"], "submit": True})  # fmt: skip
+    assert done.status_code == 200 and done.json()["tds_total"] == "0.00"
+    with use_tenant(alpha):
+        Item.objects.filter(pk=o["paper"]).update(tds_section="194Q")
+    # 40,00,000 so far; the next 20,00,000 takes the year to 60 lakh: 0.1% on 10 lakh.
+    body["bill_no"] = "SOS/0500"
+    body["lines"][0]["rate"] = "50000"
+    second = call(buyer, "post", _url(o), body).json()
+    row = second["tds"]["rows"][0]
+    assert (row["section"], row["base"], row["amount"]) == ("194Q", "1000000.00", "1000.00")
+    assert second["tds"]["year_so_far"][0]["amount"] == "4000000.00"

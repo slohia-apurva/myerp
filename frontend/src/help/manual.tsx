@@ -3153,7 +3153,11 @@ export const MANUAL: Chapter[] = [
           supplier's PAN and "Deductee Type", and the section's rates and
           limits on the bill's date. A section chosen by hand on a bill stays
           as chosen. So a bill entered before its item had a TDS Section shows
-          up here.
+          up here. Such a bill also counts in the supplier's "Year So Far" on
+          later bills: a goods bill entered before its items had 194Q still
+          counts towards the year's ₹50,00,000, even though no TDS was due on
+          it. With "Show" at "Only with a gap" a supplier below the limit is
+          not listed; pick "All suppliers" to see it as "Below limit".
         </p>
         <ul>
           <li>
