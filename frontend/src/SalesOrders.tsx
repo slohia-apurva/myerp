@@ -1340,6 +1340,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                   </a>{" "}
                   {livePick.status === "picked" ? "picked." : "made on Submit."}
                 </b>{" "}
+                {livePick.despatch_from !== order.despatch_from && `From ${livePick.despatch_from}. `}
                 {livePick.all_in ? "All items in stock." : livePick.text.replace(/^Not all in stock: /, "")}
               </span>
               <button type="button" className="link" onClick={() => openTab(pickHref(livePick.id))}>

@@ -3,7 +3,8 @@ order's goods from (Sidharth, 2026-11-19, preview 6).
 
 A list is made by itself when the order is submitted (selling.picking). An
 open list can be changed: another bin or batch, a different quantity, rows
-added or taken out. "Submit" makes it final ("Picked"). "Cancel" frees the
+added or taken out, or picked again from another branch or area ("Despatch
+From", Sidharth 2026-11-20, preview 10). "Submit" makes it final ("Picked"). "Cancel" frees the
 stock it kept aside; "Pick List" under the order's "Create ▾" makes a new one.
 
 Who may do what: people who may see sales or stock see them; who may make
@@ -11,6 +12,7 @@ sales or stock entries change them; submit and cancel likewise. Nothing here
 posts to either ledger.
 """
 
+import re
 from decimal import Decimal
 
 from django.utils import timezone
@@ -22,9 +24,9 @@ from rest_framework.views import APIView
 from audit.models import AuditEntry
 from core.api import Signed
 from core.companies import visible_companies
-from core.models import Batch
+from core.models import Batch, Branch, WarehouseLocation
 from selling import picking, stock
-from selling.api import _company
+from selling.api import _company, _despatch_places
 from selling.api import _order as _sales_order
 from selling.models import PickList, PickListLine, SalesOrder, SalesOrderLine
 from tenancy.context import tenant_atomic
@@ -67,6 +69,7 @@ def brief(p: PickList) -> dict:
         "full_count": s["full"],
         "item_count": s["count"],
         "text": s["text"],
+        "despatch_from": place_label(p),
     }
 
 
@@ -83,6 +86,8 @@ def pick_out(p: PickList, full: bool = True) -> dict:
         "despatch_from": place_label(p),
         "branch": p.branch_id,
         "area": p.area_id,
+        # The order's own Despatch From, marked in the list's place picker.
+        "order_place": f"a{p.order.area_id}" if p.order.area_id else f"b{p.order.branch_id}",
         "notes": p.notes,
         "cancel_reason": p.cancel_reason,
         "created_at": p.created_at,
@@ -400,54 +405,72 @@ class OrderPickView(APIView):
         return Response(_fresh(p), status=201)
 
 
-class PickPdfView(APIView):
-    """GET: the list for the stores to pick from, as a PDF (?download=1 saves it).
-    The last column is left blank to tick as each row is picked."""
+class PickDespatchView(APIView):
+    """GET: the places an open list may pick from (every branch that keeps stock,
+    and its areas), each with how many of the order's items it holds in full.
+    POST {place: "b<branch>" | "a<area>"}: pick again there, by the same rule
+    (Sidharth, 2026-11-20: the goods were in another branch)."""
 
     permission_classes = [Signed]
 
     def get(self, request, pk: int):
-        from core import printout
+        _check(request, "view")
+        p = _pick(request, pk)
+        out = []
+        for row in _despatch_places(p.company):
+            if not row["is_active"]:
+                continue
+            branch = Branch.objects.get(pk=row["branch"])
+            area = WarehouseLocation.objects.get(pk=row["area"]) if row["area"] else None
+            full, count = picking.coverage(p, branch, area)
+            out.append({**row, "full": full, "count": count})
+        return Response(out)
+
+    @tenant_atomic()
+    def post(self, request, pk: int):
+        _check(request, "create")
+        p = _pick(request, pk, lock=True)
+        if p.status != PickList.OPEN:
+            raise ValidationError({"detail": "Only an open pick list can be picked again."})
+        value = str(request.data.get("place") or "")
+        branch, area = None, None
+        if value.startswith("b") and value[1:].isdigit():
+            branch = Branch.objects.filter(company=p.company, pk=int(value[1:])).first()
+        elif value.startswith("a") and value[1:].isdigit():
+            area = WarehouseLocation.objects.filter(
+                branch__company=p.company, kind=WarehouseLocation.AREA, pk=int(value[1:])
+            ).first()
+            branch = area.branch if area else None
+        if branch is None:
+            raise ValidationError({"place": ["Pick a branch or an area of this company."]})
+        if branch.no_stock or not branch.is_active or (area is not None and not area.is_active):
+            raise ValidationError({"place": [f"{branch.name} keeps no stock to pick from."]})
+        p.branch, p.area = branch, area
+        p.save(update_fields=["branch", "area"])
+        picking.fill(p)
+        return Response(_fresh(p))
+
+
+class PickPdfView(APIView):
+    """GET: the list for the stores to pick from, as a PDF (?download=1 saves it):
+    portrait, bin by bin, with bin barcodes (selling.pick_print, preview 8)."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        from django.http import HttpResponse
+
+        from buying.api import _letterhead
+        from selling.pick_print import pick_pdf
 
         _check(request, "view")
-        data = _fresh(_pick(request, pk))
-        rows = []
-        for i in data["items"]:
-            first = True
-            ordered = f"{i['ordered']} {i['unit_name']}"
-            status = "Full" if i["short"] == "0" else f"Short {i['short']} {i['unit_name']}"
-            for r in i["rows"] or [None]:
-                rows.append(
-                    [
-                        str(i["position"]) if first else "",
-                        i["item_name"] if first else "",
-                        ordered if first else "",
-                        r["location_name"] if r else "Not found",
-                        r["batch_number"] if r else "",
-                        r["expiry"].strftime("%d-%m-%Y") if r and r["expiry"] else "",
-                        f"{r['qty_unit']} {i['unit_name']}" if r else "",
-                        f"{r['qty']} {i['stock_unit_name']}" if r else "",
-                        status if first else "",
-                        "",
-                    ]
-                )
-                first = False
-        sheet = {
-            "title": data["text"],
-            "columns": [
-                "#", "Item", "Ordered", "Bin", "Batch", "Expiry", "Pick Qty",
-                "In Stock Unit", "Status", "Picked",
-            ],
-            "rows": rows,
-        }  # fmt: skip
-        scope = " · ".join(
-            [data["customer_name"], f"Sales Order {data['order_number']}", data["despatch_from"]]
-        )
-        response = printout.pdf_response(
-            f"Pick List {data['number']}", scope, [sheet], data["number"]
-        )
-        if request.query_params.get("download") != "1":
-            response["Content-Disposition"] = response["Content-Disposition"].replace(
-                "attachment", "inline"
-            )
+        p = _pick(request, pk)
+        data = _fresh(p)
+        o = p.order
+        transporter = o.transporter.name if o.transporter_id else "By Customer"
+        body = pick_pdf(data, _letterhead(p.company), transporter)
+        response = HttpResponse(body, content_type="application/pdf")
+        how = "attachment" if request.query_params.get("download") == "1" else "inline"
+        name = re.sub(r"[^A-Za-z0-9-]+", "-", data["number"]).strip("-") or "pick-list"
+        response["Content-Disposition"] = f'{how}; filename="Pick-List-{name}.pdf"'
         return response

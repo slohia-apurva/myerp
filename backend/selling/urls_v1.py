@@ -56,6 +56,11 @@ urlpatterns = [
     path(
         "pick-lists/<int:pk>/places/", pick_lists.PickPlacesView.as_view(), name="pick-list-places"
     ),
+    path(
+        "pick-lists/<int:pk>/despatch/",
+        pick_lists.PickDespatchView.as_view(),
+        name="pick-list-despatch",
+    ),
     path("pick-lists/<int:pk>/pdf/", pick_lists.PickPdfView.as_view(), name="pick-list-pdf"),
     path(
         "pick-lists/<int:pk>/delivery-note/",

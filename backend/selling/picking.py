@@ -122,11 +122,21 @@ def make(order: SalesOrder, user) -> PickList | None:
         ),
         created_by=user,
     )
+    fill(pick, lines)
+    return pick
+
+
+def fill(pick: PickList, lines: list[SalesOrderLine] | None = None) -> None:
+    """Choose bins and batches for the lines in the list's Despatch From, by the
+    rule, replacing any rows the list had (its own rows are not kept aside)."""
+    if lines is None:
+        lines = stock_lines(pick.order)
+    pick.lines.all().delete()
     taken: dict[tuple[int, tuple], Decimal] = {}
     rows = []
     for ln in lines:
         need = pending(ln) * factor(ln)
-        for spot in spots(ln.item, order.branch, order.area):
+        for spot in spots(ln.item, pick.branch, pick.area, pick):
             if need <= 0:
                 break
             mine = (ln.item_id, spot.key)
@@ -148,7 +158,22 @@ def make(order: SalesOrder, user) -> PickList | None:
                 )
             )
     PickListLine.objects.bulk_create(rows)
-    return pick
+
+
+def coverage(pick: PickList, branch, area=None) -> tuple[int, int]:
+    """How many of the list's items could be picked in full at a place (stock
+    there less what other lists keep aside), and how many there are."""
+    lines = stock_lines(pick.order)
+    need: dict[int, Decimal] = {}
+    for ln in lines:
+        need[ln.item_id] = need.get(ln.item_id, ZERO) + pending(ln) * factor(ln)
+    items = {ln.item_id: ln.item for ln in lines}
+    full = sum(
+        1
+        for item_id, want in need.items()
+        if sum((s.free for s in spots(items[item_id], branch, area, pick)), ZERO) >= want
+    )
+    return full, len(need)
 
 
 def plain(n: Decimal) -> str:

@@ -8,7 +8,8 @@ from decimal import Decimal
 
 import pytest
 
-from core.models import Batch, Company, Item, WarehouseLocation
+from core.models import Batch, Branch, Company, Item, WarehouseLocation
+from core.stores import sync_default_store
 from posting import accounts
 from posting.service import GLLine, StockLine, Voucher, post
 from tenancy.context import use_tenant
@@ -195,3 +196,68 @@ def test_the_list_prints(seller, world):  # noqa: F811
     got = seller.get(f"/api/v1/pick-lists/{pl['id']}/pdf/", HTTP_HOST="alpha.localhost")
     assert got.status_code == 200 and got["Content-Type"] == "application/pdf"
     assert got["Content-Disposition"].startswith("inline")
+
+
+def other_branch(w, name="Sankrail-2", no_stock=False):
+    """A second branch of the company and its default store."""
+    with use_tenant(w["tenant"]):
+        head = Branch.objects.get(pk=w["branch"])
+        b = Branch.objects.create(
+            company_id=w["company"], name=name, state_code=head.state_code, no_stock=no_stock
+        )
+        sync_default_store(b)
+        store = WarehouseLocation.objects.filter(branch=b, is_default=True).first()
+        return b.pk, store.pk if store else None
+
+
+def test_pick_again_from_another_branch(seller, world):  # noqa: F811
+    # Sidharth, 2026-11-20: the teas were not at the order's branch.
+    later = TODAY + datetime.timedelta(days=200)
+    two, two_store = other_branch(world)
+    blank, _ = other_branch(world, "Kolkata Office", no_stock=True)
+    receive(world, world["bin"], "100", "A-LATE", later)
+    receive(world, two_store, "700", "D-TWO", later)
+    so = submit(seller, world, cases="10")  # 240 packets, 100 here
+    pl = picked(seller, so)
+    assert pl["all_in"] is False
+    path = f"pick-lists/{pl['id']}/despatch/"
+    places = {p["value"]: p for p in call(seller, "get", path).json()}
+    assert f"b{blank}" not in places  # a branch with no stock is not offered
+    assert (places[f"b{two}"]["full"], places[f"b{two}"]["count"]) == (1, 1)
+    assert places[f"a{world['fg']}"]["full"] == 0
+    bad = call(seller, "post", path, {"place": f"b{blank}"})
+    assert "keeps no stock" in str(bad.json())
+    assert "Pick a branch" in str(call(seller, "post", path, {"place": "b999999"}).json())
+    moved = call(seller, "post", path, {"place": f"b{two}"})
+    assert moved.status_code == 200, moved.json()
+    out = moved.json()
+    assert out["all_in"] is True and out["despatch_from"] == "Sankrail-2"
+    assert out["branch"] == two and out["area"] is None
+    assert rows_of(out) == [("Store", "D-TWO", "240")]
+    # The stock at the first branch is free again for another order.
+    other = picked(seller, submit(seller, world, cases="2"))
+    assert rows_of(other) == [("FG-R1-B1", "A-LATE", "48")]
+    # Once submitted, the place is fixed.
+    call(seller, "post", f"pick-lists/{pl['id']}/submit/", {})
+    again = call(seller, "post", path, {"place": f"a{world['fg']}"})
+    assert "Only an open" in str(again.json())
+
+
+def test_the_print_is_bin_by_bin_with_short_items(seller, world):  # noqa: F811
+    from buying.api import _letterhead
+    from selling.models import PickList
+    from selling.pick_lists import _fresh
+    from selling.pick_print import bin_rows, pick_pdf
+
+    later = TODAY + datetime.timedelta(days=200)
+    receive(world, new_bin(world, "FG-R1-A0"), "50", "Z-LOT", later + datetime.timedelta(days=5))
+    receive(world, world["bin"], "100", "A-LATE", later)
+    pl = picked(seller, submit(seller, world, cases="10"))
+    # Picked by expiry (A-LATE first), printed bin by bin (FG-R1-A0 first).
+    assert [b for _, b, _ in rows_of(pl)] == ["A-LATE", "Z-LOT"]
+    with use_tenant(world["tenant"]):
+        p = PickList.objects.get(pk=pl["id"])
+        data = _fresh(p)
+        body = pick_pdf(data, _letterhead(p.company), "By Customer")
+    assert [r["location_name"] for _, r in bin_rows(data)] == ["FG-R1-A0", "FG-R1-B1"]
+    assert body.startswith(b"%PDF") and data["items"][0]["short"] != "0"

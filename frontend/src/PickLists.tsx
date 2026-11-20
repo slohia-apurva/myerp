@@ -10,6 +10,7 @@ import { makeDeliveryNote } from "./DeliveryNotes";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useOnReturn } from "./Refresh";
 
 /** Entry > Sales > Pick List: where the stores take a sales order's goods from,
  * bin and batch per item (Sidharth, 2026-11-19, preview 6). Made by itself when
@@ -50,13 +51,16 @@ export type PickBrief = {
   full_count: number;
   item_count: number;
   text: string;
+  despatch_from: string;
 };
 type PickList = PickBrief & {
   order: number;
   order_number: string;
   customer_name: string;
   delivery_date: string | null;
-  despatch_from: string;
+  branch: number;
+  area: number | null;
+  order_place: string;
   notes: string;
   cancel_reason: string;
   created_at: string;
@@ -65,6 +69,7 @@ type PickList = PickBrief & {
   submitted_by_name: string;
   items?: PickItem[];
 };
+type Place = { value: string; label: string; full: number; count: number };
 type Spot = { location: number; location_name: string; batch: number | null; batch_number: string; expiry: string | null; free: string };
 
 const VIEWS: [string, string][] = [
@@ -409,6 +414,9 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
           )}
           <ErrorNote error={error} />
           {pick.status !== "cancelled" && <p className={pick.all_in ? "ok-note" : "use-note"}>{pick.text}</p>}
+          {isOpen && !editing && can(session, "create") && (
+            <DespatchFrom pick={pick} busy={busy} onPick={(place) => act("despatch", { place })} />
+          )}
           <Fold title="What to Pick" open>
             {editing ? (
               <EditRows pick={pick} rows={rows} setRows={setRows} spots={spots} />
@@ -477,6 +485,46 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
         </div>
       </div>
     </section>
+  );
+}
+
+/** "Despatch From" on an open list (Sidharth, 2026-11-20, preview 10): any
+ * stock-keeping branch or area of one, each showing how many of the order's
+ * items it holds in full; "Pick again" chooses bins and batches there by the
+ * same rule. The order's Bill From does not change. */
+function DespatchFrom({ pick, busy, onPick }: { pick: PickList; busy: boolean; onPick: (place: string) => void }) {
+  const here = pick.area ? `a${pick.area}` : `b${pick.branch}`;
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [place, setPlace] = useState(here);
+  const load = useCallback(() => {
+    api<Place[]>(`v1/pick-lists/${pick.id}/despatch/`).then(setPlaces, () => undefined);
+  }, [pick.id]);
+  useEffect(load, [load, pick]);
+  useOnReturn(load);
+  useEffect(() => setPlace(here), [here]);
+  const chosen = places.find((p) => p.value === place);
+  const options = places.map((p) => ({
+    value: p.value,
+    label: p.label,
+    hint: `${p.value === pick.order_place ? "(the order's) · " : ""}${p.full} of ${p.count} items${p.count && p.full === p.count ? " ✓" : ""}`,
+  }));
+  return (
+    <Fold title="Despatch From" open={!pick.all_in} summary={pick.despatch_from}>
+      <div className="item-fields">
+        <label>
+          <span>Despatch From</span>
+          <Combobox value={place} onChange={setPlace} ariaLabel="Despatch From" options={options} />
+        </label>
+        <div className="buttons">
+          <button type="button" disabled={busy || !chosen || place === here} onClick={() => onPick(place)}>
+            {chosen && place !== here ? `Pick again from ${chosen.label}` : "Pick again"}
+          </button>
+          <p className="small">
+            Chooses bins and batches again by the same rule, in the new place only. The sales order&apos;s Bill From does not change.
+          </p>
+        </div>
+      </div>
+    </Fold>
   );
 }
 
