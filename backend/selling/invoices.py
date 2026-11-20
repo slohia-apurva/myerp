@@ -117,6 +117,8 @@ def _line_out(ln: SalesInvoiceLine) -> dict:
         # The invoice and e-invoice carry the item's own code (a job-work service
         # its SAC); the challan carries the goods code.
         "hsn": ln.item.hsn,
+        # The e-way bill carries the goods: a job-work service its Delivery HSN.
+        "goods_hsn": ln.item.delivery_hsn or ln.item.hsn,
         "unit_name": _unit_name(ln.unit),
         "qty": _plain(ln.qty),
         "rate": _plain(ln.rate),
@@ -262,6 +264,7 @@ def invoice_out(inv: SalesInvoice, lines: bool = True) -> dict:
         "eway_bill_date": inv.eway_bill_date,
         "eway_valid_until": inv.eway_valid_until,
         "needs_einvoice": einvoice_party(party),
+        "eway_with_einvoice": eway_with_einvoice(inv),
         "cancel_reason": inv.cancel_reason,
         "created_by_name": inv.created_by.display_name if inv.created_by else "",
         "created_at": inv.created_at,
@@ -293,6 +296,13 @@ def brief(inv: SalesInvoice | None) -> dict | None:
 
 def live_invoice(n: DeliveryNote) -> SalesInvoice | None:
     return next((i for i in n.invoices.all() if i.status in LIVE), None)
+
+
+def eway_with_einvoice(inv: SalesInvoice) -> bool:
+    """Whether the portal can make the e-way bill with the e-invoice: only for
+    goods. An invoice of services alone (job work billed under its SAC) gets
+    its e-way bill on the e-way bill portal, under the goods' Delivery HSN."""
+    return inv.lines.exclude(item__item_type=Item.SERVICE).exists()
 
 
 def einvoice_party(party: Party | None) -> bool:
@@ -869,7 +879,7 @@ def einvoice_json(inv: SalesInvoice) -> list[dict]:
         "RndOffAmt": _num(inv.round_off),
         "TotInvVal": _num(inv.total),
     }
-    if inv.vehicle_no or inv.transporter_id:
+    if (inv.vehicle_no or inv.transporter_id) and eway_with_einvoice(inv):
         ewb = {"Distance": inv.distance_km or 0}
         if inv.transporter and inv.transporter.gstin:
             ewb["TransId"] = inv.transporter.gstin
@@ -1237,7 +1247,7 @@ def _eway_pdf(inv: SalesInvoice):
         [
             str(ln["position"]),
             ln["item_name"],
-            ln["hsn"],
+            ln["goods_hsn"],
             f"{ln['qty']} {ln['unit_name']}",
             ln["taxable"],
             f"{ln['gst_rate']}%",

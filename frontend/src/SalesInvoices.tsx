@@ -114,6 +114,7 @@ type Invoice = {
   eway_bill_date: string | null;
   eway_valid_until: string | null;
   needs_einvoice: boolean;
+  eway_with_einvoice: boolean;
   cancel_reason: string;
   created_at: string;
   created_by_name: string;
@@ -786,6 +787,9 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                     {inv.needs_einvoice
                       ? 'Upload the JSON on the e-invoice portal: it makes the e-invoice and, with the transport details, the e-way bill. Then type the numbers it gives here with "Enter Portal Numbers". '
                       : "This customer needs no e-invoice; make the e-way bill on its portal if the goods need one. "}
+                    {inv.needs_einvoice && !inv.eway_with_einvoice
+                      ? "This invoice has services only (job work), so the portal makes no e-way bill with the e-invoice: make it on the e-way bill portal under the goods' Delivery HSN, as on the \"e-Way Bill\" print. "
+                      : ""}
                     {inv.has_signed_qr ? "Paste the signed QR again only to change it." : ""}
                   </p>
                 </>

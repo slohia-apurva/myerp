@@ -268,3 +268,28 @@ def test_several_notes_on_one_invoice(seller, books):  # noqa: F811
         assert shown["billed"] is True and shown["invoice"]["id"] == inv["id"]
     # Submitted: its notes cannot change.
     assert "cannot be changed" in str(call(seller, "patch", url, body(inv)).json())
+
+
+def test_job_work_service_takes_its_delivery_hsn_on_the_eway_bill(seller, books):  # noqa: F811
+    """A service item billed under its SAC (job work) carries its Delivery HSN on
+    the e-way bill; the portal makes no e-way bill from a services-only e-invoice."""
+    w = books
+    sales_ledger(w)
+    note = sent_note(seller, w)
+    with use_tenant(w["tenant"]):
+        Item.objects.filter(pk=w["tea"]).update(
+            item_type=Item.SERVICE, hsn="998818", delivery_hsn="09024040"
+        )
+    inv = call(seller, "post", f"delivery-notes/{note['id']}/invoice/", {}).json()
+    line = inv["lines"][0]
+    assert (line["hsn"], line["goods_hsn"]) == ("998818", "09024040")
+    assert inv["eway_with_einvoice"] is False
+    done = call(seller, "post", f"sales-invoices/{inv['id']}/submit/", {})
+    assert done.status_code == 200, done.json()
+    got = seller.get(f"/api/v1/sales-invoices/{inv['id']}/json/", HTTP_HOST="alpha.localhost")
+    doc = json.loads(got.content)[0]
+    assert doc["ItemList"][0]["HsnCd"] == "998818" and "EwbDtls" not in doc
+    pdf = seller.get(
+        f"/api/v1/sales-invoices/{inv['id']}/pdf/?layout=eway", HTTP_HOST="alpha.localhost"
+    )
+    assert pdf.status_code == 200

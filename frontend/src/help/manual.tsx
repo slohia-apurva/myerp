@@ -3665,7 +3665,11 @@ export const MANUAL: Chapter[] = [
           No", "Ack Date", the "Signed QR Code" (paste it), the "e-Way Bill
           No", "e-Way Bill Date" and "Valid Until"; click "Save". The signed
           QR code prints at the top right of the invoice; until it is in,
-          that place says the QR code prints there once the IRN is entered. A link to the portal
+          that place says the QR code prints there once the IRN is entered. The
+          portal makes the e-way bill with the e-invoice only for goods. A
+          job-work service billed under its SAC carries the item's "Delivery
+          HSN" on the "e-Way Bill" print; for an invoice of services alone,
+          make the e-way bill on the e-way bill portal under that code. A link to the portal
           that does this by itself comes later.
         </p>
         <p>
