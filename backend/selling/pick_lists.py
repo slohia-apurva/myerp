@@ -24,7 +24,7 @@ from rest_framework.views import APIView
 from audit.models import AuditEntry
 from core.api import Signed
 from core.companies import visible_companies
-from core.models import Batch, Branch, WarehouseLocation
+from core.models import Batch, Branch, Package, WarehouseLocation
 from selling import picking, stock
 from selling.api import _company, _despatch_places
 from selling.api import _order as _sales_order
@@ -119,6 +119,9 @@ def pick_out(p: PickList, full: bool = True) -> dict:
                     "batch": r.batch_id,
                     "batch_number": r.batch.number if r.batch else "",
                     "expiry": r.batch.expiry_date if r.batch else None,
+                    "area": a.pk if (a := picking.area_of(r.location)) else None,
+                    "area_name": a.name if a else "",
+                    **package_out(r.package),
                     "qty": picking.plain(r.qty),
                     "qty_unit": picking.plain(r.qty / i["factor"]),
                 }
@@ -128,6 +131,16 @@ def pick_out(p: PickList, full: bool = True) -> dict:
         for i in s["items"]
     ]
     return data
+
+
+def package_out(pk: Package | None) -> dict:
+    """A package as rows show it: its number, "Bag 3 of 8" and what is in it."""
+    return {
+        "package": pk.pk if pk else None,
+        "package_number": pk.number if pk else "",
+        "package_label": picking.package_label(pk) if pk else "",
+        "package_left": picking.plain(pk.left_qty) if pk else "",
+    }
 
 
 def _fresh(p: PickList) -> dict:
@@ -142,6 +155,7 @@ class RowSerializer(serializers.Serializer):
     order_line = serializers.IntegerField()
     location = serializers.IntegerField()
     batch = serializers.IntegerField(required=False, allow_null=True)
+    package = serializers.IntegerField(required=False, allow_null=True)
     qty = serializers.DecimalField(max_digits=18, decimal_places=6)  # in the stock unit
 
 
@@ -160,16 +174,28 @@ def _check_rows(p: PickList, rows: list[PickListLine]) -> None:
     for r in rows:
         if r.item_id not in by_item:
             by_item[r.item_id] = {s.key: s for s in picking.spots(r.item, p.branch, p.area, p)}
-        key = (r.item_id, (r.location_id, r.batch_id))
+        key = (r.item_id, (r.location_id, r.batch_id, r.package_id))
         asked[key] = asked.get(key, ZERO) + r.qty
     for (item_id, spot_key), qty in asked.items():
         spot = by_item[item_id].get(spot_key)
         free = spot.free if spot else ZERO
         if qty > free:
             r = next(
-                x for x in rows if (x.item_id, (x.location_id, x.batch_id)) == (item_id, spot_key)
+                x
+                for x in rows
+                if (x.item_id, (x.location_id, x.batch_id, x.package_id)) == (item_id, spot_key)
             )
-            where = r.location.name + (f", batch {r.batch.number}" if r.batch else "")
+            where = (
+                r.location.name
+                + (f", batch {r.batch.number}" if r.batch else "")
+                + (f", package {r.package.number}" if r.package else "")
+            )
+            if r.package and spot is None:
+                errors.append(
+                    f"{r.item.name}: package {r.package.number} is on another pick list "
+                    "or has nothing left."
+                )
+                continue
             errors.append(
                 f"{r.item.name}: {where} has {picking.plain(free)} free, not {picking.plain(qty)}."
             )
@@ -212,6 +238,14 @@ def _save(p: PickList, data: dict) -> None:
                     "and cannot be picked."
                 )
                 continue
+        package = None
+        if row.get("package"):
+            package = Package.objects.filter(
+                pk=row["package"], item=line.item_id, location=place, batch=batch
+            ).first()
+            if package is None:
+                errors.append(f"Row {n}: pick a package in {place.name} of that batch.")
+                continue
         if row["qty"] <= 0:
             errors.append(f"Row {n}: the quantity must be more than zero.")
             continue
@@ -223,6 +257,7 @@ def _save(p: PickList, data: dict) -> None:
                 item=line.item,
                 location=place,
                 batch=batch,
+                package=package,
                 qty=row["qty"],
             )
         )
@@ -293,7 +328,7 @@ class PickSubmitView(APIView):
         p = _pick(request, pk, lock=True)
         if p.status != PickList.OPEN:
             raise ValidationError({"detail": "This pick list is not open."})
-        rows = list(p.lines.select_related("item", "location", "batch"))
+        rows = list(p.lines.select_related("item", "location", "batch", "package"))
         if not rows:
             raise ValidationError({"detail": "Nothing is picked: add a bin for at least one item."})
         bad = [r for r in rows if r.batch and r.batch.status in picking.HELD]
@@ -375,6 +410,9 @@ class PickPlacesView(APIView):
                 {
                     "location": s.location.pk,
                     "location_name": s.location.name,
+                    "area": a.pk if (a := picking.area_of(s.location)) else None,
+                    "area_name": a.name if a else "",
+                    **package_out(s.package),
                     "batch": s.batch.pk if s.batch else None,
                     "batch_number": s.batch.number if s.batch else "",
                     "expiry": s.expiry,

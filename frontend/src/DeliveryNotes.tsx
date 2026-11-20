@@ -22,6 +22,9 @@ type Bin = {
   batch: number | null;
   batch_number: string;
   expiry: string | null;
+  package: number | null;
+  package_number: string;
+  package_label: string;
   /** Stock unit. */
   picked: string;
   qty: string;
@@ -95,7 +98,16 @@ type Note = {
   salesman_name?: string;
   lines?: Line[];
 };
-type Spot = { location: number; location_name: string; batch: number | null; batch_number: string; expiry: string | null; free: string };
+type Spot = {
+  location: number;
+  location_name: string;
+  batch: number | null;
+  batch_number: string;
+  package: number | null;
+  package_number: string;
+  expiry: string | null;
+  free: string;
+};
 type Problem = { line: number; text: string };
 
 const VIEWS: [string, string][] = [
@@ -313,7 +325,7 @@ type Fields = {
   notes: string;
 };
 let nextKey = 1;
-const spotValue = (location: number, batch: number | null) => `${location}-${batch ?? ""}`;
+const spotValue = (location: number, batch: number | null, pkg: number | null = null) => `${location}-${batch ?? ""}-${pkg ?? ""}`;
 const fieldsOf = (n: Note): Fields => ({
   note_date: n.note_date,
   transporter: n.transporter ? String(n.transporter) : "",
@@ -327,7 +339,7 @@ const fieldsOf = (n: Note): Fields => ({
   notes: n.notes,
 });
 const binsOf = (n: Note): DraftBin[] =>
-  (n.lines ?? []).flatMap((l) => l.bins.map((b) => ({ key: nextKey++, line: l.id, spot: spotValue(b.location, b.batch), qty: b.qty, picked: b.picked })));
+  (n.lines ?? []).flatMap((l) => l.bins.map((b) => ({ key: nextKey++, line: l.id, spot: spotValue(b.location, b.batch, b.package), qty: b.qty, picked: b.picked })));
 
 function NoteView({ companyId, id, session }: { companyId: number; id: number; session: SignedIn }) {
   const [note, setNote] = useState<Note | null>(null);
@@ -397,8 +409,8 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
         bins: bins
           .filter((b) => b.spot)
           .map((b) => {
-            const [location, batch] = b.spot.split("-");
-            return { line: b.line, location: Number(location), batch: batch ? Number(batch) : null, qty: b.qty || "0" };
+            const [location, batch, pkg] = b.spot.split("-");
+            return { line: b.line, location: Number(location), batch: batch ? Number(batch) : null, package: pkg ? Number(pkg) : null, qty: b.qty || "0" };
           }),
         submit,
       };
@@ -624,7 +636,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
                     const mine = bins.filter((b) => b.line === l.id);
                     const sent = sentOf(l);
                     const over = draft && sent > Number(l.pending) + 1e-9;
-                    const shown = draft ? mine : l.bins.map((b) => ({ key: b.id, line: l.id, spot: spotValue(b.location, b.batch), qty: b.qty, picked: b.picked }));
+                    const shown = draft ? mine : l.bins.map((b) => ({ key: b.id, line: l.id, spot: spotValue(b.location, b.batch, b.package), qty: b.qty, picked: b.picked }));
                     const count = shown.filter((b) => Number(b.qty) > 0).length;
                     const isOpen = openLine === l.id;
                     const rows = [
@@ -742,19 +754,24 @@ function BinRows(p: {
   const { line } = p;
   const set = (key: number, patch: Partial<DraftBin>) => p.setBins((bs) => bs.map((b) => (b.key === key ? { ...b, ...patch } : b)));
   const options = p.spots.map((s) => ({
-    value: spotValue(s.location, s.batch),
-    label: [s.location_name, s.batch_number].filter(Boolean).join(" · "),
+    value: spotValue(s.location, s.batch, s.package),
+    label: [s.location_name, s.batch_number, s.package_number].filter(Boolean).join(" · "),
     hint: [s.expiry && `exp ${shortDate(s.expiry)}`, `${plain(Number(s.free))} ${line.stock_unit_name} free`].filter(Boolean).join(" · "),
   }));
   // A picked bin stays in the list even if its place did not load.
   for (const b of line.bins) {
-    const value = spotValue(b.location, b.batch);
-    if (!options.some((o) => o.value === value)) options.push({ value, label: [b.location_name, b.batch_number].filter(Boolean).join(" · "), hint: "" });
+    const value = spotValue(b.location, b.batch, b.package);
+    if (!options.some((o) => o.value === value)) options.push({ value, label: [b.location_name, b.batch_number, b.package_number].filter(Boolean).join(" · "), hint: "" });
   }
   const named = (spot: string) => {
-    const b = line.bins.find((x) => spotValue(x.location, x.batch) === spot);
-    const s = p.spots.find((x) => spotValue(x.location, x.batch) === spot);
-    return { bin: b?.location_name ?? s?.location_name ?? "", batch: b?.batch_number ?? s?.batch_number ?? "", expiry: b?.expiry ?? s?.expiry ?? null };
+    const b = line.bins.find((x) => spotValue(x.location, x.batch, x.package) === spot);
+    const s = p.spots.find((x) => spotValue(x.location, x.batch, x.package) === spot);
+    return {
+      bin: b?.location_name ?? s?.location_name ?? "",
+      batch: b?.batch_number ?? s?.batch_number ?? "",
+      pkg: b?.package_number ?? s?.package_number ?? "",
+      expiry: b?.expiry ?? s?.expiry ?? null,
+    };
   };
   return (
     <div className="grn-put">
@@ -763,6 +780,7 @@ function BinRows(p: {
           <tr>
             <th>Bin</th>
             <th>Batch</th>
+            <th>Package</th>
             <th>Expiry</th>
             <th className="num">Picked ({line.stock_unit_name})</th>
             <th className="num">Send ({line.stock_unit_name})</th>
@@ -775,13 +793,14 @@ function BinRows(p: {
             return (
               <tr key={b.key}>
                 {p.edit && !Number(b.picked) ? (
-                  <td colSpan={2} className="po-item">
+                  <td colSpan={3} className="po-item">
                     <Combobox value={b.spot} onChange={(v) => set(b.key, { spot: v })} ariaLabel={`Bin for ${line.item_name}`} placeholder="Type to search bins…" options={options} />
                   </td>
                 ) : (
                   <>
                     <td>{n.bin}</td>
                     <td>{n.batch}</td>
+                    <td>{n.pkg ? <b>{n.pkg}</b> : <span className="small">No package</span>}</td>
                   </>
                 )}
                 <td>{shortDate(n.expiry)}</td>

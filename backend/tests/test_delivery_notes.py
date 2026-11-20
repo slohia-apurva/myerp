@@ -69,7 +69,13 @@ def new_note(client, pl):
 
 def body(note, **more):
     bins = [
-        {"line": ln["id"], "location": b["location"], "batch": b["batch"], "qty": b["qty"]}
+        {
+            "line": ln["id"],
+            "location": b["location"],
+            "batch": b["batch"],
+            "package": b["package"],
+            "qty": b["qty"],
+        }
         for ln in note["lines"]
         for b in ln["bins"]
     ]

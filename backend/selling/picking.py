@@ -8,6 +8,12 @@ The rule, approved with the previews:
 - a batch held back (Quarantine or Rejected) is never picked;
 - stock already on an open or picked pick list is kept aside.
 
+Packages (Sidharth, 2026-11-20, previews 12a/12b): where a bin and batch hold
+numbered bags or boxes, each is a place of its own, taken whole, lowest PK
+number first; only the last one an item needs is opened. A package on another
+open or picked list is not offered. Stock without package numbers (opening
+stock, goods before packages) is "No package".
+
 Quantities here are in the item's stock unit.
 """
 
@@ -18,7 +24,7 @@ from decimal import Decimal
 from django.db.models import Min, Q, Sum
 
 from core import numbering
-from core.models import Batch, Item, ItemUnit, WarehouseLocation
+from core.models import Batch, Item, ItemUnit, Package, WarehouseLocation
 from posting.models import StockMove
 from selling import stock
 from selling.models import PickList, PickListLine, SalesOrder, SalesOrderLine
@@ -30,16 +36,21 @@ HELD = (Batch.QUARANTINE, Batch.REJECTED)
 
 @dataclass
 class Spot:
-    """Stock of one item in one place and batch that may be picked."""
+    """Stock of one item in one place and batch (and package) that may be picked."""
 
     location: WarehouseLocation
     batch: Batch | None
     free: Decimal
     received: datetime.date | None
+    package: Package | None = None
 
     @property
-    def key(self) -> tuple[int, int | None]:
-        return (self.location.pk, self.batch.pk if self.batch else None)
+    def key(self) -> tuple[int, int | None, int | None]:
+        return (
+            self.location.pk,
+            self.batch.pk if self.batch else None,
+            self.package.pk if self.package else None,
+        )
 
     @property
     def expiry(self) -> datetime.date | None:
@@ -52,7 +63,22 @@ class Spot:
             self.received or FAR,
             self.location.name.lower(),
             self.batch.number.lower() if self.batch else "",
+            self.package is None,
+            self.package.seq if self.package else 0,
         )
+
+
+def area_of(place: WarehouseLocation) -> WarehouseLocation | None:
+    """The area a bin or rack stands in (or the place itself, if an area)."""
+    seen = 0
+    while place is not None and place.kind != WarehouseLocation.AREA and seen < 5:
+        place = place.parent
+        seen += 1
+    return place
+
+
+def package_label(pk: Package) -> str:
+    return f"{pk.get_kind_display()} {pk.position} of {pk.of_count}"
 
 
 def factor(line: SalesOrderLine) -> Decimal:
@@ -82,18 +108,50 @@ def spots(item: Item, branch, area=None, leave_out: PickList | None = None) -> l
         (r["location"], r["batch"]): r["q"]
         for r in held.values("location", "batch").annotate(q=Sum("qty"))
     }
+    # A package on another list is not offered at all (Sidharth, 2026-11-20),
+    # nor what is left in it beyond what that list takes.
+    on_lists = {
+        r["package"]: r["q"]
+        for r in held.exclude(package=None).values("package").annotate(q=Sum("qty"))
+    }
+    busy = set(on_lists)
+    rest: dict[tuple, Decimal] = {}
+    for pk in Package.objects.filter(pk__in=busy, left_qty__gt=0):
+        left = pk.left_qty - on_lists[pk.pk]
+        if left > 0:
+            key = (pk.location_id, pk.batch_id)
+            rest[key] = rest.get(key, ZERO) + left
     places = {
-        p.pk: p for p in WarehouseLocation.objects.filter(pk__in={r["location"] for r in rows})
+        p.pk: p
+        for p in WarehouseLocation.objects.filter(
+            pk__in={r["location"] for r in rows}
+        ).select_related("parent__parent")
     }
     batches = {b.pk: b for b in Batch.objects.filter(pk__in={r["batch"] for r in rows} - {None})}
+    bags: dict[tuple, list[Package]] = {}
+    for pk in Package.objects.filter(
+        item=item,
+        location__in=places,
+        status__in=(Package.IN_STOCK, Package.PART_USED),
+        left_qty__gt=0,
+    ).exclude(pk__in=busy):
+        bags.setdefault((pk.location_id, pk.batch_id), []).append(pk)
     out = []
     for r in rows:
         batch = batches.get(r["batch"]) if r["batch"] else None
         if batch is not None and batch.status in HELD:
             continue
-        free = (r["q"] or ZERO) - kept.get((r["location"], r["batch"]), ZERO)
+        key = (r["location"], r["batch"])
+        free = (r["q"] or ZERO) - kept.get(key, ZERO) - rest.get(key, ZERO)
+        place = places[r["location"]]
+        for pk in sorted(bags.get((r["location"], r["batch"]), []), key=lambda x: x.seq):
+            take = min(pk.left_qty, free)
+            if take <= 0:
+                break
+            out.append(Spot(place, batch, take, r["first"], pk))
+            free -= take
         if free > 0:
-            out.append(Spot(places[r["location"]], batch, free, r["first"]))
+            out.append(Spot(place, batch, free, r["first"]))
     return sorted(out, key=Spot.order)
 
 
@@ -154,6 +212,7 @@ def fill(pick: PickList, lines: list[SalesOrderLine] | None = None) -> None:
                     item=ln.item,
                     location=spot.location,
                     batch=spot.batch,
+                    package=spot.package,
                     qty=take,
                 )
             )
@@ -184,7 +243,7 @@ def plain(n: Decimal) -> str:
 def summary(pick: PickList) -> dict:
     """Per order line: ordered, picked and short (in the line's unit and the
     stock unit), and the sentence the order and the list show."""
-    rows = list(pick.lines.select_related("location", "batch"))
+    rows = list(pick.lines.select_related("location__parent__parent", "batch", "package"))
     items = []
     for ln in stock_lines_of(pick):
         f = factor(ln)
