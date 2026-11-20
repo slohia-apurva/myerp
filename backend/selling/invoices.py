@@ -272,6 +272,9 @@ def invoice_out(inv: SalesInvoice, lines: bool = True) -> dict:
         "submitted_by_name": inv.submitted_by.display_name if inv.submitted_by else "",
     }
     if lines:
+        from selling.credit_notes import invoice_credited
+
+        data["credit_notes"] = invoice_credited(inv)
         rows = inv.lines.select_related("item", "unit", "note_line__order_line", "note_line__note")
         data["lines"] = [_line_out(ln) for ln in rows]
         data["charges"] = [_charge_out(c) for c in inv.charges.select_related("item")]
@@ -693,6 +696,17 @@ def _submit(inv: SalesInvoice, user) -> None:
 
 
 def _cancel(inv: SalesInvoice, user, reason: str) -> None:
+    from selling.models import CreditNote
+
+    credited = inv.credit_notes.filter(status=CreditNote.SUBMITTED)
+    if credited.exists():
+        numbers = ", ".join(n.number for n in credited)
+        raise ValidationError(
+            {"detail": f"Cancel credit note {numbers} first: it is against this invoice."}
+        )
+    inv.credit_notes.filter(status=CreditNote.DRAFT).update(
+        status=CreditNote.CANCELLED, cancel_reason=f"Invoice cancelled: {reason}"[:200]
+    )
     if inv.status == SalesInvoice.SUBMITTED:
         service.cancel(KIND, inv.pk, user)
     inv.status = SalesInvoice.CANCELLED

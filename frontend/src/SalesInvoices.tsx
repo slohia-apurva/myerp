@@ -10,6 +10,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { makeCreditNote } from "./CreditNotes";
 import { TotalsPanel } from "./PurchaseOrders";
 
 /** Entry > Sales > Sales Invoice: the tax invoice for one or more submitted delivery notes of a
@@ -122,6 +123,7 @@ type Invoice = {
   submitted_by_name: string;
   lines?: Line[];
   charges?: Charge[];
+  credit_notes?: { id: number; number: string; status: string; status_label: string; kind_label: string; note_date: string; total: string }[];
 };
 type Setup = {
   transporters: { id: number; name: string; is_active: boolean }[];
@@ -172,9 +174,9 @@ const printItems = (id: number) => [
   { label: "Download PDF", onClick: () => pdf(id, "invoice", true) },
 ];
 /** "Create ▾" on a submitted invoice: the documents that follow from it, built one by one. */
-const NEXT = [
+const next = (companyId: number, id: number, onError: (e: unknown) => void) => [
+  { label: "Credit Note (sales return or rate difference)", onClick: () => makeCreditNote(companyId, id).catch(onError) },
   { label: "Receipt (later)", disabled: true },
-  { label: "Sales Return / Credit Note (next)", disabled: true },
 ];
 const placeText = (p: Place | null | undefined) => [p?.label, p?.address?.split("\n")[0], p?.city, p?.pincode].filter(Boolean).join(", ");
 /** "2026-11-20T21:12:00+05:30" -> "2026-11-20T21:12" for a datetime-local box. */
@@ -388,7 +390,7 @@ const transportBody = (t: Transport) => ({
 
 /** What the e-invoice portal gives back (its JSON file, any shape it nests it in): IRN, Ack,
  * signed QR and the e-way bill, by the portal's own names. */
-function portalNumbers(text: string): Partial<Portal> {
+export function portalNumbers(text: string): Partial<Portal> {
   const found: Record<string, string> = {};
   const walk = (x: unknown) => {
     if (Array.isArray(x)) x.forEach(walk);
@@ -553,7 +555,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                 Submit
               </button>
             )}
-            {submitted && <ActionsMenu label="Create" main items={NEXT} />}
+            {submitted && <ActionsMenu label="Create" main items={next(companyId, inv.id, setError)} />}
           </>
         }
       />
@@ -1124,6 +1126,21 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
             total={Number(inv.total)}
             note={inv.interstate ? "Customer in another state, so IGST." : Number(inv.igst_total) + Number(inv.cgst_total) ? "Same state as the customer, so CGST + SGST." : "No GST: an export."}
           />
+          {(inv.credit_notes ?? []).length > 0 && (
+            <SidePanel title="Credit Notes">
+              {(inv.credit_notes ?? []).map((c) => (
+                <div key={c.id} className="side-row">
+                  <span>
+                    <a href={`#/companies/${companyId}/credit-notes?view=${c.id}`} target="_blank" rel="noreferrer">
+                      {c.number || "Draft"}
+                    </a>
+                    <span className="small"> · {c.kind_label.replace("Sales Return – ", "Return, ")}</span>
+                  </span>
+                  <span>₹{money(c.total)}</span>
+                </div>
+              ))}
+            </SidePanel>
+          )}
           <SidePanel title="Details">
             <SideRows
               rows={[

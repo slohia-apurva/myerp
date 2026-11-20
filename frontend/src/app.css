@@ -4164,3 +4164,14 @@ table.pick .col-search input {
   color: #8a94a0;
   border-color: #dde3e8;
 }
+
+/* Credit note: the Type as a row of radio buttons under its heading */
+.kind-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.po-lines td.cn-bin {
+  min-width: 190px;
+}
