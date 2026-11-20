@@ -22,3 +22,15 @@ def _pick_list(request, pk: int) -> attachments.Found:
 
 
 attachments.register("pick_list", _pick_list, "Pick List")
+
+
+def _delivery_note(request, pk: int) -> attachments.Found:
+    from selling.delivery import _note
+    from selling.pick_lists import may
+
+    if not may(request.user, "view"):
+        raise attachments.NotFound("No such delivery note.")
+    return attachments.Found(_note(request, pk), may(request.user, "create"))
+
+
+attachments.register("delivery_note", _delivery_note, "Delivery Note")

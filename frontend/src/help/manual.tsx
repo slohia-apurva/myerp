@@ -3329,8 +3329,9 @@ export const MANUAL: Chapter[] = [
           whether every item was found in stock, with "Open Pick List", and
           the boxes under it count the pick lists, delivery notes and
           invoices made from the order. "Create ▾" holds "Pick List" (a new
-          one, when the order has none that is open or picked); the Delivery
-          Note and Sales Invoice join it as they are built. The "Delivered" box shows, per item, what was ordered, sent
+          one, when the order has none that is open or picked) and "Delivery
+          Note" (once the pick list is submitted; see "Delivery notes"); the
+          Sales Invoice joins it when it is built. The "Delivered" box shows, per item, what was ordered, sent
           and still to go; "Close Line" (with a reason) closes a balance that
           will not be sent, and "Reopen Line" opens it again. "Cancel order"
           (with a reason) works on a draft or an order nothing has gone
@@ -3398,7 +3399,100 @@ export const MANUAL: Chapter[] = [
           reason) frees the stock the list kept aside; then "Create ▾ › Pick
           List" on the sales order makes a new one. Files go under
           "Attachments". Who may see or change pick lists: people whose role
-          may see or make sales or stock entries.
+          may see or make sales or stock entries. Once a delivery note made
+          from the list is submitted, the list is "Delivered".
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "delivery-notes",
+    title: "Delivery notes",
+    summary: "The goods going out to the customer: made from a picked pick list, takes the stock out of its bins and posts its cost.",
+    body: (
+      <>
+        <p>
+          A delivery note is the goods leaving for the customer. It is made
+          from a pick list once the list is submitted ("Picked"), and starts
+          with every bin, batch and quantity the stores picked. On Submit the
+          goods leave their bins and the order counts them as delivered.
+        </p>
+        <h3>Make one</h3>
+        <ol>
+          <li>
+            On the submitted pick list, or on the sales order, click "Create ▾"
+            and "Delivery Note". The note opens in a new tab as a draft. Doing
+            it again opens the same draft.
+          </li>
+          <li>
+            "Customer and Despatch" shows the customer, the "Despatch From",
+            the order, "Bill From", "Ship To" and the customer's PO, all from
+            the order. Set the "Note Date" (not before the order date).
+          </li>
+          <li>
+            Under "Transport (for the e-way bill)" fill in the "Transporter"
+            (from the order; "By Customer" if the customer collects), "Mode",
+            "Vehicle No", "Distance (km)", "LR / Docket No", "LR Date",
+            "Packages" and "Gross Weight (kg)". The e-way bill is made with
+            the sales invoice from these.
+          </li>
+          <li>
+            "Items" shows each line with "Ordered", "Sent Earlier", "Picked",
+            "This Note", the order's "Rate" and the "Taxable" value. Click
+            "▸ 1 bin" (or "2 bins") to open the line's bins: lower "Send" to
+            send less, or click "+ Another bin" to send from another bin or
+            batch that has the stock free. What is not sent stays pending on
+            the order. "Done" folds the bins again. A red ✕ means the line
+            sends more than is still to go.
+          </li>
+          <li>
+            Add the signed challan or photos under "Attachments" (they can
+            also be added after Submit).
+          </li>
+          <li>
+            Click "Save" to keep the draft, or "Submit". The page stays open
+            and says "Submitted as …" with the date and time.
+          </li>
+        </ol>
+        <h3>When Submit is refused</h3>
+        <p>
+          Everything that stops it shows in one popup, each with "Go to line":
+          a bin that no longer has the stock (another entry took it since it
+          was picked), a batch held back ("Quarantine" or "Rejected"), or a
+          line sending more than is pending. If the item group's ledgers are
+          not set, the popup lists them with "Set ledgers" (or "Ask to set"
+          for someone who may not change masters), as on the goods receipt.
+          The draft is kept.
+        </p>
+        <h3>What it posts</h3>
+        <p>
+          The "Ledger Posting" box shows, on a draft, what Submit will post
+          and, once submitted, what was posted: the cost of the goods by FIFO
+          (oldest stock first) is debited to "Goods Delivered but Bills not
+          Made" and credited to the item group's "Stock Ledger". It is at
+          cost, not at the sale price. The sales invoice later moves the cost
+          to the "COGS/Expense Ledger" and books the sale and GST.
+        </p>
+        <h3>After Submit</h3>
+        <p>
+          The sales order shows the quantities under "Delivered" and
+          "Pending" and turns "Part delivered" or "Delivered"; its "Delivery
+          Notes" box counts the notes. For what is still pending, "Create ▾ ›
+          Pick List" on the order picks it. "Print ▾" holds "Delivery
+          Challan" (items, HSN, quantities, values and GST, with the
+          transport), "Packing List" (bins and batches, with a "Checked"
+          column) and "Download PDF". "Create ▾" will hold the "Sales
+          Invoice" once it is built. "Cancel Note" (with a reason) puts the
+          goods back in their bins, reverses the entries and makes the
+          order's quantities pending again; the pick list is "Picked" again.
+        </p>
+        <h3>Find the delivery notes</h3>
+        <p>
+          Click "Entry", point at "Sales" and click "Delivery Note". Pick
+          "Draft", "Submitted", "Cancelled" or "All" in the box above the
+          list; every column has its own "Search" box. Click a note to see it
+          at the right with "Open" and "Print". Who may see or make delivery
+          notes: people whose role may see or make sales or stock entries.
         </p>
       </>
     ),

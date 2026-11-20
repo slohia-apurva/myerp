@@ -279,6 +279,9 @@ def _order_out(o: SalesOrder, lines: bool = True) -> dict:
         from selling.pick_lists import brief
 
         data["pick_lists"] = [brief(p) for p in o.pick_lists.order_by("id")]
+        from selling.delivery import brief as note_brief
+
+        data["delivery_notes"] = [note_brief(n) for n in o.delivery_notes.order_by("id")]
         data["credit_warning"] = (
             credit_note(o.customer, o.total)
             if o.status in (SalesOrder.DRAFT, *SalesOrder.OPEN)

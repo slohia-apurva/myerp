@@ -11,13 +11,15 @@ Stock is accounted for perpetually. Every stock movement posts to the GL as it h
 | Goods receipt (GRN) | Dr Stock (inventory ledger of the warehouse/item group), Cr Stock Received But Not Billed (rule 11) |
 | Purchase invoice | Dr Stock Received But Not Billed, Dr input GST, Cr supplier. Difference from GRN value → purchase price variance, or revalues stock still on hand |
 | Landed cost voucher | Dr Stock (added to lot rates), Cr freight / clearing / duty ledgers |
-| Delivery note / sales issue | Dr Cost of goods sold, Cr Stock, at FIFO cost of the lots issued |
-| Sales invoice | Dr customer, Cr sales, Cr output GST (revenue only; cost already posted by the delivery) |
-| Sales return | Dr Stock, Cr Cost of goods sold, at the cost the goods left at |
+| Delivery note / sales issue | Dr Goods Delivered but Bills not Made, Cr Stock, at FIFO cost of the lots issued (changed 19 Nov 2026, see below) |
+| Sales invoice | Dr customer, Cr sales, Cr output GST; and Dr Cost of goods sold, Cr Goods Delivered but Bills not Made for the cost of the goods billed |
+| Sales return | Dr Stock, Cr Cost of goods sold (or Goods Delivered but Bills not Made, if not yet billed), at the cost the goods left at |
 | Issue to production / job work | Dr Work in progress (or Cost of materials consumed), Cr Stock (raw and packing materials) |
 | Production receipt | Dr Stock (finished goods), Cr Work in progress, at the rolled-up cost |
 | Stock count difference, scrap, expiry write-off | Dr Stock adjustment / loss ledger, Cr Stock (or the reverse for a surplus) |
 | Transfer between warehouses of one GSTIN | No GL change unless the warehouses use different stock ledgers (rule 13 covers inter-GSTIN moves) |
+
+Change, 19 Nov 2026 (Sidharth, on the Delivery Note preview): the delivery note does not debit Cost of goods sold directly. It debits the fixed ledger "Goods Delivered but Bills not Made" (Other Current Assets, PR #218), and the sales invoice moves that cost to Cost of goods sold. Cost and sale then fall in the same month even when goods go out on the 31st and are billed on the 1st; goods sent but not billed show as an asset meanwhile.
 
 ## Reporting
 
