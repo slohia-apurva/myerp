@@ -841,6 +841,10 @@ class ItemGroupAccount(models.Model):
     cogs_ledger = models.ForeignKey(
         "Ledger", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # Where sales invoices book the group's items (Sidharth, 2026-11-20, preview 14a).
+    sales_ledger = models.ForeignKey(
+        "Ledger", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
 
     class Meta:
         constraints = [

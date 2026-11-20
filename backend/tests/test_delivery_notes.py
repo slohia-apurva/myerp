@@ -52,9 +52,9 @@ def books(world):  # noqa: F811
     return world
 
 
-def picked_list(client, w, cases="10"):
+def picked_list(client, w, cases="10", **order):
     """An order submitted and its pick list submitted ("Picked")."""
-    so = submit(client, w, cases=cases)
+    so = submit(client, w, cases=cases, **order)
     pl = picked(client, so)
     done = call(client, "post", f"pick-lists/{pl['id']}/submit/", {})
     assert done.status_code == 200, done.json()

@@ -27,6 +27,9 @@ ROUND_OFF = "round_off"
 INPUT_CGST = "input_cgst"
 INPUT_SGST = "input_sgst"
 INPUT_IGST = "input_igst"
+OUTPUT_CGST = "output_cgst"
+OUTPUT_SGST = "output_sgst"
+OUTPUT_IGST = "output_igst"
 
 # code: (name, standard group code)
 SYSTEM_LEDGERS = {
@@ -42,6 +45,9 @@ SYSTEM_LEDGERS = {
     INPUT_CGST: ("Input CGST", "duties_taxes"),
     INPUT_SGST: ("Input SGST", "duties_taxes"),
     INPUT_IGST: ("Input IGST", "duties_taxes"),
+    OUTPUT_CGST: ("Output CGST", "duties_taxes"),
+    OUTPUT_SGST: ("Output SGST", "duties_taxes"),
+    OUTPUT_IGST: ("Output IGST", "duties_taxes"),
 }
 
 # Made with every company; their names cannot change, their group can.
@@ -149,10 +155,26 @@ def cogs_ledger(company: Company, item: Item) -> Ledger:
     return accounts.cogs_ledger
 
 
+def sales_ledger(company: Company, item: Item) -> Ledger:
+    """Where a sales invoice books the item: its main group's Sales Ledger."""
+    accounts = _accounts(company, item)
+    if accounts is None or accounts.sales_ledger_id is None:
+        group = main_group(item)
+        raise ValidationError(
+            {
+                "detail": [
+                    f'Set the "Sales Ledger" of item group {group} for {company} '
+                    f"(Masters > Item groups) before {item.name} can be billed."
+                ]
+            }
+        )
+    return accounts.sales_ledger
+
+
 # The ledgers an item group sets per company (Masters > Item groups), as the
 # screens name them.
-STOCK, COGS = "stock", "cogs"
-ACCOUNT_LABELS = {STOCK: "Stock Ledger", COGS: "COGS/Expense Ledger"}
+STOCK, COGS, SALES = "stock", "cogs", "sales"
+ACCOUNT_LABELS = {STOCK: "Stock Ledger", COGS: "COGS/Expense Ledger", SALES: "Sales Ledger"}
 
 
 def missing_accounts(company: Company, lines, needs=(STOCK, COGS)) -> list[dict]:

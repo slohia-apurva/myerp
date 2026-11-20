@@ -38,6 +38,7 @@ def descendant_ids(group: ItemGroup) -> set[int]:
 ACCOUNT_FIELDS = {
     "stock_ledger": "Stock Ledger",
     "cogs_ledger": "COGS/Expense Ledger",
+    "sales_ledger": "Sales Ledger",
 }
 
 
@@ -51,6 +52,9 @@ class AccountRowSerializer(serializers.Serializer):
     cogs_ledger = serializers.PrimaryKeyRelatedField(
         queryset=Ledger.objects.all(), allow_null=True, required=False
     )
+    sales_ledger = serializers.PrimaryKeyRelatedField(
+        queryset=Ledger.objects.all(), allow_null=True, required=False
+    )
 
 
 def _account_rows(group: ItemGroup) -> list[dict]:
@@ -58,7 +62,7 @@ def _account_rows(group: ItemGroup) -> list[dict]:
     group, else its main group's (read only, inherited)."""
     top = root_group(group)
     rows = ItemGroupAccount.objects.filter(group=top).select_related(
-        "company", "stock_ledger", "cogs_ledger"
+        "company", "stock_ledger", "cogs_ledger", "sales_ledger"
     )
     out = []
     for r in rows.order_by("company__name"):
@@ -70,6 +74,8 @@ def _account_rows(group: ItemGroup) -> list[dict]:
                 "stock_ledger_name": r.stock_ledger.name if r.stock_ledger_id else "",
                 "cogs_ledger": r.cogs_ledger_id,
                 "cogs_ledger_name": r.cogs_ledger.name if r.cogs_ledger_id else "",
+                "sales_ledger": r.sales_ledger_id,
+                "sales_ledger_name": r.sales_ledger.name if r.sales_ledger_id else "",
                 "locked": account_uses(top, r.company),
             }
         )
@@ -138,6 +144,12 @@ def _check_account_ledger(company: Company, field: str, ledger: Ledger | None) -
         raise ValidationError(
             {"accounts_in": [f"{label}: {ledger.name} must be under Stock-in-Hand."]}
         )
+    if field == "sales_ledger":
+        if ledger.group.nature != "income":
+            raise ValidationError(
+                {"accounts_in": [f"{label}: {ledger.name} must be an income ledger."]}
+            )
+        return
     if field != "stock_ledger" and ledger.group.nature != "expense":
         raise ValidationError(
             {"accounts_in": [f"{label}: {ledger.name} must be an expense ledger."]}
@@ -174,9 +186,11 @@ def _save_accounts(group: ItemGroup, rows: list[dict]) -> None:
         if not why:
             continue
         new = clean.get(company_id)
+        # A Sales Ledger still blank may be set on a row in use.
         same = new is not None and all(
             getattr(row, f"{f}_id") == (new.get(f).pk if new.get(f) else None)
             for f in ACCOUNT_FIELDS
+            if not (f == "sales_ledger" and row.sales_ledger_id is None)
         )
         if not same:
             raise ValidationError(

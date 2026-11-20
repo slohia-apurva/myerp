@@ -1,6 +1,6 @@
 from django.urls import path
 
-from selling import api, customer_mail, delivery, pick_lists
+from selling import api, customer_mail, delivery, invoices, pick_lists
 
 urlpatterns = [
     path("companies/<int:pk>/sales-orders/", api.OrderListView.as_view(), name="sales-orders"),
@@ -92,4 +92,48 @@ urlpatterns = [
         name="delivery-note-places",
     ),
     path("delivery-notes/<int:pk>/pdf/", delivery.NotePdfView.as_view(), name="delivery-note-pdf"),
+    path(
+        "delivery-notes/<int:pk>/invoice/",
+        invoices.InvoiceFromNoteView.as_view(),
+        name="delivery-note-invoice",
+    ),
+    path(
+        "companies/<int:pk>/sales-invoices/",
+        invoices.InvoiceListView.as_view(),
+        name="sales-invoices",
+    ),
+    path("sales-invoices/<int:pk>/", invoices.InvoiceDetailView.as_view(), name="sales-invoice"),
+    path(
+        "sales-invoices/<int:pk>/submit/",
+        invoices.InvoiceSubmitView.as_view(),
+        name="sales-invoice-submit",
+    ),
+    path(
+        "sales-invoices/<int:pk>/cancel/",
+        invoices.InvoiceCancelView.as_view(),
+        name="sales-invoice-cancel",
+    ),
+    path(
+        "sales-invoices/<int:pk>/transport/",
+        invoices.InvoiceTransportView.as_view(),
+        name="sales-invoice-transport",
+    ),
+    path(
+        "sales-invoices/<int:pk>/e-invoice/",
+        invoices.InvoiceEInvoiceView.as_view(),
+        name="sales-invoice-einvoice",
+    ),
+    path(
+        "sales-invoices/<int:pk>/ledger-posting/",
+        invoices.InvoiceLedgerPostingView.as_view(),
+        name="sales-invoice-posting",
+    ),
+    path(
+        "sales-invoices/<int:pk>/json/",
+        invoices.InvoiceJsonView.as_view(),
+        name="sales-invoice-json",
+    ),
+    path(
+        "sales-invoices/<int:pk>/pdf/", invoices.InvoicePdfView.as_view(), name="sales-invoice-pdf"
+    ),
 ]

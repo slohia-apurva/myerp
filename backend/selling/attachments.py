@@ -34,3 +34,14 @@ def _delivery_note(request, pk: int) -> attachments.Found:
 
 
 attachments.register("delivery_note", _delivery_note, "Delivery Note")
+
+
+def _sales_invoice(request, pk: int) -> attachments.Found:
+    from selling.invoices import _invoice, may
+
+    if not may(request.user, "view"):
+        raise attachments.NotFound("No such sales invoice.")
+    return attachments.Found(_invoice(request, pk), may(request.user, "create"))
+
+
+attachments.register("sales_invoice", _sales_invoice, "Sales Invoice")

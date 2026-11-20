@@ -128,8 +128,9 @@ def test_a_company_can_need_a_file_before_submit(owner, buyer, world, alpha):  #
         "sales_order",
         "pick_list",
         "delivery_note",
+        "sales_invoice",
     ]
-    wrong = call(owner, "patch", link, {"attachments_required": ["sales_invoice"]})
+    wrong = call(owner, "patch", link, {"attachments_required": ["sales_return"]})
     assert wrong.status_code == 400 and "Unknown entry type" in str(wrong.json())
     ticked = call(owner, "patch", link, {"attachments_required": ["purchase_order"]})
     assert ticked.status_code == 200 and ticked.json()["attachments_required"] == ["purchase_order"]

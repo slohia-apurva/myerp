@@ -5,6 +5,9 @@ from core import locks
 from selling.models import (
     DeliveryNote,
     DeliveryNoteLine,
+    SalesInvoice,
+    SalesInvoiceCharge,
+    SalesInvoiceLine,
     SalesOrder,
     SalesOrderCharge,
     SalesOrderLine,
@@ -53,3 +56,24 @@ locks.register("ledger", lambda ledger: _notes(customer=ledger))
 locks.register("party", lambda party: _notes(customer__party=party))
 locks.register("branch", lambda branch: _notes(branch=branch))
 locks.register("courier_account", lambda account: _notes(transporter=account))
+
+
+def _invoices(**where) -> str:
+    rows = SalesInvoice.objects.filter(**where).exclude(status=SalesInvoice.DRAFT)
+    return locks._count(rows, "sales invoice")
+
+
+def _line_invoices(model, **where) -> str:
+    lines = model.objects.filter(**where).exclude(invoice__status=SalesInvoice.DRAFT)
+    return locks._count(
+        SalesInvoice.objects.filter(pk__in=lines.values("invoice")), "sales invoice"
+    )
+
+
+locks.register("item", lambda item: _line_invoices(SalesInvoiceLine, item=item))
+locks.register("item", lambda item: _line_invoices(SalesInvoiceCharge, item=item))
+locks.register("unit", lambda unit: _line_invoices(SalesInvoiceLine, unit=unit))
+locks.register("ledger", lambda ledger: _invoices(customer=ledger))
+locks.register("party", lambda party: _invoices(customer__party=party))
+locks.register("branch", lambda branch: _invoices(bill_from=branch))
+locks.register("courier_account", lambda account: _invoices(transporter=account))

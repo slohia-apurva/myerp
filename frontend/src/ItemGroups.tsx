@@ -35,10 +35,12 @@ export type AccountRow = {
   stock_ledger_name: string;
   cogs_ledger: number | null;
   cogs_ledger_name: string;
+  sales_ledger: number | null;
+  sales_ledger_name: string;
   locked: string[];
 };
 
-type Picks = { stock: string; cogs: string };
+type Picks = { stock: string; cogs: string; sales: string };
 
 export function useItemGroups() {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
@@ -259,6 +261,7 @@ function GroupList(props: { session: SignedIn; canEdit: boolean; groups: ItemGro
                       ["Company", a.company_name],
                       ["Stock Ledger", a.stock_ledger_name],
                       ["COGS/Expense Ledger", a.cogs_ledger_name],
+                      ["Sales Ledger", a.sales_ledger_name],
                     ]}
                   />
                 ))}
@@ -363,7 +366,7 @@ function GroupForm(props: {
     Object.fromEntries(
       startRows.map((a) => [
         a.company,
-        { stock: String(a.stock_ledger ?? ""), cogs: String(a.cogs_ledger ?? "") },
+        { stock: String(a.stock_ledger ?? ""), cogs: String(a.cogs_ledger ?? ""), sales: String(a.sales_ledger ?? "") },
       ]),
     ),
   );
@@ -394,11 +397,12 @@ function GroupForm(props: {
     const body: Record<string, unknown> = { name, parent: num(parent), notes };
     if (parent === "")
       body.accounts_in = Object.entries(picks)
-        .filter(([, p]) => p.stock || p.cogs)
+        .filter(([, p]) => p.stock || p.cogs || p.sales)
         .map(([company, p]) => ({
           company: Number(company),
           stock_ledger: num(p.stock),
           cogs_ledger: num(p.cogs),
+          sales_ledger: num(p.sales),
         }));
     try {
       if (g) {
@@ -508,6 +512,7 @@ function InheritedAccounts(props: { main?: ItemGroup; sourceName: string }) {
               <th>Company</th>
               <th>Stock Ledger</th>
               <th>COGS/Expense Ledger</th>
+              <th>Sales Ledger</th>
             </tr>
           </thead>
           <tbody>
@@ -516,6 +521,7 @@ function InheritedAccounts(props: { main?: ItemGroup; sourceName: string }) {
                 <td>{a.company_name}</td>
                 <td>{a.stock_ledger_name || "—"}</td>
                 <td>{a.cogs_ledger_name || "—"}</td>
+                <td>{a.sales_ledger_name || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -556,7 +562,7 @@ function AccountGrid(props: {
       );
     });
   }, [visits]);
-  const empty: Picks = { stock: "", cogs: "" };
+  const empty: Picks = { stock: "", cogs: "", sales: "" };
   if (companies.length === 0) return <p className="small">Loading companies…</p>;
   return (
     <>
@@ -570,6 +576,7 @@ function AccountGrid(props: {
             <th>Company</th>
             <th>Stock Ledger</th>
             <th>COGS/Expense Ledger</th>
+            <th>Sales Ledger</th>
           </tr>
         </thead>
         <tbody>
@@ -578,9 +585,9 @@ function AccountGrid(props: {
             const locked = row?.locked ?? [];
             const picks = props.picks[c.id] ?? empty;
             const data = ledgers[c.id];
-            const pick = (key: keyof Picks, kind: "stock" | "expense") => {
+            const pick = (key: keyof Picks, kind: "stock" | "expense" | "income") => {
               const options = (data?.ledgers ?? [])
-                .filter((l) => (l.is_active || String(l.id) === picks[key]) && (kind === "stock" ? data!.stockGroups.has(l.group) : l.nature === "expense"))
+                .filter((l) => (l.is_active || String(l.id) === picks[key]) && (kind === "stock" ? data!.stockGroups.has(l.group) : l.nature === kind))
                 .map((l) => ({ value: String(l.id), label: l.name }));
               return (
                 <Combobox
@@ -594,6 +601,8 @@ function AccountGrid(props: {
               );
             };
             const off = props.readOnly || locked.length > 0;
+            // A Sales Ledger still blank may be set on a row in use (Sidharth, 2026-11-20).
+            const salesOff = props.readOnly || (locked.length > 0 && !!row?.sales_ledger);
             const wrap = (el: JSX.Element) => (off ? <span className="locked-field" {...({ inert: "" } as object)}>{el}</span> : el);
             return (
               <tr key={c.id}>
@@ -607,6 +616,7 @@ function AccountGrid(props: {
                 </td>
                 <td>{wrap(pick("stock", "stock"))}</td>
                 <td>{wrap(pick("cogs", "expense"))}</td>
+                <td>{salesOff ? <span className="locked-field" {...({ inert: "" } as object)}>{pick("sales", "income")}</span> : pick("sales", "income")}</td>
               </tr>
             );
           })}
@@ -615,6 +625,7 @@ function AccountGrid(props: {
       <p className="small">
         Stock Ledger holds the value of stock on hand. COGS/Expense takes the cost of stock goods when they are sold,
         stock used inside the company or written off, and the cost of items that keep no stock (stationery, services).
+        Sales Ledger takes the group's sales on sales invoices (an income ledger, such as one under Sales Accounts).
       </p>
     </>
   );
