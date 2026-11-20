@@ -20,6 +20,7 @@ from core.models import (
     CreditTerm,
     Item,
     Ledger,
+    Package,
     SalesPerson,
     TermsSet,
     Unit,
@@ -240,6 +241,11 @@ class PickListLine(models.Model):
     batch = models.ForeignKey(
         Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # The bag or box taken from (Sidharth, 2026-11-20, previews 12a/12b); none for
+    # stock that has no package numbers (opening stock, goods before packages).
+    package = models.ForeignKey(
+        Package, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
     qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
 
     class Meta:
@@ -359,6 +365,9 @@ class DeliveryNoteBin(models.Model):
     location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="+")
     batch = models.ForeignKey(
         Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    package = models.ForeignKey(
+        Package, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     picked = models.DecimalField(**QTY, default=Decimal("0"))
     qty = models.DecimalField(**QTY, default=Decimal("0"))

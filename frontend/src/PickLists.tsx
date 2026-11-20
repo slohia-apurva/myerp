@@ -23,6 +23,12 @@ type Row = {
   batch: number | null;
   batch_number: string;
   expiry: string | null;
+  area?: number | null;
+  area_name?: string;
+  package?: number | null;
+  package_number?: string;
+  package_label?: string;
+  package_left?: string;
   /** In the item's stock unit. */
   qty: string;
   qty_unit?: string;
@@ -70,7 +76,19 @@ type PickList = PickBrief & {
   items?: PickItem[];
 };
 type Place = { value: string; label: string; full: number; count: number };
-type Spot = { location: number; location_name: string; batch: number | null; batch_number: string; expiry: string | null; free: string };
+type Spot = {
+  location: number;
+  location_name: string;
+  area: number | null;
+  area_name: string;
+  batch: number | null;
+  batch_number: string;
+  package: number | null;
+  package_number: string;
+  package_label: string;
+  expiry: string | null;
+  free: string;
+};
 
 const VIEWS: [string, string][] = [
   ["open", "Open"],
@@ -248,9 +266,11 @@ function PickListList({ companyId }: { companyId: number }) {
 
 // One list --------------------------------------------------------------------
 
-type DraftRow = { key: number; line: number; spot: string; qty: string };
+/** One row being edited: area › bin › batch › package, each a picker value
+ * ("" not chosen yet, "none" for no batch or no package). */
+type DraftRow = { key: number; line: number; area: string; bin: string; batch: string; pkg: string; qty: string };
 let nextKey = 1;
-const spotValue = (location: number, batch: number | null) => `${location}-${batch ?? ""}`;
+const idOr = (n: number | null | undefined) => (n == null ? "none" : String(n));
 
 function PickView({ companyId, id, session }: { companyId: number; id: number; session: SignedIn }) {
   const [pick, setPick] = useState<PickList | null>(null);
@@ -290,7 +310,19 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
   };
   const startEdit = () => {
     if (!pick?.items) return;
-    setRows(pick.items.flatMap((i) => i.rows.map((r) => ({ key: nextKey++, line: i.order_line, spot: spotValue(r.location, r.batch), qty: r.qty }))));
+    setRows(
+      pick.items.flatMap((i) =>
+        i.rows.map((r) => ({
+          key: nextKey++,
+          line: i.order_line,
+          area: idOr(r.area),
+          bin: String(r.location),
+          batch: idOr(r.batch),
+          pkg: idOr(r.package),
+          qty: r.qty,
+        })),
+      ),
+    );
     for (const i of pick.items)
       api<Spot[]>(`v1/pick-lists/${id}/places/?item=${i.item}`).then((s) => setSpots((all) => ({ ...all, [i.item]: s })), () => undefined);
     setEditing(true);
@@ -301,11 +333,14 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
     try {
       const body = {
         rows: rows
-          .filter((r) => r.spot)
-          .map((r) => {
-            const [location, batch] = r.spot.split("-");
-            return { order_line: r.line, location: Number(location), batch: batch ? Number(batch) : null, qty: r.qty || "0" };
-          }),
+          .filter((r) => r.bin)
+          .map((r) => ({
+            order_line: r.line,
+            location: Number(r.bin),
+            batch: r.batch && r.batch !== "none" ? Number(r.batch) : null,
+            package: r.pkg && r.pkg !== "none" ? Number(r.pkg) : null,
+            qty: r.qty || "0",
+          })),
       };
       done(await api<PickList>(`v1/pick-lists/${id}/`, body, "PATCH"));
     } catch (err) {
@@ -428,9 +463,11 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                       <th>#</th>
                       <th>Item</th>
                       <th className="num">Ordered</th>
+                      <th>Area</th>
                       <th>Bin</th>
                       <th>Batch</th>
                       <th>Expiry</th>
+                      <th>Package</th>
                       <th className="num">Pick Qty</th>
                       <th className="num">In Stock Unit</th>
                       <th>Status</th>
@@ -446,9 +483,27 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                           <td>{n === 0 ? i.position : ""}</td>
                           <td>{n === 0 ? i.item_name : ""}</td>
                           <td className="num">{n === 0 ? `${i.ordered} ${i.unit_name}` : ""}</td>
+                          <td>{r?.area_name}</td>
                           <td>{r ? r.location_name : <span className="small">Nothing found</span>}</td>
                           <td>{r?.batch_number}</td>
                           <td>{shortDate(r?.expiry ?? null)}</td>
+                          <td>
+                            {r?.package_number ? (
+                              <>
+                                <b>{r.package_number}</b> <span className="small">{r.package_label}</span>
+                                {Number(r.qty) < Number(r.package_left) && (
+                                  <span className="small">
+                                    {" "}
+                                    · opened: {r.qty} of {r.package_left} {i.stock_unit_name}
+                                  </span>
+                                )}
+                              </>
+                            ) : r ? (
+                              <span className="small">No package</span>
+                            ) : (
+                              ""
+                            )}
+                          </td>
                           <td className="num">{r ? `${r.qty_unit} ${i.unit_name}` : ""}</td>
                           <td className="num">{r ? `${r.qty} ${i.stock_unit_name}` : ""}</td>
                           <td>{n === 0 ? status : ""}</td>
@@ -461,8 +516,9 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
             )}
             <p className="small">
               Chosen automatically on Submit of the sales order: only bins in the Despatch From area (or the whole branch), earliest expiry first, then
-              oldest received. A batch held back (Quarantine or Rejected) is never picked. Stock on an open or picked pick list is kept aside, so the next
-              order does not pick the same bags.
+              oldest received. Numbered packages are taken whole, lowest number first, and only the last one is opened. A batch held back (Quarantine
+              or Rejected) is never picked. Stock and packages on an open or picked pick list are kept aside, so the next order does not pick the same
+              bags.
             </p>
           </Fold>
           <Attachments type="pick_list" id={pick.id} onChange={() => setFiles((n) => n + 1)} />
@@ -528,10 +584,12 @@ function DespatchFrom({ pick, busy, onPick }: { pick: PickList; busy: boolean; o
   );
 }
 
-/** The rows of an open list, to change: per item, the bin and batch (from where
- * it is free) and the quantity in the stock unit; "+ Add bin" for another. */
+/** The rows of an open list, to change: per item, Area › Bin › Batch ›
+ * Package (each offering only what is free in the one before it) and the
+ * quantity in the stock unit; "+ Add package" for another row. */
 function EditRows(p: { pick: PickList; rows: DraftRow[]; setRows: (f: (r: DraftRow[]) => DraftRow[]) => void; spots: Record<number, Spot[]> }) {
   const set = (key: number, patch: Partial<DraftRow>) => p.setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const uniq = (list: { value: string; label: string; hint?: string }[]) => list.filter((o, n) => list.findIndex((x) => x.value === o.value) === n);
   return (
     <div className="table-scroll">
       <table className="grid po-lines">
@@ -540,7 +598,10 @@ function EditRows(p: { pick: PickList; rows: DraftRow[]; setRows: (f: (r: DraftR
             <th>#</th>
             <th>Item</th>
             <th className="num">Ordered</th>
-            <th>Bin and Batch</th>
+            <th>Area</th>
+            <th>Bin</th>
+            <th>Batch</th>
+            <th>Package</th>
             <th className="num">Pick Qty (Stock Unit)</th>
             <th className="num">Still Short</th>
             <th />
@@ -552,50 +613,74 @@ function EditRows(p: { pick: PickList; rows: DraftRow[]; setRows: (f: (r: DraftR
             const want = Number(i.ordered) * Number(i.factor);
             const got = mine.reduce((s, r) => s + (Number(r.qty) || 0), 0);
             const short = Math.max(want - got, 0);
-            const options = (p.spots[i.item] ?? []).map((s) => ({
-              value: spotValue(s.location, s.batch),
-              label: [s.location_name, s.batch_number].filter(Boolean).join(" · "),
-              hint: [s.expiry && `exp ${shortDate(s.expiry)}`, `${plain(Number(s.free))} ${i.stock_unit_name} free`].filter(Boolean).join(" · "),
-            }));
-            // A row already on the list stays pickable even if the list did not load yet.
-            for (const r of mine) {
-              const was = i.rows.find((x) => spotValue(x.location, x.batch) === r.spot);
-              if (was && !options.some((o) => o.value === r.spot))
-                options.push({ value: r.spot, label: [was.location_name, was.batch_number].filter(Boolean).join(" · "), hint: "" });
-            }
+            const all = p.spots[i.item] ?? [];
             const lines = [...mine, null];
-            return lines.map((r, n) => (
-              <tr key={`${i.order_line}-${r?.key ?? "add"}`}>
-                <td>{n === 0 ? i.position : ""}</td>
-                <td>{n === 0 ? i.item_name : ""}</td>
-                <td className="num">{n === 0 ? `${i.ordered} ${i.unit_name} (${plain(want)} ${i.stock_unit_name})` : ""}</td>
-                <td className="po-item">
+            return lines.map((r, n) => {
+              const inArea = r ? all.filter((s) => idOr(s.area) === r.area) : [];
+              const inBin = r ? inArea.filter((s) => String(s.location) === r.bin) : [];
+              const inBatch = r ? inBin.filter((s) => idOr(s.batch) === r.batch) : [];
+              const free = (list: Spot[]) => `${plain(list.reduce((t, s) => t + Number(s.free), 0))} ${i.stock_unit_name} free`;
+              const areas = uniq(all.map((s) => ({ value: idOr(s.area), label: s.area_name || s.location_name, hint: free(all.filter((x) => x.area === s.area)) })));
+              const bins = uniq(inArea.map((s) => ({ value: String(s.location), label: s.location_name, hint: free(inArea.filter((x) => x.location === s.location)) })));
+              const batches = uniq(
+                inBin.map((s) => ({
+                  value: idOr(s.batch),
+                  label: s.batch_number || "No batch",
+                  hint: [s.expiry && `exp ${shortDate(s.expiry)}`, free(inBin.filter((x) => x.batch === s.batch))].filter(Boolean).join(" · "),
+                })),
+              );
+              const packages = uniq(
+                inBatch.map((s) => ({
+                  value: idOr(s.package),
+                  label: s.package_number ? `${s.package_number} ${s.package_label}` : "No package",
+                  hint: free([s]),
+                })),
+              );
+              const cell = (value: string, options: { value: string; label: string; hint?: string }[], label: string, patch: (v: string) => Partial<DraftRow>) => (
+                <Combobox value={value} onChange={(v) => r && set(r.key, patch(v))} ariaLabel={`${label} for ${i.item_name}`} placeholder="Type to search…" options={options} />
+              );
+              return (
+                <tr key={`${i.order_line}-${r?.key ?? "add"}`}>
+                  <td>{n === 0 ? i.position : ""}</td>
+                  <td>{n === 0 ? i.item_name : ""}</td>
+                  <td className="num">{n === 0 ? `${i.ordered} ${i.unit_name} (${plain(want)} ${i.stock_unit_name})` : ""}</td>
                   {r ? (
-                    <Combobox value={r.spot} onChange={(v) => set(r.key, { spot: v })} ariaLabel={`Bin for ${i.item_name}`} placeholder="Type to search bins…" options={options} />
+                    <>
+                      <td>{cell(r.area, areas, "Area", (v) => ({ area: v, bin: "", batch: "", pkg: "" }))}</td>
+                      <td>{cell(r.bin, bins, "Bin", (v) => ({ bin: v, batch: "", pkg: "" }))}</td>
+                      <td>{cell(r.batch, batches, "Batch", (v) => ({ batch: v, pkg: "" }))}</td>
+                      <td>{cell(r.pkg, packages, "Package", (v) => ({ pkg: v }))}</td>
+                    </>
                   ) : (
-                    <button type="button" className="link" onClick={() => p.setRows((rs) => [...rs, { key: nextKey++, line: i.order_line, spot: "", qty: plain(short) }])}>
-                      + Add bin
-                    </button>
+                    <td colSpan={4}>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => p.setRows((rs) => [...rs, { key: nextKey++, line: i.order_line, area: "", bin: "", batch: "", pkg: "", qty: plain(short) }])}
+                      >
+                        + Add package
+                      </button>
+                    </td>
                   )}
-                </td>
-                <td className="num">
-                  {r && (
-                    <span>
-                      <input className="num" inputMode="decimal" aria-label={`Pick qty for ${i.item_name}`} value={r.qty} onChange={(e) => set(r.key, { qty: e.target.value })} />{" "}
-                      {i.stock_unit_name}
-                    </span>
-                  )}
-                </td>
-                <td className="num">{n === 0 ? (short > 0 ? <b className="error">{plain(short)} {i.stock_unit_name}</b> : "✓") : ""}</td>
-                <td>
-                  {r && (
-                    <button type="button" className="link danger" aria-label="Remove row" onClick={() => p.setRows((rs) => rs.filter((x) => x.key !== r.key))}>
-                      ✕
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ));
+                  <td className="num">
+                    {r && (
+                      <span>
+                        <input className="num" inputMode="decimal" aria-label={`Pick qty for ${i.item_name}`} value={r.qty} onChange={(e) => set(r.key, { qty: e.target.value })} />{" "}
+                        {i.stock_unit_name}
+                      </span>
+                    )}
+                  </td>
+                  <td className="num">{n === 0 ? (short > 0 ? <b className="error">{plain(short)} {i.stock_unit_name}</b> : "✓") : ""}</td>
+                  <td>
+                    {r && (
+                      <button type="button" className="link danger" aria-label="Remove row" onClick={() => p.setRows((rs) => rs.filter((x) => x.key !== r.key))}>
+                        ✕
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            });
           })}
         </tbody>
       </table>

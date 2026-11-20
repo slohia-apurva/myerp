@@ -16,6 +16,7 @@ one.
 from __future__ import annotations
 
 import io
+from decimal import Decimal
 
 from django.utils import timezone
 
@@ -33,7 +34,15 @@ SHORT_BG = "#FDF0F0"
 def bin_rows(data: dict) -> list[tuple[dict, dict]]:
     """(item, row) pairs in the order the picker walks: bin by bin, then line."""
     rows = [(i, r) for i in data["items"] for r in i["rows"]]
-    return sorted(rows, key=lambda x: (x[1]["location_name"].lower(), x[0]["position"]))
+    return sorted(
+        rows,
+        key=lambda x: (
+            x[1]["location_name"].lower(),
+            x[0]["position"],
+            x[1].get("batch_number", ""),
+            x[1].get("package_number") or "~",
+        ),
+    )
 
 
 def pick_pdf(data: dict, letterhead: dict, transporter: str) -> bytes:
@@ -195,11 +204,35 @@ def pick_pdf(data: dict, letterhead: dict, transporter: str) -> bytes:
             Paragraph(t(r["location_name"]), style("bin", 13, 15, bold)),
             Spacer(1, 2),
             bars,
+            Spacer(1, 2),
             Paragraph(code, style("loc", 6.5, 8, colour=MUTED)),
         ]
 
+    def package_cell(i, r):
+        if not r.get("package_number"):
+            return Paragraph("No package", style("np", 7.5, 9, colour=MUTED))
+        bars = Code128(
+            r["package_number"], barWidth=0.55, barHeight=14, humanReadable=False, quiet=False
+        )
+        bars.hAlign = "LEFT"
+        opened = Decimal(r["qty"]) < Decimal(r["package_left"] or "0")
+        under = (
+            Paragraph(
+                f"OPEN: take {t(r['qty'])} of {t(r['package_left'])} {t(i['stock_unit_name'])}",
+                style("op", 7, 8.5, bold, AMBER_INK),
+            )
+            if opened
+            else Paragraph(t(r["package_label"]), style("pl", 7, 8.5, colour=MUTED))
+        )
+        return [
+            Paragraph(t(r["package_number"]), style("pk", 8.5, 10, bold)),
+            bars,
+            Spacer(1, 2),
+            under,
+        ]
+
     if rows:
-        cols = [22, width * 0.23, None, width * 0.15, width * 0.17, width * 0.12]
+        cols = [22, width * 0.19, None, width * 0.13, width * 0.17, width * 0.15, width * 0.1]
         head_s = style("th", 7.5, 9, bold, "#FFFFFF")
         table = [
             [
@@ -207,11 +240,13 @@ def pick_pdf(data: dict, letterhead: dict, transporter: str) -> bytes:
                 Paragraph("Bin", head_s),
                 Paragraph("Item", head_s),
                 Paragraph("Batch · Expiry", head_s),
+                Paragraph("Package", head_s),
                 Paragraph("Pick", style("thr", 7.5, 9, bold, "#FFFFFF", "right")),
-                Paragraph("Picked (write in)", head_s),
+                Paragraph("Picked", head_s),
             ]
         ]
         seen: dict[int, int] = {}
+        last_bin = None
         for i, r in rows:
             seen[i["order_line"]] = seen.get(i["order_line"], 0) + 1
             again = seen[i["order_line"]] > 1
@@ -238,15 +273,18 @@ def pick_pdf(data: dict, letterhead: dict, transporter: str) -> bytes:
                         style("qs", 7.5, 9, colour=MUTED, align="right"),
                     )
                 )
+            new_bin = r["location"] != last_bin
+            last_bin = r["location"]
             table.append(
                 [
                     tick_box(),
-                    bin_cell(r),
+                    bin_cell(r) if new_bin else "",
                     [
                         Paragraph(t(i["item_name"]), style("it", 9, 11, bold)),
                         Paragraph(t(note), style("ln", 7.5, 9.5, colour=MUTED)),
                     ],
                     batch,
+                    package_cell(i, r),
                     qty,
                     "",
                 ]
@@ -259,13 +297,13 @@ def pick_pdf(data: dict, letterhead: dict, transporter: str) -> bytes:
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                     ("LINEBELOW", (0, 1), (-1, -1), 0.6, c(ROW_LINE)),
                     # the write-in line
-                    ("LINEBELOW", (5, 1), (5, -1), 0.6, c(MUTED)),
+                    ("LINEBELOW", (6, 1), (6, -1), 0.6, c(MUTED)),
                     ("TOPPADDING", (0, 0), (-1, -1), 6),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (5, 1), (5, -1), 18),
+                    ("BOTTOMPADDING", (6, 1), (6, -1), 18),
                     ("LEFTPADDING", (0, 0), (-1, -1), 4),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                    ("RIGHTPADDING", (4, 0), (4, -1), 10),
+                    ("RIGHTPADDING", (5, 0), (5, -1), 10),
                 ]
             )
         )

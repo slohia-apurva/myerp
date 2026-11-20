@@ -38,7 +38,7 @@ from buying.api import _branch_address, _letterhead, _money, _plain
 from core import attachments, numbering
 from core.api import Signed
 from core.companies import visible_companies
-from core.models import Batch, Ledger
+from core.models import Batch, Ledger, Package
 from posting import accounts, service
 from posting import api as posting_api
 from posting.models import StockLot
@@ -53,7 +53,7 @@ from selling.models import (
     SalesOrder,
     SalesOrderLine,
 )
-from selling.pick_lists import _pick, may, place_label
+from selling.pick_lists import _pick, may, package_out, place_label
 from shipping.models import CourierAccount
 from tenancy.context import tenant_atomic
 
@@ -97,6 +97,7 @@ def _bin_out(b: DeliveryNoteBin, factor: Decimal) -> dict:
         "batch": b.batch_id,
         "batch_number": b.batch.number if b.batch else "",
         "expiry": b.batch.expiry_date if b.batch else None,
+        **package_out(b.package),
         "picked": _plain(b.picked),
         "qty": _plain(b.qty),
         "qty_unit": picking.plain(b.qty / factor),
@@ -189,7 +190,7 @@ def note_out(n: DeliveryNote, lines: bool = True) -> dict:
     }
     if lines:
         rows = n.lines.select_related("item__stock_unit", "unit", "order_line").prefetch_related(
-            "bins__location", "bins__batch"
+            "bins__location", "bins__batch", "bins__package"
         )
         data["lines"] = [_line_out(ln, n) for ln in rows]
         data["salesman_name"] = n.order.salesman.name if n.order.salesman_id else ""
@@ -245,7 +246,7 @@ def make(p: PickList, user) -> DeliveryNote:
         interstate=o.interstate,
         created_by=user,
     )
-    rows = list(p.lines.select_related("order_line__unit", "item", "location", "batch"))
+    rows = list(p.lines.select_related("order_line__unit", "item", "location", "batch", "package"))
     by_line: dict[int, list] = defaultdict(list)
     for r in rows:
         by_line[r.order_line_id].append(r)
@@ -269,7 +270,12 @@ def make(p: PickList, user) -> DeliveryNote:
         DeliveryNoteBin.objects.bulk_create(
             [
                 DeliveryNoteBin(
-                    line=ln, location=r.location, batch=r.batch, picked=r.qty, qty=r.qty
+                    line=ln,
+                    location=r.location,
+                    batch=r.batch,
+                    package=r.package,
+                    picked=r.qty,
+                    qty=r.qty,
                 )
                 for r in picked
             ]
@@ -290,6 +296,7 @@ class BinSerializer(serializers.Serializer):
     line = serializers.IntegerField()
     location = serializers.IntegerField()
     batch = serializers.IntegerField(required=False, allow_null=True)
+    package = serializers.IntegerField(required=False, allow_null=True)
     qty = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=Decimal("0"))
 
 
@@ -341,7 +348,7 @@ def _save(n: DeliveryNote, data: dict) -> None:
     if "bins" in data:
         places = {x.pk: x for x in stock.places(n.branch, n.area)}
         picked = {
-            (b.line_id, b.location_id, b.batch_id): b.picked
+            (b.line_id, b.location_id, b.batch_id, b.package_id): b.picked
             for b in DeliveryNoteBin.objects.filter(line__note=n)
         }
         rows, errors = [], []
@@ -362,12 +369,21 @@ def _save(n: DeliveryNote, data: dict) -> None:
                 if batch is None:
                     errors.append(f"Line {ln.position}: pick a batch of {ln.item.name}.")
                     continue
-            key = (ln.pk, place.pk, batch.pk if batch else None)
+            package = None
+            if row.get("package"):
+                package = Package.objects.filter(
+                    pk=row["package"], item=ln.item_id, location=place, batch=batch
+                ).first()
+                if package is None:
+                    errors.append(f"Line {ln.position}: pick a package in {place.name}.")
+                    continue
+            key = (ln.pk, place.pk, batch.pk if batch else None, package.pk if package else None)
             rows.append(
                 DeliveryNoteBin(
                     line=ln,
                     location=place,
                     batch=batch,
+                    package=package,
                     picked=picked.get(key, ZERO),
                     qty=row["qty"],
                 )
@@ -388,12 +404,17 @@ def _save(n: DeliveryNote, data: dict) -> None:
         if over:
             raise ValidationError({"bins": over})
         # Rows that were picked but are now at 0 stay, to show what was picked.
-        kept = {(b.line_id, b.location_id, b.batch_id) for b in rows}
-        for (line_id, loc, batch), qty in picked.items():
-            if qty and (line_id, loc, batch) not in kept:
+        kept = {(b.line_id, b.location_id, b.batch_id, b.package_id) for b in rows}
+        for (line_id, loc, batch, package), qty in picked.items():
+            if qty and (line_id, loc, batch, package) not in kept:
                 rows.append(
                     DeliveryNoteBin(
-                        line_id=line_id, location_id=loc, batch_id=batch, picked=qty, qty=ZERO
+                        line_id=line_id,
+                        location_id=loc,
+                        batch_id=batch,
+                        package_id=package,
+                        picked=qty,
+                        qty=ZERO,
                     )
                 )
         DeliveryNoteBin.objects.filter(line__note=n).delete()
@@ -415,7 +436,7 @@ def _sending(n: DeliveryNote) -> list[DeliveryNoteLine]:
         ln
         for ln in n.lines.select_related(
             "item__item_group", "order_line__unit", "unit"
-        ).prefetch_related("bins__location", "bins__batch")
+        ).prefetch_related("bins__location", "bins__batch", "bins__package")
         if ln.qty > 0
     ]
 
@@ -430,9 +451,11 @@ def problems(n: DeliveryNote) -> list[dict]:
     first: dict[tuple, tuple] = {}
     for ln in lines:
         if ln.item_id not in free:
-            free[ln.item_id] = {
-                s.key: s.free for s in picking.spots(ln.item, n.branch, n.area, n.pick_list)
-            }
+            # Free per bin and batch; packages only say which bag.
+            here: dict[tuple, Decimal] = defaultdict(lambda: ZERO)
+            for s in picking.spots(ln.item, n.branch, n.area, n.pick_list):
+                here[s.key[:2]] += s.free
+            free[ln.item_id] = here
         ol = SalesOrderLine.objects.get(pk=ln.order_line_id)
         if ln.qty > picking.pending(ol):
             out.append(
@@ -452,6 +475,16 @@ def problems(n: DeliveryNote) -> list[dict]:
                         "line": ln.position,
                         "text": f"Line {ln.position}, {ln.item.name}: batch {b.batch.number} is "
                         f"held back ({b.batch.get_status_display()}) and cannot be sent.",
+                    }
+                )
+                continue
+            if b.package and b.qty > b.package.left_qty:
+                out.append(
+                    {
+                        "line": ln.position,
+                        "text": f"Line {ln.position}, {ln.item.name}: package "
+                        f"{b.package.number} has {picking.plain(b.package.left_qty)} left; "
+                        f"this note sends {picking.plain(b.qty)}.",
                     }
                 )
                 continue
@@ -551,6 +584,9 @@ def _submit(n: DeliveryNote, user) -> None:
         b.cost = -value
         b.save(update_fields=["cost"])
         line_cost[ln.pk] += -value
+    for _ln, b in owners:
+        if b.package_id:
+            _use_package(b.package_id, b.qty)
     for ln in lines:
         ln.cost = line_cost[ln.pk]
         ln.save(update_fields=["cost"])
@@ -567,6 +603,21 @@ def _submit(n: DeliveryNote, user) -> None:
     order_status(n.order)
 
 
+def _use_package(package_id: int, qty: Decimal) -> None:
+    """Take `qty` out of a package (a negative qty puts it back): "Used up" when
+    nothing is left, "Part used" while some is, "In stock" when whole again."""
+    pk = Package.objects.select_for_update().get(pk=package_id)
+    pk.left_qty = max(pk.left_qty - qty, ZERO)
+    if pk.left_qty <= 0:
+        pk.status = Package.USED_UP
+    elif pk.left_qty < pk.qty:
+        pk.status = Package.PART_USED
+    else:
+        pk.left_qty = pk.qty
+        pk.status = Package.IN_STOCK
+    pk.save(update_fields=["left_qty", "status"])
+
+
 def _cancel(n: DeliveryNote, user, reason: str) -> None:
     if n.status == DeliveryNote.SUBMITTED:
         service.cancel(KIND, n.pk, user)
@@ -576,6 +627,8 @@ def _cancel(n: DeliveryNote, user, reason: str) -> None:
             ol = SalesOrderLine.objects.select_for_update().get(pk=ln.order_line_id)
             ol.delivered_qty -= ln.qty
             ol.save(update_fields=["delivered_qty"])
+        for b in DeliveryNoteBin.objects.filter(line__note=n, qty__gt=0).exclude(package=None):
+            _use_package(b.package_id, -b.qty)
         # The goods are back in their bins; the pick list keeps them aside again.
         p = n.pick_list
         if p.status == PickList.DELIVERED:
@@ -815,6 +868,7 @@ class NotePlacesView(APIView):
                     "batch": s.batch.pk if s.batch else None,
                     "batch_number": s.batch.number if s.batch else "",
                     "expiry": s.expiry,
+                    **package_out(s.package),
                     "free": picking.plain(s.free),
                 }
                 for s in picking.spots(ln.item, n.branch, n.area, n.pick_list)
@@ -873,6 +927,7 @@ class NotePdfView(APIView):
                             ln["item_name"] if first else "",
                             b["location_name"],
                             b["batch_number"],
+                            b["package_number"],
                             b["expiry"].strftime("%d-%m-%Y") if b["expiry"] else "",
                             f"{b['qty_unit']} {ln['unit_name']}",
                             f"{b['qty']} {ln['stock_unit_name']}",
@@ -887,6 +942,7 @@ class NotePdfView(APIView):
                     "Item",
                     "Bin",
                     "Batch",
+                    "Package",
                     "Expiry",
                     "Qty",
                     "In Stock Unit",

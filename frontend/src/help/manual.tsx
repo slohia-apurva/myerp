@@ -3378,10 +3378,17 @@ export const MANUAL: Chapter[] = [
             and bins in it, or the whole branch.
           </li>
           <li>Earliest expiry first, then the oldest received.</li>
+          <li>
+            Where a bin holds numbered packages (the PK numbers from the goods
+            receipt), each is taken whole, lowest number first; only the last
+            one an item needs is opened. Stock without package numbers shows
+            "No package".
+          </li>
           <li>A batch held back ("Quarantine" or "Rejected") is never picked.</li>
           <li>
             Stock on another open or picked pick list is kept aside, so two
-            orders never pick the same bags.
+            orders never pick the same bags. A package on another list is not
+            offered at all.
           </li>
         </ul>
         <p>
@@ -3400,12 +3407,14 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Change an open list</h3>
         <p>
-          Click "Edit". Each item shows its rows with "Bin and Batch" and
-          "Pick Qty (Stock Unit)". The bin picker offers only places in the
-          Despatch From where the item is free, with the expiry and how much
-          is free. Change a row, remove it with ✕, or click "+ Add bin" to
-          take some from another place. "Still Short" shows what is left.
-          Click "Save"; a row asking for more than is free, or a line picking
+          Click "Edit". Each item shows its rows with "Area", "Bin", "Batch",
+          "Package" and "Pick Qty (Stock Unit)". Each picker offers only what
+          is free in the one before it: the areas of the Despatch From branch,
+          the bins in that area, the batches in that bin and the packages of
+          that batch, each with how much is free. Change a row, remove it with
+          ✕, or click "+ Add package" to take some from another bag or bin.
+          "Still Short" shows what is left. Click "Save"; a row asking for
+          more than is free, a package on another list, or a line picking
           more than was ordered, is refused with the reason.
           "Discard changes" leaves the list as it was.
         </p>
@@ -3430,7 +3439,9 @@ export const MANUAL: Chapter[] = [
           sales order, customer, Despatch From, delivery date and transporter,
           then the rows bin by bin so the picker walks rack by rack. Each bin
           is printed large with its barcode (the same code as on the bin
-          sheets), then the item, batch and expiry, the quantity to pick in
+          sheets), then the item, batch and expiry, the package number with
+          its barcode (as on the bag label; a bag to open says "OPEN: take 4
+          of 10"), the quantity to pick in
           the order's unit, a box to tick and a space to write what was
           picked. Anything not found is listed under "Short: not found in
           stock", and the foot has "Picked By", "Checked By" and "Date and
@@ -3517,12 +3528,14 @@ export const MANUAL: Chapter[] = [
           The sales order shows the quantities under "Delivered" and
           "Pending" and turns "Part delivered" or "Delivered"; its "Delivery
           Notes" box counts the notes. For what is still pending, "Create ▾ ›
-          Pick List" on the order picks it. "Print ▾" holds "Delivery
+          Pick List" on the order picks it. Each package sent becomes "Used
+          up", or "Part used" with what is left in it, so the bin contents
+          and bag counts stay true. "Print ▾" holds "Delivery
           Challan" (items, HSN, quantities, values and GST, with the
-          transport), "Packing List" (bins and batches, with a "Checked"
+          transport), "Packing List" (bins, batches and packages, with a "Checked"
           column) and "Download PDF". "Create ▾" will hold the "Sales
           Invoice" once it is built. "Cancel Note" (with a reason) puts the
-          goods back in their bins, reverses the entries and makes the
+          goods back in their bins and packages, reverses the entries and makes the
           order's quantities pending again; the pick list is "Picked" again.
         </p>
         <h3>Find the delivery notes</h3>
