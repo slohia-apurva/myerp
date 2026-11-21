@@ -12,8 +12,13 @@ Checks made here, for every document:
 * the date is in an open month of a fiscal year (rule 7);
 * GL: each line is a debit or a credit to an active ledger of the company,
   and the voucher balances (the database checks this again at commit);
-* stock: quantity never goes below zero at a place and batch; a batch-tracked
-  item names its batch (of that item); the place is in the voucher's branch;
+* stock: quantity never goes below zero at a place and batch, on the entry's
+  own date or on any later date (a backdated issue is checked against what
+  later entries already took); a batch-tracked item names its batch (of that
+  item); the place is in the voucher's branch;
+* one posting or cancel at a time per item and branch: each takes a
+  transaction lock on its items first, so two people issuing the same stock
+  at the same moment cannot both pass the checks;
 * FIFO (decision 0002): an issue uses the oldest lots of the item in the
   branch dated on or before it. A valued entry dated before a later issue of
   the same item and branch is refused for now, because it would change that
@@ -25,12 +30,14 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+from django.db import connections
 from django.db.models import Sum
 from rest_framework.exceptions import ValidationError
 
 from core import fiscal
 from core.models import Batch, Branch, Company, Item, Ledger, WarehouseLocation
 from posting.models import GLEntry, StockLot, StockLotUse, StockMove, StockRevaluation
+from tenancy.context import require_tenant, tenant_atomic
 
 PAISA = Decimal("0.01")
 ZERO = Decimal("0")
@@ -127,6 +134,40 @@ def on_hand(item: Item, location: WarehouseLocation, batch: Batch | None = None)
     return rows.aggregate(q=Sum("qty"))["q"] or ZERO
 
 
+def available(
+    item: Item, location: WarehouseLocation, batch: Batch | None, on: date
+) -> tuple[Decimal, Decimal, date | None]:
+    """How much can leave the place on that day without the place going below
+    zero then or on any later day. Returns (held that day, can leave, the later
+    day that limits it or None)."""
+    rows = StockMove.objects.filter(item=item, location=location, batch=batch)
+    held = rows.filter(date__lte=on).aggregate(q=Sum("qty"))["q"] or ZERO
+    low, low_day, run = held, None, held
+    later = rows.filter(date__gt=on).values("date").annotate(q=Sum("qty")).order_by("date")
+    for day in later:
+        run += day["q"]
+        if run < low:
+            low, low_day = run, day["date"]
+    return held, low, low_day
+
+
+def _lock_stock(keys) -> None:
+    """Hold a transaction lock per (item, branch) until commit, taken in one
+    order so two postings cannot deadlock. Everything that reads stock to
+    decide whether it may leave runs after this."""
+    alias = require_tenant().db_alias
+    with connections[alias].cursor() as cursor:
+        for item_id, branch_id in sorted(set(keys)):
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(%s, %s)",
+                [item_id % 2147483647, branch_id % 2147483647],
+            )
+
+
+def _where(location: WarehouseLocation, batch: Batch | None) -> str:
+    return f"{location}" + (f", batch {batch.number}" if batch else "")
+
+
 def _check_place(voucher: Voucher, line: StockLine) -> None:
     item, loc = line.item, line.location
     if loc.branch_id != voucher.branch.pk:
@@ -201,12 +242,20 @@ def _receive(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove
 
 def _issue(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove, Decimal]:
     want = -line.qty
-    have = on_hand(line.item, line.location, line.batch)
-    if have < want:
-        where = f"{line.location}" + (f", batch {line.batch.number}" if line.batch else "")
+    held, can, limit = available(line.item, line.location, line.batch, voucher.date)
+    where = _where(line.location, line.batch)
+    if held < want:
         _refuse(
-            f"Only {have.normalize():f} of {line.item.name} is at {where}; "
-            f"{want.normalize():f} is wanted.",
+            f"Only {held.normalize():f} of {line.item.name} is at {where} on "
+            f"{voucher.date:%d-%m-%Y}; {want.normalize():f} is wanted.",
+            "qty",
+        )
+    if can < want:
+        _refuse(
+            f"{line.item.name} at {where} is already taken by later entries: on "
+            f"{limit:%d-%m-%Y} only {max(can, ZERO).normalize():f} would be left for this "
+            f"entry, and {want.normalize():f} is wanted. Date this entry on or after the "
+            "stock came in for it, or cancel the later entries first.",
             "qty",
         )
     value = ZERO
@@ -298,11 +347,17 @@ def post(
 ) -> Posted:
     """Write a submitted document's stock moves and GL entries. Call it inside
     the document's `tenant_atomic()` so a refusal leaves nothing behind."""
+    with tenant_atomic():
+        return _post(voucher, stock, gl, revalue)
+
+
+def _post(voucher, stock, gl, revalue) -> Posted:
     fiscal.assert_open(voucher.company, voucher.date)
     if voucher.branch.company_id != voucher.company.pk:
         _refuse(f"{voucher.branch} is not a branch of {voucher.company}.")
     if is_posted(voucher.type, voucher.id):
         _refuse(f"{voucher.number} has already been posted.")
+    _lock_stock((line.item.pk, voucher.branch.pk) for line in stock)
     common = _common(voucher, voucher.user)
     out = Posted()
     for line in stock:
@@ -359,7 +414,12 @@ def _revalue(voucher: Voucher, r: Revalue, common: dict) -> StockRevaluation:
 def cancel(voucher_type: str, voucher_id: int, user=None) -> None:
     """Reverse everything a document posted, on its own date (rule 2). Refused
     if its month is locked, if it was cancelled already, or if stock it
-    brought in has since been used."""
+    brought in has since been used, or would leave too little for a later entry."""
+    with tenant_atomic():
+        _cancel(voucher_type, voucher_id, user)
+
+
+def _cancel(voucher_type: str, voucher_id: int, user=None) -> None:
     gl, stock = _rows(voucher_type, voucher_id)
     originals_gl = list(gl.filter(is_reversal=False))
     originals_stock = list(stock.filter(is_reversal=False).select_related("item", "location"))
@@ -377,10 +437,14 @@ def cancel(voucher_type: str, voucher_id: int, user=None) -> None:
         "created_by": user,
         "is_reversal": True,
     }
+    _lock_stock((m.item_id, m.branch_id) for m in originals_stock)
+    taking: dict[tuple, Decimal] = {}  # what earlier lines of this cancel already take back
     for move in originals_stock:
         if move.qty > 0:
-            have = on_hand(move.item, move.location, move.batch)
-            if have < move.qty:
+            key = (move.item_id, move.location_id, move.batch_id, move.date)
+            taking[key] = taking.get(key, ZERO) + move.qty
+            _, can, _ = available(move.item, move.location, move.batch, move.date)
+            if can < taking[key]:
                 _refuse(
                     f"{move.item.name} received by {move.voucher_no} has since been moved or "
                     "used; cancel those entries first.",

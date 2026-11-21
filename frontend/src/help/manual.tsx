@@ -2926,7 +2926,8 @@ export const MANUAL: Chapter[] = [
           A submitted receipt cannot be changed: click "Cancel receipt" and say
           why. Cancelling reverses the stock and the book entries and shows the
           goods as pending on the orders again. It is refused if any of the
-          goods have since been issued or moved.
+          goods have since been issued or moved, including by an entry dated
+          later that needed them.
         </p>
         <h3>Printing the receipt, bin sheets and bag labels</h3>
         <p>
@@ -3725,6 +3726,19 @@ export const MANUAL: Chapter[] = [
           invoice is cancelled. "Cancel Note" (with a reason) puts the
           goods back in their bins and packages, reverses the entries and makes the
           order's quantities pending again; the pick list is "Picked" again.
+        </p>
+        <h3>Stock never goes below zero</h3>
+        <p>
+          No entry can take out more than a bin (and batch) holds. The check
+          uses the stock on the entry's own date, so a note dated in the past
+          is checked against what was there that day, and it may not take
+          goods that a later entry already sent out. If it would, Submit is
+          refused with "… is already taken by later entries", naming the day
+          the stock would run short: date the note later or cancel the later
+          entry first. The same holds for purchase returns and for cancelling
+          a receipt. When two people submit from the same stock at the same
+          moment, the second waits for the first and is then checked against
+          what is left.
         </p>
         <h3>Find the delivery notes</h3>
         <p>
