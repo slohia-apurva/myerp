@@ -282,12 +282,71 @@ def _order_out(o: SalesOrder, lines: bool = True) -> dict:
         from selling.delivery import brief as note_brief
 
         data["delivery_notes"] = [note_brief(n) for n in o.delivery_notes.order_by("id")]
+        data["purchase_orders"], data["shortages"] = _planned(o, data["lines"])
         data["credit_warning"] = (
             credit_note(o.customer, o.total)
             if o.status in (SalesOrder.DRAFT, *SalesOrder.OPEN)
             else ""
         )
     return data
+
+
+def _planned(o: SalesOrder, lines: list[dict]) -> tuple[list[dict], list[dict]]:
+    """The draft purchase orders Submit (or "Purchase Orders for Shortages") made
+    for this order, and on each stock line its Expected (in the line's unit) and
+    what covers a shortage."""
+    pos = list(o.purchase_orders.select_related("supplier").prefetch_related("lines"))
+    by_item = {}
+    for po in pos:
+        if po.status == "cancelled":
+            continue
+        for ln in po.lines.all():
+            by_item.setdefault(ln.item_id, po)
+    notes = {n["item"]: n for n in (o.shortages or [])}
+    items = {ln.item_id: ln.item for ln in o.lines.all()}
+    for row in lines:
+        note = notes.get(row["item"])
+        if note is None or not row["stock"]:
+            continue
+        row["expected"] = _plain(
+            stock.in_unit(items[row["item"]], Decimal(note["expected"]), row["unit"]).quantize(
+                Decimal("0.001")
+            )
+        )
+        po = by_item.get(row["item"])
+        if po is not None:
+            label = po.number or "Draft PO"
+            row["cover"] = {
+                "kind": "po",
+                "text": label,
+                "order": po.pk,
+                "supplier": po.supplier.name,
+            }
+        elif note["action"] != "ok":
+            short = stock.in_unit(items[row["item"]], Decimal(note["short"]), row["unit"])
+            text = {
+                "make": f"To make {_plain(short.quantize(Decimal('0.001')))}",
+                "transfer": "To transfer",
+                "no_supplier": "No supplier",
+                "failed": "No PO made",
+                "unplanned": "Short, not planned",
+                "po": "PO cancelled",
+            }.get(note["action"], "")
+            row["cover"] = {"kind": note["action"], "text": text, "order": None}
+        else:
+            row["cover"] = {"kind": "ok", "text": "In stock", "order": None}
+    briefs = [
+        {
+            "id": po.pk,
+            "number": po.number,
+            "status": po.status,
+            "status_label": po.get_status_display(),
+            "supplier_name": po.supplier.name,
+            "expected_date": po.expected_date,
+        }
+        for po in pos
+    ]
+    return briefs, list(o.shortages or [])
 
 
 def _orders(company):
@@ -637,6 +696,11 @@ def _submit(o: SalesOrder, user) -> None:
     from selling import picking
 
     picking.make(o, user)
+    # Draft purchase orders for what the branch buys and will run short of
+    # (Sidharth, 2026-11-21); items to make are noted until manufacturing is built.
+    from buying import planning
+
+    planning.for_sales_order(o, user)
 
 
 def _order(request, pk: int, lock: bool = False) -> SalesOrder:
@@ -752,6 +816,25 @@ class OrderSubmitView(APIView):
         if refused := attachments.refuse_submit(o, "sales_order"):
             return refused
         _submit(o, request.user)
+        return Response(_fresh(o))
+
+
+class OrderPlanView(APIView):
+    """POST: "Purchase Orders for Shortages" on a submitted order: the check
+    Submit runs, again (e.g. after a line is added or a draft PO was cancelled).
+    Goods already on order count as Incoming, so nothing is ordered twice."""
+
+    permission_classes = [Signed]
+
+    @tenant_atomic()
+    def post(self, request, pk: int):
+        _check(request, SUBMIT)
+        o = _order(request, pk, lock=True)
+        if o.status not in SalesOrder.OPEN:
+            raise ValidationError({"detail": "Only an open, submitted order is planned."})
+        from buying import planning
+
+        planning.for_sales_order(o, request.user)
         return Response(_fresh(o))
 
 

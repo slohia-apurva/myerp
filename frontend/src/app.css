@@ -4131,6 +4131,10 @@ table.pick .col-search input {
   gap: 12px;
   margin-bottom: 10px;
 }
+.shortage-note ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
 .pick-note.all-in {
   background: #eef7f1;
   border-color: #b9dcc7;

@@ -41,6 +41,10 @@ type Line = {
   pending_qty: string;
   stock: boolean;
   in_stock?: string;
+  /** After Submit: In Stock - Reserved + Incoming at the branch, in the line's unit. */
+  expected?: string;
+  /** What covers a shortage: a draft PO made on Submit, "To make", or "In stock". */
+  cover?: { kind: string; text: string; order: number | null; supplier?: string };
   customer_code?: string;
   closed_at: string | null;
   closed_by_name: string;
@@ -111,6 +115,24 @@ type SalesOrder = {
   /** Made on Submit (Sidharth, 2026-11-19): the newest is the one that counts. */
   pick_lists?: PickBrief[];
   delivery_notes?: { id: number; number: string; status: string; status_label: string }[];
+  /** Draft purchase orders made for its shortages (Sidharth, 2026-11-21). */
+  purchase_orders?: { id: number; number: string; status: string; status_label: string; supplier_name: string; expected_date: string | null }[];
+  shortages?: Shortage[];
+};
+type Shortage = {
+  item: number;
+  item_name: string;
+  stock_unit: string;
+  expected: string;
+  short: string;
+  safety?: string;
+  action: string;
+  order: number | null;
+  message: string;
+  qty?: string;
+  unit_name?: string;
+  supplier_name?: string;
+  by?: string;
 };
 type Customer = {
   id: number;
@@ -221,7 +243,7 @@ const printMenu = (id: number | null) => [
 
 /** "Create ▾" on a submitted order: the documents that follow from it, built one by one.
  * "Pick List" makes a new one only when the order has no open or picked list. */
-const nextDocs = (makePick: (() => void) | null, makeNote: (() => void) | null) => [
+const nextDocs = (makePick: (() => void) | null, makeNote: (() => void) | null, planShort: (() => void) | null) => [
   {
     label: "Pick List",
     onClick: () => makePick?.(),
@@ -234,6 +256,13 @@ const nextDocs = (makePick: (() => void) | null, makeNote: (() => void) | null) 
     disabled: !makeNote,
     title: makeNote ? undefined : "Made from a picked pick list: submit the pick list first",
   },
+  {
+    label: "Purchase Orders for Shortages",
+    onClick: () => planShort?.(),
+    disabled: !planShort,
+    title: "Runs the check again, e.g. after a line is added; goods already on order are not ordered twice",
+  },
+  { label: "Manufacturing Orders (coming later)", disabled: true },
   { label: "Sales Invoice (coming later)", disabled: true },
 ];
 
@@ -1230,6 +1259,19 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
       ? () => makeDeliveryNote(companyId, livePick.id).catch((err) => setError(err))
       : null;
   const pickHref = (pid: number) => `#/companies/${companyId}/pick-lists?view=${pid}`;
+  const poHref = (pid: number) => `#/companies/${companyId}/purchase-orders?view=${pid}`;
+  const pos = (order.purchase_orders ?? []).filter((p) => p.status !== "cancelled");
+  const shortages = (order.shortages ?? []).filter((n) => n.action !== "ok");
+  const planned = (order.shortages ?? []).length > 0;
+  const planShort = async () => {
+    setError("");
+    try {
+      await api(`v1/sales-orders/${order.id}/plan/`, {});
+      reload();
+    } catch (err) {
+      setError(err);
+    }
+  };
   const makePick = async () => {
     setError("");
     try {
@@ -1297,7 +1339,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Submit
               </button>
             )}
-            {open && <ActionsMenu label="Create" main items={nextDocs(livePick || !can("create") ? null : makePick, makeNote)} />}
+            {open && <ActionsMenu label="Create" main items={nextDocs(livePick || !can("create") ? null : makePick, makeNote, can("submit") ? planShort : null)} />}
           </>
         }
       />
@@ -1347,6 +1389,44 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               </button>
             </div>
           )}
+          {!draft && order.status !== "cancelled" && shortages.length > 0 && (
+            <div className="use-note pick-note shortage-note">
+              <span>
+                <b>Shortages planned on Submit:</b>
+                <ul>
+                  {shortages.map((n) => (
+                    <li key={n.item}>
+                      {n.item_name}: Expected {n.expected} {n.stock_unit}
+                      {Number(n.safety) > 0 && `, below its safety stock of ${n.safety}`}
+                      {" → "}
+                      {n.action === "po" && n.order ? (
+                        <>
+                          <a href={poHref(n.order)} target="_blank" rel="noreferrer">
+                            draft Purchase Order
+                          </a>{" "}
+                          to {n.supplier_name} for {n.qty} {n.unit_name}
+                          {n.by && `, Expected Delivery ${showDate(n.by)}`}
+                        </>
+                      ) : n.action === "make" ? (
+                        "Manufacture: no order yet. Once Bills of Materials and Manufacturing Orders are built, Submit makes a Manufacturing Order here, and draft POs for any material that is short"
+                      ) : n.action === "transfer" ? (
+                        "Transfer from another branch: no order yet (Stock Transfers come later)"
+                      ) : n.action === "unplanned" ? (
+                        "no Stock Planning line or Main Fulfilment on the item, so nothing was ordered"
+                      ) : (
+                        `no purchase order made: ${n.message}`
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </span>
+              {pos.length === 1 && (
+                <button type="button" className="link" onClick={() => openTab(poHref(pos[0].id))}>
+                  Open Purchase Order
+                </button>
+              )}
+            </div>
+          )}
           {!draft && order.status !== "cancelled" && (
             <div className="doc-counts no-print" aria-label="Documents made from this order">
               <a className={picks.length ? "" : "none"} href={livePick ? pickHref(livePick.id) : `#/companies/${companyId}/pick-lists`} target="_blank" rel="noreferrer">
@@ -1360,6 +1440,18 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               >
                 <b>{notes.length}</b> {notes.length === 1 ? "Delivery Note" : "Delivery Notes"}
               </a>
+              <a
+                className={pos.length ? "" : "none"}
+                href={pos.length === 1 ? poHref(pos[0].id) : `#/companies/${companyId}/purchase-orders`}
+                target="_blank"
+                rel="noreferrer"
+                title={pos.map((p) => `${p.number || "Draft"} · ${p.supplier_name} · ${p.status_label}`).join("\n")}
+              >
+                <b>{pos.length}</b> {pos.length === 1 ? "Purchase Order" : "Purchase Orders"}
+              </a>
+              <span className="none">
+                <b>0</b> Mfg Orders
+              </span>
               <span className="none">
                 <b>0</b> Invoices
               </span>
@@ -1449,6 +1541,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                     <th className="num">GST %</th>
                     <th className="num">Amount ₹</th>
                     {order.status !== "cancelled" && <th className="num">In Stock</th>}
+                    {planned && order.status !== "cancelled" && <th className="num">Expected</th>}
+                    {planned && order.status !== "cancelled" && <th>Covered By</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1473,6 +1567,21 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                         <td className="num">{l.gst_rate}</td>
                         <td className="num">{money(l.amount)}</td>
                         {order.status !== "cancelled" && <td className={short ? "num error" : "num"}>{l.stock ? `${l.in_stock ?? ""} ${l.unit_name}` : "–"}</td>}
+                        {planned && order.status !== "cancelled" && (
+                          <td className={l.cover && l.cover.kind !== "ok" ? "num error" : "num"}>{l.expected ?? "–"}</td>
+                        )}
+                        {planned && order.status !== "cancelled" && (
+                          <td>
+                            {l.cover &&
+                              (l.cover.order ? (
+                                <a className="pill on" href={poHref(l.cover.order)} target="_blank" rel="noreferrer" title={l.cover.supplier}>
+                                  {l.cover.text}
+                                </a>
+                              ) : (
+                                <span className={l.cover.kind === "ok" ? "pill" : "pill warn"}>{l.cover.text}</span>
+                              ))}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1492,6 +1601,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                       <b>{money(sumOf(order.lines, "amount"))}</b>
                     </td>
                     {order.status !== "cancelled" && <td />}
+                    {planned && order.status !== "cancelled" && <td colSpan={2} />}
                   </tr>
                 </tfoot>
               </table>

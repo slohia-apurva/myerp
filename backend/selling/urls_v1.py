@@ -26,6 +26,7 @@ urlpatterns = [
     ),
     path("sales-orders/<int:pk>/", api.OrderDetailView.as_view(), name="sales-order"),
     path("sales-orders/<int:pk>/submit/", api.OrderSubmitView.as_view(), name="sales-order-submit"),
+    path("sales-orders/<int:pk>/plan/", api.OrderPlanView.as_view(), name="sales-order-plan"),
     path("sales-orders/<int:pk>/cancel/", api.OrderCancelView.as_view(), name="sales-order-cancel"),
     path(
         "sales-orders/<int:pk>/lines/<int:line>/close/",
