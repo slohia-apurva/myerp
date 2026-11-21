@@ -256,6 +256,18 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
               </div>
             </div>
           )}
+          {props.purchase !== false && props.orders && (
+            <div className={`menu-sub${sub === "planning" ? " open" : ""}`}>
+              <button type="button" aria-haspopup="true" aria-expanded={sub === "planning"} onClick={() => setSub(sub === "planning" ? "" : "planning")}>
+                Planning <span aria-hidden="true">▸</span>
+              </button>
+              <div className="menu-flyout" role="menu" aria-label="Planning">
+                <a role="menuitem" href={`#/companies/${id}/stock-check`} onClick={() => setOpen(false)}>
+                  Stock Check
+                </a>
+              </div>
+            </div>
+          )}
           {props.purchase !== false && (
           <div className={`menu-sub${sub === "purchase" ? " open" : ""}`}>
             <button type="button" aria-haspopup="true" aria-expanded={sub === "purchase"} onClick={() => setSub(sub === "purchase" ? "" : "purchase")}>

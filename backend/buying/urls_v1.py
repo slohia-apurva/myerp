@@ -5,6 +5,7 @@ from buying import (
     debit_notes,
     direct_bills,
     invoices,
+    planning,
     receipts,
     returns,
     supplementary,
@@ -228,5 +229,15 @@ urlpatterns = [
         "tds-adjustments/<int:pk>/ledger-posting/",
         tds_check.AdjustmentPostingView.as_view(),
         name="tds-adjustment-posting",
+    ),
+    path(
+        "companies/<int:pk>/stock-check/",
+        planning.StockCheckView.as_view(),
+        name="stock-check",
+    ),
+    path(
+        "companies/<int:pk>/stock-check/orders/",
+        planning.StockCheckOrdersView.as_view(),
+        name="stock-check-orders",
     ),
 ]

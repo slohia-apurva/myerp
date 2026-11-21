@@ -29,6 +29,7 @@ import { CountriesPage } from "./Countries";
 import { PinCodesPage } from "./PinCodes";
 import { RequestAdditionPage } from "./RequestAddition";
 import { HelpPage, helpTopicFor } from "./help/Help";
+import { StockCheckPage } from "./StockCheck";
 import { AdminMenu, CompanyPicker, EntryMenu, MastersMenu, ReportsMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
 import { StockLedgerPage, StockSummaryPage } from "./Reports";
 import { LedgerStatementPage, TrialBalancePage } from "./Books";
@@ -145,7 +146,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             />
           )}
           {((canReceive && current.company?.modules.includes("purchase")) || (canSeeSales && current.company?.modules.includes("sales"))) && current.company && (
-            <EntryMenu purchase={canReceive && current.company.modules.includes("purchase")} sales={canSeeSales && current.company.modules.includes("sales")} active={page === "companies" && (sub === "sales-orders" || sub === "pick-lists" || sub === "delivery-notes" || sub === "sales-invoices" || sub === "credit-notes" || sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments" || sub === "tds-check")} company={current.company} orders={canSeePurchase} tds={canSeeBooks || session.user.is_owner} />
+            <EntryMenu purchase={canReceive && current.company.modules.includes("purchase")} sales={canSeeSales && current.company.modules.includes("sales")} active={page === "companies" && (sub === "sales-orders" || sub === "pick-lists" || sub === "delivery-notes" || sub === "sales-invoices" || sub === "credit-notes" || sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments" || sub === "tds-check" || sub === "stock-check")} company={current.company} orders={canSeePurchase} tds={canSeeBooks || session.user.is_owner} />
           )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
@@ -155,7 +156,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )}
           {(session.user.is_owner || canMigrate) && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || page === "migration" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", ...REPORTS].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || page === "migration" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", "stock-check", ...REPORTS].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
               canMigrate={canMigrate}
@@ -206,6 +207,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <CreditNotesPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "sales-orders" && canSeeSales ? (
           <SalesOrdersPage key={id} companyId={id} session={session} />
+        ) : page === "companies" && id && sub === "stock-check" && canSeePurchase ? (
+          <StockCheckPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "purchase-orders" && canSeePurchase ? (
           <PurchaseOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "purchase-invoices" && canSeePurchase ? (
