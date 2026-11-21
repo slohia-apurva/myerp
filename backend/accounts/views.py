@@ -17,9 +17,16 @@ from rest_framework.views import APIView
 from accounts import google
 from accounts.models import User
 from core.central import is_platform_admin
+from tenancy.context import current_tenant
 
 FAILED = "Google sign-in did not work. Please try again."
 NOT_SET_UP = "Google sign-in is not set up for this address yet."
+
+
+def _migration_tools() -> bool:
+    """Whether Admin > Migration Tools is on for this customer."""
+    tenant = current_tenant()
+    return bool(tenant and tenant.migration_tools)
 
 
 def session_state(request) -> dict:
@@ -35,6 +42,7 @@ def session_state(request) -> dict:
                 "is_platform_admin": is_platform_admin(user),
             },
             "permissions": sorted(user.permission_codes()),
+            "migration_tools": _migration_tools(),
         }
     return {"signed_in": False, "google_client_id": settings.MYERP_GOOGLE_CLIENT_ID}
 

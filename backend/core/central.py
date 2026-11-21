@@ -104,6 +104,7 @@ class CentralView(APIView):
                         "name": t.name,
                         "status": t.get_status_display(),
                         "created": t.created_at.date().isoformat(),
+                        "migration_tools": t.migration_tools,
                     }
                     for t in Tenant.objects.all()
                 ],
@@ -629,3 +630,22 @@ class TenantCreateView(APIView):
             {"slug": tenant.slug, "name": tenant.name, "owner": email},
             status=status.HTTP_201_CREATED,
         )
+
+
+class TenantDetailView(APIView):
+    """PATCH a customer's switches: {"migration_tools": true/false}."""
+
+    permission_classes = [Signed]
+
+    def patch(self, request, slug: str):
+        _platform_admin(request)
+        tenant = Tenant.objects.filter(slug=slug).first()
+        if tenant is None:
+            raise NotFound("No such customer.")
+        if "migration_tools" in request.data:
+            value = request.data["migration_tools"]
+            if not isinstance(value, bool):
+                raise ValidationError({"migration_tools": ["Say true or false."]})
+            tenant.migration_tools = value
+            tenant.save(update_fields=["migration_tools"])
+        return Response({"slug": tenant.slug, "migration_tools": tenant.migration_tools})

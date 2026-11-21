@@ -210,3 +210,36 @@ def test_not_an_erpnext_file(owner):
         HTTP_HOST=HOST,
     )
     assert res.status_code == 400 and "not an ERPNext Item export" in res.json()["detail"]
+
+
+def test_migration_tools_switch(owner, alpha, settings):
+    """Central › Customers: platform admins switch Migration Tools off after the
+    cutover; the session tells the menu, and the server refuses the imports."""
+    settings.MYERP_PLATFORM_ADMINS = "owner@x.in"
+    session = owner.get("/api/auth/session/", HTTP_HOST=HOST).json()
+    assert session["migration_tools"] is True
+    tenants = owner.get("/api/v1/central/", HTTP_HOST=HOST).json()["tenants"]
+    assert next(t for t in tenants if t["slug"] == "alpha")["migration_tools"] is True
+
+    res = owner.patch(
+        "/api/v1/central/tenants/alpha/",
+        data='{"migration_tools": false}',
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert res.json() == {"slug": "alpha", "migration_tools": False}
+    assert owner.get("/api/auth/session/", HTTP_HOST=HOST).json()["migration_tools"] is False
+    res = send_erpnext(owner, GOOD)
+    assert res.status_code == 403 and "switched off" in res.json()["detail"]
+
+    # Only platform admins may change it.
+    settings.MYERP_PLATFORM_ADMINS = "someone@else.in"
+    res = owner.patch(
+        "/api/v1/central/tenants/alpha/",
+        data='{"migration_tools": true}',
+        content_type="application/json",
+        HTTP_HOST=HOST,
+    )
+    assert res.status_code == 403
+    alpha.refresh_from_db()
+    assert alpha.migration_tools is False

@@ -67,6 +67,7 @@ def test_added_person_signs_in_with_google(client, alpha, sidharth, google):
             "is_platform_admin": False,
         },
         "permissions": [],
+        "migration_tools": True,
     }
     assert client.get("/api/whoami/", HTTP_HOST=HOST).json()["tenant"] == "alpha"
     with use_tenant(alpha):

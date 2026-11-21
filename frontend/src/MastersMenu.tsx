@@ -178,7 +178,7 @@ export function ReportsMenu(props: { active: boolean; company: Company; stock: b
 }
 
 /** "Admin" in the top menu, for Owners only: companies, users and roles. */
-export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canManageUsers: boolean }) {
+export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canManageUsers: boolean; canMigrate: boolean; isOwner: boolean }) {
   return (
     <DropMenu
       label="Admin"
@@ -187,7 +187,8 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
         ["Company", "#/companies", props.canSeeMasters],
         ["Users", "#/users", props.canManageUsers],
         ["User roles", "#/roles", props.canManageUsers],
-        ["Reset data", "#/reset", true],
+        ["Migration Tools", "#/migration", props.canMigrate],
+        ["Reset data", "#/reset", props.isOwner],
       ]}
     />
   );

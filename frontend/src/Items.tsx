@@ -4,7 +4,7 @@ import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
-import { useExchange, type ImportSource } from "./Exchange";
+import { useExchange } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { HsnDescription, HsnPicker } from "./Hsn";
 import { RequestAdditionLink } from "./RequestAddition";
@@ -20,22 +20,6 @@ import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLine
 import { ColumnSearch } from "./ColumnSearch";
 import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts, type ItemAccount } from "./ItemAccounts";
 import { useReturns } from "./Refresh";
-
-/** Item files from other programs the import reads as they are (Sidharth, 2026-11-21). */
-const ITEM_SOURCES: ImportSource[] = [
-  {
-    key: "erpnext",
-    label: "ERPNext item export",
-    help: (
-      <>
-        In ERPNext open the Item list, then Menu › Export: tick "Select All" and the child tables "UOMs" and "Taxes",
-        file type Excel. Upload that file as it is. Each item keeps its ERPNext code as its item number. Item groups
-        and brands must already be in MyERP (matched by name); HSN codes are checked against the HSN list.
-        Description and safety stock, lead time and minimum order are left out.
-      </>
-    ),
-  },
-];
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -251,7 +235,7 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
     setQuery("");
     setSelectedId(c.id);
   });
-  const io = useExchange({ master: "items", noun: "items", session, onImported: reload, sources: ITEM_SOURCES });
+  const io = useExchange({ master: "items", noun: "items", session, onImported: reload });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (openId && items.some((i) => i.id === openId)) {

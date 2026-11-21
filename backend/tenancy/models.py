@@ -30,6 +30,10 @@ class Tenant(models.Model):
     db_host = models.CharField(max_length=255, blank=True)
     db_port = models.PositiveIntegerField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    # Admin > Migration Tools (imports from ERPNext and the like): on while a
+    # customer moves its data in, unticked by platform admins after cutover
+    # (Sidharth, 2026-11-21).
+    migration_tools = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

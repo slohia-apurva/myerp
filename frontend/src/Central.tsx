@@ -15,7 +15,7 @@ type Info = {
     count: number;
     open: string;
   }[];
-  tenants: { slug: string; name: string; status: string; created: string }[];
+  tenants: { slug: string; name: string; status: string; created: string; migration_tools: boolean }[];
 };
 
 /** Central: for MyERP platform admins. The tables kept once for every customer, and the customers. */
@@ -77,6 +77,7 @@ export function CentralPage() {
               <th>Short name</th>
               <th>Status</th>
               <th>Created</th>
+              <th>Migration Tools</th>
             </tr>
           </thead>
           <tbody>
@@ -86,11 +87,30 @@ export function CentralPage() {
                 <td>{t.slug}</td>
                 <td>{t.status}</td>
                 <td>{t.created}</td>
+                <td>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={t.migration_tools}
+                      onChange={(e) =>
+                        api(`v1/central/tenants/${t.slug}/`, { migration_tools: e.target.checked }, "PATCH").then(
+                          reload,
+                          (err) => setError(String(err.message ?? err)),
+                        )
+                      }
+                    />
+                    {t.migration_tools ? "On" : "Off"}
+                  </label>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </Section>
+          <p className="small">
+            "Migration Tools" shows Admin › Migration Tools (imports from ERPNext) to that customer. Untick it after the
+            customer's cutover; tick it again any time.
+          </p>
           <NewCustomer onDone={reload} />
         </>
       )}

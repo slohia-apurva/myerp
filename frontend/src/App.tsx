@@ -10,6 +10,7 @@ import { ItemsPage } from "./Items";
 import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
 import { DataResetPage } from "./DataReset";
+import { MigrationToolsPage } from "./MigrationTools";
 import { HsnPage } from "./Hsn";
 import { UnitsPage } from "./Units";
 import { RolesPage, UsersPage } from "./Users";
@@ -47,7 +48,7 @@ import { TdsCheckPage } from "./TdsCheck";
 import { NotificationBell } from "./Notifications";
 import { SupplierReplyPage } from "./SupplierReply";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "hsn" | "reset" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "hsn" | "reset" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 /** The screens under "Reports" in the top menu. */
 const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement"];
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -58,7 +59,7 @@ function routeFromHash(): Route {
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
   if (page === "bins") return { page, id: Number(id) || undefined };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "reset" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "reset" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
 }
 
 export function App() {
@@ -107,6 +108,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const canManageUsers = session.permissions.includes("users.manage");
+  const canMigrate = Boolean(session.migration_tools) && session.permissions.includes("masters.edit") && session.permissions.includes("masters.import");
   const canSeeMasters = session.permissions.includes("masters.view");
   const canSeeShipments = session.permissions.some((p) => p === "sales.view" || p === "stock.view");
   const canSeePurchase = session.permissions.includes("purchase.view");
@@ -151,11 +153,13 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {(canSeeStock || canSeeBooks) && current.company && (
             <ReportsMenu active={page === "companies" && REPORTS.includes(sub ?? "")} company={current.company} stock={canSeeStock} books={canSeeBooks} />
           )}
-          {session.user.is_owner && (
+          {(session.user.is_owner || canMigrate) && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", ...REPORTS].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || page === "migration" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", ...REPORTS].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
+              canMigrate={canMigrate}
+              isOwner={session.user.is_owner}
             />
           )}
           {session.user.is_platform_admin && link("central", "Central")}
@@ -244,6 +248,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <ItemsPage session={session} company={current.company} />
         ) : page === "reset" && session.user.is_owner ? (
           <DataResetPage session={session} />
+        ) : page === "migration" && canMigrate ? (
+          <MigrationToolsPage session={session} />
         ) : page === "central" && session.user.is_platform_admin ? (
           <CentralPage />
         ) : page === "request-addition" && canSeeMasters ? (
