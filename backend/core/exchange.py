@@ -132,6 +132,13 @@ class Master:
     # Columns of the printed report and PDF (field paths), when not all of
     # them; child sheets always print in full.
     report: tuple[str, ...] = ()
+    # Run once after every row has saved (still inside the import's
+    # transaction), e.g. to move a number series on past imported numbers.
+    after: Callable[[Context], None] | None = None
+    # Other programs' export files this master can read, by name: each turns
+    # the file's sheets into this master's own and gives notes for the person
+    # (see core/erpnext.py).
+    sources: dict[str, Callable[[list], tuple[list, list[str]]]] = field(default_factory=dict)
 
     def _columns(self, fields, prefix: str = "", rel: str = "", group: str = "") -> list[Column]:
         """Columns for these serializer fields. `prefix` is the path from the
@@ -824,6 +831,8 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
                             f"Add the {master.noun} there too."
                         ],
                     )
+        if not errors and master.after is not None:
+            master.after(ctx)
         saved = commit and not errors
         if not saved:
             transaction.set_rollback(True, using=require_tenant().db_alias)
@@ -999,4 +1008,12 @@ class ImportView(APIView):
         if upload.size > MAX_BYTES:
             raise ParseError("The file is too big; import at most 5 MB at a time.")
         tables = read_tables(upload.name, upload.read())
-        return Response(run_import(master, ctx, tables, request.data.get("commit") == "1"))
+        notes: list[str] = []
+        source = request.data.get("source") or ""
+        if source:
+            reader = master.sources.get(source)
+            if reader is None:
+                raise ParseError(f"{master.label} cannot be imported from that kind of file.")
+            tables, notes = reader(tables)
+        out = run_import(master, ctx, tables, request.data.get("commit") == "1")
+        return Response({**out, "notes": notes})

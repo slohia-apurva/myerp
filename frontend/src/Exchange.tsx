@@ -25,6 +25,9 @@ export function useExchange(props: {
   /** Print and PDF the screen's own table (a tree, say) instead of the
    * export's columns. */
   printScreen?: { title: string; scope?: string };
+  /** Other programs' export files the import can read as they are (Items:
+   * ERPNext's Item export), offered under "File Comes From". */
+  sources?: ImportSource[];
 }): { buttons: ReactNode; panel: ReactNode } {
   const screen = usePrintMenu(props.printScreen ?? { title: "" });
   const perms = props.session.permissions;
@@ -298,6 +301,8 @@ export type PrintSheet = {
   sheets: { title: string; columns: string[]; rows: string[][]; right?: boolean[] }[];
 };
 
+export type ImportSource = { key: string; label: string; help: ReactNode };
+
 type Outcome = {
   rows: number;
   new: number;
@@ -305,6 +310,8 @@ type Outcome = {
   same: number;
   errors: { sheet: string; row: number; messages: string[] }[];
   saved: boolean;
+  /** What the server says about a file from another program (columns left out, say). */
+  notes?: string[];
 };
 
 function plural(n: number, word: string) {
@@ -316,10 +323,13 @@ function ImportForm(props: {
   noun: string;
   company?: number;
   template: string;
+  sources?: ImportSource[];
   onImported: () => void;
   onClose: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [source, setSource] = useState("");
+  const from = props.sources?.find((s) => s.key === source);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -331,6 +341,7 @@ function ImportForm(props: {
     const form = new FormData();
     form.append("file", file);
     form.append("commit", commit ? "1" : "0");
+    if (source) form.append("source", source);
     if (props.company) form.append("company", String(props.company));
     try {
       const out = await upload<Outcome>(`v1/exchange/${props.master}/import/`, form);
@@ -360,6 +371,30 @@ function ImportForm(props: {
     <form className="card" onSubmit={check}>
       <h4>Import {props.noun} from a file</h4>
       <Section title="File">
+        {props.sources && props.sources.length > 0 && (
+          <div className="kind-pick">
+            <span className="fact-label">File Comes From</span>
+            <div className="checks" role="radiogroup" aria-label="File Comes From">
+              {[{ key: "", label: "MyERP export or template" }, ...props.sources].map((s) => (
+                <label key={s.key} className="check">
+                  <input
+                    type="radio"
+                    name="import-source"
+                    checked={source === s.key}
+                    onChange={() => {
+                      setSource(s.key);
+                      setOutcome(null);
+                    }}
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        {from ? (
+          <p className="small">{from.help}</p>
+        ) : (
         <p className="small">
           Start from "Export" (it has every column, and the ID that tells MyERP which record to change) or from the{" "}
           <a href={props.template} download>
@@ -368,6 +403,7 @@ function ImportForm(props: {
           . Leave the ID empty for a new one. Excel (.xlsx) or CSV. MyERP checks every row the way the form does, and
           saves nothing until every row is right.
         </p>
+        )}
         <label>
           File to import
           <input
@@ -410,6 +446,11 @@ function ImportForm(props: {
           ) : (
             <p className="small">Nothing is saved yet. Press "Import" to save these rows.</p>
           )}
+          {outcome.notes?.map((n) => (
+            <p key={n} className="small warn">
+              ⚠ {n}
+            </p>
+          ))}
         </Section>
       )}
       {outcome?.saved && (

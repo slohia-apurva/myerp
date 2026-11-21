@@ -13,6 +13,7 @@ Rules kept here:
   (`gst_rate_on` gives the rate for a day).
 """
 
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -23,7 +24,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit import recorder
-from core import duplicates, exchange
+from core import duplicates, erpnext, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.gst_rates import refuse_unlisted_rates
 from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
@@ -38,7 +39,7 @@ from core.models import (
     PartyItemName,
     Unit,
 )
-from core.numbering import next_number
+from core.numbering import follow_numbers, next_number
 from core.tds_sections import check_section
 from tenancy.context import tenant_atomic
 from tenancy.models import HsnCode
@@ -291,7 +292,34 @@ def _check_rates(rates: list[dict]) -> list[dict]:
     return sorted(rates, key=lambda r: r["valid_from"])
 
 
+ITEM_NUMBER = re.compile(r"[A-Za-z0-9/._-]+")
+
+
+def _take_number(item: Item, number: str | None) -> None:
+    """An item number given in an import file (an ERPNext item code, say):
+    used as it is. Empty leaves the item's number, or gives a new item the next
+    one of the series."""
+    number = (number or "").strip()
+    if not number or number == item.item_number:
+        return
+    if not ITEM_NUMBER.fullmatch(number):
+        raise ValidationError(
+            {"item_number": ["Use only letters, digits and - / . _ in an item number."]}
+        )
+    clash = Item.objects.filter(item_number__iexact=number).exclude(pk=item.pk).first()
+    if clash is not None:
+        duplicates.refuse(
+            "item_number",
+            f'The item number {clash.item_number} is already on the item "{clash.name}".',
+            clash,
+            "item",
+            name=clash.name,
+        )
+    item.item_number = number
+
+
 def _save_item(item: Item, data: dict) -> Item:
+    _take_number(item, data.pop("item_number", None))
     rows = data.pop("units", None)
     rates = data.pop("gst_rates", None)
     party_names = data.pop("party_names", None)
@@ -563,6 +591,20 @@ def _save_party_names(item: Item, rows: list[dict]) -> None:
     )
 
 
+class ItemImportSerializer(ItemSerializer):
+    """The item as an import file has it: the form's fields, and the item
+    number may be given (kept from the system the items come from)."""
+
+    item_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    class Meta(ItemSerializer.Meta):
+        read_only_fields = []
+
+
+def _follow_item_numbers(ctx) -> None:
+    follow_numbers("item", Item.objects.values_list("item_number", flat=True))
+
+
 def _queryset():
     return Item.objects.select_related(
         "stock_unit", "sales_unit", "purchase_unit"
@@ -574,10 +616,11 @@ exchange.register(
         key="items",
         label="Items",
         noun="item",
-        serializer=ItemSerializer,
+        serializer=ItemImportSerializer,
         queryset=lambda ctx: _queryset().order_by("name"),
         save=lambda ctx, item, data: _save_item(item or Item(), data),
-        show=("item_number",),
+        after=_follow_item_numbers,
+        sources={"erpnext": erpnext.item_tables},
         labels={
             "stock_unit": "Default unit (stock unit)",
             "mrp": "MRP (₹)",
@@ -622,6 +665,8 @@ exchange.register(
             "gst_rates.rate": "GST rate (%)",
         },
         hints={
+            "item_number": "Leave empty for the next number; or give the item's code "
+            "from your old system (new items then carry on after the highest)",
             "best_before_value": "A number: manufacturing date plus this is the best-before date",
             "safety_stock_qty": "In the default unit",
             "min_order_qty": "In the default unit",
