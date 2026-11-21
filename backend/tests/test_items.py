@@ -356,20 +356,18 @@ def test_sales_and_purchase_tab_fields(accountant, unit):
         best_before_unit="months",
         batch_no="  B-2627  ",
         lead_time_days=14,
-        safety_stock_qty="50",
         min_order_qty="100",
-        max_stock_qty="500",
     )
     assert made.status_code == 201, made.json()
     item = made.json()
     assert item["mrp"] == "125.50" and item["batch_no"] == "B-2627"
     assert (item["best_before_value"], item["best_before_unit"]) == (12, "months")
-    assert item["lead_time_days"] == 14 and item["max_stock_qty"] == "500.000000"
+    assert item["lead_time_days"] == 14 and item["min_order_qty"] == "100.000000"
     assert "sales_name" not in item and "purchase_name" not in item
     assert "shelf_life_days" not in item
-    # the maximum cannot be below the safety stock; no negative quantities
+    # no negative quantities
     path = f"items/{item['id']}/"
-    assert call(accountant, "patch", path, {"max_stock_qty": "10"}).status_code == 400
+    assert call(accountant, "patch", path, {"min_order_qty": "-1"}).status_code == 400
     assert call(accountant, "patch", path, {"mrp": "-1"}).status_code == 400
     assert call(accountant, "patch", path, {"best_before_unit": "years"}).status_code == 400
     # the defaults for an item with none of them

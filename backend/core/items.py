@@ -10,7 +10,11 @@ Rules kept here:
 - the sales and purchase names are blank when they are the item name;
 - the default sales and purchase units must be among the item's units;
 - GST rates are dated rows: one per "from" date, a new law means a new row
-  (`gst_rate_on` gives the rate for a day).
+  (`gst_rate_on` gives the rate for a day);
+- Stock Planning (Sidharth, 2026-11-21): one line per branch with how that
+  branch fills a shortage (buy, make, transfer from another branch of the
+  same company, or the customer's goods), its safety stock and the level a
+  refill brings it up to; the "Preferred Supplier" is one of the suppliers.
 """
 
 import re
@@ -30,10 +34,12 @@ from core.gst_rates import refuse_unlisted_rates
 from core.locks import lock_status, refuse_key_changes, refuse_move_outside_top
 from core.models import (
     USED_FOR,
+    Branch,
     Brand,
     Item,
     ItemGroup,
     ItemGstRate,
+    ItemPlan,
     ItemUnit,
     Party,
     PartyItemName,
@@ -124,6 +130,39 @@ class ItemGstRateSerializer(serializers.ModelSerializer):
         fields = ["valid_from", "rate"]
 
 
+class ItemPlanSerializer(serializers.ModelSerializer):
+    """Stock planning at one branch: fulfilment, safety stock and refill level."""
+
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all())
+    branch_name = serializers.CharField(source="branch.name", read_only=True)
+    company_name = serializers.CharField(source="branch.company.name", read_only=True)
+    transfer_from = serializers.PrimaryKeyRelatedField(
+        queryset=Branch.objects.all(), allow_null=True, required=False
+    )
+    transfer_from_name = serializers.CharField(
+        source="transfer_from.name", read_only=True, default=None
+    )
+    safety_qty = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=0)
+    order_up_to = serializers.DecimalField(
+        max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
+    )
+    transfer_days = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+
+    class Meta:
+        model = ItemPlan
+        fields = [
+            "branch",
+            "branch_name",
+            "company_name",
+            "fulfilment",
+            "transfer_from",
+            "transfer_from_name",
+            "transfer_days",
+            "safety_qty",
+            "order_up_to",
+        ]
+
+
 class ItemSerializer(serializers.ModelSerializer):
     stock_unit = serializers.PrimaryKeyRelatedField(queryset=Unit.objects.all())
     stock_unit_name = serializers.CharField(source="stock_unit.name", read_only=True)
@@ -148,15 +187,16 @@ class ItemSerializer(serializers.ModelSerializer):
     mrp = serializers.DecimalField(
         max_digits=18, decimal_places=2, min_value=0, allow_null=True, required=False
     )
-    safety_stock_qty = serializers.DecimalField(
-        max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
-    )
     min_order_qty = serializers.DecimalField(
         max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
     )
-    max_stock_qty = serializers.DecimalField(
-        max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
+    preferred_supplier = serializers.PrimaryKeyRelatedField(
+        queryset=Party.objects.all(), allow_null=True, required=False
     )
+    preferred_supplier_name = serializers.CharField(
+        source="preferred_supplier.name", read_only=True, default=None
+    )
+    plans = ItemPlanSerializer(many=True, required=False)
     units = ItemUnitSerializer(many=True, required=False)
     gst_rates = ItemGstRateSerializer(many=True, required=False)
     party_names = PartyItemNameSerializer(many=True, required=False)
@@ -189,9 +229,9 @@ class ItemSerializer(serializers.ModelSerializer):
             "best_before_unit",
             "batch_no",
             "lead_time_days",
-            "safety_stock_qty",
             "min_order_qty",
-            "max_stock_qty",
+            "preferred_supplier",
+            "preferred_supplier_name",
             "batch_tracked",
             "qc_required",
             "default_request_type",
@@ -208,6 +248,7 @@ class ItemSerializer(serializers.ModelSerializer):
             "units",
             "gst_rates",
             "party_names",
+            "plans",
             "warnings",
             "lock",
         ]
@@ -323,6 +364,7 @@ def _save_item(item: Item, data: dict) -> Item:
     rows = data.pop("units", None)
     rates = data.pop("gst_rates", None)
     party_names = data.pop("party_names", None)
+    plans = data.pop("plans", None)
     refuse_key_changes("item", item, data)
     if "item_group" in data:
         refuse_move_outside_top(
@@ -337,6 +379,8 @@ def _save_item(item: Item, data: dict) -> Item:
             kind="item",
             message='There is already an item named "{name}".',
         )
+    if "preferred_supplier" in data:
+        _check_supplier(item, data["preferred_supplier"], item.preferred_supplier_id)
     brand = data.get("brand")
     if brand is not None and not brand.is_active and brand.pk != item.brand_id:
         raise ValidationError({"brand": [f"{brand.name} is disabled."]})
@@ -365,9 +409,8 @@ def _save_item(item: Item, data: dict) -> Item:
         "best_before_unit",
         "batch_no",
         "lead_time_days",
-        "safety_stock_qty",
         "min_order_qty",
-        "max_stock_qty",
+        "preferred_supplier",
         "batch_tracked",
         "qc_required",
         "default_request_type",
@@ -462,14 +505,6 @@ def _save_item(item: Item, data: dict) -> Item:
         setattr(item, field, text)
     item.usp = " ".join(item.usp.split())
     item.batch_no = item.batch_no.strip()
-    if (
-        item.max_stock_qty is not None
-        and item.safety_stock_qty is not None
-        and item.max_stock_qty < item.safety_stock_qty
-    ):
-        raise ValidationError(
-            {"max_stock_qty": ["The maximum stock cannot be below the safety stock."]}
-        )
     if rows is not None:
         unit_ids = {r["unit"].pk for r in rows}
     elif item.pk:
@@ -544,9 +579,102 @@ def _save_item(item: Item, data: dict) -> Item:
                 ItemGstRate.objects.create(item=item, valid_from=r["valid_from"], rate=r["rate"])
     if party_names is not None:
         _save_party_names(item, party_names)
-    if rows is not None or rates is not None or party_names is not None:
+    if plans is not None:
+        _save_plans(item, plans)
+    elif not item.maintain_stock and item.plans.exists():
+        raise ValidationError(
+            {"plans": ["An item without stock has no stock planning. Remove its branch lines."]}
+        )
+    if not item.default_request_type and item.plans.exists():
+        raise ValidationError(
+            {"default_request_type": ["Pick the Main Fulfilment: the item has branch lines."]}
+        )
+    if any(x is not None for x in (rows, rates, party_names, plans)):
         recorder.touch(item)
     return item
+
+
+def _check_supplier(item: Item, supplier: Party | None, saved_id: int | None) -> None:
+    """The preferred supplier must be a supplier (have a vendor number)."""
+    if supplier is None or supplier.pk == saved_id:
+        return
+    if not supplier.vendor_number:
+        raise ValidationError(
+            {"preferred_supplier": [f"{supplier.name} is not a supplier. Pick a supplier."]}
+        )
+
+
+def _save_plans(item: Item, rows: list[dict]) -> None:
+    """Replace the item's Stock Planning lines. One line per branch; the branch
+    keeps stock; a transfer comes from another stock branch of the same company,
+    and transfers never go round in a circle; the refill level is not below the
+    safety stock."""
+    if rows and not item.maintain_stock:
+        raise ValidationError(
+            {"plans": ["An item without stock has no stock planning. Remove its branch lines."]}
+        )
+    kept = set(item.plans.values_list("branch_id", flat=True)) if item.pk else set()
+    seen: dict[int, dict] = {}
+    for r in rows:
+        branch = r["branch"]
+        if branch.pk in seen:
+            raise ValidationError({"plans": [f"{branch.name} is listed twice."]})
+        seen[branch.pk] = r
+        if branch.no_stock:
+            raise ValidationError({"plans": [f"{branch.name} keeps no stock."]})
+        if not branch.is_active and branch.pk not in kept:
+            raise ValidationError({"plans": [f"{branch.name} is disabled."]})
+        source = r.get("transfer_from")
+        if r["fulfilment"] == ItemPlan.TRANSFER:
+            if source is None:
+                raise ValidationError(
+                    {"plans": [f"{branch.name}: pick the branch it transfers from."]}
+                )
+            if source.pk == branch.pk:
+                raise ValidationError({"plans": [f"{branch.name} cannot transfer from itself."]})
+            if source.company_id != branch.company_id:
+                raise ValidationError(
+                    {
+                        "plans": [
+                            f"{branch.name}: transfers come from a branch of the same "
+                            f"company; {source.name} is not."
+                        ]
+                    }
+                )
+            if source.no_stock:
+                raise ValidationError({"plans": [f"{source.name} keeps no stock."]})
+        else:
+            r["transfer_from"] = None
+            r["transfer_days"] = None
+        up_to = r.get("order_up_to")
+        if up_to is not None and up_to < r["safety_qty"]:
+            raise ValidationError(
+                {"plans": [f"{branch.name}: Order Up To cannot be below the safety stock."]}
+            )
+    for start in seen:
+        path, at = [start], seen[start]
+        while at.get("transfer_from") is not None:
+            nxt = at["transfer_from"].pk
+            if nxt in path:
+                names = ", ".join(seen[b]["branch"].name for b in path)
+                raise ValidationError({"plans": [f"Transfers go round in a circle ({names})."]})
+            path.append(nxt)
+            at = seen.get(nxt, {})
+    item.plans.all().delete()
+    ItemPlan.objects.bulk_create(
+        [
+            ItemPlan(
+                item=item,
+                branch=r["branch"],
+                fulfilment=r["fulfilment"],
+                transfer_from=r.get("transfer_from"),
+                transfer_days=r.get("transfer_days"),
+                safety_qty=r["safety_qty"],
+                order_up_to=r.get("order_up_to"),
+            )
+            for r in rows
+        ]
+    )
 
 
 def _save_party_names(item: Item, rows: list[dict]) -> None:
@@ -607,8 +735,15 @@ def _follow_item_numbers(ctx) -> None:
 
 def _queryset():
     return Item.objects.select_related(
-        "stock_unit", "sales_unit", "purchase_unit"
-    ).prefetch_related("units__unit", "units__contains_unit", "gst_rates", "party_names__party")
+        "stock_unit", "sales_unit", "purchase_unit", "preferred_supplier"
+    ).prefetch_related(
+        "units__unit",
+        "units__contains_unit",
+        "gst_rates",
+        "party_names__party",
+        "plans__branch__company",
+        "plans__transfer_from",
+    )
 
 
 exchange.register(
@@ -629,15 +764,14 @@ exchange.register(
             "best_before_unit": "Best before in",
             "batch_no": "Batch No",
             "lead_time_days": "Lead time (days)",
-            "safety_stock_qty": "Safety stock qty",
             "min_order_qty": "Minimum order qty",
-            "max_stock_qty": "Max stock qty",
+            "preferred_supplier": "Preferred supplier",
             "sales_description": "Sales description",
             "sales_unit": "Default sales unit",
             "purchase_description": "Purchase description",
             "purchase_unit": "Default purchase unit",
             "batch_tracked": "Track batches",
-            "default_request_type": "Default material request type",
+            "default_request_type": "Main fulfilment",
             "maintain_stock": "Maintain stock",
             "allow_purchase": "Allow purchase",
             "allow_sales": "Allow sales",
@@ -660,6 +794,13 @@ exchange.register(
             "party_names.party": "Customer or supplier",
             "party_names.name": "Their item name",
             "party_names.code": "Their item code",
+            "plans": "Stock planning",
+            "plans.branch": "Branch",
+            "plans.fulfilment": "Fulfilment",
+            "plans.transfer_from": "Transfer from",
+            "plans.transfer_days": "Transfer days",
+            "plans.safety_qty": "Safety stock",
+            "plans.order_up_to": "Order up to",
             "gst_rates": "GST rates",
             "gst_rates.valid_from": "From",
             "gst_rates.rate": "GST rate (%)",
@@ -668,9 +809,11 @@ exchange.register(
             "item_number": "Leave empty for the next number; or give the item's code "
             "from your old system (new items then carry on after the highest)",
             "best_before_value": "A number: manufacturing date plus this is the best-before date",
-            "safety_stock_qty": "In the default unit",
             "min_order_qty": "In the default unit",
-            "max_stock_qty": "In the default unit",
+            "plans.safety_qty": "In the default unit",
+            "plans.order_up_to": "In the default unit; empty refills to the safety stock",
+            "plans.transfer_from": "Only for Transfer: the branch it comes from",
+            "plans.transfer_days": "Only for Transfer: days on the way",
             "units.contains_qty": "Leave empty on the stock unit's row",
             "units.contains_unit": "Leave empty on the stock unit's row",
         },
@@ -694,6 +837,29 @@ class ItemListView(APIView):
         _save_item(item, dict(serializer.validated_data))
         return Response(
             ItemSerializer(_queryset().get(pk=item.pk)).data, status=status.HTTP_201_CREATED
+        )
+
+
+class PlanBranchesView(APIView):
+    """Every branch of every company that keeps stock, for the Stock Planning
+    lines of an item (items are shared by the whole group)."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _check(request, VIEW)
+        rows = Branch.objects.filter(no_stock=False).select_related("company")
+        return Response(
+            [
+                {
+                    "id": b.pk,
+                    "name": b.name,
+                    "company": b.company_id,
+                    "company_name": b.company.name,
+                    "is_active": b.is_active,
+                }
+                for b in rows.order_by("company__name", "name")
+            ]
         )
 
 

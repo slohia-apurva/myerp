@@ -985,14 +985,19 @@ class Item(models.Model):
     best_before_value = models.PositiveIntegerField(null=True, blank=True)
     best_before_unit = models.CharField(max_length=6, choices=PERIODS, default=DAYS)
     batch_no = models.CharField(max_length=60, blank=True)
-    # Purchase tab: planning figures, in the item's stock unit.
+    # Purchase section: the supplier's lead time and the least a purchase may be,
+    # in the item's stock unit. Safety stock and the level to refill to are set
+    # per branch (ItemPlan, "Stock Planning", Sidharth 2026-11-21).
     lead_time_days = models.PositiveIntegerField(null=True, blank=True)
-    safety_stock_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     min_order_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
-    max_stock_qty = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+    # The supplier a shortage is bought from unless changed on the stock check.
+    preferred_supplier = models.ForeignKey(
+        "Party", null=True, blank=True, on_delete=models.PROTECT, related_name="preferred_items"
+    )
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
-    # What a material request for this item is raised as, unless changed on it.
+    # "Main Fulfilment": how a shortage of the item is filled (bought, made or
+    # given by the customer); each branch line of Stock Planning starts from it.
     default_request_type = models.CharField(max_length=20, choices=REQUEST_TYPES, blank=True)
     maintain_stock = models.BooleanField(default=True)
     allow_purchase = models.BooleanField(default=True)
@@ -1024,6 +1029,42 @@ class Item(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class ItemPlan(models.Model):
+    """Stock planning of an item at one branch (Sidharth, 2026-11-21): how the
+    branch fills a shortage (buy, make, transfer from another branch of the same
+    company, or the customer's own goods), the safety stock it must not fall
+    below, and the level a refill brings it back up to. Quantities are in the
+    item's stock unit. A branch with no line is not checked for the item."""
+
+    PURCHASE, MANUFACTURE, TRANSFER = "purchase", "manufacture", "transfer"
+    CUSTOMER_PROVIDED = "customer_provided"
+    FULFILMENTS = [
+        (PURCHASE, "Purchase"),
+        (MANUFACTURE, "Manufacture"),
+        (TRANSFER, "Transfer"),
+        (CUSTOMER_PROVIDED, "Customer Provided"),
+    ]
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="plans")
+    branch = models.ForeignKey("Branch", on_delete=models.PROTECT, related_name="item_plans")
+    fulfilment = models.CharField(max_length=20, choices=FULFILMENTS)
+    transfer_from = models.ForeignKey(
+        "Branch", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    transfer_days = models.PositiveIntegerField(null=True, blank=True)
+    safety_qty = models.DecimalField(max_digits=18, decimal_places=6)
+    order_up_to = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+
+    class Meta:
+        ordering = ["branch__company__name", "branch__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["item", "branch"], name="item_plan_one_per_branch")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item} at {self.branch}"
 
 
 USED_FOR = [

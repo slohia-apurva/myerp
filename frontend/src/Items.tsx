@@ -82,9 +82,9 @@ export type Item = {
   batch_no: string;
   lead_time_days: number | null;
   tds_section?: string;
-  safety_stock_qty: string | null;
   min_order_qty: string | null;
-  max_stock_qty: string | null;
+  preferred_supplier: number | null;
+  preferred_supplier_name: string | null;
   batch_tracked: boolean;
   qc_required: boolean;
   default_request_type: string;
@@ -100,10 +100,35 @@ export type Item = {
   units: ItemUnit[];
   gst_rates: GstRate[];
   party_names: PartyName[];
+  plans: Plan[];
   warnings: string[];
   lock?: LockInfo;
 };
 export type GstRate = { valid_from: string; rate: string };
+/** Stock Planning at one branch: how it fills a shortage, its safety stock and refill level (stock unit). */
+export type Plan = {
+  branch: number;
+  branch_name?: string;
+  company_name?: string;
+  fulfilment: string;
+  transfer_from: number | null;
+  transfer_from_name?: string | null;
+  transfer_days: number | null;
+  safety_qty: string;
+  order_up_to: string | null;
+};
+/** A Stock Planning line while it is edited: every box is text. */
+type PlanRow = { branch: string; fulfilment: string; transfer_from: string; transfer_days: string; safety_qty: string; order_up_to: string };
+const planRowOf = (p: Plan): PlanRow => ({
+  branch: String(p.branch),
+  fulfilment: p.fulfilment,
+  transfer_from: p.transfer_from == null ? "" : String(p.transfer_from),
+  transfer_days: p.transfer_days == null ? "" : String(p.transfer_days),
+  safety_qty: plain(p.safety_qty),
+  order_up_to: plain(p.order_up_to),
+});
+/** A branch that keeps stock, of any company of the group. */
+type PlanBranch = { id: number; name: string; company: number; company_name: string; is_active: boolean };
 /** What one customer or supplier calls the item: their own name and/or code. */
 export type PartyName = { party: number; party_name?: string; party_kind?: string; name: string; code: string };
 type PartyRow = { id: number; name: string; customer_number: string; vendor_number: string; is_active?: boolean };
@@ -118,6 +143,19 @@ const REQUEST_TYPES: [string, string][] = [
   ["customer_provided", "Customer Provided"],
 ];
 const requestLabel = (code: string) => REQUEST_TYPES.find(([c]) => c === code)?.[1] ?? "";
+/** How one branch fills a shortage: as the item's Main Fulfilment, or from another branch. */
+const FULFILMENTS: [string, string][] = [
+  ["purchase", "Purchase"],
+  ["manufacture", "Manufacture"],
+  ["transfer", "Transfer"],
+  ["customer_provided", "Customer Provided"],
+];
+const fulfilmentLabel = (code: string) => FULFILMENTS.find(([c]) => c === code)?.[1] ?? code;
+/** One Stock Planning line as the item shows it: "Sankrail-2: Transfer from Sankrail-1". */
+const planHow = (p: Plan) =>
+  p.fulfilment === "transfer" && p.transfer_from_name
+    ? `Transfer from ${p.transfer_from_name}${p.transfer_days != null ? ` (${p.transfer_days} ${p.transfer_days === 1 ? "day" : "days"})` : ""}`
+    : fulfilmentLabel(p.fulfilment);
 const USED_FOR: [string, string][] = [
   ["purchase", "Purchase"],
   ["sales", "Sales"],
@@ -134,6 +172,8 @@ const stockCostLabel = (code: string) => STOCK_COST.find(([c]) => c === code)?.[
 const typeLabel = (code: string) => TYPES.find(([c]) => c === code)?.[1] ?? code;
 const usedLabel = (code: string) => USED_FOR.find(([c]) => c === code)?.[1] ?? code;
 const plain = (v: string | null) => (v === null || v === "" ? "" : String(Number(v)));
+/** Lines from more than one company show the company before the branch. */
+const multiCompany = (plans: { company_name?: string }[]) => new Set(plans.map((p) => p.company_name)).size > 1;
 const showDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 /** The rate in force today: the latest row whose "from" date has come. */
@@ -593,21 +633,56 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
             </Fold>
             <Fold
               title="Purchase"
-              summary={[i.lead_time_days !== null && `Lead time ${i.lead_time_days} days`, i.safety_stock_qty && `Safety stock ${plain(i.safety_stock_qty)}`]
+              summary={[i.preferred_supplier_name, i.lead_time_days !== null && `Lead time ${i.lead_time_days} days`]
                 .filter(Boolean)
                 .join(" · ")}
             >
               <Facts
                 rows={[
                   ["Default purchase unit", unit(i.purchase_unit, i.purchase_unit_name)],
+                  ["Preferred supplier", i.preferred_supplier_name ?? ""],
                   ["Lead time", i.lead_time_days === null ? "" : `${i.lead_time_days} days`],
-                  ["Safety stock qty", i.safety_stock_qty === null ? "" : plain(i.safety_stock_qty)],
                   ["Minimum order qty", i.min_order_qty === null ? "" : plain(i.min_order_qty)],
-                  ["Max stock qty", i.max_stock_qty === null ? "" : plain(i.max_stock_qty)],
                   ["TDS Section", i.tds_section || (i.item_type === "goods" ? "None (194Q when the company deducts it)" : "None (the supplier's default)")],
                 ]}
               />
               {i.purchase_description && <div className="rich">{i.purchase_description}</div>}
+            </Fold>
+            <Fold
+              title="Stock Planning"
+              summary={[
+                i.default_request_type && `Main fulfilment ${requestLabel(i.default_request_type)}`,
+                `${i.plans.length} ${i.plans.length === 1 ? "branch" : "branches"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              <Facts rows={[["Main fulfilment", requestLabel(i.default_request_type)]]} />
+              {i.plans.length > 0 ? (
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>Branch</th>
+                      <th>Fulfilment</th>
+                      <th className="num">Safety Stock</th>
+                      <th className="num">Order Up To</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {i.plans.map((p) => (
+                      <tr key={p.branch}>
+                        <td>{multiCompany(i.plans) ? `${p.company_name} › ${p.branch_name}` : p.branch_name}</td>
+                        <td>{planHow(p)}</td>
+                        <td className="num">{plain(p.safety_qty)}</td>
+                        <td className="num">{p.order_up_to === null ? "—" : plain(p.order_up_to)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="small">No branch lines: the stock check does not look at this item.</p>
+              )}
+              {i.plans.length > 0 && <p className="small">Quantities in {unit(i.stock_unit, i.stock_unit_name)}.</p>}
             </Fold>
             <Fold title="GST Rates" summary={rate ? `${plain(rate.rate)}% from ${showDate(rate.valid_from)} (in force)` : "No rate set"}>
               {i.gst_rates.length > 0 && (
@@ -640,7 +715,6 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 rows={[
                   ["Batches tracked", i.batch_tracked ? "Yes" : "No"],
                   ["Quality check on receipt", i.qc_required ? "Yes" : "No"],
-                  ["Default material request type", requestLabel(i.default_request_type)],
                 ]}
               />
             </Fold>
@@ -857,9 +931,11 @@ function ItemForm(props: {
   const [batchNo, setBatchNo] = useState(from?.batch_no ?? "");
   const [tdsSection, setTdsSection] = useState(from?.tds_section ?? "");
   const [leadTime, setLeadTime] = useState(from?.lead_time_days == null ? "" : String(from.lead_time_days));
-  const [safety, setSafety] = useState(from?.safety_stock_qty == null ? "" : plain(from.safety_stock_qty));
   const [minOrder, setMinOrder] = useState(from?.min_order_qty == null ? "" : plain(from.min_order_qty));
-  const [maxStock, setMaxStock] = useState(from?.max_stock_qty == null ? "" : plain(from.max_stock_qty));
+  const [supplier, setSupplier] = useState(from?.preferred_supplier == null ? "" : String(from.preferred_supplier));
+  // Stock Planning: one line per branch, edited in place (a duplicate copies them).
+  const [plans, setPlans] = useState<PlanRow[]>((from?.plans ?? []).map(planRowOf));
+  const [planBranches, setPlanBranches] = useState<PlanBranch[]>([]);
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
   const [requestType, setRequestType] = useState(from?.default_request_type ?? "");
@@ -876,6 +952,7 @@ function ItemForm(props: {
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<PartyRow[]>("v1/parties/").then(setParties);
+    api<PlanBranch[]>("v1/items/plan-branches/").then(setPlanBranches);
   }, [visits]);
   // Its own Expense Account per company (bills without goods receipt).
   const [accounts, setAccounts] = useItemAccounts(it && !props.copyOf ? it.id : null);
@@ -908,7 +985,7 @@ function ItemForm(props: {
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "prices" | "supplier-prices" | "accounts" | "connections">("general");
+  const [tab, setTab] = useState<"none" | "general" | "sales" | "purchase" | "gst" | "stock" | "units" | "names" | "prices" | "supplier-prices" | "accounts" | "connections" | "planning">("general");
 
   const used = new Set(rows.map((r) => r.unit));
   const offered = (current: string) =>
@@ -1016,9 +1093,18 @@ function ItemForm(props: {
       batch_no: batchNo,
       lead_time_days: num(leadTime),
       tds_section: tdsSection,
-      safety_stock_qty: num(safety),
       min_order_qty: num(minOrder),
-      max_stock_qty: num(maxStock),
+      preferred_supplier: supplier ? Number(supplier) : null,
+      plans: plans
+        .filter((p) => p.branch)
+        .map((p) => ({
+          branch: Number(p.branch),
+          fulfilment: p.fulfilment,
+          transfer_from: p.fulfilment === "transfer" && p.transfer_from ? Number(p.transfer_from) : null,
+          transfer_days: p.fulfilment === "transfer" ? num(p.transfer_days) : null,
+          safety_qty: p.safety_qty.trim() || "0",
+          order_up_to: num(p.order_up_to),
+        })),
       batch_tracked: batches,
       qc_required: qc,
       default_request_type: requestType,
@@ -1062,10 +1148,17 @@ function ItemForm(props: {
     }
   };
 
+  const suppliers = parties.filter((x) => x.vendor_number || String(x.id) === supplier);
+  const supplierName = suppliers.find((x) => String(x.id) === supplier)?.name ?? from?.preferred_supplier_name ?? "";
+  const many = new Set(planBranches.map((b) => b.company)).size > 1;
+  const branchLabel = (b: PlanBranch) => (many ? `${b.company_name} › ${b.name}` : b.name);
+  const setPlan = (k: number, change: Partial<PlanRow>) => setPlans(plans.map((p, j) => (j === k ? { ...p, ...change } : p)));
+  const addPlan = () =>
+    setPlans([...plans, { branch: "", fulfilment: requestType || "purchase", transfer_from: "", transfer_days: "", safety_qty: "", order_up_to: "" }]);
   const folds = [
     ["general", "General", [typeLabel(type), hsn && `HSN ${hsn}`].filter(Boolean).join(" · ")],
     ["sales", "Sales", [mrp ? `MRP ₹ ${mrp}` : "", bestBefore ? `Best before ${bestBefore} ${bestBeforeUnit}` : ""].filter(Boolean).join(" · ")],
-    ["purchase", "Purchase", [leadTime ? `Lead time ${leadTime} days` : "", safety ? `Safety stock ${safety}` : ""].filter(Boolean).join(" · ")],
+    ["purchase", "Purchase", [supplierName, leadTime ? `Lead time ${leadTime} days` : ""].filter(Boolean).join(" · ")],
     ["gst", "GST Rates", `${rates.length} ${rates.length === 1 ? "rate" : "rates"}`],
     ["stock", "Stock And Quality", [batches ? "Batches tracked" : "", qc ? "Quality check on receipt" : ""].filter(Boolean).join(" · ")],
     ["units", "Units Of Measure", `${rows.length} ${rows.length === 1 ? "unit" : "units"}`],
@@ -1074,6 +1167,7 @@ function ItemForm(props: {
     ["supplier-prices", "Supplier Prices", `${(suppPrices ?? []).length} ${(suppPrices ?? []).length === 1 ? "price" : "prices"}`],
     ["accounts", "Accounts", accountsSummary(accounts)],
     ["connections", "Connections", "No documents yet"],
+    ["planning", "Stock Planning", [requestType && `Main fulfilment ${requestLabel(requestType)}`, `${plans.length} ${plans.length === 1 ? "branch" : "branches"}`].filter(Boolean).join(" · ")],
   ] as const;
   return (
     <>
@@ -1291,21 +1385,26 @@ function ItemForm(props: {
                   <Combobox value={buyUnit} onChange={setBuyUnit} empty="Same as the stock unit" options={unitChoices} />
                 </label>
                 <label>
-                  Lead time in days
-                  <input className="num" inputMode="numeric" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
+                  Preferred supplier
+                  <Combobox
+                    value={supplier}
+                    onChange={setSupplier}
+                    empty="None"
+                    placeholder="Type to search suppliers…"
+                    options={suppliers.map((x) => ({ value: String(x.id), label: x.vendor_number ? `${x.name} (${x.vendor_number})` : x.name }))}
+                  />
+                  <span className="small">The stock check buys a shortage from this supplier, at its Supplier Prices.</span>
                 </label>
                 <div aria-hidden="true" />
                 <label>
-                  Safety stock qty
-                  <input className="num" inputMode="decimal" value={safety} onChange={(e) => setSafety(e.target.value)} />
+                  Lead time in days
+                  <input className="num" inputMode="numeric" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
+                  <span className="small">The supplier's delivery time.</span>
                 </label>
                 <label>
                   Minimum order qty
                   <input className="num" inputMode="decimal" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} />
-                </label>
-                <label>
-                  Max stock qty
-                  <input className="num" inputMode="decimal" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
+                  <span className="small">Suggested purchases are rounded up to this.</span>
                 </label>
                 <label>
                   TDS Section
@@ -1313,10 +1412,129 @@ function ItemForm(props: {
                   <span className="small">e.g. 194C for an Annual Maintenance (AMC). Goods usually leave it empty.</span>
                 </label>
               </div>
-              <p className="small wide">The quantities are in the item's default unit.</p>
+              <p className="small wide">The quantities are in the item's default unit. Safety stock and the level to refill to are set for each branch under "Stock Planning".</p>
             </div>
           </Section>
         )}
+          </div>}
+        </div>
+        <div className={"fold" + (tab === "planning" ? " open" : "")}>
+          <button type="button" className="fold-head" aria-expanded={tab === "planning"} onClick={() => setTab(tab === "planning" ? "none" : "planning")}>
+            <span className="fold-title">{folds[11][1]}</span>
+            {tab !== "planning" && <span className="fold-summary">{folds[11][2]}</span>}
+          </button>
+          {tab === "planning" && <div className="fold-body">
+          <Section>
+            <div className="item-fields">
+              <div className="item-cols wide">
+                <label>
+                  <span className={plans.length > 0 ? "req" : undefined}>Main fulfilment</span>
+                  <Combobox
+                    value={requestType}
+                    onChange={setRequestType}
+                    empty="Not set"
+                    options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
+                  />
+                  <span className="small">How a shortage is filled where the item is bought or made. A new branch line starts with it.</span>
+                </label>
+              </div>
+            </div>
+          </Section>
+          <Section title="By Branch">
+            {!stocked ? (
+              <p className="small">The item keeps no stock, so it has no stock planning.</p>
+            ) : (
+              <>
+                {plans.length > 0 && (
+                  <div className="table-scroll">
+                    <table className="grid">
+                      <thead>
+                        <tr>
+                          <th><span className="req">Branch</span></th>
+                          <th><span className="req">Fulfilment</span></th>
+                          <th>Transfer From</th>
+                          <th className="num"><span className="req">Safety Stock</span></th>
+                          <th className="num">Order Up To</th>
+                          <th className="num">Transfer Days</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {plans.map((p, k) => {
+                          const company = planBranches.find((b) => String(b.id) === p.branch)?.company;
+                          return (
+                            <tr key={k}>
+                              <td>
+                                <Combobox
+                                  value={p.branch}
+                                  ariaLabel="Branch"
+                                  onChange={(v) => setPlan(k, { branch: v, transfer_from: "" })}
+                                  options={planBranches
+                                    .filter((b) => (b.is_active || String(b.id) === p.branch) && !plans.some((q, j) => j !== k && q.branch === String(b.id)))
+                                    .map((b) => ({ value: String(b.id), label: branchLabel(b) }))}
+                                />
+                              </td>
+                              <td>
+                                <Combobox
+                                  value={p.fulfilment}
+                                  ariaLabel="Fulfilment"
+                                  onChange={(v) => setPlan(k, { fulfilment: v })}
+                                  options={FULFILMENTS.map(([value, label]) => ({ value, label }))}
+                                />
+                              </td>
+                              <td>
+                                {p.fulfilment === "transfer" ? (
+                                  <Combobox
+                                    value={p.transfer_from}
+                                    ariaLabel="Transfer from"
+                                    onChange={(v) => setPlan(k, { transfer_from: v })}
+                                    options={planBranches
+                                      .filter((b) => b.company === company && String(b.id) !== p.branch && (b.is_active || String(b.id) === p.transfer_from))
+                                      .map((b) => ({ value: String(b.id), label: b.name }))}
+                                  />
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td>
+                                <input className="num" inputMode="decimal" aria-label="Safety stock" value={p.safety_qty} onChange={(e) => setPlan(k, { safety_qty: e.target.value })} />
+                              </td>
+                              <td>
+                                <input className="num" inputMode="decimal" aria-label="Order up to" value={p.order_up_to} onChange={(e) => setPlan(k, { order_up_to: e.target.value })} />
+                              </td>
+                              <td>
+                                {p.fulfilment === "transfer" ? (
+                                  <input className="num" inputMode="numeric" aria-label="Transfer days" value={p.transfer_days} onChange={(e) => setPlan(k, { transfer_days: e.target.value })} />
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td>
+                                <button type="button" className="link" onClick={() => setPlans(plans.filter((_, j) => j !== k))}>
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p>
+                  <button type="button" className="link" onClick={addPlan}>
+                    Add branch
+                  </button>{" "}
+                  <span className="small">A branch not listed is not checked for this item.</span>
+                </p>
+                <p className="small">
+                  Fulfilment per branch: Purchase, Manufacture, Transfer (from another branch of the same company) or Customer Provided. A transfer branch's shortage is added to what
+                  the branch it comes from needs. "Order Up To" is the level a refill brings the stock back to; left empty, a refill goes up to the safety stock. Quantities are in the
+                  item's default unit{stockName ? `, ${stockName}` : ""}.
+                </p>
+              </>
+            )}
+          </Section>
           </div>}
         </div>
         <div className={"fold" + (tab === "gst" ? " open" : "")}>
@@ -1385,17 +1603,6 @@ function ItemForm(props: {
         {true && (
         <Section>
           <div className="item-general">
-            <div className="item-fields">
-              <label>
-                Default material request type
-                <Combobox
-                  value={requestType}
-                  onChange={setRequestType}
-                  empty="Not set"
-                  options={REQUEST_TYPES.map(([value, label]) => ({ value, label }))}
-                />
-              </label>
-            </div>
             <fieldset className="item-checks">
               <legend>Switches</legend>
               <label className="check">
