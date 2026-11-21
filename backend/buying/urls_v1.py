@@ -240,4 +240,9 @@ urlpatterns = [
         planning.StockCheckOrdersView.as_view(),
         name="stock-check-orders",
     ),
+    path(
+        "companies/<int:pk>/stock-check/daily/",
+        planning.StockCheckDailyView.as_view(),
+        name="stock-check-daily",
+    ),
 ]

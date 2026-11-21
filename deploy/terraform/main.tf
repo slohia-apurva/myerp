@@ -448,3 +448,113 @@ resource "google_cloud_run_v2_job" "migrate" {
     google_secret_manager_secret_version.secrets_key,
   ]
 }
+
+# ---------------------------------------------------------------- scheduled work
+
+# Scheduled work (manage.py run_scheduled), started every hour by Cloud
+# Scheduler below; each piece decides for itself whether it is due. Now: the
+# daily Stock Check. CI swaps its image on each deploy, as for the migrations.
+resource "google_cloud_run_v2_job" "scheduled" {
+  name     = "myerp-scheduled"
+  location = var.region
+
+  template {
+    task_count = 1
+
+    template {
+      service_account = var.runtime_service_account
+      max_retries     = 0
+      timeout         = "600s"
+
+      vpc_access {
+        network_interfaces {
+          network    = google_compute_network.vpc.id
+          subnetwork = google_compute_subnetwork.app.id
+        }
+        egress = "PRIVATE_RANGES_ONLY"
+      }
+
+      containers {
+        image = local.placeholder_image
+
+        command = ["python"]
+        args    = ["manage.py", "run_scheduled"]
+
+        dynamic "env" {
+          for_each = local.plain_env
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+
+        dynamic "env" {
+          for_each = local.secret_env
+          content {
+            name = env.key
+            value_source {
+              secret_key_ref {
+                secret  = env.value
+                version = "latest"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].template[0].containers[0].image,
+      client,
+      client_version,
+    ]
+  }
+
+  depends_on = [
+    google_secret_manager_secret_version.django_secret_key,
+    google_secret_manager_secret_version.platform_database_url,
+    google_secret_manager_secret_version.secrets_key,
+  ]
+}
+
+resource "google_project_service" "scheduler" {
+  service            = "cloudscheduler.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Cloud Scheduler signs in as this account, which may only start the job above.
+resource "google_service_account" "scheduler" {
+  account_id   = "myerp-scheduler"
+  display_name = "MyERP hourly scheduler"
+}
+
+resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_job" {
+  name     = google_cloud_run_v2_job.scheduled.name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler.email}"
+}
+
+resource "google_cloud_scheduler_job" "hourly" {
+  name      = "myerp-hourly"
+  region    = var.region
+  schedule  = "0 * * * *"
+  time_zone = "Asia/Kolkata"
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/${google_cloud_run_v2_job.scheduled.id}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.scheduler.email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+
+  depends_on = [
+    google_project_service.scheduler,
+    google_cloud_run_v2_job_iam_member.scheduler_runs_job,
+  ]
+}
