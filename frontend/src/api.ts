@@ -78,6 +78,8 @@ export type SignedIn = {
   signed_in: true;
   user: { email: string; name: string; is_owner: boolean; is_platform_admin?: boolean };
   permissions: string[];
+  /** Admin > Migration Tools is on for this customer (platform admins switch it off after cutover). */
+  migration_tools?: boolean;
 };
 
 export type Session = { signed_in: false; google_client_id: string } | SignedIn;

@@ -73,6 +73,11 @@ urlpatterns = [
     ),
     path("central/", central.CentralView.as_view(), name="central"),
     path("central/tenants/", central.TenantCreateView.as_view(), name="central-tenant-create"),
+    path(
+        "central/tenants/<slug:slug>/",
+        central.TenantDetailView.as_view(),
+        name="central-tenant-detail",
+    ),
     path("central/import/hsn/", central.HsnImportView.as_view(), name="central-import-hsn"),
     path("central/import/pins/", central.PinImportView.as_view(), name="central-import-pins"),
     path("central/carriers/", central.CarrierAdminListView.as_view(), name="central-carriers"),

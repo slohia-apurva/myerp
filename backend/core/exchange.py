@@ -1011,6 +1011,10 @@ class ImportView(APIView):
         notes: list[str] = []
         source = request.data.get("source") or ""
         if source:
+            if not require_tenant().migration_tools:
+                raise PermissionDenied(
+                    "Migration Tools are switched off for your group. Ask MyERP support."
+                )
             reader = master.sources.get(source)
             if reader is None:
                 raise ParseError(f"{master.label} cannot be imported from that kind of file.")
