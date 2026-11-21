@@ -2419,6 +2419,64 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "stock-check",
+    title: "Stock check",
+    summary: "Which items of a branch will fall below their safety stock, and draft purchase orders to refill them.",
+    body: (
+      <>
+        <p>
+          Open "Entry", then "Planning", then "Stock Check". It looks at one
+          branch and lists the items whose "Stock Planning" line there (see the
+          chapter "Items") says "Purchase" and that will fall below their
+          "Safety Stock". Nothing is posted and nothing is sent: it only makes
+          draft purchase orders when you ask.
+        </p>
+        <ol>
+          <li>
+            Pick the "Branch". "Show" is "Below Safety Stock" (only the items
+            that are short) or "All Planned Items". "Item Group" narrows the
+            list. "Check Now" works the figures out again.
+          </li>
+          <li>
+            For each item the columns are: "In Stock" (what the branch holds
+            now), "Reserved" (still to deliver on the branch's sales orders,
+            drafts included), "Incoming" (still to receive on the branch's
+            purchase orders, drafts included), "Expected" (In Stock − Reserved
+            + Incoming, in red when below the safety stock), "Safety" and
+            "Order Up To". These are in the item's default unit.
+          </li>
+          <li>
+            "Suggested" is how much to buy so the branch is back at "Order Up
+            To" (or at the safety stock when that is empty), in the item's
+            purchase unit, rounded up to the "Minimum order qty" in whole steps
+            of it. For example 2,580 Packets is 107.5 Cartons of 24; with a
+            minimum of 24 Cartons it becomes 120 Cartons. You can change it.
+          </li>
+          <li>
+            Items are grouped by supplier: the item's "Preferred supplier" to
+            start with, with its lead time and the date the goods should come
+            by. Pick another supplier on a line to change it; "Rate ₹" is that
+            supplier's rate from its Supplier Prices or buying price list. An
+            item with no supplier is listed at the end until you pick one.
+          </li>
+          <li>
+            Tick the lines to order and click "Create Purchase Orders". One
+            draft order is made per supplier, with the supplier's credit term,
+            transporter and purchaser, and "Expected Delivery" today plus the
+            longest lead time. Open each one from the note at the top, check it
+            and click "Submit" as usual.
+          </li>
+        </ol>
+        <Note>
+          Draft orders count as "Incoming" at once, so a check run again never
+          orders the same goods twice. A cancelled order counts for nothing.
+          Items the branch makes or gets by transfer are not on this screen yet;
+          they come with manufacturing orders and stock transfers.
+        </Note>
+      </>
+    ),
+  },
+  {
     id: "purchase-orders",
     title: "Purchase orders",
     summary:

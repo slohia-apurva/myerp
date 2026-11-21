@@ -4175,3 +4175,18 @@ table.pick .col-search input {
 .po-lines td.cn-bin {
   min-width: 190px;
 }
+
+/* Stock Check (Entry › Planning): one heading row per supplier, short boxes for the quantity */
+table.stock-check tr.group-row td {
+  cursor: default;
+  color: var(--green);
+}
+table.stock-check tr.group-row td.error {
+  color: var(--red);
+}
+table.stock-check input.num {
+  width: 90px;
+}
+table.stock-check td .combo {
+  min-width: 200px;
+}

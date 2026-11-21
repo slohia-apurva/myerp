@@ -1,0 +1,303 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api, type SignedIn } from "./api";
+import { PageHeader, Section } from "./Brand";
+import { Combobox } from "./Combobox";
+import { ErrorNote } from "./ErrorNote";
+import { usePrintMenu } from "./Exchange";
+import { openTab } from "./Master";
+import { useOnReturn } from "./Refresh";
+
+/** Entry › Planning › Stock Check (Sidharth, 2026-11-21, preview 2c): for one branch,
+ * the items its Stock Planning says to buy that will fall below their safety stock,
+ * and how much to order. "Create Purchase Orders" makes one draft per supplier. */
+
+type Row = {
+  item: number;
+  item_name: string;
+  item_number: string;
+  item_group: number | null;
+  item_group_name: string;
+  stock_unit: string;
+  in_stock: string;
+  reserved: string;
+  incoming: string;
+  expected: string;
+  safety: string;
+  order_up_to: string | null;
+  short: boolean;
+  suggested: string;
+  unit: number;
+  unit_name: string;
+  whole_numbers: boolean;
+  supplier: number | null;
+  preferred_supplier_name: string;
+  supplier_missing: boolean;
+  rate: string | null;
+  lead_time_days: number | null;
+  by: string;
+};
+type Result = { branch: number; checked_at: string; rows: Row[]; suppliers: { id: number; name: string }[] };
+type Branch = { id: number; name: string; is_active: boolean; no_stock: boolean };
+/** What the person changed on a line: ticked, quantity, supplier, and the supplier's rate. */
+type Choice = { on: boolean; qty: string; supplier: string; rate: string | null };
+
+const SHOW: [string, string][] = [
+  ["short", "Below Safety Stock"],
+  ["all", "All Planned Items"],
+];
+const indian = (v: string | null) =>
+  v === null || v === "" ? "" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 6 });
+const money = (v: string | null) =>
+  v === null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB");
+const stamp = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("en-GB")} at ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+};
+
+export function StockCheckPage({ companyId, session }: { companyId: number; session: SignedIn }) {
+  const mayOrder = session.permissions.includes("purchase.create");
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branch, setBranch] = useState("");
+  const [show, setShow] = useState("short");
+  const [group, setGroup] = useState("");
+  const [result, setResult] = useState<Result | null>(null);
+  const [choices, setChoices] = useState<Record<number, Choice>>({});
+  const [error, setError] = useState<unknown>("");
+  const [made, setMade] = useState<{ id: number; supplier_name: string; lines: number }[]>([]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api<{ branches: Branch[] }>(`v1/companies/${companyId}/`).then((c) => {
+      const stock = c.branches.filter((b) => b.is_active && !b.no_stock);
+      setBranches(stock);
+      setBranch((now) => now || (stock[0] ? String(stock[0].id) : ""));
+    });
+  }, [companyId]);
+  const run = useCallback(() => {
+    if (!branch) return;
+    setError("");
+    api<Result>(`v1/companies/${companyId}/stock-check/?branch=${branch}&show=${show}`)
+      .then((r) => {
+        setResult(r);
+        setChoices(
+          Object.fromEntries(
+            r.rows.map((row) => [
+              row.item,
+              { on: row.short && row.supplier !== null, qty: row.suggested, supplier: row.supplier ? String(row.supplier) : "", rate: row.rate },
+            ]),
+          ),
+        );
+      })
+      .catch(setError);
+  }, [companyId, branch, show]);
+  useEffect(run, [run]);
+  useOnReturn(run); // goods ordered in another tab count as soon as this tab is looked at again
+
+  const rows = useMemo(() => (result?.rows ?? []).filter((r) => !group || String(r.item_group) === group), [result, group]);
+  const groups = useMemo(() => {
+    const seen = new Map<number, string>();
+    for (const r of result?.rows ?? []) if (r.item_group !== null) seen.set(r.item_group, r.item_group_name);
+    return [...seen].map(([value, label]) => ({ value: String(value), label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [result]);
+  const supplierName = (id: string) => result?.suppliers.find((s) => String(s.id) === id)?.name ?? "";
+  // Lines grouped by the supplier now picked on them; lines with none come last.
+  const bySupplier = useMemo(() => {
+    const out = new Map<string, Row[]>();
+    for (const r of rows) {
+      const key = choices[r.item]?.supplier ?? "";
+      out.set(key, [...(out.get(key) ?? []), r]);
+    }
+    return [...out].sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : supplierName(a).localeCompare(supplierName(b))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, choices, result]);
+  const ticked = rows.filter((r) => choices[r.item]?.on && choices[r.item]?.supplier && Number(choices[r.item]?.qty) > 0);
+  const draftCount = new Set(ticked.map((r) => choices[r.item].supplier)).size;
+
+  const change = (row: Row, next: Partial<Choice>) => {
+    const now = { ...choices[row.item], ...next };
+    setChoices((c) => ({ ...c, [row.item]: now }));
+    // A new supplier or quantity: ask that supplier's rate again.
+    if ((next.supplier !== undefined || next.qty !== undefined) && now.supplier && Number(now.qty) > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      api<{ rate: string | null }>(
+        `v1/companies/${companyId}/purchase-orders/rate/?supplier=${now.supplier}&item=${row.item}&unit=${row.unit}&qty=${now.qty}&date=${today}`,
+      )
+        .then((r) => setChoices((c) => ({ ...c, [row.item]: { ...c[row.item], rate: r.rate } })))
+        .catch(() => undefined);
+    }
+  };
+  const create = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const out = await api<{ id: number; supplier_name: string; lines: number }[]>(`v1/companies/${companyId}/stock-check/orders/`, {
+        branch: Number(branch),
+        lines: ticked.map((r) => ({ item: r.item, unit: r.unit, qty: choices[r.item].qty.trim(), supplier: Number(choices[r.item].supplier) })),
+      });
+      setMade(out);
+      run();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const branchName = branches.find((b) => String(b.id) === branch)?.name ?? "";
+  const printing = usePrintMenu({ title: `Stock Check: ${branchName}`, scope: "" });
+  const shortCount = (result?.rows ?? []).filter((r) => r.short).length;
+
+  return (
+    <section className="page">
+      <PageHeader
+        title="Stock Check"
+        crumbs={[{ label: "Entry › Planning", href: `#/companies/${companyId}/stock-check` }]}
+        sub={result ? `Checked ${stamp(result.checked_at)} · ${shortCount} ${shortCount === 1 ? "item" : "items"} below safety stock` : "Items to buy that will fall below their safety stock"}
+        actions={printing.buttons}
+      />
+      {printing.panel}
+      <Section title="Check">
+        <div className="row filters report-filters no-print">
+          <label>
+            Branch
+            <Combobox value={branch} onChange={setBranch} ariaLabel="Branch" options={branches.map((b) => ({ value: String(b.id), label: b.name }))} />
+          </label>
+          <label>
+            Show
+            <Combobox value={show} onChange={setShow} ariaLabel="Show" options={SHOW.map(([value, label]) => ({ value, label }))} />
+          </label>
+          <label>
+            Item Group
+            <Combobox value={group} onChange={setGroup} ariaLabel="Item group" empty="All" options={groups} />
+          </label>
+          <button type="button" onClick={run} disabled={!branch}>
+            Check Now
+          </button>
+        </div>
+      </Section>
+      <ErrorNote error={error} />
+      {made.length > 0 && (
+        <p className="ok-note no-print">
+          Made {made.length} draft purchase {made.length === 1 ? "order" : "orders"}:{" "}
+          {made.map((o, k) => (
+            <span key={o.id}>
+              {k > 0 && ", "}
+              <a href={`#/companies/${companyId}/purchase-orders?view=${o.id}`} onClick={(e) => (e.preventDefault(), openTab(`#/companies/${companyId}/purchase-orders?view=${o.id}`))}>
+                {o.supplier_name}
+              </a>{" "}
+              ({o.lines} {o.lines === 1 ? "item" : "items"})
+            </span>
+          ))}
+          . Open each one, check it and Submit.
+        </p>
+      )}
+      <Section title={`To Buy · ${rows.length} ${rows.length === 1 ? "item" : "items"}`}>
+        {rows.length === 0 ? (
+          <p className="small">{result ? "Nothing to buy: every planned item of this branch is at or above its safety stock." : "Pick a branch."}</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="grid by-group stock-check">
+              <thead>
+                <tr>
+                  <th className="no-print" aria-label="Order" />
+                  <th>Item</th>
+                  <th className="num">In Stock</th>
+                  <th className="num">Reserved</th>
+                  <th className="num">Incoming</th>
+                  <th className="num">Expected</th>
+                  <th className="num">Safety</th>
+                  <th className="num">Order Up To</th>
+                  <th className="num">Suggested</th>
+                  <th>Unit</th>
+                  <th>Supplier</th>
+                  <th className="num">Rate ₹</th>
+                </tr>
+              </thead>
+              {bySupplier.map(([key, list]) => {
+                const lead = Math.max(0, ...list.map((r) => r.lead_time_days ?? 0));
+                const by = list.map((r) => r.by).sort().at(-1) ?? "";
+                return (
+                  <tbody key={key || "none"}>
+                    <tr className="group-row">
+                      <td colSpan={12} className={key ? undefined : "error"}>
+                        {key
+                          ? `${supplierName(key)} · Lead time ${lead} ${lead === 1 ? "day" : "days"} · by ${day(by)}`
+                          : "No supplier: pick one on the line, or set the Preferred Supplier on the item"}
+                      </td>
+                    </tr>
+                    {list.map((r) => {
+                      const c = choices[r.item] ?? { on: false, qty: r.suggested, supplier: "", rate: null };
+                      return (
+                        <tr key={r.item}>
+                          <td className="no-print">
+                            <input
+                              type="checkbox"
+                              aria-label={`Order ${r.item_name}`}
+                              checked={c.on}
+                              disabled={!mayOrder || !c.supplier}
+                              onChange={(e) => change(r, { on: e.target.checked })}
+                            />
+                          </td>
+                          <td>
+                            {r.item_name}
+                            {r.supplier_missing && (
+                              <div className="small error">{r.preferred_supplier_name} has no ledger in this company.</div>
+                            )}
+                          </td>
+                          <td className="num">{indian(r.in_stock)}</td>
+                          <td className="num">{indian(r.reserved)}</td>
+                          <td className="num">{indian(r.incoming)}</td>
+                          <td className={`num${r.short ? " error" : ""}`}>
+                            <b>{indian(r.expected)}</b>
+                          </td>
+                          <td className="num">{indian(r.safety)}</td>
+                          <td className="num">{r.order_up_to === null ? "—" : indian(r.order_up_to)}</td>
+                          <td className="num">
+                            <input
+                              className="num"
+                              inputMode="decimal"
+                              aria-label={`Suggested ${r.item_name}`}
+                              value={c.qty}
+                              disabled={!mayOrder}
+                              onChange={(e) => change(r, { qty: e.target.value })}
+                            />
+                          </td>
+                          <td>{r.unit_name}</td>
+                          <td>
+                            <Combobox
+                              value={c.supplier}
+                              ariaLabel={`Supplier for ${r.item_name}`}
+                              empty="Pick a supplier"
+                              onChange={(v) => change(r, { supplier: v, on: Boolean(v) && (c.on || r.short) })}
+                              options={(result?.suppliers ?? []).map((s) => ({ value: String(s.id), label: s.name }))}
+                            />
+                          </td>
+                          <td className="num">{money(c.rate)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                );
+              })}
+            </table>
+          </div>
+        )}
+        {mayOrder && rows.length > 0 && (
+          <p className="no-print">
+            <button type="button" onClick={create} disabled={busy || ticked.length === 0}>
+              Create Purchase Orders ({draftCount} {draftCount === 1 ? "draft" : "drafts"}, {ticked.length} {ticked.length === 1 ? "item" : "items"})
+            </button>{" "}
+            <span className="small">
+              One draft order per supplier, rate from Supplier Prices, Expected Delivery = today + lead time. You check and Submit each one.
+            </span>
+          </p>
+        )}
+        <p className="small">
+          "Reserved" is everything going out of the branch, submitted or still a draft: sales orders still to deliver (manufacturing and transfer orders will
+          join when they are built). "Incoming" is everything coming in, drafts included: purchase orders still to receive. "Expected" = In Stock − Reserved +
+          Incoming. "Suggested" = Order Up To − Expected, in the purchase unit, rounded up to the Minimum Order Qty. Quantities other than Suggested are in the
+          item's default unit. "To Make" and "To Transfer" come with manufacturing and stock transfers.
+        </p>
+      </Section>
+    </section>
+  );
+}
