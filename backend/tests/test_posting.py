@@ -150,7 +150,8 @@ def test_an_issue_cannot_use_lots_received_after_it(books):
     b = books
     with use_tenant(b["tenant"]), tenant_atomic():
         receive(b, 1, "10", "5", D3)
-        with pytest.raises(ValidationError, match="not enough valued stock"):
+        # The place itself held none on that day, which is checked first.
+        with pytest.raises(ValidationError, match="Only 0 .* on 10-05-2026"):
             issue(b, 2, "5", D2)
 
 
@@ -399,3 +400,93 @@ def test_data_reset_clears_postings(books, settings):
         with pytest.raises((DatabaseError, InternalError), match="cannot be changed"):
             with tenant_atomic():
                 GLEntry.objects.filter(company=b["company"]).delete()
+
+
+def customer_goods(b, n, qty, day, where="store"):
+    """Customer-provided goods: quantity only, no lots, so only the place check guards them."""
+    kind = "test_receipt" if D(qty) > 0 else "test_issue"
+    return post(
+        voucher(b, n, day, kind), stock=[StockLine(b["tea"], b[where], D(qty), valued=False)]
+    )
+
+
+def test_a_backdated_issue_is_checked_on_its_own_date(books):
+    b = books
+    with use_tenant(b["tenant"]), tenant_atomic():
+        customer_goods(b, 1, "10", D2)
+        assert on_hand(b["tea"], b["store"]) == D("10")
+        with pytest.raises(ValidationError, match="Only 0 of Assam CTC .* on 04-05-2026"):
+            customer_goods(b, 2, "-5", D1)
+        with pytest.raises(ValidationError, match="Only 0"):
+            issue(b, 3, "5", D1)  # valued goods too
+        customer_goods(b, 4, "-5", D2)  # the receipt's own day is fine
+
+
+def test_a_backdated_issue_cannot_take_what_later_entries_used(books):
+    b = books
+    with use_tenant(b["tenant"]), tenant_atomic():
+        customer_goods(b, 1, "10", D1)
+        customer_goods(b, 2, "-8", D3)
+        # 10 were there on D2, but 8 of them left on D3: only 2 are free.
+        with pytest.raises(ValidationError, match="taken by later entries: on 20-05-2026 only 2"):
+            customer_goods(b, 3, "-5", D2)
+        customer_goods(b, 4, "-2", D2)
+        assert on_hand(b["tea"], b["store"]) == D("0")
+
+
+def test_a_receipt_cannot_be_cancelled_if_a_later_issue_needed_it(books):
+    b = books
+    with use_tenant(b["tenant"]), tenant_atomic():
+        customer_goods(b, 1, "10", D1)
+        customer_goods(b, 2, "-10", D2)
+        customer_goods(b, 3, "10", D3)
+        # 10 are on hand today, but the issue on D2 used receipt 1's goods.
+        assert on_hand(b["tea"], b["store"]) == D("10")
+        with pytest.raises(ValidationError, match="cancel those entries first"):
+            cancel("test_receipt", 1)
+        cancel("test_receipt", 3)  # nothing after it needed it
+        assert on_hand(b["tea"], b["store"]) == D("0")
+
+
+def test_cancelling_two_lines_counts_both(books):
+    b = books
+    with use_tenant(b["tenant"]), tenant_atomic():
+        lines = [StockLine(b["tea"], b["store"], D("10"), valued=False) for _ in range(2)]
+        post(voucher(b, 1, D1), stock=lines)
+        customer_goods(b, 2, "-15", D2)
+        with pytest.raises(ValidationError, match="cancel those entries first"):
+            cancel("test_receipt", 1)
+
+
+def test_posting_holds_a_lock_on_the_item_until_commit(books):
+    """Two people issuing the same stock at once: the second waits for the first
+    to commit, then sees its issue, so both cannot pass the check."""
+    b = books
+    with use_tenant(b["tenant"]), tenant_atomic():
+        receive(b, 1, "10", "5")
+        alias = b["tenant"].db_alias
+        with connections[alias].cursor() as cursor:
+            cursor.execute(
+                "SELECT classid, objid FROM pg_locks WHERE locktype = 'advisory' "
+                "AND pid = pg_backend_pid() AND granted"
+            )
+            held = set(cursor.fetchall())
+        assert (b["tea"].pk, b["branch"].pk) in held
+        # A second person's session cannot take it while this one is open.
+        import psycopg
+
+        cfg = connections[alias].settings_dict
+        other = psycopg.connect(
+            dbname=cfg["NAME"],
+            user=cfg["USER"],
+            password=cfg["PASSWORD"],
+            host=cfg["HOST"] or None,
+            port=cfg["PORT"] or None,
+        )
+        try:
+            got = other.execute(
+                "SELECT pg_try_advisory_xact_lock(%s, %s)", [b["tea"].pk, b["branch"].pk]
+            ).fetchone()[0]
+        finally:
+            other.close()
+        assert got is False
