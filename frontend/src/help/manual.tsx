@@ -3521,6 +3521,27 @@ export const MANUAL: Chapter[] = [
           against, and cancels its pick list too. "Duplicate" makes a new
           draft from the order.
         </p>
+        <h3>Purchase orders for shortages</h3>
+        <p>
+          Submit also runs the Stock Check (see "Stock Check") for the order's
+          items at its branch, with this order now counted in "Reserved". An
+          item the branch buys that falls below its safety stock gets a draft
+          purchase order to its Preferred Supplier, filled up to "Order Up
+          To", one order per supplier. An item with no Stock Planning line
+          there but "Main Fulfilment" Purchase is bought for the shortage
+          only. Goods already on order, drafts included, count as "Incoming",
+          so they are not ordered again. The note "Shortages planned on
+          Submit" lists each item that is short and what was done; the box
+          "Purchase Orders" counts the drafts made for the order. In "Items",
+          "Expected" shows what the branch will have once its orders go out and
+          come in, and "Covered By" shows the draft purchase order, "To make"
+          for an item the branch manufactures (Manufacturing Orders come
+          later), or "In stock". The drafts are not sent: someone in Purchase
+          checks each one and submits it. When the order changes, or a draft
+          was cancelled, "Create ▾" then "Purchase Orders for Shortages" runs
+          the check again. Cancelling the sales order leaves its drafts for
+          you to cancel or keep.
+        </p>
       </>
     ),
   },

@@ -49,6 +49,14 @@ class PurchaseOrder(models.Model):
     number = models.CharField(max_length=30, blank=True)
     order_date = models.DateField()
     expected_date = models.DateField(null=True, blank=True)
+    # The sales order whose Submit made this draft for its shortages, if any.
+    sales_order = models.ForeignKey(
+        "selling.SalesOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="purchase_orders",
+    )
     credit_term = models.ForeignKey(
         CreditTerm, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )

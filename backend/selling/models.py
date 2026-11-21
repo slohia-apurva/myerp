@@ -109,6 +109,10 @@ class SalesOrder(models.Model):
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # What Submit found short at the branch and what it did, one entry per item:
+    # {item, item_name, expected, short, unit_name, action: ok|po|make|transfer|
+    # no_supplier|failed, order, message} (buying/planning.py).
+    shortages = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["-order_date", "-id"]

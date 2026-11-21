@@ -129,15 +129,9 @@ def check(company, branch: Branch, everything: bool = False, today=None) -> list
         short = expected < p.safety_qty
         if not short and not everything:
             continue
-        unit_id = item.purchase_unit_id or item.stock_unit_id
-        unit_row = factors.get((item.pk, unit_id))
-        factor = unit_row.factor if unit_row is not None and unit_row.factor else Decimal("1")
-        unit = unit_row.unit if unit_row is not None else item.stock_unit
         target = p.order_up_to if p.order_up_to is not None else p.safety_qty
         need = max(target - expected, ZERO) if short else ZERO
-        step = item.min_order_qty / factor if item.min_order_qty else None
-        whole = unit_row.whole_numbers if unit_row is not None else True
-        suggested = round_up(need / factor, step, whole)
+        unit, suggested, whole = _in_purchase_unit(item, need, factors)
         ledger = ledgers.get(item.preferred_supplier_id) if item.preferred_supplier_id else None
         rate = None
         if ledger is not None and suggested > ZERO:
@@ -176,6 +170,18 @@ def check(company, branch: Branch, everything: bool = False, today=None) -> list
     return rows
 
 
+def _in_purchase_unit(item: Item, need: Decimal, factors) -> tuple:
+    """`need` stock units as (unit, qty, whole numbers) in the purchase unit,
+    rounded up to the minimum order."""
+    unit_id = item.purchase_unit_id or item.stock_unit_id
+    unit_row = factors.get((item.pk, unit_id))
+    factor = unit_row.factor if unit_row is not None and unit_row.factor else Decimal("1")
+    unit = unit_row.unit if unit_row is not None else item.stock_unit
+    step = item.min_order_qty / factor if item.min_order_qty else None
+    whole = unit_row.whole_numbers if unit_row is not None else True
+    return unit, round_up(need / factor, step, whole), whole
+
+
 def _plain(value: Decimal | None) -> str:
     if value is None:
         return ""
@@ -183,7 +189,15 @@ def _plain(value: Decimal | None) -> str:
     return "0" if text in ("-0", "") else text
 
 
-def make_orders(company, branch: Branch, lines: list[dict], user, today=None) -> list:
+def make_orders(
+    company,
+    branch: Branch,
+    lines: list[dict],
+    user,
+    today=None,
+    notes: str = "Made by Stock Check.",
+    sales_order=None,
+) -> list:
     """One draft purchase order per supplier for the ticked lines."""
     today = today or timezone.localdate()
     by_supplier: dict[int, list[dict]] = defaultdict(list)
@@ -206,7 +220,7 @@ def make_orders(company, branch: Branch, lines: list[dict], user, today=None) ->
             "purchaser": purchaser.pk
             if purchaser is not None and purchaser.is_active and purchaser.is_purchaser
             else None,
-            "notes": "Made by Stock Check.",
+            "notes": notes,
             "lines": [],
         }
         for ln in group:
@@ -222,13 +236,109 @@ def make_orders(company, branch: Branch, lines: list[dict], user, today=None) ->
             )
         serializer = orders.OrderSerializer(data=body)
         serializer.is_valid(raise_exception=True)
-        order = PurchaseOrder(company=company, created_by=user)
+        order = PurchaseOrder(company=company, created_by=user, sales_order=sales_order)
         try:
             orders._save_order(order, dict(serializer.validated_data))
         except ValidationError as exc:
             raise ValidationError({"lines": [f"{ledger.name}: {_said(exc.detail)}"]}) from exc
         made.append(order)
     return made
+
+
+def for_sales_order(so, user, today=None) -> list[dict]:
+    """Sales order Submit (Sidharth, 2026-11-21): the Stock Check for the order's
+    stock items at its branch (the order itself now counts in Reserved). An item
+    the branch buys gets a draft purchase order, one per supplier, linked to the
+    order: refilled to Order Up To when it has a Stock Planning line there, or
+    for the shortage alone when it only has Main Fulfilment Purchase. Items to
+    make or transfer are noted for now. A supplier whose draft cannot be made is
+    noted too; Submit never fails because of this. The result is kept on the
+    order as `shortages`."""
+    today = today or timezone.localdate()
+    branch = so.branch
+    items = {
+        ln.item_id: ln.item
+        for ln in so.lines.select_related("item__stock_unit", "item__preferred_supplier")
+        if ln.item.maintain_stock
+    }
+    ids = list(items)
+    plans = {p.item_id: p for p in ItemPlan.objects.filter(branch=branch, item_id__in=ids)}
+    have = on_hand(ids, branch)
+    out_qty = reserved(branch, ids)
+    in_qty = incoming(branch, ids)
+    factors = _factors(ids)
+    ledgers = supplier_ledgers(so.company)
+    notes: list[dict] = []
+    to_buy: dict[int, list[dict]] = defaultdict(list)
+    for item in sorted(items.values(), key=lambda i: i.name.lower()):
+        plan = plans.get(item.pk)
+        how = plan.fulfilment if plan is not None else item.default_request_type
+        expected = have.get(item.pk, ZERO) - out_qty.get(item.pk, ZERO) + in_qty.get(item.pk, ZERO)
+        floor = plan.safety_qty if plan is not None else ZERO
+        note = {
+            "item": item.pk,
+            "item_name": item.name,
+            "stock_unit": item.stock_unit.short_name or item.stock_unit.name,
+            "expected": _plain(expected),
+            "short": "0",
+            "safety": _plain(plan.safety_qty) if plan is not None else "0",
+            "action": "ok",
+            "order": None,
+            "message": "",
+        }
+        notes.append(note)
+        if expected >= floor or how == ItemPlan.CUSTOMER_PROVIDED:
+            continue
+        target = floor
+        if plan is not None and plan.order_up_to is not None:
+            target = plan.order_up_to
+        need = target - expected
+        note["short"] = _plain(need)
+        if how == ItemPlan.MANUFACTURE:
+            note["action"] = "make"
+        elif how == ItemPlan.TRANSFER:
+            note["action"] = "transfer"
+        elif how != ItemPlan.PURCHASE:
+            note["action"] = "unplanned"
+        else:
+            ledger = ledgers.get(item.preferred_supplier_id) if item.preferred_supplier_id else None
+            unit, qty, _whole = _in_purchase_unit(item, need, factors)
+            note.update(qty=_plain(qty), unit_name=unit.short_name or unit.name)
+            if ledger is None or not ledger.is_active:
+                note["action"] = "no_supplier"
+                note["message"] = (
+                    f"{item.preferred_supplier.name} has no supplier ledger in this company."
+                    if item.preferred_supplier_id
+                    else "The item has no Preferred Supplier."
+                )
+            else:
+                note["action"] = "po"
+                to_buy[ledger.pk].append(
+                    {"item": item, "unit": unit, "qty": qty, "supplier": ledger, "note": note}
+                )
+    for group in to_buy.values():
+        try:
+            with tenant_atomic():
+                [order] = make_orders(
+                    so.company,
+                    branch,
+                    group,
+                    user,
+                    today,
+                    notes=f"Made on Submit of Sales Order {so.number} for its shortages.",
+                    sales_order=so,
+                )
+        except ValidationError as exc:
+            for ln in group:
+                ln["note"].update(action="failed", message=_said(exc.detail))
+            continue
+        for ln in group:
+            ln["note"]["order"] = order.pk
+            ln["note"]["supplier_name"] = order.supplier.name
+            ln["note"]["by"] = order.expected_date.isoformat() if order.expected_date else ""
+    so.shortages = notes
+    so.save(update_fields=["shortages"])
+    return notes
 
 
 def _said(detail) -> str:

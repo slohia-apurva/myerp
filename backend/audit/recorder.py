@@ -114,6 +114,7 @@ SKIP = {
     "id",
     "credentials",  # never logged: only the date they were saved shows
     "created_at",
+    "shortages",  # a sales order's planned shortages: shown on the order itself
     "base_currency",
     "code",
     "sequence",
