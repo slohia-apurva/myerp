@@ -66,4 +66,6 @@ Start with `myerp-staging`; repeat for `myerp-prod` once staging passes the Phas
 
    To take the access away at any time: *IAM & Admin > Service accounts > claude-reader > Keys*, delete the key (or disable the account). To remove it completely, set `claude_reader = false` and apply.
 
+7. **Scheduled work (once per project, then nothing).** Terraform makes a Cloud Run job `myerp-scheduled` (`manage.py run_scheduled`) and a Cloud Scheduler job `myerp-hourly` that starts it every hour (India time), signed in as the `myerp-scheduler` service account, which may only start that job. Each piece of scheduled work checks for itself whether it is due; the first is the daily Stock Check (on per company, on the Stock Check screen). Deploys swap the job's image like the migration job's, and skip it until the first `terraform apply` has made it. If the apply says the Cloud Scheduler API is off, wait a minute and apply again.
+
 Not yet created, to keep staging cheap until they are needed: Memorystore (Redis) and the Celery worker (first background jobs arrive in Phase 2/3), and the load balancer with a wildcard certificate (needs the domain).

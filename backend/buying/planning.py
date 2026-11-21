@@ -26,12 +26,13 @@ from decimal import ROUND_CEILING, Decimal
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers, status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from buying import api as orders
-from buying.models import PurchaseOrder, PurchaseOrderLine
+from buying.models import PurchaseOrder, PurchaseOrderLine, StockCheckRun
+from core.api import EDIT as MASTERS_EDIT
 from core.api import Signed
 from core.models import Branch, Item, ItemPlan, ItemUnit, Ledger, PriceList
 from core.price_lists import find_rate
@@ -197,6 +198,7 @@ def make_orders(
     today=None,
     notes: str = "Made by Stock Check.",
     sales_order=None,
+    run=None,
 ) -> list:
     """One draft purchase order per supplier for the ticked lines."""
     today = today or timezone.localdate()
@@ -236,7 +238,9 @@ def make_orders(
             )
         serializer = orders.OrderSerializer(data=body)
         serializer.is_valid(raise_exception=True)
-        order = PurchaseOrder(company=company, created_by=user, sales_order=sales_order)
+        order = PurchaseOrder(
+            company=company, created_by=user, sales_order=sales_order, stock_check_run=run
+        )
         try:
             orders._save_order(order, dict(serializer.validated_data))
         except ValidationError as exc:
@@ -341,6 +345,110 @@ def for_sales_order(so, user, today=None) -> list[dict]:
     return notes
 
 
+def daily_run(company, now=None) -> list[StockCheckRun]:
+    """The daily Stock Check (Sidharth, 2026-11-21): for each stock branch of the
+    company with Stock Planning lines to buy, what "Create Purchase Orders" does
+    for every short item that has a supplier: one draft per supplier. Items with
+    no supplier, and suppliers whose draft cannot be made, are listed in the
+    bell notice to the Purchase people. Drafts count as Incoming, so a draft
+    nobody has submitted is not ordered again the next morning."""
+    from core.notifications import notify, people_with_roles
+
+    today = timezone.localdate(now)
+    branches = Branch.objects.filter(
+        company=company,
+        is_active=True,
+        no_stock=False,
+        pk__in=ItemPlan.objects.filter(fulfilment=ItemPlan.PURCHASE).values("branch_id"),
+    ).order_by("name")
+    runs = []
+    for branch in branches:
+        rows = check(company, branch, today=today)
+        run = StockCheckRun.objects.create(
+            company=company, branch=branch, daily=True, short_count=len(rows)
+        )
+        runs.append(run)
+        if not rows:
+            continue
+        items = Item.objects.in_bulk([r["item"] for r in rows])
+        units = {
+            u.unit_id: u.unit
+            for u in ItemUnit.objects.filter(
+                item_id__in=items, unit_id__in=[r["unit"] for r in rows]
+            ).select_related("unit")
+        }
+        ledgers = Ledger.objects.in_bulk([r["supplier"] for r in rows if r["supplier"]])
+        groups: dict[int, list[dict]] = defaultdict(list)
+        for r in rows:
+            ledger = ledgers.get(r["supplier"]) if r["supplier"] else None
+            if ledger is None or not ledger.is_active:
+                run.missing.append(r["item_name"])
+            elif Decimal(r["suggested"]) > ZERO:
+                groups[ledger.pk].append(
+                    {
+                        "item": items[r["item"]],
+                        "unit": units.get(r["unit"]) or items[r["item"]].stock_unit,
+                        "qty": Decimal(r["suggested"]),
+                        "supplier": ledger,
+                    }
+                )
+        made = []
+        for group in groups.values():
+            try:
+                with tenant_atomic():
+                    made += make_orders(
+                        company,
+                        branch,
+                        group,
+                        None,
+                        today,
+                        notes="Made by the daily Stock Check.",
+                        run=run,
+                    )
+            except ValidationError as exc:
+                run.failed.append(_said(exc.detail))
+        run.order_count = len(made)
+        run.item_count = sum(o.lines.count() for o in made)
+        run.save(update_fields=["order_count", "item_count", "missing", "failed"])
+        parts = [f"{len(rows)} {'item' if len(rows) == 1 else 'items'} below safety stock."]
+        if made:
+            each = ", ".join(
+                f"{o.supplier.name} ({_count(o.lines.count(), 'item')}, by "
+                f"{o.expected_date:%d/%m/%Y})"
+                for o in made
+            )
+            parts.append(f"Made {_count(len(made), 'draft Purchase Order')}: {each}.")
+        if run.missing:
+            parts.append(
+                f"{_count(len(run.missing), 'item')} with no Preferred Supplier: "
+                f"{', '.join(run.missing)}."
+            )
+        parts.extend(f"Not made: {text}" for text in run.failed)
+        notify(
+            people_with_roles(company, "purchase", "owner"),
+            company,
+            f"Daily Stock Check, {branch.name}",
+            " ".join(parts),
+            f"#/companies/{company.pk}/stock-check?branch={branch.pk}",
+        )
+    return runs
+
+
+def due(company, now=None) -> bool:
+    """The daily run is on, its hour has come, and it has not run today."""
+    now = timezone.localtime(now)
+    if not company.daily_stock_check or now.hour < company.daily_stock_check_hour:
+        return False
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return not StockCheckRun.objects.filter(
+        company=company, daily=True, made_at__gte=start
+    ).exists()
+
+
+def _count(n: int, word: str) -> str:
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
 def _said(detail) -> str:
     if isinstance(detail, dict):
         return " ".join(_said(v) for v in detail.values())
@@ -379,10 +487,81 @@ class StockCheckView(APIView):
             {
                 "branch": branch.pk,
                 "checked_at": timezone.localtime().isoformat(),
+                "daily": _daily_out(request, company),
+                "runs": [_run_out(r) for r in StockCheckRun.objects.filter(branch=branch)[:5]],
+                "drafts": [
+                    _draft_out(o)
+                    for o in PurchaseOrder.objects.filter(
+                        branch=branch, status=PurchaseOrder.DRAFT, stock_check_run__isnull=False
+                    )
+                    .select_related("supplier", "stock_check_run__made_by")
+                    .prefetch_related("lines")
+                    .order_by("-id")
+                ],
                 "rows": rows,
                 "suppliers": [{"id": s.pk, "name": s.name} for s in suppliers],
             }
         )
+
+
+def _daily_out(request, company) -> dict:
+    return {
+        "on": company.daily_stock_check,
+        "hour": company.daily_stock_check_hour,
+        "can_change": request.user.can(MASTERS_EDIT),
+    }
+
+
+def _run_out(r: StockCheckRun) -> dict:
+    return {
+        "id": r.pk,
+        "made_at": r.made_at,
+        "daily": r.daily,
+        "made_by_name": r.made_by.display_name if r.made_by_id else "",
+        "short_count": r.short_count,
+        "order_count": r.order_count,
+        "missing": r.missing,
+        "failed": r.failed,
+    }
+
+
+def _draft_out(o: PurchaseOrder) -> dict:
+    run = o.stock_check_run
+    return {
+        "id": o.pk,
+        "made_at": run.made_at,
+        "daily": run.daily,
+        "made_by_name": run.made_by.display_name if run.made_by_id else "",
+        "supplier_name": o.supplier.name,
+        "item_count": len(o.lines.all()),
+        "expected_date": o.expected_date,
+        "total": str(o.total),
+    }
+
+
+class _Daily(serializers.Serializer):
+    on = serializers.BooleanField()
+    hour = serializers.IntegerField(min_value=0, max_value=23)
+
+
+class StockCheckDailyView(APIView):
+    """PUT {on, hour}: the company's daily Stock Check (needs the right to change
+    masters)."""
+
+    permission_classes = [Signed]
+
+    @tenant_atomic()
+    def put(self, request, pk: int):
+        orders._check(request, orders.VIEW)
+        if not request.user.can(MASTERS_EDIT):
+            raise PermissionDenied("Only someone who may change masters can set the daily run.")
+        company = orders._company(request, pk)
+        serializer = _Daily(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        company.daily_stock_check = serializer.validated_data["on"]
+        company.daily_stock_check_hour = serializer.validated_data["hour"]
+        company.save(update_fields=["daily_stock_check", "daily_stock_check_hour"])
+        return Response(_daily_out(request, company))
 
 
 class _Line(serializers.Serializer):
@@ -416,7 +595,12 @@ class StockCheckOrdersView(APIView):
             if row is None:
                 raise ValidationError({"lines": [f"Pick one of the units of {ln['item'].name}."]})
             lines.append({**ln, "unit": row.unit})
-        made = make_orders(company, branch, lines, request.user)
+        run = StockCheckRun.objects.create(
+            company=company, branch=branch, made_by=request.user, short_count=len(lines)
+        )
+        made = make_orders(company, branch, lines, request.user, run=run)
+        run.order_count, run.item_count = len(made), len(lines)
+        run.save(update_fields=["order_count", "item_count"])
         return Response(
             [
                 {"id": o.pk, "supplier_name": o.supplier.name, "lines": o.lines.count()}

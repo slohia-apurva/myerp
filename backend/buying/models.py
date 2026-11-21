@@ -49,6 +49,14 @@ class PurchaseOrder(models.Model):
     number = models.CharField(max_length=30, blank=True)
     order_date = models.DateField()
     expected_date = models.DateField(null=True, blank=True)
+    # The Stock Check run (daily or "Create Purchase Orders") that made this draft.
+    stock_check_run = models.ForeignKey(
+        "buying.StockCheckRun",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="purchase_orders",
+    )
     # The sales order whose Submit made this draft for its shortages, if any.
     sales_order = models.ForeignKey(
         "selling.SalesOrder",
@@ -936,3 +944,34 @@ class TdsAdjustmentLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.invoice_id}: {self.amount}"
+
+
+class StockCheckRun(models.Model):
+    """One Stock Check of a branch that made (or would have made) draft purchase
+    orders: the daily run, or a person's "Create Purchase Orders"."""
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="+")
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="+")
+    made_at = models.DateTimeField(auto_now_add=True)
+    # Empty for the daily run.
+    made_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    daily = models.BooleanField(default=False)
+    short_count = models.PositiveIntegerField(default=0)
+    order_count = models.PositiveIntegerField(default=0)
+    item_count = models.PositiveIntegerField(default=0)
+    # Short items with no supplier to buy from, by name.
+    missing = models.JSONField(default=list, blank=True)
+    # Suppliers whose draft could not be made, with the reason.
+    failed = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-made_at", "-id"]
+
+    def __str__(self) -> str:
+        from django.utils import timezone
+
+        when = timezone.localtime(self.made_at) if self.made_at else None
+        name = "Daily Stock Check" if self.daily else "Stock Check"
+        return f"{name} {when:%d/%m/%Y %H:%M}" if when else name

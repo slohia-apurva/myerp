@@ -92,6 +92,11 @@ class Company(models.Model):
     # Entry types (core.attachments.LABELS) that cannot be submitted without at
     # least one attachment, e.g. ["goods_receipt", "purchase_invoice"].
     attachments_required = models.JSONField("attachment needed to submit", default=list, blank=True)
+    # Daily Stock Check (Sidharth, 2026-11-21): every morning at this hour (India
+    # time) each stock branch is checked and draft purchase orders are made for
+    # what runs short (buying/planning.py, `manage.py run_scheduled`).
+    daily_stock_check = models.BooleanField(default=False)
+    daily_stock_check_hour = models.PositiveSmallIntegerField(default=7)
     # TDS on purchase of goods (194Q): for a buyer whose turnover last year was
     # above the limit (Rs 10 crore). Bills then deduct it on goods.
     deduct_194q = models.BooleanField("deduct TDS on purchase of goods (194Q)", default=False)
