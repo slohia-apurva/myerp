@@ -651,6 +651,50 @@ export const MANUAL: Chapter[] = [
           the panels on the right, with "View", "Edit" and "Duplicate" buttons under "Item Details". Type in the search box to find an item by
           name, number, HSN or barcode.
         </p>
+        <h3>Bringing items from ERPNext</h3>
+        <ol>
+          <li>
+            First add the item groups and brands in MyERP, with the same names
+            as in ERPNext. The import only matches them; it does not make them.
+          </li>
+          <li>
+            In ERPNext open the Item list, then "Menu" and "Export". Tick "Select
+            All", tick the child tables "UOMs" and "Taxes", choose Excel and
+            download the file. Do not change it.
+          </li>
+          <li>
+            In MyERP click "Actions", then "Import from Excel…". Under "File Comes
+            From" pick "ERPNext item export", choose the file and click "Check
+            file".
+          </li>
+          <li>
+            Problems are listed with the row number of your ERPNext file, for
+            example an item group that is not in MyERP or an HSN code that is
+            not in the HSN list. Fix them (in MyERP or in the file) and check
+            again. When every row is right, click "Import".
+          </li>
+        </ol>
+        <p>
+          Each item keeps its ERPNext item code (for example IT-012465) as its
+          "Item number". An item already in MyERP with the same code, or the
+          same name, gets the code and the file's details instead of a second
+          copy. New items made in MyERP afterwards carry on the same series:
+          after IT-012465 comes IT-012466.
+        </p>
+        <p>
+          What comes across: item code, item name, item group, brand, default
+          unit of measure (matched by name or short name, such as "Kg"), HSN/SAC
+          (a code starting with 99 makes the item a "Service", any other a
+          "Goods" item), "Maintain Stock", "Allow Purchase", "Allow Sales", "Has
+          Batch No" (as "Track Batches") and "Disabled". The "UOMs" table becomes
+          the item's units of measure, each holding its conversion factor of the
+          default unit. The "Taxes" table becomes the GST rates: the rate is read
+          from the template's name ("GST 5% - AO" is 5%), from its "Valid From"
+          date, or from 01-07-2017 when it has none. An item with no tax
+          template comes in without a GST rate; the check lists them so you can
+          add the rate before billing. Description, safety stock, lead time,
+          minimum order and every other ERPNext column are left out.
+        </p>
         <p>
           People whose role may see stock also get an "In Stock" column: the
           quantity of each item in stock today in the company picked at the top

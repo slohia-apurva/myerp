@@ -29,6 +29,41 @@ def next_number(key: str, taken=lambda number: False) -> str:
     return number
 
 
+NUMBERED = re.compile(r"(.*?)(\d+)")
+
+
+def follow_numbers(key: str, numbers) -> None:
+    """Move a master series on past numbers that came in from a file (item
+    codes kept from another system, say IT-012465), so the next number made
+    here carries on after the highest. When no record holds a number of the
+    series' own pattern any more, the series takes the pattern most of the
+    records have. Call inside tenant_atomic."""
+    series, _ = NumberSeries.objects.select_for_update().get_or_create(
+        key=key, defaults={"prefix": DEFAULTS.get(key, "")}
+    )
+    count: dict[tuple[str, int], int] = {}
+    top: dict[tuple[str, int], int] = {}
+    for number in numbers:
+        m = NUMBERED.fullmatch(number or "")
+        if not m or len(m[1]) > 10 or not 3 <= len(m[2]) <= 8:
+            continue
+        shape = (m[1], len(m[2]))
+        count[shape] = count.get(shape, 0) + 1
+        top[shape] = max(top.get(shape, 0), int(m[2]))
+    own = (series.prefix, series.width)
+    if own in count:
+        if top[own] > series.last:
+            series.last = top[own]
+            series.save(update_fields=["last"])
+        return
+    if not count:
+        return
+    shape = max(count, key=lambda s: (count[s], top[s]))
+    series.prefix, series.width = shape
+    series.last = top[shape]
+    series.save(update_fields=["prefix", "width", "last"])
+
+
 # --- Document series: per company (and branch), restarting every fiscal year --
 
 # (key, label, short code in the number, GST invoice?) A GST invoice number is at most
