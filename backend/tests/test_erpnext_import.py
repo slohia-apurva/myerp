@@ -129,7 +129,7 @@ def test_erpnext_export_comes_in_with_its_codes(owner, alpha):
         tea = Item.objects.get(item_number="IT-012465")
         assert (tea.name, tea.item_type, tea.hsn) == ("Assam Tea 1 kg", "goods", "0902")
         assert tea.stock_unit.name == "Kilogram" and tea.brand.name == "Apurvam"
-        assert tea.safety_stock_qty is None and tea.notes == ""  # left out, as agreed
+        assert not tea.plans.exists() and tea.notes == ""  # left out, as agreed
         carton = tea.units.get(unit__name="Carton")
         assert carton.factor == 12 and carton.contains_unit == tea.stock_unit
         assert [(r.valid_from.isoformat(), r.rate) for r in tea.gst_rates.all()] == [

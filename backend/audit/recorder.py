@@ -78,12 +78,11 @@ LABELS = {
     "best_before_unit": "Best before in",
     "batch_no": "Batch No",
     "lead_time_days": "Lead time (days)",
-    "safety_stock_qty": "Safety stock qty",
     "min_order_qty": "Minimum order qty",
-    "max_stock_qty": "Max stock qty",
+    "preferred_supplier": "Preferred supplier",
     "batch_tracked": "Batches tracked",
     "qc_required": "Quality check on receipt",
-    "default_request_type": "Default material request type",
+    "default_request_type": "Main fulfilment",
     "item_type": "Type",
     "maintain_stock": "Maintain stock",
     "allow_purchase": "Allow purchase",
@@ -369,6 +368,7 @@ def _register() -> None:
                         "GST rates",
                         lambda i: "; ".join(map(str, i.gst_rates.all())) or None,
                     ),
+                    "plans": ("Stock planning", lambda i: _plans(i)),
                 },
             ),
             User: Tracked(
@@ -803,6 +803,18 @@ def _local_time(value) -> str:
         .replace("AM", "am")
         .replace("PM", "pm")
     )
+
+
+def _plans(item) -> str | None:
+    """An item's Stock Planning lines, one per branch, as the activity shows them."""
+    out = []
+    for p in item.plans.select_related("branch", "transfer_from"):
+        how = p.get_fulfilment_display()
+        if p.transfer_from_id:
+            how += f" from {p.transfer_from.name}"
+        up = f", up to {_number(p.order_up_to)}" if p.order_up_to is not None else ""
+        out.append(f"{p.branch.name}: {how}, safety {_number(p.safety_qty)}{up}")
+    return "; ".join(out) or None
 
 
 def snapshot(record: models.Model) -> Snapshot:

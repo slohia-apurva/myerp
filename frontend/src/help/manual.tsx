@@ -731,10 +731,12 @@ export const MANUAL: Chapter[] = [
             manufacturing date to work out the best-before date. On the
             "Purchase" tab write the "Purchase description" for suppliers (a
             purchase order line starts with it and can change it), pick
-            the "Default purchase unit", and fill in the "Lead time in days",
-            "Safety stock qty", "Minimum order qty" and "Max stock qty" (the
-            quantities are in the item's default unit; the maximum cannot be
-            below the safety stock). "TDS Section" is the section a purchase of
+            the "Default purchase unit", pick the "Preferred supplier" (the
+            supplier the stock check buys a shortage from, at its Supplier
+            Prices; only suppliers are offered), and fill in the "Lead time in
+            days" (the supplier's delivery time) and "Minimum order qty"
+            (suggested purchases are rounded up to it; in the item's default
+            unit). "TDS Section" is the section a purchase of
             the item deducts TDS under, for example "194C" for an Annual
             Maintenance (AMC); goods usually leave it empty (they go by 194Q when
             the company deducts it), and a service left empty takes the
@@ -753,11 +755,27 @@ export const MANUAL: Chapter[] = [
             date, and the item's details mark today's rate "In force".
           </li>
           <li>
-            On the "Stock and quality" tab, choose the "Default material request
-            type": "Manufacture" if the item is made in-house, "Purchase" if it
-            is bought, or "Customer Provided" if the customer supplies it (it is
-            what a material request for the item starts as, and can be left
-            "Not set"). In the "Switches" box tick "Track batches"
+            The "Stock Planning" section says, for each branch, how much stock
+            the item must keep and how a shortage is filled. Choose the "Main
+            fulfilment": "Purchase" if the item is bought, "Manufacture" if it
+            is made in-house, or "Customer Provided" if the customer supplies
+            it. Under "By Branch", click "Add branch" for each branch that
+            should be checked, pick the "Branch" (only branches that keep stock
+            are offered) and its "Fulfilment", which starts as the main one:
+            "Purchase", "Manufacture", "Transfer" or "Customer Provided". For
+            "Transfer" pick "Transfer From" (another branch of the same company)
+            and give the "Transfer Days" the goods take on the way; a transfer
+            branch's shortage is added to what that branch needs. Fill in the
+            "Safety Stock" (the least the branch should hold) and "Order Up To"
+            (the level a refill brings it back to; left empty, a refill goes up
+            to the safety stock, and it cannot be below it). Quantities are in
+            the item's default unit. A branch not listed is not checked for the
+            item, and "Main fulfilment" must be set once there is a branch line.
+            An item that keeps no stock has no stock planning. Click "Remove" to
+            take a branch off.
+          </li>
+          <li>
+            On the "Stock and quality" tab, in the "Switches" box tick "Track batches"
             if you must follow batch numbers, and tick "Quality check on
             receipt" if goods must be checked when they arrive. On every tab a
             red * marks a field that must be filled in.
