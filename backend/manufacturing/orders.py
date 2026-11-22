@@ -483,9 +483,31 @@ def _pick(model, value, field: str, message: str, **where):
     return found
 
 
+# What a submitted order keeps (Sidharth, 2026-11-23): all but the Start Date,
+# Supervisor, Notes and the added materials.
+LOCKED = {
+    "order_date": "Order Date",
+    "customer_id": "Customer",
+    "due_date": "Due Date",
+    "sales_order_id": "Sales Order",
+    "materials_from_id": "Materials From",
+    "goods_to_id": "Goods Go To",
+    "mrp": "MRP",
+    "usp": "USP",
+    "usp_per_id": "USP Per",
+    "batch_no": "Batch No",
+    "pkd_date": "Pkd Date",
+    "best_before_value": "Best Before",
+    "best_before_unit": "Best Before",
+    "expiry_date": "Expiry Date",
+    "packing_notes": "Packing Notes",
+}
+
+
 def _save(mo: MO, data: dict) -> None:
     company = mo.company
     fixed = mo.pk is not None and mo.status != MO.DRAFT
+    before = {f: getattr(mo, f) for f in LOCKED} if fixed else {}
     branch = _branch(company, data["branch"], "branch")
     item = Item.objects.filter(pk=data["item"], is_active=True, maintain_stock=True).first()
     if item is None:
@@ -527,13 +549,6 @@ def _save(mo: MO, data: dict) -> None:
         )  # fmt: skip
         if customer is None:
             raise ValidationError({"customer": ["A job work order needs the customer."]})
-    if fixed and (data["order_date"] != mo.order_date or customer != mo.customer):
-        raise ValidationError(
-            {
-                "detail": "A submitted order keeps its order date (its number is made from it) "
-                "and its customer."
-            }
-        )
     if data["due_date"] < data["start_date"]:
         raise ValidationError({"due_date": ["The Due Date cannot be before the Start Date."]})
     so = _pick(
@@ -565,6 +580,14 @@ def _save(mo: MO, data: dict) -> None:
     if mo.pkd_date and mo.expiry_date and mo.expiry_date < mo.pkd_date:
         raise ValidationError({"expiry_date": ["The Expiry Date cannot be before the Pkd Date."]})
     mo.packing_notes = data.get("packing_notes", "").strip()
+    if fixed and (changed := [f for f in LOCKED if getattr(mo, f) != before[f]]):
+        names = ", ".join(dict.fromkeys(LOCKED[f] for f in changed))
+        raise ValidationError(
+            {
+                "detail": f"A submitted order keeps its {names}. Only the Start Date, "
+                "Supervisor, Notes and added materials can change."
+            }
+        )
     added = _added(mo, data.get("added") or [], bom.kind)
     if fixed:
         fixed_rows = [r for r in _rows(mo) if r["from_bom"]]

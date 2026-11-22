@@ -88,7 +88,10 @@ def test_an_order_takes_the_default_version_and_fixes_its_materials(owner, world
     assert bigger.status_code == 400 and "keeps its branch" in str(bigger.json())
     later = (TODAY + datetime.timedelta(days=1)).isoformat()
     moved = call(owner, "patch", f"manufacturing-orders/{mo['id']}/", {**body, "order_date": later})
-    assert moved.status_code == 400 and "keeps its order date" in str(moved.json())
+    assert moved.status_code == 400 and "keeps its Order Date" in str(moved.json())
+    relabel = call(owner, "patch", f"manufacturing-orders/{mo['id']}/", {**body, "batch_no": "X"})
+    assert relabel.status_code == 400 and "Batch No" in str(relabel.json())
+    body["start_date"] = body["due_date"]
     body["added"] = [{"item": sachet, "unit": w["pcs"], "per_unit": "2"}]
     more = call(owner, "patch", f"manufacturing-orders/{mo['id']}/", body)
     assert more.status_code == 200, more.json()
