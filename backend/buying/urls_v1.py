@@ -241,6 +241,11 @@ urlpatterns = [
         name="stock-check-orders",
     ),
     path(
+        "companies/<int:pk>/stock-check/transfers/",
+        planning.StockCheckTransfersView.as_view(),
+        name="stock-check-transfers",
+    ),
+    path(
         "companies/<int:pk>/stock-check/daily/",
         planning.StockCheckDailyView.as_view(),
         name="stock-check-daily",

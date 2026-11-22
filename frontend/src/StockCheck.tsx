@@ -36,6 +36,31 @@ type Row = {
   lead_time_days: number | null;
   by: string;
 };
+/** "To Transfer" (Sidharth, 2026-11-22, preview 9b): items the branch gets from another branch. */
+type Move = {
+  item: number;
+  item_name: string;
+  item_group: number | null;
+  item_group_name: string;
+  in_stock: string;
+  reserved: string;
+  incoming: string;
+  expected: string;
+  safety: string;
+  order_up_to: string | null;
+  short: boolean;
+  suggested: string;
+  unit: number;
+  unit_name: string;
+  from_branch: number;
+  from_branch_name: string;
+  transfer_days: number | null;
+  by: string;
+  free_at_source: string;
+  source_short: boolean;
+  other_gstin: boolean;
+};
+type MoveDraft = { id: number; made_at: string; daily: boolean; made_by_name: string; from_branch_name: string; item_count: number; expected_date: string | null };
 type Daily = { on: boolean; hour: number; can_change: boolean };
 type Run = { id: number; made_at: string; daily: boolean; made_by_name: string; short_count: number; order_count: number; missing: string[]; failed: string[] };
 type Draft = { id: number; made_at: string; daily: boolean; made_by_name: string; supplier_name: string; item_count: number; expected_date: string | null; total: string };
@@ -49,6 +74,9 @@ type Result = {
   runs: Run[];
   /** Drafts made by the daily run or "Create Purchase Orders", not yet submitted. */
   drafts: Draft[];
+  transfers: Move[];
+  transfer_drafts: MoveDraft[];
+  may_transfer: boolean;
 };
 type Branch = { id: number; name: string; is_active: boolean; no_stock: boolean };
 /** What the person changed on a line: ticked, quantity, supplier, and the supplier's rate. */
@@ -85,6 +113,8 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
   const [choices, setChoices] = useState<Record<number, Choice>>({});
   const [error, setError] = useState<unknown>("");
   const [made, setMade] = useState<{ id: number; supplier_name: string; lines: number }[]>([]);
+  const [moving, setMoving] = useState<Record<number, { on: boolean; qty: string }>>({});
+  const [moved, setMoved] = useState<{ id: number; from_branch_name: string; lines: number }[]>([]);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     api<{ branches: Branch[] }>(`v1/companies/${companyId}/`).then((c) => {
@@ -102,6 +132,7 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
     api<Result>(`v1/companies/${companyId}/stock-check/?branch=${branch}&show=${show}`)
       .then((r) => {
         setResult(r);
+        setMoving(Object.fromEntries(r.transfers.map((m) => [m.item, { on: m.short && !m.other_gstin, qty: m.suggested }])));
         setChoices(
           Object.fromEntries(
             r.rows.map((row) => [
@@ -165,6 +196,32 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
       setBusy(false);
     }
   };
+  const moves = useMemo(() => (result?.transfers ?? []).filter((r) => !group || String(r.item_group) === group), [result, group]);
+  const bySource = useMemo(() => {
+    const out = new Map<number, Move[]>();
+    for (const m of moves) out.set(m.from_branch, [...(out.get(m.from_branch) ?? []), m]);
+    return [...out];
+  }, [moves]);
+  const toMove = moves.filter((m) => moving[m.item]?.on && !m.other_gstin && Number(moving[m.item]?.qty) > 0);
+  const moveDrafts = new Set(toMove.map((m) => m.from_branch)).size;
+  const mayMove = !!result?.may_transfer;
+  const createMoves = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const out = await api<{ id: number; from_branch_name: string; lines: number }[]>(`v1/companies/${companyId}/stock-check/transfers/`, {
+        branch: Number(branch),
+        lines: toMove.map((m) => ({ item: m.item, unit: m.unit, qty: moving[m.item].qty.trim(), from_branch: m.from_branch })),
+      });
+      setMoved(out);
+      run();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const stHref = (id: number) => `#/companies/${companyId}/stock-transfers?view=${id}`;
   const setDaily = async (next: Partial<Daily>) => {
     if (!result) return;
     setError("");
@@ -181,7 +238,7 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
   const runs = result?.runs ?? [];
   const branchName = branches.find((b) => String(b.id) === branch)?.name ?? "";
   const printing = usePrintMenu({ title: `Stock Check: ${branchName}`, scope: "" });
-  const shortCount = (result?.rows ?? []).filter((r) => r.short).length;
+  const shortCount = (result?.rows ?? []).filter((r) => r.short).length + (result?.transfers ?? []).filter((r) => r.short).length;
 
   return (
     <section className="page">
@@ -337,12 +394,160 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
           </p>
         )}
         <p className="small">
-          "Reserved" is everything going out of the branch, submitted or still a draft: sales orders still to deliver (manufacturing and transfer orders will
-          join when they are built). "Incoming" is everything coming in, drafts included: purchase orders still to receive. "Expected" = In Stock − Reserved +
-          Incoming. "Suggested" = Order Up To − Expected, in the purchase unit, rounded up to the Minimum Order Qty. Quantities other than Suggested are in the
-          item's default unit. "To Make" and "To Transfer" come with manufacturing and stock transfers.
+          "Reserved" is everything going out of the branch, submitted or still a draft: sales orders still to deliver and draft stock transfers out
+          (manufacturing orders will join when they are built). "Incoming" is everything coming in, drafts included: purchase orders still to receive and
+          stock transfers coming. "Expected" = In Stock − Reserved + Incoming. "Suggested" = Order Up To − Expected, in the purchase unit, rounded up to the
+          Minimum Order Qty. Quantities other than Suggested are in the item's default unit. "To Make" comes with manufacturing.
         </p>
       </Section>
+      {moved.length > 0 && (
+        <p className="ok-note no-print">
+          Made {moved.length} draft stock {moved.length === 1 ? "transfer" : "transfers"}:{" "}
+          {moved.map((t, k) => (
+            <span key={t.id}>
+              {k > 0 && ", "}
+              <a href={stHref(t.id)} onClick={(e) => (e.preventDefault(), openTab(stHref(t.id)))}>
+                from {t.from_branch_name}
+              </a>{" "}
+              ({t.lines} {t.lines === 1 ? "item" : "items"})
+            </span>
+          ))}
+          . The source's stores check and Dispatch each one.
+        </p>
+      )}
+      {(moves.length > 0 || (result?.transfer_drafts ?? []).length > 0) && (
+        <Section title={`To Transfer · ${plural(moves.length, "item")}${moves.length ? `, from ${bySource.length} ${bySource.length === 1 ? "branch" : "branches"}` : ""}`}>
+          {moves.length === 0 ? (
+            <p className="small">Nothing to transfer: every item this branch gets from another branch is at or above its safety stock.</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="grid by-group stock-check">
+                <thead>
+                  <tr>
+                    <th className="no-print" aria-label="Transfer" />
+                    <th>Item</th>
+                    <th className="num">In Stock</th>
+                    <th className="num">Reserved</th>
+                    <th className="num">Incoming</th>
+                    <th className="num">Expected</th>
+                    <th className="num">Safety</th>
+                    <th className="num">Order Up To</th>
+                    <th className="num">Suggested</th>
+                    <th>Unit</th>
+                    <th className="num">Free at Source</th>
+                  </tr>
+                </thead>
+                {bySource.map(([source, list]) => {
+                  const days = Math.max(0, ...list.map((m) => m.transfer_days ?? 0));
+                  const by = list.map((m) => m.by).sort().at(-1) ?? "";
+                  return (
+                    <tbody key={source}>
+                      <tr className="group-row">
+                        <td colSpan={11} className={list[0].other_gstin ? "error" : undefined}>
+                          From {list[0].from_branch_name} · Transfer Days {days} · arrives by {day(by)}
+                          {list[0].other_gstin && " · another GSTIN: a sale, not a transfer, so it cannot be sent this way"}
+                        </td>
+                      </tr>
+                      {list.map((m) => {
+                        const c = moving[m.item] ?? { on: false, qty: m.suggested };
+                        return (
+                          <tr key={m.item}>
+                            <td className="no-print">
+                              <input
+                                type="checkbox"
+                                aria-label={`Transfer ${m.item_name}`}
+                                checked={c.on}
+                                disabled={!mayMove || m.other_gstin}
+                                onChange={(e) => setMoving((x) => ({ ...x, [m.item]: { ...c, on: e.target.checked } }))}
+                              />
+                            </td>
+                            <td>{m.item_name}</td>
+                            <td className="num">{indian(m.in_stock)}</td>
+                            <td className="num">{indian(m.reserved)}</td>
+                            <td className="num">{indian(m.incoming)}</td>
+                            <td className={`num${m.short ? " error" : ""}`}>
+                              <b>{indian(m.expected)}</b>
+                            </td>
+                            <td className="num">{indian(m.safety)}</td>
+                            <td className="num">{m.order_up_to === null ? "—" : indian(m.order_up_to)}</td>
+                            <td className="num">
+                              <input
+                                className="num"
+                                inputMode="decimal"
+                                aria-label={`Suggested ${m.item_name}`}
+                                value={c.qty}
+                                disabled={!mayMove}
+                                onChange={(e) => setMoving((x) => ({ ...x, [m.item]: { ...c, qty: e.target.value } }))}
+                              />
+                            </td>
+                            <td>{m.unit_name}</td>
+                            <td className={`num${Number(m.free_at_source) < Number(c.qty) ? " error" : ""}`}>
+                              <b>{indian(m.free_at_source)}</b>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  );
+                })}
+              </table>
+            </div>
+          )}
+          {moves
+            .filter((m) => !m.other_gstin && Number(m.free_at_source) < Number(moving[m.item]?.qty ?? m.suggested))
+            .map((m) => (
+              <p key={m.item} className="use-note">
+                {m.item_name}: {m.from_branch_name} has only {indian(m.free_at_source)} {m.unit_name} free. The transfer can still be made; {m.from_branch_name}'s own
+                check then sees it as Reserved and buys or makes more.
+              </p>
+            ))}
+          {mayMove && moves.length > 0 && (
+            <p className="no-print">
+              <button type="button" onClick={createMoves} disabled={busy || toMove.length === 0}>
+                Create Stock Transfers ({moveDrafts} {moveDrafts === 1 ? "draft" : "drafts"}, {plural(toMove.length, "item")})
+              </button>{" "}
+              <span className="small">One DRAFT transfer per source branch. The source's stores pick and Dispatch it.</span>
+            </p>
+          )}
+          {(result?.transfer_drafts ?? []).length > 0 && (
+            <div className="table-scroll">
+              <table className="grid">
+                <thead>
+                  <tr>
+                    <th>Draft Made</th>
+                    <th>By</th>
+                    <th>From</th>
+                    <th className="num">Items</th>
+                    <th>Expected Arrival</th>
+                    <th className="no-print" aria-label="Open" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result?.transfer_drafts ?? []).map((d) => (
+                    <tr key={d.id}>
+                      <td>{shortStamp(d.made_at)}</td>
+                      <td>{d.daily ? "Daily run" : d.made_by_name}</td>
+                      <td>{d.from_branch_name}</td>
+                      <td className="num">{d.item_count}</td>
+                      <td>{d.expected_date ? day(d.expected_date) : ""}</td>
+                      <td className="no-print">
+                        <button type="button" className="link" onClick={() => openTab(stHref(d.id))}>
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="small">
+            Items whose Stock Planning line at this branch says "Transfer" from another branch. "Suggested" is in the item's sales unit, rounded up to whole
+            units; no minimum order. "Free at Source" = the source branch's In Stock − Reserved. A draft transfer counts at once: Incoming here, Reserved at
+            the source, so the source's own check adds it to its need.
+          </p>
+        </Section>
+      )}
       {drafts.length > 0 && (
         <Section title="Draft Purchase Orders Made by Stock Check">
           <div className="table-scroll">
@@ -385,7 +590,7 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
             <SidePanel title="Daily Run">
               <label className="daily-tick">
                 <input type="checkbox" checked={result.daily.on} disabled={!result.daily.can_change} onChange={(e) => setDaily({ on: e.target.checked })} /> Run
-                every morning and make draft purchase orders
+                every morning and make draft purchase orders and stock transfers
               </label>
               <div className="daily-at">
                 <span className="side-label">Run At</span>
@@ -396,7 +601,7 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
                 )}
               </div>
               <p className="small">
-                For every branch of this company with Stock Planning lines. The Purchase people get a bell notice.
+                For every branch of this company with Stock Planning lines. The Purchase people and the stores get a bell notice.
                 {!result.daily.can_change && " Only someone who may change masters can change this."}
               </p>
             </SidePanel>
@@ -406,7 +611,7 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
               {runs.map((r) => (
                 <div key={r.id} className="small">
                   {shortStamp(r.made_at)} · {r.daily ? "Daily" : r.made_by_name} ·{" "}
-                  {r.short_count === 0 ? "nothing short" : `${r.short_count} short · ${plural(r.order_count, "PO")} made`}
+                  {r.short_count === 0 ? "nothing short" : `${r.short_count} short · ${plural(r.order_count, "draft")} made`}
                   {r.missing.length > 0 && <span className="error"> · no supplier: {r.missing.join(", ")}</span>}
                   {r.failed.length > 0 && <span className="error"> · {r.failed.join(" ")}</span>}
                 </div>

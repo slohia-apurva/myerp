@@ -282,7 +282,8 @@ def _order_out(o: SalesOrder, lines: bool = True) -> dict:
         from selling.delivery import brief as note_brief
 
         data["delivery_notes"] = [note_brief(n) for n in o.delivery_notes.order_by("id")]
-        data["purchase_orders"], data["shortages"] = _planned(o, data["lines"])
+        planned = _planned(o, data["lines"])
+        data["purchase_orders"], data["shortages"], data["stock_transfers"] = planned
         data["credit_warning"] = (
             credit_note(o.customer, o.total)
             if o.status in (SalesOrder.DRAFT, *SalesOrder.OPEN)
@@ -291,10 +292,10 @@ def _order_out(o: SalesOrder, lines: bool = True) -> dict:
     return data
 
 
-def _planned(o: SalesOrder, lines: list[dict]) -> tuple[list[dict], list[dict]]:
-    """The draft purchase orders Submit (or "Purchase Orders for Shortages") made
-    for this order, and on each stock line its Expected (in the line's unit) and
-    what covers a shortage."""
+def _planned(o: SalesOrder, lines: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    """The draft purchase orders and stock transfers Submit (or "Purchase Orders
+    for Shortages") made for this order, its shortage notes, and on each stock
+    line its Expected (in the line's unit) and what covers a shortage."""
     pos = list(o.purchase_orders.select_related("supplier").prefetch_related("lines"))
     by_item = {}
     for po in pos:
@@ -302,6 +303,13 @@ def _planned(o: SalesOrder, lines: list[dict]) -> tuple[list[dict], list[dict]]:
             continue
         for ln in po.lines.all():
             by_item.setdefault(ln.item_id, po)
+    moves = {}
+    transfers = list(o.stock_transfers.select_related("from_branch").prefetch_related("lines"))
+    for t in transfers:
+        if t.status == "cancelled":
+            continue
+        for ln in t.lines.all():
+            moves.setdefault(ln.item_id, t)
     notes = {n["item"]: n for n in (o.shortages or [])}
     items = {ln.item_id: ln.item for ln in o.lines.all()}
     for row in lines:
@@ -314,7 +322,16 @@ def _planned(o: SalesOrder, lines: list[dict]) -> tuple[list[dict], list[dict]]:
             )
         )
         po = by_item.get(row["item"])
-        if po is not None:
+        moved = moves.get(row["item"])
+        if moved is not None:
+            row["cover"] = {
+                "kind": "st",
+                "text": moved.number or "Draft ST",
+                "order": None,
+                "transfer": moved.pk,
+                "supplier": f"From {moved.from_branch.name}",
+            }
+        elif po is not None:
             label = po.number or "Draft PO"
             row["cover"] = {
                 "kind": "po",
@@ -346,7 +363,18 @@ def _planned(o: SalesOrder, lines: list[dict]) -> tuple[list[dict], list[dict]]:
         }
         for po in pos
     ]
-    return briefs, list(o.shortages or [])
+    transfer_briefs = [
+        {
+            "id": t.pk,
+            "number": t.number,
+            "status": t.status,
+            "status_label": t.get_status_display(),
+            "from_branch_name": t.from_branch.name,
+            "expected_date": t.expected_date,
+        }
+        for t in transfers
+    ]
+    return briefs, list(o.shortages or []), transfer_briefs
 
 
 def _orders(company):

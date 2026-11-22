@@ -2473,20 +2473,43 @@ export const MANUAL: Chapter[] = [
         <Note>
           Draft orders count as "Incoming" at once, so a check run again never
           orders the same goods twice. A cancelled order counts for nothing.
-          Items the branch makes or gets by transfer are not on this screen yet;
-          they come with manufacturing orders and the "To Transfer" group.
+          Items the branch makes are not on this screen yet; they come with
+          manufacturing orders.
         </Note>
+        <h3>To Transfer</h3>
+        <p>
+          Items whose Stock Planning line at the branch says "Transfer" from
+          another branch are listed under "To Transfer", grouped by the branch
+          they come from, with its "Transfer Days" and the date they would
+          arrive by. The figures are the same as for "To Buy". "Suggested" is
+          in the item's sales unit, rounded up to whole units; there is no
+          minimum order. "Free at Source" is what the source branch has: its In
+          Stock − Reserved, in red when it is less than the quantity.
+        </p>
+        <p>
+          Tick the lines and click "Create Stock Transfers": one draft stock
+          transfer is made per source branch, with Expected Arrival today plus
+          the Transfer Days. The source's stores open it, check it and click
+          "Dispatch" (see "Stock transfers"). A source short of stock is only a
+          warning: the draft counts as "Reserved" there, so that branch's own
+          check buys or makes more. A source with another GSTIN cannot send by
+          transfer (that is a sale), so its lines cannot be ticked. The drafts
+          made and not yet dispatched are listed below the lines.
+        </p>
         <h3>Daily run</h3>
         <p>
           The "Daily Run" box at the right sets the check to run by itself every
-          morning. Tick "Run every morning and make draft purchase orders" and
+          morning. Tick "Run every morning and make draft purchase orders and
+          stock transfers" and
           pick the hour in "Run At" (07:00 to start with). Only someone who may
           change masters can change it. At that hour, for every branch of the
           company with Stock Planning lines, it does what "Create Purchase
           Orders" does for every short item that has a supplier: one draft per
-          supplier, with the note "Made by the daily Stock Check". The
-          Purchase people get a bell notice naming the drafts and any item with
-          no Preferred Supplier; clicking it opens this screen for that branch.
+          supplier, with the note "Made by the daily Stock Check", and what
+          "Create Stock Transfers" does for every short item to transfer. The
+          Purchase people and the stores get a bell notice naming the drafts and
+          any item with no Preferred Supplier; clicking it opens this screen for
+          that branch.
         </p>
         <p>
           The drafts are never sent by themselves: open each one from "Draft
@@ -3640,12 +3663,15 @@ export const MANUAL: Chapter[] = [
           purchase order to its Preferred Supplier, filled up to "Order Up
           To", one order per supplier. An item with no Stock Planning line
           there but "Main Fulfilment" Purchase is bought for the shortage
-          only. Goods already on order, drafts included, count as "Incoming",
-          so they are not ordered again. The note "Shortages planned on
+          only. An item the branch gets by transfer gets a draft stock transfer
+          from its source branch, one per source, in its sales unit; the box
+          "Stock Transfers" counts them. Goods already on order or on the way,
+          drafts included, count as "Incoming", so they are not ordered again. The note "Shortages planned on
           Submit" lists each item that is short and what was done; the box
           "Purchase Orders" counts the drafts made for the order. In "Items",
           "Expected" shows what the branch will have once its orders go out and
-          come in, and "Covered By" shows the draft purchase order, "To make"
+          come in, and "Covered By" shows the draft purchase order or "Draft
+          ST" (the stock transfer), "To make"
           for an item the branch manufactures (Manufacturing Orders come
           later), or "In stock". The drafts are not sent: someone in Purchase
           checks each one and submits it. When the order changes, or a draft

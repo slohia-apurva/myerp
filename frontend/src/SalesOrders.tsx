@@ -44,7 +44,7 @@ type Line = {
   /** After Submit: In Stock - Reserved + Incoming at the branch, in the line's unit. */
   expected?: string;
   /** What covers a shortage: a draft PO made on Submit, "To make", or "In stock". */
-  cover?: { kind: string; text: string; order: number | null; supplier?: string };
+  cover?: { kind: string; text: string; order: number | null; supplier?: string; transfer?: number };
   customer_code?: string;
   closed_at: string | null;
   closed_by_name: string;
@@ -118,6 +118,8 @@ type SalesOrder = {
   /** Draft purchase orders made for its shortages (Sidharth, 2026-11-21). */
   purchase_orders?: { id: number; number: string; status: string; status_label: string; supplier_name: string; expected_date: string | null }[];
   shortages?: Shortage[];
+  /** Draft stock transfers made for its shortages (Sidharth, 2026-11-22, preview 9b). */
+  stock_transfers?: { id: number; number: string; status: string; status_label: string; from_branch_name: string; expected_date: string | null }[];
 };
 type Shortage = {
   item: number;
@@ -133,6 +135,8 @@ type Shortage = {
   unit_name?: string;
   supplier_name?: string;
   by?: string;
+  transfer?: number;
+  from_name?: string;
 };
 type Customer = {
   id: number;
@@ -1261,6 +1265,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const pickHref = (pid: number) => `#/companies/${companyId}/pick-lists?view=${pid}`;
   const poHref = (pid: number) => `#/companies/${companyId}/purchase-orders?view=${pid}`;
   const pos = (order.purchase_orders ?? []).filter((p) => p.status !== "cancelled");
+  const stHref = (tid: number) => `#/companies/${companyId}/stock-transfers?view=${tid}`;
+  const sts = (order.stock_transfers ?? []).filter((t) => t.status !== "cancelled");
   const shortages = (order.shortages ?? []).filter((n) => n.action !== "ok");
   const planned = (order.shortages ?? []).length > 0;
   const planShort = async () => {
@@ -1409,8 +1415,16 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                         </>
                       ) : n.action === "make" ? (
                         "Manufacture: no order yet. Once Bills of Materials and Manufacturing Orders are built, Submit makes a Manufacturing Order here, and draft POs for any material that is short"
+                      ) : n.action === "st" && n.transfer ? (
+                        <>
+                          <a href={stHref(n.transfer)} target="_blank" rel="noreferrer">
+                            draft Stock Transfer
+                          </a>{" "}
+                          from {n.from_name} for {n.qty} {n.unit_name}
+                          {n.by && `, arriving by ${showDate(n.by)}`}
+                        </>
                       ) : n.action === "transfer" ? (
-                        "Transfer from another branch: no order yet (Stock Transfers come later)"
+                        `Transfer from another branch: ${n.message || "no transfer made"}`
                       ) : n.action === "unplanned" ? (
                         "no Stock Planning line or Main Fulfilment on the item, so nothing was ordered"
                       ) : (
@@ -1448,6 +1462,15 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 title={pos.map((p) => `${p.number || "Draft"} · ${p.supplier_name} · ${p.status_label}`).join("\n")}
               >
                 <b>{pos.length}</b> {pos.length === 1 ? "Purchase Order" : "Purchase Orders"}
+              </a>
+              <a
+                className={sts.length ? "" : "none"}
+                href={sts.length === 1 ? stHref(sts[0].id) : `#/companies/${companyId}/stock-transfers`}
+                target="_blank"
+                rel="noreferrer"
+                title={sts.map((t) => `${t.number || "Draft"} · from ${t.from_branch_name} · ${t.status_label}`).join("\n")}
+              >
+                <b>{sts.length}</b> {sts.length === 1 ? "Stock Transfer" : "Stock Transfers"}
               </a>
               <span className="none">
                 <b>0</b> Mfg Orders
@@ -1573,7 +1596,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                         {planned && order.status !== "cancelled" && (
                           <td>
                             {l.cover &&
-                              (l.cover.order ? (
+                              (l.cover.transfer ? (
+                                <a className="pill on" href={stHref(l.cover.transfer)} target="_blank" rel="noreferrer" title={l.cover.supplier}>
+                                  {l.cover.text}
+                                </a>
+                              ) : l.cover.order ? (
                                 <a className="pill on" href={poHref(l.cover.order)} target="_blank" rel="noreferrer" title={l.cover.supplier}>
                                   {l.cover.text}
                                 </a>
