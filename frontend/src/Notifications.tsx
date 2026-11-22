@@ -69,7 +69,7 @@ export function NotificationBell() {
               }}
             >
               <b>{n.title}</b>
-              <span className="small">{n.body}</span>
+              <span className="small bell-body">{n.body}</span>
               <span className="small">{when(n.created_at)}</span>
             </a>
           ))}

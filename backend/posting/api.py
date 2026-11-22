@@ -98,8 +98,9 @@ class AskLedgersView(APIView):
             people,
             company,
             f"Set ledgers on item group {group.name}",
-            f"{request.user.display_name} could not submit {document}: "
-            f"{' and '.join(missing)} of {group.name} not set for {company.name}.",
+            f"{request.user.display_name} could not submit {document}.\n\n"
+            + "\n".join(f"• {label} of {group.name} not set" for label in missing)
+            + f"\n\nCompany: {company.name}",
             f"#/item-groups?form={group.pk}&at=ledgers",
         )
         return Response({"asked": len(people)})

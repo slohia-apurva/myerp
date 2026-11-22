@@ -543,13 +543,16 @@ def _differences(r: GoodsReceipt, user) -> None:
                 key, gap = "short_receipt", f"{_num(wanted - got)} short"
             else:
                 continue
+            # One fact per line in the bell (Sidharth, 2026-11-22).
             text = (
                 f"{ol.item.name}: {_num(got)} {unit} received against {_num(wanted)} ordered "
-                f"on {o.number} ({gap}), by {r.number}, received by {who}."
+                f"({gap}).\nOrder: {o.number}\nReceipt: {r.number}, received by {who}"
             )
             _note_on_order(r, user, o, key, text)
         if missing:
-            text = f"Still to come on {o.number}, none came with {r.number}: {', '.join(missing)}."
+            text = f"Still to come on {o.number}, none came with {r.number}:\n" + "\n".join(
+                f"• {m}" for m in missing
+            )
             _note_on_order(r, user, o, "not_received", text)
 
 
