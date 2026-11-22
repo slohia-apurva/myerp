@@ -335,6 +335,12 @@ def _save(t: StockTransfer, data: dict) -> None:
         if not item.maintain_stock:
             errors.append(f"Line {k}: {item.name} does not keep stock.")
             continue
+        if not valued(item):
+            errors.append(
+                f"Line {k}: {item.name} is a customer's own goods. A Stock Transfer moves only "
+                "our own goods for now."
+            )
+            continue
         unit = ItemUnit.objects.filter(item=item, unit=row["unit"]).select_related("unit").first()
         if unit is None:
             errors.append(f"Line {k}: pick one of the units of {item.name}.")
@@ -951,6 +957,7 @@ class TransferFormView(APIView):
             )
         items = list(
             Item.objects.filter(is_active=True, maintain_stock=True)
+            .exclude(default_request_type=Item.CUSTOMER_PROVIDED)
             .select_related("stock_unit")
             .prefetch_related("units__unit")
             .order_by("name")

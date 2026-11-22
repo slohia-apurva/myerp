@@ -1,12 +1,24 @@
-"""Stock entries (Entry > Stock). First the Stock Transfer between two branches
-of one company (Sidharth, 2026-11-22, preview 9a in mockups/planning)."""
+"""Stock entries (Entry > Stock): the Stock Transfer between two branches of
+one company, and the Stock Receipt and Stock Delivery of a customer's own goods
+(Sidharth, 2026-11-22, previews 9a and 9c in mockups/planning)."""
 
 from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
 
-from core.models import Batch, Branch, Company, Item, Package, Unit, WarehouseLocation
+from core.models import (
+    PACKAGE_TYPES,
+    Batch,
+    Branch,
+    Company,
+    Item,
+    Ledger,
+    Package,
+    SalesPerson,
+    Unit,
+    WarehouseLocation,
+)
 from shipping.models import CourierAccount
 
 MONEY = {"max_digits": 18, "decimal_places": 2}
@@ -137,6 +149,120 @@ class StockTransferBin(models.Model):
     put_location = models.ForeignKey(
         WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"{self.line.item} {self.qty} from {self.location}"
+
+
+class CustomerStock(models.Model):
+    """A customer's own goods coming in (Stock Receipt: their tea for job work,
+    their packing material, against their challan) or going back to them unused
+    (Stock Delivery), Sidharth 2026-11-22, preview 9c. Only items marked
+    "Customer Provided". Quantity only: nothing in the books, and the goods are
+    held as that customer's stock, never mixed with ours or another customer's.
+
+    Draft -> Submit (numbered, stock moved) -> Cancel (stock moved back)."""
+
+    RECEIPT, DELIVERY = "receipt", "delivery"
+    KINDS = [(RECEIPT, "Stock Receipt"), (DELIVERY, "Stock Delivery")]
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=10, choices=KINDS)
+    customer = models.ForeignKey(Ledger, on_delete=models.PROTECT, related_name="+")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    # Receipt: where lines go unless they name a place; Delivery: pick only here.
+    area = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    number = models.CharField(max_length=30, blank=True)  # given on Submit
+    entry_date = models.DateField()
+    # Receipt: the customer's own challan that came with the goods.
+    challan_no = models.CharField(max_length=40, blank=True)
+    challan_date = models.DateField(null=True, blank=True)
+    reason = models.CharField(max_length=200, blank=True)
+    # None: brought or taken by the customer.
+    transporter = models.ForeignKey(
+        CourierAccount, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    vehicle_no = models.CharField(max_length=20, blank=True)
+    eway_bill_no = models.CharField(max_length=20, blank=True)
+    # Receipt: "Received By"; Delivery: "Handed Over By" (a stores person).
+    stores_person = models.ForeignKey(
+        SalesPerson, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-entry_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company",
+                "kind",
+                "number",
+                condition=~models.Q(number=""),
+                name="customer_stock_number_unique",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft {self.get_kind_display().lower()} {self.pk}"
+
+
+class CustomerStockLine(models.Model):
+    """One item, in a unit of the item. A receipt line says where it is put
+    (and its batch and bags); a delivery line's bins are picked (below)."""
+
+    entry = models.ForeignKey(CustomerStock, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(**QTY)
+    location = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    batch_number = models.CharField(max_length=60, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )  # set on Submit
+    bags = models.PositiveIntegerField(default=0)
+    package_type = models.CharField(max_length=10, choices=PACKAGE_TYPES, default="bag")
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} × {self.qty}"
+
+
+class CustomerStockBin(models.Model):
+    """A bin and batch (and package) a delivery line's goods leave from, in the
+    item's stock unit, picked from that customer's stock only."""
+
+    line = models.ForeignKey(CustomerStockLine, on_delete=models.CASCADE, related_name="bins")
+    location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="+")
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    package = models.ForeignKey(
+        Package, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    qty = models.DecimalField(**QTY)
 
     class Meta:
         ordering = ["id"]

@@ -2529,7 +2529,8 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           A stock transfer moves goods between two branches of the company
-          that have the same GSTIN. Open "Entry", then "Stock", then "Stock
+          that have the same GSTIN. It moves only our own goods, not a
+          customer's ("Customer Provided" items). Open "Entry", then "Stock", then "Stock
           Transfer". The list shows every transfer with "From", "To", "Value ₹"
           and "Status"; "Show" picks Draft, In Transit, Received or Cancelled.
           "Entry" shows "Stock" when the company uses the Stock module and your
@@ -2605,6 +2606,96 @@ export const MANUAL: Chapter[] = [
           cancelled: use "Create ▾", "Transfer back (send goods back)", which
           opens a new transfer the other way. Files such as the e-way bill go
           in "Attachments" at the right, also after Dispatch.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "customer-stock",
+    title: "Customer's goods: stock receipt and stock delivery",
+    summary: "A customer's own goods coming in for job work and going back unused. Quantity only, held as that customer's stock.",
+    body: (
+      <>
+        <p>
+          Some goods in the warehouse are not ours: a customer sends their own
+          tea to be packed, or their own pouches to pack it in. These are
+          items marked "Customer Provided" on the item. They come in on a
+          "Stock Receipt" and, if they go back unused, leave on a "Stock
+          Delivery". Open "Entry", then "Stock", then "Stock Receipt" or "Stock
+          Delivery". Each has its own list with "Show" (Draft, Submitted,
+          Cancelled) and a search box over every column.
+        </p>
+        <p>
+          Nothing is ever posted to the books for these goods: they are counted
+          in quantity only. They are held as that customer's stock, apart from
+          ours and from every other customer's. A delivery, or any other entry
+          that takes them out, takes only what that customer has. A Stock
+          Transfer does not take a customer's goods.
+        </p>
+        <h3>Stock Receipt</h3>
+        <ol>
+          <li>Click "New Stock Receipt". It opens in a new tab.</li>
+          <li>
+            Pick the "Customer", the "Branch" and, if you like, the "Area"
+            where the goods go ("Receiving area or default store" otherwise).
+            Give the "Date", the "Customer's Challan No" and "Challan Date",
+            the "Transporter" ("By Customer" if they brought it), "Vehicle No",
+            "E-way Bill No", who "Received By" and a "Reason", such as the job
+            work order.
+          </li>
+          <li>
+            Add the items with "Qty" and "Unit". Only items marked "Customer
+            Provided" are listed. For each line pick where it is "Put In" (a
+            bin or area; empty means the Area above), the "Batch" for an item
+            that keeps batches (the customer's lot number will do), and how
+            many "Bags" and of what "Bag Type".
+          </li>
+          <li>
+            Click "Save" to keep a draft, or "Submit". Submit gives the number
+            (SR/...), makes the batch if it is new, and puts the goods in as
+            that customer's stock. Each bag gets its own number (PK-...), with
+            the line's quantity shared equally between its bags.
+          </li>
+        </ol>
+        <p>
+          "Print ▾" gives the "Receipt Slip" (what came, where it was put,
+          bags) and the "Bag Labels", on a label printer or an A4 sheet.
+          "Create ▾", "Stock Delivery (send goods back)" opens a delivery for
+          the same customer.
+        </p>
+        <h3>Stock Delivery</h3>
+        <ol>
+          <li>Click "New Stock Delivery".</li>
+          <li>
+            Pick the "Customer", the "Branch" and, if the goods should come from
+            one area only, the "Area" ("Whole branch" otherwise). Give the
+            "Date", "Transporter", "Vehicle No", "E-way Bill No", who "Handed
+            Over By" and the "Reason".
+          </li>
+          <li>
+            Add the items. "Customer's Stock" shows what that customer has at
+            the branch, in red when it is less than the quantity.
+          </li>
+          <li>
+            Click "Save". The bins and batches are picked from that customer's
+            stock by the usual rule (earliest expiry first, whole bags by their
+            numbers) and show in "Taken From (bin · batch)". Click "Submit"
+            when the goods leave; they are picked again with the stock as it is
+            then. If the customer has too little, a popup lists each short line
+            with "Go to line" and the draft is kept.
+          </li>
+        </ol>
+        <p>
+          "Print ▾" gives the "Delivery Challan", marked "Returned to owner,
+          not a sale", with the e-way bill number.
+        </p>
+        <Note>
+          "Cancel" drops a draft. On a submitted receipt it takes the goods out
+          of the customer's stock again, which is refused once any of them has
+          been used or sent back (cancel that entry first); on a submitted
+          delivery it puts the goods back in the bins they came from. Files
+          such as the customer's challan go in "Attachments" at the right, also
+          after Submit.
         </Note>
       </>
     ),

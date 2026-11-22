@@ -82,6 +82,11 @@ class StockMove(VoucherRef):
     rate = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("0"))
     value = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal("0"))
     valued = models.BooleanField(default=True)
+    # Whose goods these are when they are not ours: a customer's own goods taken
+    # in by a Stock Receipt (quantity only, never valued). Kept apart per owner.
+    owner = models.ForeignKey(
+        "core.Party", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
 
     class Meta:
         ordering = ["date", "id"]

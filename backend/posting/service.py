@@ -85,6 +85,9 @@ class StockLine:
     # A receipt that carries stock over at the value it left with (a stock
     # transfer): that value exactly, so no paisa is lost to the rate's rounding.
     value: Decimal | None = None
+    # A customer's own goods (core.Party): received as theirs, and issued only
+    # from what is theirs. Quantity only (valued=False).
+    owner: object = None
 
 
 @dataclass
@@ -138,12 +141,14 @@ def on_hand(item: Item, location: WarehouseLocation, batch: Batch | None = None)
 
 
 def available(
-    item: Item, location: WarehouseLocation, batch: Batch | None, on: date
+    item: Item, location: WarehouseLocation, batch: Batch | None, on: date, owner=None
 ) -> tuple[Decimal, Decimal, date | None]:
     """How much can leave the place on that day without the place going below
     zero then or on any later day. Returns (held that day, can leave, the later
-    day that limits it or None)."""
+    day that limits it or None). With an owner, only that customer's goods."""
     rows = StockMove.objects.filter(item=item, location=location, batch=batch)
+    if owner is not None:
+        rows = rows.filter(owner=owner)
     held = rows.filter(date__lte=on).aggregate(q=Sum("qty"))["q"] or ZERO
     low, low_day, run = held, None, held
     later = rows.filter(date__gt=on).values("date").annotate(q=Sum("qty")).order_by("date")
@@ -187,6 +192,8 @@ def _check_place(voucher: Voucher, line: StockLine) -> None:
         _refuse(f"Batch {line.batch.number} is not a batch of {item.name}.", "batch")
     if line.qty == 0:
         _refuse(f"The quantity of {item.name} cannot be 0.", "qty")
+    if line.owner is not None and line.valued:
+        _refuse(f"{item.name} belongs to a customer: it is quantity only.", "item")
 
 
 def _check_not_before_issues(voucher: Voucher, item: Item) -> None:
@@ -232,6 +239,7 @@ def _receive(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove
         rate=rate,
         value=value,
         valued=line.valued,
+        owner=line.owner,
         **common,
     )
     if line.valued:
@@ -252,8 +260,12 @@ def _receive(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove
 
 def _issue(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove, Decimal]:
     want = -line.qty
-    held, can, limit = available(line.item, line.location, line.batch, voucher.date)
+    held, can, limit = available(
+        line.item, line.location, line.batch, voucher.date, owner=line.owner
+    )
     where = _where(line.location, line.batch)
+    if line.owner is not None:
+        where += f" (of {line.owner})"
     if held < want:
         _refuse(
             f"Only {held.normalize():f} of {line.item.name} is at {where} on "
@@ -316,6 +328,7 @@ def _issue(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove, 
         rate=(value / want).quantize(Decimal("0.000001")) if line.valued else ZERO,
         value=-value,
         valued=line.valued,
+        owner=line.owner,
         **common,
     )
     StockLotUse.objects.bulk_create(
@@ -451,9 +464,9 @@ def _cancel(voucher_type: str, voucher_id: int, user=None) -> None:
     taking: dict[tuple, Decimal] = {}  # what earlier lines of this cancel already take back
     for move in originals_stock:
         if move.qty > 0:
-            key = (move.item_id, move.location_id, move.batch_id, move.date)
+            key = (move.item_id, move.location_id, move.batch_id, move.date, move.owner_id)
             taking[key] = taking.get(key, ZERO) + move.qty
-            _, can, _ = available(move.item, move.location, move.batch, move.date)
+            _, can, _ = available(move.item, move.location, move.batch, move.date, owner=move.owner)
             if can < taking[key]:
                 _refuse(
                     f"{move.item.name} received by {move.voucher_no} has since been moved or "
@@ -511,6 +524,7 @@ def _cancel(voucher_type: str, voucher_id: int, user=None) -> None:
                 rate=m.rate,
                 value=-m.value,
                 valued=m.valued,
+                owner=m.owner,
                 **common,
             )
             for m in originals_stock

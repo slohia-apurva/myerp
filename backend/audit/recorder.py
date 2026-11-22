@@ -219,7 +219,7 @@ def _register() -> None:
         SalesOrder,
     )
     from shipping.models import CourierAccount, Shipment
-    from stock.models import StockTransfer, StockTransferBin
+    from stock.models import CustomerStock, CustomerStockBin, StockTransfer, StockTransferBin
 
     def state(code):
         return india.STATES.get(code, code) if code else None
@@ -656,6 +656,43 @@ def _register() -> None:
                             for b in StockTransferBin.objects.filter(
                                 line__transfer=t
                             ).select_related("line__item", "location", "batch")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            CustomerStock: Tracked(
+                "customer_stock",
+                "Stock receipt or delivery",
+                by_company,
+                labels={
+                    "branch": "Branch",
+                    "stores_person": "Received or handed over by",
+                    "challan_no": "Customer's challan no",
+                    "challan_date": "Customer's challan date",
+                    "eway_bill_no": "E-way bill no",
+                },
+                extras={
+                    "entry_status": ("Status", lambda e: e.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda e: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            + (f" into {ln.location}" if ln.location_id else "")
+                            + (f" batch {ln.batch_number}" if ln.batch_number else "")
+                            + (f", {ln.bags} × {ln.get_package_type_display()}" if ln.bags else "")
+                            for ln in e.lines.select_related("item", "unit", "location")
+                        )
+                        or None,
+                    ),
+                    "bins": (
+                        "Taken from",
+                        lambda e: "; ".join(
+                            f"{b.line.item} {_number(b.qty)} from {b.location}"
+                            + (f" batch {b.batch}" if b.batch_id else "")
+                            for b in CustomerStockBin.objects.filter(line__entry=e).select_related(
+                                "line__item", "location", "batch"
+                            )
                         )
                         or None,
                     ),
