@@ -116,7 +116,7 @@ class BomSerializer(serializers.ModelSerializer):
         fields = [
             "id", "number", "item", "item_name", "item_number", "version", "name",
             "is_default", "kind", "kind_label", "customer", "customer_name",
-            "makes_qty", "makes_unit", "makes_unit_short", "valid_from", "notes",
+            "makes_qty", "makes_unit", "makes_unit_short", "valid_from", "notes", "packing_notes",
             "status", "status_label", "is_active", "lines", "byproducts",
             "material_count", "lock",
         ]  # fmt: skip
@@ -210,6 +210,25 @@ def stock_rate(item: Item) -> tuple[Decimal | None, str]:
     return None, ""
 
 
+def rate_of(item: Item, unit_id: int, depth: int = 0):
+    """The estimated rate of one `unit_id` of a material: (source, its default
+    BOM, rate or None, where the rate came from, names of what has no rate)."""
+    code, sub = source(item)
+    if code == CUSTOMER:
+        return code, sub, ZERO, "not valued", []
+    mine = factor(item, unit_id)
+    if sub is not None and depth < MAX_DEPTH:
+        inner = costing(sub, depth + 1)
+        per = factor(sub.item, sub.makes_unit_id)
+        if inner["complete"] and per and mine:
+            return code, sub, inner["net"] / (sub.makes_qty * per) * mine, f"from {sub.number}", []
+        return code, sub, None, "", inner["missing"] or [item.name]
+    base, how = stock_rate(item)
+    if base is not None and mine:
+        return code, sub, base * mine, how, []
+    return code, sub, None, "", [item.name]
+
+
 def costing(bom: Bom, depth: int = 0) -> dict:
     """The estimated cost of one batch (makes_qty in makes_unit): each line with
     its quantity to issue (loss added), rate and cost, and the totals."""
@@ -218,25 +237,8 @@ def costing(bom: Bom, depth: int = 0) -> dict:
     materials = ZERO
     for ln in bom.lines.all():
         need = ln.qty * (1 + ln.loss_pct / HUNDRED)
-        code, sub = source(ln.item)
-        rate: Decimal | None = None
-        how = ""
-        if code == CUSTOMER:
-            rate, how = ZERO, "not valued"
-        elif sub is not None and depth < MAX_DEPTH:
-            inner = costing(sub, depth + 1)
-            per = factor(sub.item, sub.makes_unit_id)
-            mine = factor(ln.item, ln.unit_id)
-            if inner["complete"] and per and mine:
-                rate = inner["net"] / (sub.makes_qty * per) * mine
-                how = f"from {sub.number}"
-            else:
-                missing.extend(inner["missing"] or [ln.item.name])
-        else:
-            base, how = stock_rate(ln.item)
-            mine = factor(ln.item, ln.unit_id)
-            if base is not None and mine:
-                rate = base * mine
+        code, sub, rate, how, lacking = rate_of(ln.item, ln.unit_id, depth)
+        missing.extend(x for x in lacking if x not in missing)
         if rate is None:
             if ln.item.name not in missing:
                 missing.append(ln.item.name)
@@ -473,8 +475,8 @@ def save_bom(bom: Bom, data: dict, user=None) -> Bom:
         top = Bom.objects.filter(item=item).aggregate(m=Max("version"))["m"] or 0
         bom.version = top + 1
     for field in (
-        "kind", "customer", "makes_qty", "makes_unit", "valid_from", "notes", "status",
-        "is_active",
+        "kind", "customer", "makes_qty", "makes_unit", "valid_from", "notes", "packing_notes",
+        "status", "is_active",
     ):  # fmt: skip
         if field in data:
             setattr(bom, field, data[field])
@@ -652,6 +654,7 @@ exchange.register(
             "makes_unit": "Makes Unit",
             "is_default": "Default",
             "is_active": "Active",
+            "packing_notes": "Packing Notes",
             "lines": "Materials",
             "lines.item": "Item",
             "lines.qty": "Qty",

@@ -11,9 +11,10 @@ from django.conf import settings
 from django.db import models
 from django.db.models.functions import Lower
 
-from core.models import Item, Party, Unit
+from core.models import Branch, Company, Item, Party, SalesPerson, Unit, WarehouseLocation
 
 QTY = {"max_digits": 18, "decimal_places": 6}
+MONEY = {"max_digits": 18, "decimal_places": 2}
 
 
 class Bom(models.Model):
@@ -36,6 +37,8 @@ class Bom(models.Model):
     makes_unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
     valid_from = models.DateField(null=True, blank=True)
     notes = models.CharField(max_length=200, blank=True)
+    # How to pack it (Sidharth, 2026-11-23): copied onto each Manufacturing Order.
+    packing_notes = models.TextField(blank=True)
     status = models.CharField(max_length=8, choices=STATUSES, default=ACTIVE)
     is_active = models.BooleanField(default=True)  # cleared by the "Disabled" tick
     created_by = models.ForeignKey(
@@ -96,3 +99,113 @@ class BomByproduct(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item} {self.qty}"
+
+
+class ManufacturingOrder(models.Model):
+    """What to make, how much, by when and with which BOM version (Sidharth,
+    2026-11-23, preview 15d). It posts nothing: the Material Issue and the
+    Production Entry that follow move the stock.
+
+    Materials: the lines from the BOM version are fixed (worked out from it for
+    the order's quantity); lines added on the order ("Added") may be changed or
+    removed, on a draft and after Submit until the order is done. Pack Details
+    start from the item (MRP, USP, Batch No, Best Before) and the BOM (Packing
+    Notes) and may be changed on the order."""
+
+    DRAFT, NOT_STARTED, IN_PROCESS = "draft", "not_started", "in_process"
+    COMPLETED, CLOSED, CANCELLED = "completed", "closed", "cancelled"
+    STATUSES = [
+        (DRAFT, "Draft"),
+        (NOT_STARTED, "Not Started"),
+        (IN_PROCESS, "In Process"),
+        (COMPLETED, "Completed"),
+        (CLOSED, "Closed"),
+        (CANCELLED, "Cancelled"),
+    ]
+    OPEN = (NOT_STARTED, IN_PROCESS)
+    DAYS, MONTHS = Item.DAYS, Item.MONTHS
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    number = models.CharField(max_length=30, blank=True)  # given on Submit
+    order_date = models.DateField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="manufacturing_orders")
+    qty = models.DecimalField(**QTY)
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    bom = models.ForeignKey(Bom, on_delete=models.PROTECT, related_name="orders")
+    # Job work: whose goods it is made from.
+    customer = models.ForeignKey(
+        Party, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    start_date = models.DateField()
+    due_date = models.DateField()
+    sales_order = models.ForeignKey(
+        "selling.SalesOrder", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    materials_from = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    goods_to = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    supervisor = models.ForeignKey(
+        SalesPerson, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    notes = models.TextField(blank=True)
+    # Pack Details.
+    mrp = models.DecimalField(**MONEY, null=True, blank=True)
+    usp = models.DecimalField(**MONEY, null=True, blank=True)
+    usp_per = models.ForeignKey(
+        Unit, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    batch_no = models.CharField(max_length=60, blank=True)
+    pkd_date = models.DateField(null=True, blank=True)
+    best_before_value = models.PositiveIntegerField(null=True, blank=True)
+    best_before_unit = models.CharField(max_length=6, choices=Item.PERIODS, default=DAYS)
+    expiry_date = models.DateField(null=True, blank=True)
+    packing_notes = models.TextField(blank=True)
+    made_qty = models.DecimalField(**QTY, default=0)  # in the order's unit, by Production Entries
+    status = models.CharField(max_length=12, choices=STATUSES, default=DRAFT)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-order_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company", "number", condition=~models.Q(number=""), name="mo_number_unique"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft manufacturing order {self.pk}"
+
+
+class ManufacturingOrderLine(models.Model):
+    """One material for the whole order. `per_unit` is for one of the order's
+    unit; `required` = per_unit x qty, plus the loss. A line from the BOM is
+    fixed; an added one is not."""
+
+    order = models.ForeignKey(ManufacturingOrder, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    per_unit = models.DecimalField(**QTY)
+    loss_pct = models.DecimalField(max_digits=7, decimal_places=3, default=0)
+    required = models.DecimalField(**QTY)
+    issued = models.DecimalField(**QTY, default=0)  # by Material Issues
+    from_bom = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} x {self.required}"

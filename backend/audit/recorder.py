@@ -210,7 +210,7 @@ def _register() -> None:
     )
     from core.parties import party_extras
     from insurance.models import InsurancePolicy
-    from manufacturing.models import Bom
+    from manufacturing.models import Bom, ManufacturingOrder
     from selling.models import (
         CreditNote,
         DeliveryNote,
@@ -762,6 +762,38 @@ def _register() -> None:
                             for b in OwnUseBin.objects.filter(line__entry=e).select_related(
                                 "line__item", "location", "batch"
                             )
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            ManufacturingOrder: Tracked(
+                "manufacturing_order",
+                "Manufacturing order",
+                by_company,
+                labels={
+                    "branch": "Branch",
+                    "bom": "BOM version",
+                    "mrp": "MRP",
+                    "usp": "USP",
+                    "usp_per": "USP per",
+                    "batch_no": "Batch No",
+                    "pkd_date": "Pkd Date",
+                    "best_before_value": "Best Before",
+                    "best_before_unit": "Best Before in",
+                    "expiry_date": "Expiry Date",
+                    "packing_notes": "Packing Notes",
+                    "materials_from": "Materials From",
+                    "goods_to": "Goods Go To",
+                },
+                extras={
+                    "order_status": ("Status", lambda m: m.get_status_display()),
+                    "materials": (
+                        "Materials",
+                        lambda m: "; ".join(
+                            f"{ln.item} {_number(ln.required)} {ln.unit.short_name}"
+                            + ("" if ln.from_bom else " (added)")
+                            for ln in m.lines.select_related("item", "unit")
                         )
                         or None,
                     ),

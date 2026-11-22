@@ -3,11 +3,12 @@ short and how much to buy, from each item's Stock Planning line there.
 
     In Stock  what the branch holds now (all its places)
     Reserved  everything going out of the branch, submitted or still a draft:
-              sales orders still to deliver, draft stock transfers out
-              (manufacturing orders join once they are built)
+              sales orders still to deliver, draft stock transfers out,
+              materials still to issue on manufacturing orders
     Incoming  everything coming in, drafts included: purchase orders still to
-              receive and stock transfers coming (on the road too: goods in
-              the In Transit place are not In Stock), so a check run twice
+              receive, manufacturing orders still to make, and stock
+              transfers coming (on the road too: goods in the In Transit
+              place are not In Stock), so a check run twice
               never orders the same goods twice
     Expected  In Stock - Reserved + Incoming
 
@@ -87,6 +88,10 @@ def reserved(branch: Branch, item_ids) -> dict[int, Decimal]:
             entry__branch=branch, entry__status=OwnUse.DRAFT, item_id__in=item_ids
         ).values_list("item_id", "unit_id", "qty")
     )
+    # Materials still to issue on draft and open manufacturing orders.
+    from manufacturing.orders import reserved_lines
+
+    rows += reserved_lines(branch, item_ids)
     return _in_stock_units(rows, _factors(item_ids))
 
 
@@ -108,6 +113,10 @@ def incoming(branch: Branch, item_ids) -> dict[int, Decimal]:
             item_id__in=item_ids,
         ).values_list("item_id", "unit_id", "qty")
     )
+    # What draft and open manufacturing orders are still to make.
+    from manufacturing.orders import incoming_lines
+
+    rows += incoming_lines(branch, item_ids)
     return _in_stock_units(rows, _factors(item_ids))
 
 

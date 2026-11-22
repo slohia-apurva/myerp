@@ -61,7 +61,8 @@ export type Item = {
   purchase_unit: number | null;
   purchase_unit_name: string | null;
   mrp: string | null;
-  usp: string;
+  usp: string | null;
+  usp_per: number | null;
   best_before_value: number | null;
   best_before_unit: string;
   batch_no: string;
@@ -609,7 +610,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 rows={[
                   ["Default sales unit", unit(i.sales_unit, i.sales_unit_name)],
                   ["MRP", i.mrp === null ? "" : `₹ ${plain(i.mrp)}`],
-                  ["USP", i.usp],
+                  ["USP", i.usp === null ? "" : `₹ ${plain(i.usp)}${i.usp_per ? ` per ${unit(i.usp_per, null)}` : ""}`],
                   ["Best before", i.best_before_value === null ? "" : `${i.best_before_value} ${i.best_before_unit}`],
                   ["Batch No", i.batch_no],
                 ]}
@@ -911,7 +912,8 @@ function ItemForm(props: {
   const [hsn, setHsn] = useState(from?.hsn ?? "");
   const [deliveryHsn, setDeliveryHsn] = useState(from?.delivery_hsn ?? "");
   const [mrp, setMrp] = useState(from?.mrp == null ? "" : plain(from.mrp));
-  const [usp, setUsp] = useState(from?.usp ?? "");
+  const [usp, setUsp] = useState(from?.usp == null ? "" : plain(from.usp));
+  const [uspPer, setUspPer] = useState(from?.usp_per == null ? "" : String(from.usp_per));
   const [bestBefore, setBestBefore] = useState(from?.best_before_value == null ? "" : String(from.best_before_value));
   const [bestBeforeUnit, setBestBeforeUnit] = useState(from?.best_before_unit ?? "days");
   const [batchNo, setBatchNo] = useState(from?.batch_no ?? "");
@@ -1073,7 +1075,8 @@ function ItemForm(props: {
       item_group: group === "" ? null : Number(group),
       brand: brand === "" ? null : Number(brand),
       mrp: num(mrp),
-      usp,
+      usp: num(usp),
+      usp_per: usp.trim() && uspPer ? Number(uspPer) : null,
       best_before_value: num(bestBefore),
       best_before_unit: bestBeforeUnit,
       batch_no: batchNo,
@@ -1323,8 +1326,13 @@ function ItemForm(props: {
                   <input className="num" inputMode="decimal" value={mrp} onChange={(e) => setMrp(e.target.value)} />
                 </label>
                 <label>
-                  USP
-                  <input maxLength={200} value={usp} onChange={(e) => setUsp(e.target.value)} />
+                  USP (₹)
+                  <input className="num" inputMode="decimal" value={usp} onChange={(e) => setUsp(e.target.value)} />
+                  <span className="small">Unit Selling Price</span>
+                </label>
+                <label>
+                  USP Per
+                  <Combobox value={uspPer} onChange={setUspPer} empty="None" options={units.filter((u) => u.is_active || String(u.id) === uspPer).map((u) => ({ value: String(u.id), label: unitLabel(u) }))} />
                 </label>
                 <label>
                   Batch No

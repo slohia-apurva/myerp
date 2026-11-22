@@ -34,6 +34,7 @@ import { StockCheckPage } from "./StockCheck";
 import { StockTransfersPage } from "./StockTransfers";
 import { CustomerStockPage } from "./CustomerStock";
 import { OwnUsePage } from "./OwnUse";
+import { ManufacturingOrdersPage } from "./ManufacturingOrders";
 import { AdminMenu, CompanyPicker, EntryMenu, MastersMenu, ReportsMenu, SalesMenu, useCurrentCompany } from "./MastersMenu";
 import { StockLedgerPage, StockSummaryPage } from "./Reports";
 import { LedgerStatementPage, TrialBalancePage } from "./Books";
@@ -119,6 +120,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
   const canSeePurchase = session.permissions.includes("purchase.view");
   const canSeeSales = session.permissions.includes("sales.view");
   const canSeeStock = session.permissions.includes("stock.view");
+  const canSeeProduction = session.permissions.includes("production.view");
   const canSeeBooks = session.permissions.includes("accounts.view");
   // Goods are received by purchase or by the stores (stock rights).
   const canReceive = canSeePurchase || session.permissions.includes("stock.view");
@@ -150,7 +152,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             />
           )}
           {((canReceive && current.company?.modules.includes("purchase")) || (canSeeSales && current.company?.modules.includes("sales")) || (canSeeStock && current.company?.modules.includes("stock"))) && current.company && (
-            <EntryMenu purchase={canReceive && current.company.modules.includes("purchase")} sales={canSeeSales && current.company.modules.includes("sales")} stock={canSeeStock && current.company.modules.includes("stock")} active={page === "companies" && (sub === "stock-transfers" || sub === "stock-receipts" || sub === "stock-deliveries" || sub === "own-use" || sub === "sales-orders" || sub === "pick-lists" || sub === "delivery-notes" || sub === "sales-invoices" || sub === "credit-notes" || sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments" || sub === "tds-check" || sub === "stock-check")} company={current.company} orders={canSeePurchase} tds={canSeeBooks || session.user.is_owner} />
+            <EntryMenu purchase={canReceive && current.company.modules.includes("purchase")} sales={canSeeSales && current.company.modules.includes("sales")} stock={canSeeStock && current.company.modules.includes("stock")} production={canSeeProduction && current.company.modules.includes("production")} active={page === "companies" && (sub === "manufacturing-orders" || sub === "stock-transfers" || sub === "stock-receipts" || sub === "stock-deliveries" || sub === "own-use" || sub === "sales-orders" || sub === "pick-lists" || sub === "delivery-notes" || sub === "sales-invoices" || sub === "credit-notes" || sub === "purchase-orders" || sub === "goods-receipts" || sub === "purchase-invoices" || sub === "purchase-returns" || sub === "debit-notes" || sub === "tds-adjustments" || sub === "tds-check" || sub === "stock-check")} company={current.company} orders={canSeePurchase} tds={canSeeBooks || session.user.is_owner} />
           )}
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
@@ -160,7 +162,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )}
           {(session.user.is_owner || canMigrate) && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || page === "migration" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", "stock-check", "stock-transfers", "stock-receipts", "stock-deliveries", "own-use", ...REPORTS].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || page === "migration" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", "stock-check", "stock-transfers", "stock-receipts", "stock-deliveries", "own-use", "manufacturing-orders", ...REPORTS].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
               canMigrate={canMigrate}
@@ -217,6 +219,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <CustomerStockPage key={`${id}-receipt`} companyId={id} session={session} kind="receipt" />
         ) : page === "companies" && id && sub === "stock-deliveries" && canSeeStock ? (
           <CustomerStockPage key={`${id}-delivery`} companyId={id} session={session} kind="delivery" />
+        ) : page === "companies" && id && sub === "manufacturing-orders" && canSeeProduction ? (
+          <ManufacturingOrdersPage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "own-use" && canSeeStock ? (
           <OwnUsePage key={id} companyId={id} session={session} />
         ) : page === "companies" && id && sub === "stock-check" && canSeePurchase ? (

@@ -65,6 +65,7 @@ export type Bom = {
   makes_unit_short: string;
   valid_from: string | null;
   notes: string;
+  packing_notes: string;
   status: string;
   status_label: string;
   is_active: boolean;
@@ -382,6 +383,7 @@ function BomView({ id, canEdit }: { id: number; canEdit: boolean }) {
                   ["Despatched Under HSN", b.job?.hsn ?? ""],
                   ["Valid From", dmy(b.valid_from)],
                   ["Notes", b.notes],
+                  ["Packing Notes", b.packing_notes],
                 ] as [string, string][]
               )
                 .filter(([, v]) => v)
@@ -572,6 +574,7 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
   const [validFrom, setValidFrom] = useState(b?.valid_from ?? "");
   const [status, setStatus] = useState(b?.status ?? "active");
   const [notes, setNotes] = useState(from?.notes ?? "");
+  const [packingNotes, setPackingNotes] = useState(from?.packing_notes ?? "");
   const [makeDefault, setMakeDefault] = useState(false);
   const [disabled, setDisabled] = useState(b ? !b.is_active : false);
   const [lines, setLines] = useState<LineRow[]>(
@@ -613,6 +616,7 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
       valid_from: validFrom || null,
       status,
       notes,
+      packing_notes: packingNotes,
       lines: lines.filter((l) => l.item).map((l) => ({ item: Number(l.item), qty: l.qty || "0", unit: Number(l.unit) || null, loss_pct: l.loss_pct || "0" })),
       byproducts: byRows.filter((x) => x.item).map((x) => ({ item: Number(x.item), qty: x.qty || "0", unit: Number(x.unit) || null, kind: x.kind, rate: x.rate || "0" })),
     };
@@ -722,6 +726,11 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
           <label>
             Notes
             <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
+          <label className="wide">
+            Packing Notes
+            <textarea rows={2} value={packingNotes} onChange={(e) => setPackingNotes(e.target.value)} placeholder="e.g. Pouch 12 µ, 24 pouches a carton, carton taped twice" />
+            <span className="small">Copied onto each Manufacturing Order, where they can be changed; they print on its batch sheet.</span>
           </label>
         </div>
         {kind === "job_work" && chosen && !(chosen.item_type === "service" && chosen.delivery_hsn) && (

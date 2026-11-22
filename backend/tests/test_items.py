@@ -351,7 +351,8 @@ def test_sales_and_purchase_tab_fields(accountant, unit):
         accountant,
         unit,
         mrp="125.50",
-        usp="Single-origin, stone ground",
+        usp="1.25",
+        usp_per=unit("Gram"),
         best_before_value=12,
         best_before_unit="months",
         batch_no="  B-2627  ",
@@ -361,6 +362,10 @@ def test_sales_and_purchase_tab_fields(accountant, unit):
     assert made.status_code == 201, made.json()
     item = made.json()
     assert item["mrp"] == "125.50" and item["batch_no"] == "B-2627"
+    assert (item["usp"], item["usp_per"]) == (
+        "1.25",
+        unit("Gram"),
+    )  # Unit Selling Price, ₹ per unit
     assert (item["best_before_value"], item["best_before_unit"]) == (12, "months")
     assert item["lead_time_days"] == 14 and item["min_order_qty"] == "100.000000"
     assert "sales_name" not in item and "purchase_name" not in item

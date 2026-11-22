@@ -989,7 +989,11 @@ class Item(models.Model):
     # Sales tab: printed on the pack. Best before is a period counted from the
     # manufacturing date, so a manufacturing order can work out the date.
     mrp = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
-    usp = models.CharField(max_length=200, blank=True)
+    # Unit Selling Price (Sidharth, 2026-11-23): rupees per `usp_per` (a gram, say).
+    usp = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
+    usp_per = models.ForeignKey(
+        "Unit", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     best_before_value = models.PositiveIntegerField(null=True, blank=True)
     best_before_unit = models.CharField(max_length=6, choices=PERIODS, default=DAYS)
     batch_no = models.CharField(max_length=60, blank=True)
