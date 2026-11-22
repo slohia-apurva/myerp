@@ -702,7 +702,12 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                     </div>
                   )
                 )}
-                {jobWork && draft && (
+                {jobWork && draft && version?.customer ? (
+                  <div>
+                    <Facts rows={[["Customer", (setup?.customers ?? []).find((c) => c.id === version.customer)?.name ?? ""]]} />
+                    <span className="small">From the job work BOM version</span>
+                  </div>
+                ) : jobWork && draft && (
                   <label>
                     <span className="req">Customer</span>
                     <Combobox value={fields.customer} onChange={(v) => set({ customer: v })} required create={newCustomer} options={(setup?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />

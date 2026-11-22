@@ -542,9 +542,9 @@ def _save(mo: MO, data: dict) -> None:
             }
         )
     customer = None
-    if bom.kind == Bom.JOB_WORK:
+    if bom.kind == Bom.JOB_WORK:  # the version's own customer, else the one picked
         customer = _pick(
-            Party, data.get("customer") or bom.customer_id, "customer",
+            Party, bom.customer_id or data.get("customer"), "customer",
             "Pick a customer from the list.", customer_number__gt="",
         )  # fmt: skip
         if customer is None:
