@@ -121,7 +121,7 @@ def on_submit(order) -> None:
             people_with_roles(order.company, "owner", "accountant"),
             order.company,
             f"Insurance policy {policy.number}: only ₹{after:,.2f} of cover left",
-            f"Below ₹{limit:,.2f} after purchase order {order.number}. "
+            f"Below ₹{limit:,.2f} after purchase order {order.number}.\n\n"
             f"Ask {policy.insurer.name} for a top-up.",
             f"#/companies/{policy.company_id}/insurance?open={policy.pk}",
         )

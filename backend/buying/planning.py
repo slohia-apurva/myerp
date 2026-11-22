@@ -410,25 +410,29 @@ def daily_run(company, now=None) -> list[StockCheckRun]:
         run.order_count = len(made)
         run.item_count = sum(o.lines.count() for o in made)
         run.save(update_fields=["order_count", "item_count", "missing", "failed"])
-        parts = [f"{len(rows)} {'item' if len(rows) == 1 else 'items'} below safety stock."]
+        # One part per paragraph, one line per order or item (Sidharth, 2026-11-22).
+        parts = [f"{_count(len(rows), 'item')} below safety stock."]
         if made:
-            each = ", ".join(
-                f"{o.supplier.name} ({_count(o.lines.count(), 'item')}, by "
-                f"{o.expected_date:%d/%m/%Y})"
-                for o in made
+            parts.append(
+                "Draft Purchase Orders made:\n"
+                + "\n".join(
+                    f"• {o.supplier.name}: {_count(o.lines.count(), 'item')}, "
+                    f"by {o.expected_date:%d/%m/%Y}"
+                    for o in made
+                )
             )
-            parts.append(f"Made {_count(len(made), 'draft Purchase Order')}: {each}.")
         if run.missing:
             parts.append(
-                f"{_count(len(run.missing), 'item')} with no Preferred Supplier: "
-                f"{', '.join(run.missing)}."
+                "No Preferred Supplier, not ordered:\n"
+                + "\n".join(f"• {name}" for name in run.missing)
             )
-        parts.extend(f"Not made: {text}" for text in run.failed)
+        if run.failed:
+            parts.append("Not made:\n" + "\n".join(f"• {text}" for text in run.failed))
         notify(
             people_with_roles(company, "purchase", "owner"),
             company,
             f"Daily Stock Check, {branch.name}",
-            " ".join(parts),
+            "\n\n".join(parts),
             f"#/companies/{company.pk}/stock-check?branch={branch.pk}",
         )
     return runs

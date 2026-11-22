@@ -40,7 +40,8 @@ def test_the_morning_run_makes_drafts_and_tells_purchase_once(owner, buyer, plan
         assert po.status == "draft" and po.stock_check_run == run
         assert po.notes == "Made by the daily Stock Check." and po.created_by is None
         notice = Notification.objects.filter(title__startswith="Daily Stock Check").first()
-        assert notice is not None and "1 draft Purchase Order: Leaf Supplier" in notice.body
+        assert notice is not None
+        assert "Draft Purchase Orders made:\n• Leaf Supplier: 1 item, by" in notice.body
 
     seen = check(buyer, w)
     assert seen["rows"] == []  # the draft is Incoming now
@@ -58,7 +59,7 @@ def test_an_item_with_no_supplier_is_only_listed(owner, planned):  # noqa: F811
     with use_tenant(w["tenant"]):
         assert not PurchaseOrder.objects.exists()
         notice = Notification.objects.get(title__startswith="Daily Stock Check")
-        assert "with no Preferred Supplier: Green Tea 100 g" in notice.body
+        assert "No Preferred Supplier, not ordered:\n• Green Tea 100 g" in notice.body
 
 
 def test_due_from_its_hour_once_a_day(planned):  # noqa: F811

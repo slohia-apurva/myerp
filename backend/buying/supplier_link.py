@@ -231,15 +231,15 @@ def _tell(link: SupplierLink, o: PurchaseOrder, r: SupplierResponse) -> None:
     who = f"{r.name} ({o.supplier.name})"
     if r.kind == SupplierResponse.ACCEPTED:
         title = f"Supplier accepted {o.number}"
-        text = f"{who} accepted the order" + (
-            f"; dispatch expected {_dmy(r.dispatch_date)}." if r.dispatch_date else "."
-        )
+        text = f"{who} accepted the order."
+        if r.dispatch_date:
+            text += f"\nDispatch expected: {_dmy(r.dispatch_date)}"
         if r.comment:
-            text += f' "{r.comment}"'
+            text += f'\n\n"{r.comment}"'
     else:
         label = "issue" if r.kind == SupplierResponse.ISSUE else "comment"
         title = f"Supplier {label} on {o.number}"
-        text = f'{who}: "{r.comment}"'
+        text = f'{who}:\n\n"{r.comment}"'
     people = people_with_roles(o.company, "purchase", "owner")
     if link.created_by and link.created_by.is_active:
         people.append(link.created_by)
