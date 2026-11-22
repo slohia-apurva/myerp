@@ -6,4 +6,4 @@ class ManufacturingConfig(AppConfig):
     verbose_name = "Production: bills of materials"
 
     def ready(self):
-        from manufacturing import boms, locks  # noqa: F401  (register hooks)
+        from manufacturing import attachments, boms, locks, reset  # noqa: F401  (register hooks)

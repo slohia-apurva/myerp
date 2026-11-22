@@ -187,6 +187,12 @@ class ItemSerializer(serializers.ModelSerializer):
     mrp = serializers.DecimalField(
         max_digits=18, decimal_places=2, min_value=0, allow_null=True, required=False
     )
+    usp = serializers.DecimalField(
+        max_digits=18, decimal_places=2, min_value=0, allow_null=True, required=False
+    )
+    usp_per = serializers.PrimaryKeyRelatedField(
+        queryset=Unit.objects.all(), allow_null=True, required=False
+    )
     min_order_qty = serializers.DecimalField(
         max_digits=18, decimal_places=6, min_value=0, allow_null=True, required=False
     )
@@ -225,6 +231,7 @@ class ItemSerializer(serializers.ModelSerializer):
             "purchase_unit_name",
             "mrp",
             "usp",
+            "usp_per",
             "best_before_value",
             "best_before_unit",
             "batch_no",
@@ -405,6 +412,7 @@ def _save_item(item: Item, data: dict) -> Item:
         "brand",
         "mrp",
         "usp",
+        "usp_per",
         "best_before_value",
         "best_before_unit",
         "batch_no",
@@ -503,7 +511,8 @@ def _save_item(item: Item, data: dict) -> Item:
         if len(text) > DESCRIPTION_MAX:
             raise ValidationError({field: ["That description is too long; shorten it."]})
         setattr(item, field, text)
-    item.usp = " ".join(item.usp.split())
+    if item.usp is None:
+        item.usp_per = None
     item.batch_no = item.batch_no.strip()
     if rows is not None:
         unit_ids = {r["unit"].pk for r in rows}
@@ -759,7 +768,8 @@ exchange.register(
         labels={
             "stock_unit": "Default unit (stock unit)",
             "mrp": "MRP (₹)",
-            "usp": "USP",
+            "usp": "USP (₹)",
+            "usp_per": "USP per",
             "best_before_value": "Best before",
             "best_before_unit": "Best before in",
             "batch_no": "Batch No",

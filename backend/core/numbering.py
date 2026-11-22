@@ -88,7 +88,7 @@ DOCUMENT_TYPES = [
     ("stock_receipt", "Stock receipt (customer's goods)", "SR", False),
     ("stock_delivery", "Stock delivery (customer's goods)", "SD", False),
     ("own_use", "Own use", "OU", False),
-    ("production_order", "Production order", "PRD", False),
+    ("manufacturing_order", "Manufacturing order", "MO", False),
 ]
 DOC_TYPES = {code: (label, short, gst) for code, label, short, gst in DOCUMENT_TYPES}
 DOC_CHOICES = [(code, label) for code, label, *_ in DOCUMENT_TYPES]

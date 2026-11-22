@@ -725,8 +725,10 @@ export const MANUAL: Chapter[] = [
             see on quotations, orders and bills (both descriptions are plain
             text; on a printed document they show a little smaller, under the
             item name in bold), and pick the "Default sales
-            unit" (for example Carton). Fill in the "MRP (₹)", the "USP" and the
-            "Batch No" printed on the pack. "Best before" is a number with
+            unit" (for example Carton). Fill in the "MRP (₹)", the "USP (₹)"
+            (Unit Selling Price, an amount) with "USP Per" (the unit it is
+            for, such as Kilogram (Kg)) and the "Batch No" printed on the
+            pack. "Best before" is a number with
             "Days" or "Months": a manufacturing order adds it to the
             manufacturing date to work out the best-before date. On the
             "Purchase" tab write the "Purchase description" for suppliers (a
@@ -885,7 +887,10 @@ export const MANUAL: Chapter[] = [
             Under "What It Makes" pick the "Item", give a "Version Name" (for
             example "New pouch, Nov 2026"; left empty it is "Version 2"), how
             much one batch makes ("Makes Qty" and "Makes Unit", one of the
-            item's units), the "Kind", "Valid From", "Status" and "Notes".
+            item's units), the "Kind", "Valid From", "Status", "Notes" and
+            "Packing Notes" (how to pack it: pouch, cartons, sealing). The
+            Packing Notes are copied onto each Manufacturing Order, where they
+            can be changed, and print on its batch sheet.
           </li>
           <li>
             Under "Materials" add each material with its "Qty" (for the
@@ -2576,8 +2581,10 @@ export const MANUAL: Chapter[] = [
         <Note>
           Draft orders count as "Incoming" at once, so a check run again never
           orders the same goods twice. A cancelled order counts for nothing.
-          Items the branch makes are not on this screen yet; they come with
-          manufacturing orders.
+          A draft or open manufacturing order counts its materials still to
+          issue as "Reserved" and what it will make as "Incoming". Items the
+          branch makes are not ordered from this screen yet; that comes next
+          with manufacturing orders.
         </Note>
         <h3>To Transfer</h3>
         <p>
@@ -2862,6 +2869,89 @@ export const MANUAL: Chapter[] = [
           "Cancel" sets a draft aside, or puts the goods of a submitted entry
           back into the bins they came from and reverses the ledger entries.
           Files go in "Attachments" at the right, also after Submit.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "manufacturing-orders",
+    title: "Manufacturing orders",
+    summary: "What to make, how much, by when and with which BOM version; its materials, Pack Details and batch sheet.",
+    body: (
+      <>
+        <p>
+          A Manufacturing Order says what to make, how much, by when and with
+          which BOM version. Open "Entry", then "Production", then
+          "Manufacturing Order" (the company needs the Production module). The
+          list shows "MO No", "Item", "Qty", "BOM Version", "Batch No", "Due"
+          and "Status"; "Show" picks open, draft, completed, closed, cancelled
+          or all orders. The order posts nothing in the books or the stock:
+          the materials leave with a Material Issue and the goods come in with
+          a Production Entry (both coming later, under "Create ▾").
+        </p>
+        <h3>Make one</h3>
+        <ol>
+          <li>Click "New Manufacturing Order". It opens in a new tab.</li>
+          <li>
+            Under "What to Make" pick the "Branch", the "Item" (only items
+            with an active BOM are listed), the "Qty" and the "Unit". "BOM
+            Version" starts on the item's ★ default version; pick another
+            active version if this batch should use it. A job work version
+            also needs the "Customer": only that customer's goods are counted
+            for it.
+          </li>
+          <li>
+            Give the "Start Date" and "Due Date", and if you like the "Sales
+            Order" it is for, "Materials From" (an area of the branch), "Goods
+            Go To", the "Supervisor" and "Notes".
+          </li>
+          <li>
+            "Pack Details" are copied from the item ("MRP (₹)", "USP (₹)" with
+            "USP Per", "Batch No", "Best Before") and from the BOM version
+            ("Packing Notes"). Change them here for this order; the item and
+            the BOM stay as they are. "Pkd Date" starts as the Start Date.
+            "Expiry Date" is worked out as the Pkd Date plus the Best Before,
+            the day before the period ends (packed 24/11/2026, 18 months:
+            23/05/2028); type over it if it should be different.
+          </li>
+          <li>
+            "Materials" lists what the BOM version needs for the quantity,
+            marked "BOM": "Required" is the BOM's quantity for the order plus
+            its "Loss %". These lines cannot be changed on the order: change
+            the BOM, or use "Duplicate as new version". "+ Add material" adds
+            an extra line, marked "Added", with its "Per Unit" (for one unit of
+            the order), "Loss %" and "Unit". "Free Here" shows what is free in
+            the branch after other orders, in red when short. A customer's
+            goods can be added only on a job work order.
+          </li>
+          <li>
+            Click "Save". From now on the order counts its materials as
+            "Reserved" and what it makes as "Incoming" in the Stock Check.
+            "Cost (Estimate)" at the right shows the materials at today's
+            rates.
+          </li>
+        </ol>
+        <h3>Submit and after</h3>
+        <p>
+          Click "Submit" when the order is final. It gets its number (MO/...)
+          and the status "Not Started"; it becomes "In Process" once
+          materials are issued and "Completed" when everything is made. A
+          submitted order keeps everything except the "Start Date", the
+          "Supervisor", the "Notes" and the added materials: those can still
+          change until the order is completed or closed (an added material
+          never below what was already issued). To change anything else,
+          close the order and make a new one. Once an order uses a BOM version,
+          that version's materials can no longer change.
+        </p>
+        <p>
+          "Print ▾" gives the "Manufacturing Order (Batch Sheet)": what to
+          make, the Pack Details, the materials and the expected by-products.
+        </p>
+        <Note>
+          "Close MO" ends an open order made short: what is still to make is no
+          longer planned and the rest of its materials stop being reserved.
+          "Cancel" (with a reason) is allowed only while nothing has been
+          issued. Files go in "Attachments" at the right, also after Submit.
         </Note>
       </>
     ),
