@@ -1,6 +1,6 @@
 from django.urls import path
 
-from stock import transfers
+from stock import customer, transfers
 
 urlpatterns = [
     path(
@@ -40,5 +40,29 @@ urlpatterns = [
         "stock-transfers/<int:pk>/pdf/",
         transfers.TransferPdfView.as_view(),
         name="stock-transfer-pdf",
+    ),
+    path(
+        "companies/<int:pk>/customer-stock/",
+        customer.EntryListView.as_view(),
+        name="customer-stock",
+    ),
+    path(
+        "companies/<int:pk>/customer-stock/form/",
+        customer.EntryFormView.as_view(),
+        name="customer-stock-form",
+    ),
+    path("customer-stock/<int:pk>/", customer.EntryDetailView.as_view(), name="customer-stock-one"),
+    path(
+        "customer-stock/<int:pk>/submit/",
+        customer.EntrySubmitView.as_view(),
+        name="customer-stock-submit",
+    ),
+    path(
+        "customer-stock/<int:pk>/cancel/",
+        customer.EntryCancelView.as_view(),
+        name="customer-stock-cancel",
+    ),
+    path(
+        "customer-stock/<int:pk>/pdf/", customer.EntryPdfView.as_view(), name="customer-stock-pdf"
     ),
 ]

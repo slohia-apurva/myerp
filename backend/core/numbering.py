@@ -85,6 +85,8 @@ DOCUMENT_TYPES = [
     ("journal", "Journal voucher", "JV", False),
     ("contra", "Contra voucher", "CV", False),
     ("stock_transfer", "Stock transfer", "ST", False),
+    ("stock_receipt", "Stock receipt (customer's goods)", "SR", False),
+    ("stock_delivery", "Stock delivery (customer's goods)", "SD", False),
     ("production_order", "Production order", "PRD", False),
 ]
 DOC_TYPES = {code: (label, short, gst) for code, label, short, gst in DOCUMENT_TYPES}

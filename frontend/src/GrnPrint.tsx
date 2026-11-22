@@ -118,8 +118,8 @@ export function GrnPrint({ id, kind, only }: { id: number; kind: PrintKind; only
       </div>
       {kind === "note" && <ReceiptNote r={r} />}
       {kind === "bins" && <BinSheets r={r} />}
-      {kind === "labels" && <BagLabels r={r} bags={bags} />}
-      {kind === "sheet" && <LabelSheets r={r} bags={bags} />}
+      {kind === "labels" && <BagLabels co={r.letterhead.name} foot={`${dmy(r.receipt_date)} · GRN ${r.number}`} bags={bags} />}
+      {kind === "sheet" && <LabelSheets number={r.number} bags={bags} />}
     </>
   );
 }
@@ -452,15 +452,44 @@ function BinSheets({ r }: { r: Receipt }) {
 
 // Bag labels -------------------------------------------------------------------------
 
-function BagLabels({ r, bags }: { r: Receipt; bags: PackageRow[] }) {
-  if (!bags.length) return <p className="page">This receipt has no bags or boxes to label.</p>;
+/** Bag labels printed from another entry (a Stock Receipt of a customer's goods): the same
+ * labels, 100 × 50 mm or 24 to an A4 sheet, and the print window opens by itself. */
+export function BagLabelPrint({ sheet, co, foot, number, bags }: { sheet: boolean; co: string; foot: string; number: string; bags: PackageRow[] }) {
+  useEffect(() => {
+    document.body.classList.add("printing-doc");
+    document.title = `Bag labels ${number}`;
+    const t = setTimeout(() => window.print(), 400);
+    return () => {
+      clearTimeout(t);
+      document.body.classList.remove("printing-doc");
+    };
+  }, [number]);
+  return (
+    <>
+      <style>{PAGE_RULES[sheet ? "sheet" : "labels"]}</style>
+      <div className="po-print-bar no-print">
+        <p>{sheet ? 'Load A4 label sheets (3 across, 8 down, 70 × 37 mm) and print at "Actual size".' : "Pick the label printer and paper size 100 × 50 mm in the print window."}</p>
+        <button type="button" className="link" onClick={() => closeThisTab(() => history.back())}>
+          Close
+        </button>
+        <button type="button" onClick={() => window.print()}>
+          Print
+        </button>
+      </div>
+      {sheet ? <LabelSheets number={number} bags={bags} /> : <BagLabels co={co} foot={foot} bags={bags} />}
+    </>
+  );
+}
+
+function BagLabels({ co, foot, bags }: { co: string; foot: string; bags: PackageRow[] }) {
+  if (!bags.length) return <p className="page">This entry has no bags or boxes to label.</p>;
   return (
     <div className="bag-labels">
       {bags.map((k) => (
         <div key={k.id} className="bag-label">
           <div className="bag-label-top">
             <div>
-              <div className="bag-label-co">{r.letterhead.name}</div>
+              <div className="bag-label-co">{co}</div>
               <div className="bag-label-no">{k.number}</div>
             </div>
             <div className="bag-label-qty">
@@ -478,7 +507,7 @@ function BagLabels({ r, bags }: { r: Receipt; bags: PackageRow[] }) {
           </div>
           <div>{[k.batch && `Batch ${k.batch}`, k.expiry_date && `Exp ${dmy(k.expiry_date)}`].filter(Boolean).join(" · ")}</div>
           <div className="bag-label-mut">
-            Bin {k.location_name} · {dmy(r.receipt_date)} · GRN {r.number}
+            Bin {k.location_name} · {foot}
           </div>
         </div>
       ))}
@@ -486,8 +515,8 @@ function BagLabels({ r, bags }: { r: Receipt; bags: PackageRow[] }) {
   );
 }
 
-function LabelSheets({ r, bags }: { r: Receipt; bags: PackageRow[] }) {
-  if (!bags.length) return <p className="page">This receipt has no bags or boxes to label.</p>;
+function LabelSheets({ number, bags }: { number: string; bags: PackageRow[] }) {
+  if (!bags.length) return <p className="page">This entry has no bags or boxes to label.</p>;
   const pages: PackageRow[][] = [];
   for (let i = 0; i < bags.length; i += 24) pages.push(bags.slice(i, i + 24));
   return (
@@ -506,7 +535,7 @@ function LabelSheets({ r, bags }: { r: Receipt; bags: PackageRow[] }) {
               <div className="label-cell-item">{k.item_name}</div>
               <div>{[k.batch, k.expiry_date && `Exp ${dmy(k.expiry_date)}`].filter(Boolean).join(" · ")}</div>
               <div className="bag-label-mut">
-                {k.kind_label} {k.position} of {k.of_count} · {r.number}
+                {k.kind_label} {k.position} of {k.of_count} · {number}
               </div>
             </div>
           ))}

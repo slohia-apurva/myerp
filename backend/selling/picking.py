@@ -94,12 +94,16 @@ def pending(line: SalesOrderLine) -> Decimal:
     return max(line.qty - line.delivered_qty, ZERO)
 
 
-def spots(item: Item, branch, area=None, leave_out: PickList | None = None) -> list[Spot]:
-    """Where the item may be picked from, in the order the rule picks them."""
-    rows = (
-        StockMove.objects.filter(item=item, location__in=stock.places(branch, area))
-        .values("location", "batch")
-        .annotate(q=Sum("qty"), first=Min("date", filter=Q(qty__gt=0)))
+def spots(
+    item: Item, branch, area=None, leave_out: PickList | None = None, owner=None
+) -> list[Spot]:
+    """Where the item may be picked from, in the order the rule picks them. With
+    an owner (a customer's core.Party), only that customer's own goods."""
+    moves = StockMove.objects.filter(item=item, location__in=stock.places(branch, area))
+    if owner is not None:
+        moves = moves.filter(owner=owner)
+    rows = moves.values("location", "batch").annotate(
+        q=Sum("qty"), first=Min("date", filter=Q(qty__gt=0))
     )
     held = PickListLine.objects.filter(item=item, pick_list__status__in=PickList.HOLDING)
     if leave_out is not None:
