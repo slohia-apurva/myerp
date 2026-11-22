@@ -47,6 +47,7 @@ TIDY_FIELDS: dict[str, tuple[str, ...]] = {
     "shipping.CourierAccount": ("name",),
     "insurance.InsurancePolicy": ("number",),
     "accounts.Role": ("name",),
+    "manufacturing.Bom": ("name",),
 }
 
 

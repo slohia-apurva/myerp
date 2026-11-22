@@ -210,6 +210,7 @@ def _register() -> None:
     )
     from core.parties import party_extras
     from insurance.models import InsurancePolicy
+    from manufacturing.models import Bom
     from selling.models import (
         CreditNote,
         DeliveryNote,
@@ -354,6 +355,38 @@ def _register() -> None:
                         )
                         or None,
                     )
+                },
+            ),
+            Bom: Tracked(
+                "bom",
+                "BOM",
+                lambda r: None,
+                labels={
+                    "number": "BOM No",
+                    "is_default": "Default",
+                    "makes_qty": "Makes Qty",
+                    "makes_unit": "Makes Unit",
+                    "valid_from": "Valid From",
+                    "kind": "Kind",
+                },
+                extras={
+                    "materials": (
+                        "Materials",
+                        lambda b: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            + (f" + {_number(ln.loss_pct)}% loss" if ln.loss_pct else "")
+                            for ln in b.lines.all()
+                        )
+                        or None,
+                    ),
+                    "by_products": (
+                        "By-products",
+                        lambda b: "; ".join(
+                            f"{x.item} {_number(x.qty)} {x.unit.short_name}"
+                            for x in b.byproducts.all()
+                        )
+                        or None,
+                    ),
                 },
             ),
             Unit: Tracked("unit", "Unit", lambda r: None),

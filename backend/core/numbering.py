@@ -6,7 +6,7 @@ from rest_framework.exceptions import ValidationError
 
 from core.models import FiscalYear, NumberCounter, NumberFormat, NumberSeries
 
-DEFAULTS = {"customer": "CUST-", "vendor": "VEND-", "item": "ITEM-"}
+DEFAULTS = {"customer": "CUST-", "vendor": "VEND-", "item": "ITEM-", "bom": "BOM-"}
 
 
 def format_number(series: NumberSeries, n: int) -> str:

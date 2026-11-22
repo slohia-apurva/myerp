@@ -6,6 +6,7 @@ import { CreditTermsPage } from "./CreditTerms";
 import { PriceListsPage } from "./PriceLists";
 import { TermsPage } from "./Terms";
 import { Dashboard } from "./Dashboard";
+import { BomsPage } from "./Boms";
 import { ItemsPage } from "./Items";
 import { LedgersPage } from "./Ledgers";
 import { SignIn } from "./Login";
@@ -52,7 +53,7 @@ import { TdsCheckPage } from "./TdsCheck";
 import { NotificationBell } from "./Notifications";
 import { SupplierReplyPage } from "./SupplierReply";
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "hsn" | "reset" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "boms" | "hsn" | "reset" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 /** The screens under "Reports" in the top menu. */
 const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement"];
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -63,7 +64,7 @@ function routeFromHash(): Route {
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
   if (page === "bins") return { page, id: Number(id) || undefined };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "reset" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "boms" || page === "reset" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
 }
 
 export function App() {
@@ -143,7 +144,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {link("home", "Dashboard")}
           {canSeeMasters && (
             <MastersMenu
-              active={page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "items" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers" || sub === "insurance" || sub === "warehouses"))}
+              active={page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "items" || page === "boms" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers" || sub === "insurance" || sub === "warehouses"))}
               company={current.company}
               canSeeMasters={canSeeMasters}
             />
@@ -260,6 +261,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           <TermsPage session={session} />
         ) : page === "items" && canSeeMasters ? (
           <ItemsPage session={session} company={current.company} />
+        ) : page === "boms" && canSeeMasters ? (
+          <BomsPage session={session} />
         ) : page === "reset" && session.user.is_owner ? (
           <DataResetPage session={session} />
         ) : page === "migration" && canMigrate ? (

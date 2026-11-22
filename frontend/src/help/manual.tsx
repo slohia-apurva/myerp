@@ -759,7 +759,8 @@ export const MANUAL: Chapter[] = [
             the item must keep and how a shortage is filled. Choose the "Main
             fulfilment": "Purchase" if the item is bought, "Manufacture" if it
             is made in-house, or "Customer Provided" if the customer supplies
-            it. Under "By Branch", click "Add branch" for each branch that
+            it. An item to be manufactured shows a "BOMs" box on its page with
+            its BOM versions, "Open" and "New BOM" (see "BOMs"). Under "By Branch", click "Add branch" for each branch that
             should be checked, pick the "Branch" (only branches that keep stock
             are offered) and its "Fulfilment", which starts as the main one:
             "Purchase", "Manufacture", "Transfer" or "Customer Provided". For
@@ -844,6 +845,107 @@ export const MANUAL: Chapter[] = [
           To change many at once, use "Actions" at the top of the screen. See
           the chapter "Import, export and print".
         </p>
+      </>
+    ),
+  },
+  {
+    id: "boms",
+    title: "BOMs (bills of materials)",
+    summary: "What one batch of an item needs: versions, the one default, where each material comes from, job work and the cost estimate.",
+    body: (
+      <>
+        <p>
+          A BOM says what one batch of an item needs: its materials, with a
+          loss allowed on each, and the by-products and scrap it gives. Open
+          "Masters", then "BOMs" (shown when the company has the Production
+          module ticked). BOMs are kept for the whole group, like items. The
+          list shows "BOM No", "Item", "Version", "Name", "Default", "Makes",
+          "Materials" and "Status"; double-click a row to open its page. A BOM
+          posts nothing in the books or the stock.
+        </p>
+        <h3>Versions and the default</h3>
+        <p>
+          An item can have several BOM versions, numbered 1, 2, 3 for that
+          item (each also gets its own number, BOM-00001). Exactly one active
+          version is the item's "Default", marked ★: planning and a new
+          Manufacturing Order start from it, and the order can pick another
+          active version instead. The first active version of an item becomes
+          the default by itself. On a BOM's page, the "Versions" box at the
+          right lists every version; "Make default" moves the ★. A "Draft" or
+          disabled version is never offered to orders, and the default cannot
+          be disabled until another version is made the default.
+        </p>
+        <h3>Make one</h3>
+        <ol>
+          <li>
+            Click "New BOM" (or "New BOM" in the "BOMs" box of an item set to
+            "Manufacture"). It opens in a new tab.
+          </li>
+          <li>
+            Under "What It Makes" pick the "Item", give a "Version Name" (for
+            example "New pouch, Nov 2026"; left empty it is "Version 2"), how
+            much one batch makes ("Makes Qty" and "Makes Unit", one of the
+            item's units), the "Kind", "Valid From", "Status" and "Notes".
+          </li>
+          <li>
+            Under "Materials" add each material with its "Qty" (for the
+            quantity the BOM makes), "Unit" and "Loss %". The loss is added on
+            top when an order works out what to issue: 2.4 kg + 0.5% is
+            2.412 kg. A material cannot be the item itself, cannot be listed
+            twice, and cannot be made, through its own default BOM, from the
+            item this BOM makes.
+          </li>
+          <li>
+            Under "By-products and Scrap" add what a batch gives besides the
+            item, with a "Value per Unit" (0 for scrap with no value). A value
+            lowers the cost of the main item.
+          </li>
+          <li>Click "Save".</li>
+        </ol>
+        <p>
+          "Duplicate as new version" on a BOM's page starts the next version
+          of the same item with everything copied: change what is new and save.
+          Once a Manufacturing Order uses a version, its materials can no
+          longer change; make a new version instead.
+        </p>
+        <h3>Where materials come from</h3>
+        <p>
+          "Comes From" shows "Manufactured" for a material with a default BOM
+          of its own (its page unfolds it to its own materials; "Show levels"
+          1, 2 or All opens them level by level) or one whose "Main
+          Fulfilment" is "Manufacture", "Customer's stock" for an item marked
+          "Customer Provided", and "Purchased" for the rest.
+        </p>
+        <h3>Job work</h3>
+        <p>
+          A BOM of "Kind" "Job work for a customer" makes goods from a
+          customer's own material, and may add some of ours (a carton, say).
+          Name the "Customer" or leave it as "Any customer". The customer's
+          items are taken from their stock and are only counted, never valued;
+          our own materials are costed, and their cost goes to the product.
+          Job work is billed under a SAC code and despatched under an HSN code,
+          so the item should be a Service that keeps stock, with its SAC code
+          and its "Delivery HSN" (Masters › Items); the BOM's page shows both
+          as "Billed Under SAC" and "Despatched Under HSN", and warns when the
+          item is not set up that way. Only a job work BOM may use an item
+          marked "Customer Provided".
+        </p>
+        <h3>Cost (Estimate)</h3>
+        <p>
+          The page shows a "Rate ₹" and "Cost ₹" for each material and their
+          total. A rate is today's FIFO value of the stock held, else the rate
+          of the last receipt; a manufactured material is costed from its own
+          default BOM. The "Cost (Estimate)" box gives the cost per stock unit
+          of the item, next to the other versions' cost. A material never
+          received has "no rate" and is named under the box.
+        </p>
+        <Note>
+          "Actions ▾" on the list has "Import from Excel…", "Export to Excel",
+          "Print" and "Download PDF". The file has the BOMs on one sheet and the
+          materials and by-products on sheets of their own, each row naming
+          its "BOM" by number. A new BOM in a file needs a number of its own
+          (BOM-00050, say) so its materials can name it.
+        </Note>
       </>
     ),
   },

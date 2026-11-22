@@ -50,6 +50,8 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
     "branch": {"gstin": "GSTIN", "state_code": "state"},
     "courier_account": {"carrier_id": "courier", "service": "service"},
     "insurance_policy": {"insurer": "insurer", "kind": "type of insurance"},
+    # A BOM in use (by a Manufacturing Order) also keeps its materials (manufacturing.boms).
+    "bom": {"makes_qty": "quantity it makes", "makes_unit": "unit it makes", "kind": "kind"},
 }
 
 # A function per master that returns why the record is in use, or "".

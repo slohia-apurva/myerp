@@ -16,5 +16,6 @@ urlpatterns = [
     path("api/v1/", include("posting.urls_v1")),
     path("api/v1/", include("selling.urls_v1")),
     path("api/v1/", include("stock.urls_v1")),
+    path("api/v1/", include("manufacturing.urls_v1")),
     path("api/whoami/", WhoAmIView.as_view(), name="whoami"),
 ]
