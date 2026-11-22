@@ -13,6 +13,7 @@ import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { Fold, hashParam, SidePanel, SideRows } from "./Master";
+import { ItemBoms } from "./Boms";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 import { longDate, type Company } from "./Companies";
 import { ItemStockBox, openItemStock, qty, useItemStock } from "./Reports";
@@ -668,6 +669,7 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
               )}
               {i.plans.length > 0 && <p className="small">Quantities in {unit(i.stock_unit, i.stock_unit_name)}.</p>}
             </Fold>
+            {(i.default_request_type === "manufacture" || i.plans.some((p) => p.fulfilment === "manufacture")) && <ItemBoms item={i.id} canEdit={canEdit} />}
             <Fold title="GST Rates" summary={rate ? `${plain(rate.rate)}% from ${showDate(rate.valid_from)} (in force)` : "No rate set"}>
               {i.gst_rates.length > 0 && (
                 <table className="grid">

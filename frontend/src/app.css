@@ -4222,3 +4222,16 @@ label.daily-tick input {
   color: var(--green);
   font-weight: 700;
 }
+
+/* BOMs (Sidharth, 2026-11-22, preview 14): the default version's star and unfolded sub-BOM rows. */
+.star {
+  color: #b7791f;
+  font-weight: 600;
+}
+table.grid tr.sub td {
+  background: #fafafa;
+}
+.fold-arrow {
+  padding: 0 2px;
+  vertical-align: middle;
+}

@@ -27,6 +27,7 @@ MASTER_LABELS = {
     "customer": "Customer numbers",
     "vendor": "Supplier numbers",
     "item": "Item numbers",
+    "bom": "BOM numbers",
 }
 EXAMPLE_YEAR = "2026-27"
 

@@ -68,7 +68,7 @@ def issue(alpha, company, doc_type, day, branch=None):
 
 def test_every_kind_of_document_starts_with_a_series(owner, company):
     body = screen(owner, company)
-    assert [m["key"] for m in body["masters"]] == ["customer", "vendor", "item"]
+    assert [m["key"] for m in body["masters"]] == ["customer", "vendor", "item", "bom"]
     assert body["masters"][0]["next"] == "CUST-00001"
     kinds = {f["doc_type"] for f in body["formats"]}
     assert kinds == {code for code, *_ in numbering.DOCUMENT_TYPES}
