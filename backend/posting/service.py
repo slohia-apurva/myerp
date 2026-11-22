@@ -82,6 +82,9 @@ class StockLine:
     # An issue that takes these lots first (goods sent back to the supplier go
     # out of the receipt's own lots); FIFO for any rest.
     lots: Sequence[int] = ()
+    # A receipt that carries stock over at the value it left with (a stock
+    # transfer): that value exactly, so no paisa is lost to the rate's rounding.
+    value: Decimal | None = None
 
 
 @dataclass
@@ -205,12 +208,19 @@ def _check_not_before_issues(voucher: Voucher, item: Item) -> None:
 
 
 def _receive(voucher: Voucher, line: StockLine, common: dict) -> tuple[StockMove, Decimal]:
-    if line.valued:
-        if line.rate is None or line.rate < 0:
-            _refuse(f"Give the rate of {line.item.name}.", "rate")
+    if line.valued and line.value is not None:
+        if line.value < 0:
+            _refuse(f"The value of {line.item.name} cannot be below nil.", "rate")
         _check_not_before_issues(voucher, line.item)
-    rate = line.rate if line.valued else ZERO
-    value = money(line.qty * rate) if line.valued else ZERO
+        value = money(line.value)
+        rate = (value / line.qty).quantize(Decimal("0.000001"))
+    else:
+        if line.valued:
+            if line.rate is None or line.rate < 0:
+                _refuse(f"Give the rate of {line.item.name}.", "rate")
+            _check_not_before_issues(voucher, line.item)
+        rate = line.rate if line.valued else ZERO
+        value = money(line.qty * rate) if line.valued else ZERO
     move = StockMove.objects.create(
         company=voucher.company,
         branch=voucher.branch,

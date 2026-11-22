@@ -89,7 +89,10 @@ def _clean(sheets) -> list[dict]:
             raise ValidationError({"sheets": ["Each table needs its column headings."]})
         total += len(rows)
         rows = [(r + [""] * len(columns))[: len(columns)] for r in rows]
-        out.append({"title": str(sheet.get("title") or ""), "columns": columns, "rows": rows})
+        text = [i for i in sheet.get("text") or [] if isinstance(i, int)]
+        out.append(
+            {"title": str(sheet.get("title") or ""), "columns": columns, "rows": rows, "text": text}
+        )
     if total > MAX_ROWS:
         raise ValidationError({"sheets": [f"Print at most {MAX_ROWS} rows at a time."]})
     return out
@@ -144,7 +147,9 @@ def pdf(title: str, scope: str, sheets: list[dict], mark: bytes | None = None) -
                 story.append(Spacer(1, 6 * mm))
             story.append(Paragraph(text(sheet["title"]), h2))
             story.append(Spacer(1, 2 * mm))
-        right = [numeric([r[i] for r in rows]) for i in range(len(columns))]
+        # "text": columns that only look like numbers (an HSN code such as 0902).
+        words = set(sheet.get("text", ()))
+        right = [i not in words and numeric([r[i] for r in rows]) for i in range(len(columns))]
         rows = [[indian(v) if right[i] else v for i, v in enumerate(r)] for r in rows]
         # Width by content: the longest of the heading and the first rows,
         # within limits, scaled to the page.

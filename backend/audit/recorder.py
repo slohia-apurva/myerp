@@ -147,6 +147,10 @@ SKIP = {
     "igst_total",
     "round_off",
     "submitted_at",
+    # A stock transfer's steps show as its status, with who did them in the log.
+    "dispatched_at",
+    "dispatched_by",
+    "received_at",
     "mail_to",  # shown by name as "Mail to"
     "whatsapp_to",  # shown by name as "WhatsApp to"
 }
@@ -215,6 +219,7 @@ def _register() -> None:
         SalesOrder,
     )
     from shipping.models import CourierAccount, Shipment
+    from stock.models import StockTransfer, StockTransferBin
 
     def state(code):
         return india.STATES.get(code, code) if code else None
@@ -618,6 +623,38 @@ def _register() -> None:
                             + (f" batch {b.batch}" if b.batch_id else "")
                             for b in DeliveryNoteBin.objects.filter(
                                 line__note=n, qty__gt=0
+                            ).select_related("line__item", "location", "batch")
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            StockTransfer: Tracked(
+                "stock_transfer",
+                "Stock transfer",
+                by_company,
+                labels={
+                    "from_branch": "From branch",
+                    "to_branch": "To branch",
+                    "eway_bill_no": "E-way bill no",
+                },
+                extras={
+                    "transfer_status": ("Status", lambda t: t.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda t: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            for ln in t.lines.select_related("item", "unit")
+                        )
+                        or None,
+                    ),
+                    "bins": (
+                        "Sent from",
+                        lambda t: "; ".join(
+                            f"{b.line.item} {_number(b.qty)} from {b.location}"
+                            + (f" batch {b.batch}" if b.batch_id else "")
+                            for b in StockTransferBin.objects.filter(
+                                line__transfer=t
                             ).select_related("line__item", "location", "batch")
                         )
                         or None,

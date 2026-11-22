@@ -2439,9 +2439,12 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             For each item the columns are: "In Stock" (what the branch holds
-            now), "Reserved" (still to deliver on the branch's sales orders,
-            drafts included), "Incoming" (still to receive on the branch's
-            purchase orders, drafts included), "Expected" (In Stock − Reserved
+            now; goods in its "In Transit" place do not count yet),
+            "Reserved" (still to deliver on the branch's sales orders, drafts
+            included, and draft stock transfers out of it), "Incoming" (still
+            to receive on the branch's purchase orders, drafts included, and
+            stock transfers coming to it, drafts and those on the road),
+            "Expected" (In Stock − Reserved
             + Incoming, in red when below the safety stock), "Safety" and
             "Order Up To". These are in the item's default unit.
           </li>
@@ -2471,7 +2474,7 @@ export const MANUAL: Chapter[] = [
           Draft orders count as "Incoming" at once, so a check run again never
           orders the same goods twice. A cancelled order counts for nothing.
           Items the branch makes or gets by transfer are not on this screen yet;
-          they come with manufacturing orders and stock transfers.
+          they come with manufacturing orders and the "To Transfer" group.
         </Note>
         <h3>Daily run</h3>
         <p>
@@ -2492,6 +2495,94 @@ export const MANUAL: Chapter[] = [
           does not order it again. "Recent Runs" lists the last runs of the
           branch, daily or by hand, and what each made.
         </p>
+      </>
+    ),
+  },
+  {
+    id: "stock-transfers",
+    title: "Stock transfers",
+    summary: "Goods sent from one branch to another of the same company and GSTIN: Draft, Dispatch, In Transit, Receive.",
+    body: (
+      <>
+        <p>
+          A stock transfer moves goods between two branches of the company
+          that have the same GSTIN. Open "Entry", then "Stock", then "Stock
+          Transfer". The list shows every transfer with "From", "To", "Value ₹"
+          and "Status"; "Show" picks Draft, In Transit, Received or Cancelled.
+          "Entry" shows "Stock" when the company uses the Stock module and your
+          role may see stock.
+        </p>
+        <h3>Make one</h3>
+        <ol>
+          <li>Click "New Transfer". It opens in a new tab.</li>
+          <li>
+            Pick the "From Branch" and, if the goods should come only from one
+            area, the "From Area" ("Whole branch" otherwise). Pick the "To
+            Branch" and the "To Area" the goods go to on receipt ("Default
+            store" otherwise). A branch with another GSTIN is refused: that move
+            is a sale in GST law (a tax invoice and a matching purchase), not a
+            transfer.
+          </li>
+          <li>
+            Give the "Transfer Date", and if you know them "Expected Arrival",
+            "Transporter" ("Own vehicle" if none), "Vehicle No", "E-way Bill
+            No" and a "Reason".
+          </li>
+          <li>
+            Add the items with "Qty" and "Unit". "Free at From" shows what the
+            From branch or area has free, in red when it is less than the
+            quantity.
+          </li>
+          <li>
+            Click "Save". The bins and batches are picked by the same rule as
+            pick lists (earliest expiry first, held batches never) and show in
+            "Taken From (bin · batch)". A draft already counts in the Stock
+            Check: "Reserved" at From and "Incoming" at To.
+          </li>
+        </ol>
+        <h3>Dispatch</h3>
+        <p>
+          Click "Dispatch" when the goods leave. The transfer gets its number
+          (ST/...), the bins and batches are picked again with the stock as it
+          is then, and the goods leave those bins at their FIFO cost. They now
+          sit in the To branch's "In Transit" place at that same value. The
+          books get nothing: both branches keep the company's one Stock
+          Ledger, and the branch-wise stock value shows where the goods are.
+          If there is not enough stock, a popup lists each short line with "Go
+          to line"; the draft is kept. Packages taken whole move with the
+          goods; an opened package stays at From. "Print" gives the Delivery
+          Challan (items, HSN, quantity, value at cost, e-way bill number,
+          "Not for sale: branch transfer").
+        </p>
+        <h3>Receive</h3>
+        <ol>
+          <li>
+            When the goods arrive, open the transfer and click "Receive".
+          </li>
+          <li>
+            For each bin and batch sent, give what came in "Received" and the
+            place it goes in "Put Into" (the To Area or the default store to
+            start with). Give "Received On".
+          </li>
+          <li>
+            If less came than was sent, give the "Shortfall Reason". What did
+            not arrive goes out of stock as a transit loss: Dr Stock
+            Adjustment, Cr Stock, at its cost.
+          </li>
+          <li>Click "Receive". The lines show "Received" or "Short".</li>
+        </ol>
+        <p>
+          The "Stock Posting" section shows each step, Dispatch and Receive,
+          with what moves in the stock ledger and in the books: on a draft what
+          will happen, afterwards what did.
+        </p>
+        <Note>
+          "Cancel" drops a draft, or puts the goods of a transfer still in
+          transit back into their bins at From. A received transfer cannot be
+          cancelled: use "Create ▾", "Transfer back (send goods back)", which
+          opens a new transfer the other way. Files such as the e-way bill go
+          in "Attachments" at the right, also after Dispatch.
+        </Note>
       </>
     ),
   },

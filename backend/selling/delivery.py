@@ -989,6 +989,7 @@ class NotePdfView(APIView):
                 "title": "",
                 "columns": ["#", "Item", "HSN", "Qty", "Rate ₹", "Taxable ₹", "GST", "Value ₹"],
                 "rows": rows,
+                "text": [2],
             }
             title = f"Delivery Challan {data['number'] or 'Draft'}"
         response = printout.pdf_response(title, scope, [sheet], data["number"] or "delivery-note")

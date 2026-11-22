@@ -197,7 +197,7 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
 /** "Entry" in the top menu: the entry screens, grouped. "Purchase ▸" opens its own list
  * to the right on hover (or on a click, for touch screens). Purchase
  * Invoice and Purchase Return are shown as coming next until they are built. */
-export function EntryMenu(props: { active: boolean; company: Company; orders: boolean; tds?: boolean; purchase?: boolean; sales?: boolean }) {
+export function EntryMenu(props: { active: boolean; company: Company; orders: boolean; tds?: boolean; purchase?: boolean; sales?: boolean; stock?: boolean }) {
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState("");
   const box = useRef<HTMLDivElement>(null);
@@ -252,6 +252,18 @@ export function EntryMenu(props: { active: boolean; company: Company; orders: bo
                 </a>
                 <a role="menuitem" href={`#/companies/${id}/credit-notes`} onClick={() => setOpen(false)}>
                   Credit Note
+                </a>
+              </div>
+            </div>
+          )}
+          {props.stock && (
+            <div className={`menu-sub${sub === "stock" ? " open" : ""}`}>
+              <button type="button" aria-haspopup="true" aria-expanded={sub === "stock"} onClick={() => setSub(sub === "stock" ? "" : "stock")}>
+                Stock <span aria-hidden="true">▸</span>
+              </button>
+              <div className="menu-flyout" role="menu" aria-label="Stock">
+                <a role="menuitem" href={`#/companies/${id}/stock-transfers`} onClick={() => setOpen(false)}>
+                  Stock Transfer
                 </a>
               </div>
             </div>
