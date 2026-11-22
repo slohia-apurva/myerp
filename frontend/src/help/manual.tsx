@@ -2473,6 +2473,25 @@ export const MANUAL: Chapter[] = [
           Items the branch makes or gets by transfer are not on this screen yet;
           they come with manufacturing orders and stock transfers.
         </Note>
+        <h3>Daily run</h3>
+        <p>
+          The "Daily Run" box at the right sets the check to run by itself every
+          morning. Tick "Run every morning and make draft purchase orders" and
+          pick the hour in "Run At" (07:00 to start with). Only someone who may
+          change masters can change it. At that hour, for every branch of the
+          company with Stock Planning lines, it does what "Create Purchase
+          Orders" does for every short item that has a supplier: one draft per
+          supplier, with the note "Made by the daily Stock Check". The
+          Purchase people get a bell notice naming the drafts and any item with
+          no Preferred Supplier; clicking it opens this screen for that branch.
+        </p>
+        <p>
+          The drafts are never sent by themselves: open each one from "Draft
+          Purchase Orders Made by Stock Check", check it and Submit it. A draft
+          nobody has submitted still counts as "Incoming", so the next morning
+          does not order it again. "Recent Runs" lists the last runs of the
+          branch, daily or by hand, and what each made.
+        </p>
       </>
     ),
   },

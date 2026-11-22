@@ -4,7 +4,7 @@ import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
-import { openTab } from "./Master";
+import { openTab, SidePanel } from "./Master";
 import { useOnReturn } from "./Refresh";
 
 /** Entry › Planning › Stock Check (Sidharth, 2026-11-21, preview 2c): for one branch,
@@ -36,7 +36,20 @@ type Row = {
   lead_time_days: number | null;
   by: string;
 };
-type Result = { branch: number; checked_at: string; rows: Row[]; suppliers: { id: number; name: string }[] };
+type Daily = { on: boolean; hour: number; can_change: boolean };
+type Run = { id: number; made_at: string; daily: boolean; made_by_name: string; short_count: number; order_count: number; missing: string[]; failed: string[] };
+type Draft = { id: number; made_at: string; daily: boolean; made_by_name: string; supplier_name: string; item_count: number; expected_date: string | null; total: string };
+type Result = {
+  branch: number;
+  checked_at: string;
+  rows: Row[];
+  suppliers: { id: number; name: string }[];
+  /** The company's daily run (Sidharth, 2026-11-21, preview 4). */
+  daily: Daily;
+  runs: Run[];
+  /** Drafts made by the daily run or "Create Purchase Orders", not yet submitted. */
+  drafts: Draft[];
+};
 type Branch = { id: number; name: string; is_active: boolean; no_stock: boolean };
 /** What the person changed on a line: ticked, quantity, supplier, and the supplier's rate. */
 type Choice = { on: boolean; qty: string; supplier: string; rate: string | null };
@@ -50,6 +63,13 @@ const indian = (v: string | null) =>
 const money = (v: string | null) =>
   v === null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB");
+const HOURS = Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${String(h).padStart(2, "0")}:00` }));
+const shortStamp = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+};
+const isToday = (iso: string) => new Date(iso).toDateString() === new Date().toDateString();
+const plural = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
 const stamp = (iso: string) => {
   const d = new Date(iso);
   return `${d.toLocaleDateString("en-GB")} at ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
@@ -70,7 +90,10 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
     api<{ branches: Branch[] }>(`v1/companies/${companyId}/`).then((c) => {
       const stock = c.branches.filter((b) => b.is_active && !b.no_stock);
       setBranches(stock);
-      setBranch((now) => now || (stock[0] ? String(stock[0].id) : ""));
+      // The bell notice of the daily run opens its branch.
+      const asked = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("branch") ?? "";
+      const pick = stock.find((b) => String(b.id) === asked) ?? stock[0];
+      setBranch((now) => now || (pick ? String(pick.id) : ""));
     });
   }, [companyId]);
   const run = useCallback(() => {
@@ -142,6 +165,20 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
       setBusy(false);
     }
   };
+  const setDaily = async (next: Partial<Daily>) => {
+    if (!result) return;
+    setError("");
+    try {
+      const daily = await api<Daily>(`v1/companies/${companyId}/stock-check/daily/`, { ...result.daily, ...next }, "PUT");
+      setResult((r) => (r ? { ...r, daily } : r));
+    } catch (err) {
+      setError(err);
+    }
+  };
+  const poHref = (id: number) => `#/companies/${companyId}/purchase-orders?view=${id}`;
+  const lastDaily = result?.runs.find((r) => r.daily && isToday(r.made_at) && r.order_count > 0);
+  const drafts = result?.drafts ?? [];
+  const runs = result?.runs ?? [];
   const branchName = branches.find((b) => String(b.id) === branch)?.name ?? "";
   const printing = usePrintMenu({ title: `Stock Check: ${branchName}`, scope: "" });
   const shortCount = (result?.rows ?? []).filter((r) => r.short).length;
@@ -155,6 +192,8 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
         actions={printing.buttons}
       />
       {printing.panel}
+      <div className="side-layout">
+        <div className="side-main">
       <Section title="Check">
         <div className="row filters report-filters no-print">
           <label>
@@ -188,6 +227,12 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
             </span>
           ))}
           . Open each one, check it and Submit.
+        </p>
+      )}
+      {lastDaily && made.length === 0 && (
+        <p className="ok-note no-print">
+          The daily run at {shortStamp(lastDaily.made_at).split(" ")[1]} made {plural(lastDaily.order_count, "draft purchase order")}. Check and Submit them
+          below: they are not sent to the suppliers until submitted.
         </p>
       )}
       <Section title={`To Buy · ${rows.length} ${rows.length === 1 ? "item" : "items"}`}>
@@ -298,6 +343,78 @@ export function StockCheckPage({ companyId, session }: { companyId: number; sess
           item's default unit. "To Make" and "To Transfer" come with manufacturing and stock transfers.
         </p>
       </Section>
+      {drafts.length > 0 && (
+        <Section title="Draft Purchase Orders Made by Stock Check">
+          <div className="table-scroll">
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Made</th>
+                  <th>By</th>
+                  <th>Supplier</th>
+                  <th className="num">Items</th>
+                  <th>Expected Delivery</th>
+                  <th className="num">Amount ₹</th>
+                  <th className="no-print" aria-label="Open" />
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.map((d) => (
+                  <tr key={d.id}>
+                    <td>{shortStamp(d.made_at)}</td>
+                    <td>{d.daily ? "Daily run" : d.made_by_name}</td>
+                    <td>{d.supplier_name}</td>
+                    <td className="num">{d.item_count}</td>
+                    <td>{d.expected_date ? day(d.expected_date) : ""}</td>
+                    <td className="num">{money(d.total)}</td>
+                    <td className="no-print">
+                      <button type="button" className="link" onClick={() => openTab(poHref(d.id))}>
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+        </div>
+        <div className="side-col no-print" aria-label="Daily run">
+          {result && (
+            <SidePanel title="Daily Run">
+              <label className="daily-tick">
+                <input type="checkbox" checked={result.daily.on} disabled={!result.daily.can_change} onChange={(e) => setDaily({ on: e.target.checked })} /> Run
+                every morning and make draft purchase orders
+              </label>
+              <div className="daily-at">
+                <span className="side-label">Run At</span>
+                {result.daily.can_change ? (
+                  <Combobox value={String(result.daily.hour)} ariaLabel="Run at" onChange={(v) => v && setDaily({ hour: Number(v) })} options={HOURS} />
+                ) : (
+                  <span>{HOURS[result.daily.hour]?.label}</span>
+                )}
+              </div>
+              <p className="small">
+                For every branch of this company with Stock Planning lines. The Purchase people get a bell notice.
+                {!result.daily.can_change && " Only someone who may change masters can change this."}
+              </p>
+            </SidePanel>
+          )}
+          {runs.length > 0 && (
+            <SidePanel title="Recent Runs">
+              {runs.map((r) => (
+                <div key={r.id} className="small">
+                  {shortStamp(r.made_at)} · {r.daily ? "Daily" : r.made_by_name} ·{" "}
+                  {r.short_count === 0 ? "nothing short" : `${r.short_count} short · ${plural(r.order_count, "PO")} made`}
+                  {r.missing.length > 0 && <span className="error"> · no supplier: {r.missing.join(", ")}</span>}
+                  {r.failed.length > 0 && <span className="error"> · {r.failed.join(" ")}</span>}
+                </div>
+              ))}
+            </SidePanel>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

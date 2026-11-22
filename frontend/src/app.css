@@ -4194,3 +4194,27 @@ table.stock-check input.num {
 table.stock-check td .combo {
   min-width: 200px;
 }
+
+/* Stock Check: the Daily Run box at the right (preview 4). */
+label.daily-tick {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 400;
+  color: var(--ink);
+}
+label.daily-tick input {
+  width: auto;
+  margin-top: 3px;
+}
+.daily-at {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 140px;
+}
+.side-label {
+  color: var(--green);
+  font-weight: 700;
+}

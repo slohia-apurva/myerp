@@ -66,6 +66,18 @@ jobs:
           gcloud run jobs execute myerp-migrate \
             --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --wait
 
+      - name: Update scheduled job
+        run: |
+          # Made by `terraform apply` (deploy/terraform/main.tf); skipped until it exists.
+          if gcloud run jobs describe myerp-scheduled \
+              --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" >/dev/null 2>&1; then
+            gcloud run jobs update myerp-scheduled \
+              --project "${GCP_PROJECT_ID}" --region "${GCP_REGION}" --image "${IMAGE}" \
+              --command python --args manage.py,run_scheduled
+          else
+            echo "myerp-scheduled not created yet (needs terraform apply); skipped."
+          fi
+
       - name: Roll out app
         run: |
           gcloud run deploy myerp-app \
