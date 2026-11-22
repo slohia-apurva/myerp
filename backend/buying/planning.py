@@ -16,10 +16,12 @@ refills it to Order Up To (or the safety stock when that is empty), in the
 item's purchase unit, rounded up to the Minimum Order Qty (in whole steps of
 it) or else to a whole unit when the unit is counted in whole numbers.
 
-Only lines whose fulfilment is Purchase are checked for now ("To Buy");
-"To Make" and "To Transfer" come with manufacturing and stock transfers.
-"Create Purchase Orders" makes one DRAFT order per supplier; a person checks
-and submits each one (design rule: drafts only)."""
+Lines whose fulfilment is Purchase are "To Buy": "Create Purchase Orders"
+makes one DRAFT order per supplier. Lines whose fulfilment is Transfer are
+"To Transfer" (Sidharth, 2026-11-22, preview 9b): "Create Stock Transfers"
+makes one DRAFT transfer per source branch, in the item's sales unit, with no
+minimum order. A person checks and submits (dispatches) each one (design
+rule: drafts only). "To Make" comes with manufacturing."""
 
 import datetime
 from collections import defaultdict
@@ -192,6 +194,147 @@ def check(company, branch: Branch, everything: bool = False, today=None) -> list
     return rows
 
 
+def _in_sales_unit(item: Item, need: Decimal, factors) -> tuple:
+    """`need` stock units as (unit, qty, whole numbers) in the sales unit (the
+    unit stock moves in), rounded up to a whole unit when it is counted so; a
+    transfer has no minimum order."""
+    unit_id = item.sales_unit_id or item.stock_unit_id
+    unit_row = factors.get((item.pk, unit_id))
+    factor = unit_row.factor if unit_row is not None and unit_row.factor else Decimal("1")
+    unit = unit_row.unit if unit_row is not None else item.stock_unit
+    whole = unit_row.whole_numbers if unit_row is not None else True
+    return unit, round_up(need / factor, None, whole), whole, factor
+
+
+def check_transfers(company, branch: Branch, everything: bool = False, today=None) -> list[dict]:
+    """ "To Transfer" (Sidharth, 2026-11-22, preview 9b): one row per item the
+    branch gets from another branch (Stock Planning: Transfer), with the same
+    figures as To Buy, the suggestion in the item's sales unit, and what the
+    source has free (its In Stock - Reserved). A source short of it is only a
+    warning: the draft transfer counts as Reserved there, so the source's own
+    check buys or makes more."""
+    from stock.transfers import gstin
+
+    today = today or timezone.localdate()
+    plans = list(
+        ItemPlan.objects.filter(
+            branch=branch,
+            fulfilment=ItemPlan.TRANSFER,
+            transfer_from__isnull=False,
+            item__is_active=True,
+        ).select_related(
+            "item__stock_unit", "item__sales_unit", "item__item_group", "transfer_from__company"
+        )
+    )
+    ids = [p.item_id for p in plans]
+    have = on_hand(ids, branch)
+    out_qty = reserved(branch, ids)
+    in_qty = incoming(branch, ids)
+    factors = _factors(ids)
+    free: dict[int, dict[int, Decimal]] = {}
+    for source in {p.transfer_from for p in plans}:
+        mine = [p.item_id for p in plans if p.transfer_from_id == source.pk]
+        held, kept = on_hand(mine, source), reserved(source, mine)
+        free[source.pk] = {i: held.get(i, ZERO) - kept.get(i, ZERO) for i in mine}
+    rows = []
+    for p in sorted(plans, key=lambda p: (p.transfer_from.name.lower(), p.item.name.lower())):
+        item: Item = p.item
+        stock = have.get(item.pk, ZERO)
+        kept = out_qty.get(item.pk, ZERO)
+        coming = in_qty.get(item.pk, ZERO)
+        expected = stock - kept + coming
+        short = expected < p.safety_qty
+        if not short and not everything:
+            continue
+        target = p.order_up_to if p.order_up_to is not None else p.safety_qty
+        need = max(target - expected, ZERO) if short else ZERO
+        unit, suggested, whole, factor = _in_sales_unit(item, need, factors)
+        source = p.transfer_from
+        at_source = free[source.pk].get(item.pk, ZERO) / factor
+        days = p.transfer_days or 0
+        rows.append(
+            {
+                "item": item.pk,
+                "item_name": item.name,
+                "item_number": item.item_number,
+                "item_group": item.item_group_id,
+                "item_group_name": item.item_group.name if item.item_group_id else "",
+                "stock_unit": item.stock_unit.short_name or item.stock_unit.name,
+                "in_stock": _plain(stock),
+                "reserved": _plain(kept),
+                "incoming": _plain(coming),
+                "expected": _plain(expected),
+                "safety": _plain(p.safety_qty),
+                "order_up_to": _plain(p.order_up_to) if p.order_up_to is not None else None,
+                "short": short,
+                "suggested": _plain(suggested),
+                "unit": unit.pk,
+                "unit_name": unit.short_name or unit.name,
+                "whole_numbers": whole,
+                "from_branch": source.pk,
+                "from_branch_name": source.name,
+                "transfer_days": p.transfer_days,
+                "by": (today + datetime.timedelta(days=days)).isoformat(),
+                "free_at_source": _plain(at_source.quantize(Decimal("0.001"))),
+                "source_short": at_source < suggested,
+                # A source with another GSTIN cannot send by transfer.
+                "other_gstin": gstin(source) != gstin(branch),
+            }
+        )
+    return rows
+
+
+def make_transfers(
+    company,
+    branch: Branch,
+    lines: list[dict],
+    user,
+    today=None,
+    reason: str = "Made by Stock Check.",
+    sales_order=None,
+    run=None,
+) -> list:
+    """One draft stock transfer per source branch, into `branch`, for lines
+    {item, unit, qty, from_branch, days}. Its bins are picked as on Save; the
+    source's stores check and Dispatch it."""
+    from stock.models import StockTransfer
+    from stock.transfers import _save
+
+    today = today or timezone.localdate()
+    by_source: dict[int, list[dict]] = defaultdict(list)
+    for line in lines:
+        by_source[line["from_branch"].pk].append(line)
+    made = []
+    for group in by_source.values():
+        source = group[0]["from_branch"]
+        days = max((ln.get("days") or 0) for ln in group)
+        data = {
+            "from_branch": source.pk,
+            "from_area": None,
+            "to_branch": branch.pk,
+            "to_area": None,
+            "transfer_date": today,
+            "expected_date": today + datetime.timedelta(days=days),
+            "transporter": None,
+            "vehicle_no": "",
+            "eway_bill_no": "",
+            "reason": reason[:200],
+            "notes": "",
+            "lines": [
+                {"item": ln["item"].pk, "unit": ln["unit"].pk, "qty": ln["qty"]} for ln in group
+            ],
+        }
+        t = StockTransfer(
+            company=company, created_by=user, sales_order=sales_order, stock_check_run=run
+        )
+        try:
+            _save(t, data)
+        except ValidationError as exc:
+            raise ValidationError({"lines": [f"From {source.name}: {_said(exc.detail)}"]}) from exc
+        made.append(t)
+    return made
+
+
 def _in_purchase_unit(item: Item, need: Decimal, factors) -> tuple:
     """`need` stock units as (unit, qty, whole numbers) in the purchase unit,
     rounded up to the minimum order."""
@@ -276,9 +419,10 @@ def for_sales_order(so, user, today=None) -> list[dict]:
     the branch buys gets a draft purchase order, one per supplier, linked to the
     order: refilled to Order Up To when it has a Stock Planning line there, or
     for the shortage alone when it only has Main Fulfilment Purchase. Items to
-    make or transfer are noted for now. A supplier whose draft cannot be made is
-    noted too; Submit never fails because of this. The result is kept on the
-    order as `shortages`."""
+    make are noted for now; an item the branch gets by transfer gets a draft
+    stock transfer from its source branch, one per source (preview 9b). A
+    supplier or source whose draft cannot be made is noted too; Submit never
+    fails because of this. The result is kept on the order as `shortages`."""
     today = today or timezone.localdate()
     branch = so.branch
     items = {
@@ -287,7 +431,12 @@ def for_sales_order(so, user, today=None) -> list[dict]:
         if ln.item.maintain_stock
     }
     ids = list(items)
-    plans = {p.item_id: p for p in ItemPlan.objects.filter(branch=branch, item_id__in=ids)}
+    plans = {
+        p.item_id: p
+        for p in ItemPlan.objects.filter(branch=branch, item_id__in=ids).select_related(
+            "transfer_from__company"
+        )
+    }
     have = on_hand(ids, branch)
     out_qty = reserved(branch, ids)
     in_qty = incoming(branch, ids)
@@ -295,6 +444,7 @@ def for_sales_order(so, user, today=None) -> list[dict]:
     ledgers = supplier_ledgers(so.company)
     notes: list[dict] = []
     to_buy: dict[int, list[dict]] = defaultdict(list)
+    to_move: list[dict] = []
     for item in sorted(items.values(), key=lambda i: i.name.lower()):
         plan = plans.get(item.pk)
         how = plan.fulfilment if plan is not None else item.default_request_type
@@ -323,6 +473,22 @@ def for_sales_order(so, user, today=None) -> list[dict]:
             note["action"] = "make"
         elif how == ItemPlan.TRANSFER:
             note["action"] = "transfer"
+            if plan is not None and plan.transfer_from_id:
+                unit, qty, _whole, _f = _in_sales_unit(item, need, factors)
+                note.update(qty=_plain(qty), unit_name=unit.short_name or unit.name)
+                note["from_name"] = plan.transfer_from.name
+                to_move.append(
+                    {
+                        "item": item,
+                        "unit": unit,
+                        "qty": qty,
+                        "from_branch": plan.transfer_from,
+                        "days": plan.transfer_days,
+                        "note": note,
+                    }
+                )
+            else:
+                note["message"] = "No branch to transfer from on its Stock Planning line."
         elif how != ItemPlan.PURCHASE:
             note["action"] = "unplanned"
         else:
@@ -361,6 +527,31 @@ def for_sales_order(so, user, today=None) -> list[dict]:
             ln["note"]["order"] = order.pk
             ln["note"]["supplier_name"] = order.supplier.name
             ln["note"]["by"] = order.expected_date.isoformat() if order.expected_date else ""
+    by_source: dict[int, list[dict]] = defaultdict(list)
+    for ln in to_move:
+        by_source[ln["from_branch"].pk].append(ln)
+    for group in by_source.values():
+        try:
+            with tenant_atomic():
+                [moved] = make_transfers(
+                    so.company,
+                    branch,
+                    group,
+                    user,
+                    today,
+                    reason=f"Made on Submit of Sales Order {so.number} for its shortages.",
+                    sales_order=so,
+                )
+        except ValidationError as exc:
+            for ln in group:
+                ln["note"].update(action="failed", message=_said(exc.detail))
+            continue
+        for ln in group:
+            ln["note"].update(
+                action="st",
+                transfer=moved.pk,
+                by=moved.expected_date.isoformat() if moved.expected_date else "",
+            )
     so.shortages = notes
     so.save(update_fields=["shortages"])
     return notes
@@ -380,16 +571,19 @@ def daily_run(company, now=None) -> list[StockCheckRun]:
         company=company,
         is_active=True,
         no_stock=False,
-        pk__in=ItemPlan.objects.filter(fulfilment=ItemPlan.PURCHASE).values("branch_id"),
+        pk__in=ItemPlan.objects.filter(
+            fulfilment__in=[ItemPlan.PURCHASE, ItemPlan.TRANSFER]
+        ).values("branch_id"),
     ).order_by("name")
     runs = []
     for branch in branches:
         rows = check(company, branch, today=today)
+        moves = check_transfers(company, branch, today=today)
         run = StockCheckRun.objects.create(
-            company=company, branch=branch, daily=True, short_count=len(rows)
+            company=company, branch=branch, daily=True, short_count=len(rows) + len(moves)
         )
         runs.append(run)
-        if not rows:
+        if not rows and not moves:
             continue
         items = Item.objects.in_bulk([r["item"] for r in rows])
         units = {
@@ -428,11 +622,12 @@ def daily_run(company, now=None) -> list[StockCheckRun]:
                     )
             except ValidationError as exc:
                 run.failed.append(_said(exc.detail))
-        run.order_count = len(made)
-        run.item_count = sum(o.lines.count() for o in made)
+        sent = _daily_transfers(company, branch, moves, run, today)
+        run.order_count = len(made) + len(sent)
+        run.item_count = sum(o.lines.count() for o in made) + sum(t.lines.count() for t in sent)
         run.save(update_fields=["order_count", "item_count", "missing", "failed"])
         # One part per paragraph, one line per order or item (Sidharth, 2026-11-22).
-        parts = [f"{_count(len(rows), 'item')} below safety stock."]
+        parts = [f"{_count(len(rows) + len(moves), 'item')} below safety stock."]
         if made:
             parts.append(
                 "Draft Purchase Orders made:\n"
@@ -440,6 +635,15 @@ def daily_run(company, now=None) -> list[StockCheckRun]:
                     f"• {o.supplier.name}: {_count(o.lines.count(), 'item')}, "
                     f"by {o.expected_date:%d/%m/%Y}"
                     for o in made
+                )
+            )
+        if sent:
+            parts.append(
+                "Draft Stock Transfers made:\n"
+                + "\n".join(
+                    f"• From {t.from_branch.name}: {_count(t.lines.count(), 'item')}, "
+                    f"by {t.expected_date:%d/%m/%Y}"
+                    for t in sent
                 )
             )
         if run.missing:
@@ -450,13 +654,51 @@ def daily_run(company, now=None) -> list[StockCheckRun]:
         if run.failed:
             parts.append("Not made:\n" + "\n".join(f"• {text}" for text in run.failed))
         notify(
-            people_with_roles(company, "purchase", "owner"),
+            people_with_roles(company, "purchase", "storekeeper", "owner"),
             company,
             f"Daily Stock Check, {branch.name}",
             "\n\n".join(parts),
             f"#/companies/{company.pk}/stock-check?branch={branch.pk}",
         )
     return runs
+
+
+def _daily_transfers(company, branch: Branch, rows: list[dict], run, today) -> list:
+    """The To Transfer part of the daily run: one draft per source branch."""
+    items = Item.objects.in_bulk([r["item"] for r in rows])
+    units = {
+        (u.item_id, u.unit_id): u.unit
+        for u in ItemUnit.objects.filter(item_id__in=items).select_related("unit")
+    }
+    sources = Branch.objects.in_bulk([r["from_branch"] for r in rows])
+    lines = []
+    for r in rows:
+        if r["other_gstin"]:
+            run.failed.append(f"{r['item_name']}: {r['from_branch_name']} has another GSTIN.")
+        elif Decimal(r["suggested"]) > ZERO:
+            lines.append(
+                {
+                    "item": items[r["item"]],
+                    "unit": units.get((r["item"], r["unit"])) or items[r["item"]].stock_unit,
+                    "qty": Decimal(r["suggested"]),
+                    "from_branch": sources[r["from_branch"]],
+                    "days": r["transfer_days"],
+                }
+            )
+    made = []
+    by_source: dict[int, list[dict]] = defaultdict(list)
+    for ln in lines:
+        by_source[ln["from_branch"].pk].append(ln)
+    for group in by_source.values():
+        try:
+            with tenant_atomic():
+                made += make_transfers(
+                    company, branch, group, None, today,
+                    reason="Made by the daily Stock Check.", run=run,
+                )  # fmt: skip
+        except ValidationError as exc:
+            run.failed.append(_said(exc.detail))
+    return made
 
 
 def due(company, now=None) -> bool:
@@ -501,7 +743,9 @@ class StockCheckView(APIView):
         orders._check(request, orders.VIEW)
         company = orders._company(request, pk)
         branch = _branch(company, request.query_params.get("branch", ""))
-        rows = check(company, branch, everything=request.query_params.get("show") == "all")
+        everything = request.query_params.get("show") == "all"
+        rows = check(company, branch, everything=everything)
+        moves = check_transfers(company, branch, everything=everything)
         suppliers = Ledger.objects.filter(
             Q(is_active=True) | Q(pk__in=[r["supplier"] for r in rows if r["supplier"]]),
             company=company,
@@ -524,9 +768,43 @@ class StockCheckView(APIView):
                     .order_by("-id")
                 ],
                 "rows": rows,
+                "transfers": moves,
+                "transfer_drafts": _transfer_drafts(branch),
+                "may_transfer": may_transfer(request.user),
                 "suppliers": [{"id": s.pk, "name": s.name} for s in suppliers],
             }
         )
+
+
+def may_transfer(user) -> bool:
+    return user.can("stock.create") or user.can("purchase.create")
+
+
+def _transfer_drafts(branch: Branch) -> list[dict]:
+    from stock.models import StockTransfer
+
+    rows = (
+        StockTransfer.objects.filter(
+            to_branch=branch, status=StockTransfer.DRAFT, stock_check_run__isnull=False
+        )
+        .select_related("from_branch", "stock_check_run__made_by")
+        .prefetch_related("lines")
+        .order_by("-id")
+    )
+    return [
+        {
+            "id": t.pk,
+            "made_at": t.stock_check_run.made_at,
+            "daily": t.stock_check_run.daily,
+            "made_by_name": t.stock_check_run.made_by.display_name
+            if t.stock_check_run.made_by_id
+            else "",
+            "from_branch_name": t.from_branch.name,
+            "item_count": len(t.lines.all()),
+            "expected_date": t.expected_date,
+        }
+        for t in rows
+    ]
 
 
 def _daily_out(request, company) -> dict:
@@ -630,6 +908,67 @@ class StockCheckOrdersView(APIView):
             [
                 {"id": o.pk, "supplier_name": o.supplier.name, "lines": o.lines.count()}
                 for o in made
+            ],
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class _MoveLine(serializers.Serializer):
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
+    unit = serializers.IntegerField()
+    qty = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=Decimal("0.000001"))
+    from_branch = serializers.IntegerField()
+
+
+class _Move(serializers.Serializer):
+    branch = serializers.IntegerField()
+    lines = _MoveLine(many=True, allow_empty=False)
+
+
+class StockCheckTransfersView(APIView):
+    """POST {branch, lines: [{item, unit, qty, from_branch}]}: one draft stock
+    transfer per source branch, into the branch (preview 9b)."""
+
+    permission_classes = [Signed]
+
+    @tenant_atomic()
+    def post(self, request, pk: int):
+        orders._check(request, orders.VIEW)
+        if not may_transfer(request.user):
+            raise PermissionDenied("Your role may not make stock transfers.")
+        company = orders._company(request, pk)
+        serializer = _Move(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        branch = _branch(company, serializer.validated_data["branch"])
+        plans = {
+            p.item_id: p
+            for p in ItemPlan.objects.filter(branch=branch, fulfilment=ItemPlan.TRANSFER)
+        }
+        lines = []
+        for ln in serializer.validated_data["lines"]:
+            row = ItemUnit.objects.filter(item=ln["item"], unit_id=ln["unit"]).first()
+            if row is None:
+                raise ValidationError({"lines": [f"Pick one of the units of {ln['item'].name}."]})
+            source = _branch(company, ln["from_branch"])
+            plan = plans.get(ln["item"].pk)
+            lines.append(
+                {
+                    **ln,
+                    "unit": row.unit,
+                    "from_branch": source,
+                    "days": plan.transfer_days if plan is not None else None,
+                }
+            )
+        run = StockCheckRun.objects.create(
+            company=company, branch=branch, made_by=request.user, short_count=len(lines)
+        )
+        made = make_transfers(company, branch, lines, request.user, run=run)
+        run.order_count, run.item_count = len(made), len(lines)
+        run.save(update_fields=["order_count", "item_count"])
+        return Response(
+            [
+                {"id": t.pk, "from_branch_name": t.from_branch.name, "lines": t.lines.count()}
+                for t in made
             ],
             status=status.HTTP_201_CREATED,
         )

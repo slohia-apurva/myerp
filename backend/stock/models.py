@@ -68,6 +68,22 @@ class StockTransfer(models.Model):
     received_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    # Made by planning (Sidharth, 2026-11-22, preview 9b): on Submit of this sales
+    # order, or by this Stock Check run (by hand or daily).
+    sales_order = models.ForeignKey(
+        "selling.SalesOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stock_transfers",
+    )
+    stock_check_run = models.ForeignKey(
+        "buying.StockCheckRun",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stock_transfers",
+    )
 
     class Meta:
         ordering = ["-transfer_date", "-id"]
