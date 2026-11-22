@@ -6,7 +6,8 @@ The rule, approved with the previews:
 - earliest expiry first, then oldest received (a batch with no expiry comes
   after those with one);
 - a batch held back (Quarantine or Rejected) is never picked;
-- stock already on an open or picked pick list is kept aside.
+- stock already on an open or picked pick list, or picked for an open
+  manufacturing order, is kept aside.
 
 Packages (Sidharth, 2026-11-20, previews 12a/12b): where a bin and batch hold
 numbered bags or boxes, each is a place of its own, taken whole, lowest PK
@@ -94,30 +95,45 @@ def pending(line: SalesOrderLine) -> Decimal:
     return max(line.qty - line.delivered_qty, ZERO)
 
 
+def _held(item: Item, leave_out: PickList | None, leave_out_mo) -> list[dict]:
+    """Rows of stock kept aside for pick lists and open manufacturing orders:
+    location, batch, package, qty."""
+    from manufacturing.models import ManufacturingOrder, ManufacturingOrderPick
+
+    held = PickListLine.objects.filter(item=item, pick_list__status__in=PickList.HOLDING)
+    if leave_out is not None:
+        held = held.exclude(pick_list=leave_out)
+    made = ManufacturingOrderPick.objects.filter(
+        item=item, order__status__in=ManufacturingOrder.OPEN
+    )
+    if leave_out_mo is not None:
+        made = made.exclude(order=leave_out_mo)
+    fields = ("location", "batch", "package", "qty")
+    return [*held.values(*fields), *made.values(*fields)]
+
+
 def spots(
-    item: Item, branch, area=None, leave_out: PickList | None = None, owner=None
+    item: Item, branch, area=None, leave_out: PickList | None = None, owner=None, leave_out_mo=None
 ) -> list[Spot]:
     """Where the item may be picked from, in the order the rule picks them. With
-    an owner (a customer's core.Party), only that customer's own goods."""
+    an owner (a customer's core.Party), only that customer's own goods.
+    `leave_out` / `leave_out_mo`: the pick list or manufacturing order asking,
+    whose own picks are not kept aside from it."""
     moves = StockMove.objects.filter(item=item, location__in=stock.places(branch, area))
     if owner is not None:
         moves = moves.filter(owner=owner)
     rows = moves.values("location", "batch").annotate(
         q=Sum("qty"), first=Min("date", filter=Q(qty__gt=0))
     )
-    held = PickListLine.objects.filter(item=item, pick_list__status__in=PickList.HOLDING)
-    if leave_out is not None:
-        held = held.exclude(pick_list=leave_out)
-    kept = {
-        (r["location"], r["batch"]): r["q"]
-        for r in held.values("location", "batch").annotate(q=Sum("qty"))
-    }
-    # A package on another list is not offered at all (Sidharth, 2026-11-20),
-    # nor what is left in it beyond what that list takes.
-    on_lists = {
-        r["package"]: r["q"]
-        for r in held.exclude(package=None).values("package").annotate(q=Sum("qty"))
-    }
+    kept: dict[tuple, Decimal] = {}
+    on_lists: dict[int, Decimal] = {}
+    for r in _held(item, leave_out, leave_out_mo):
+        key = (r["location"], r["batch"])
+        kept[key] = kept.get(key, ZERO) + r["qty"]
+        # A package on another list is not offered at all (Sidharth, 2026-11-20),
+        # nor what is left in it beyond what that list takes.
+        if r["package"] is not None:
+            on_lists[r["package"]] = on_lists.get(r["package"], ZERO) + r["qty"]
     busy = set(on_lists)
     rest: dict[tuple, Decimal] = {}
     for pk in Package.objects.filter(pk__in=busy, left_qty__gt=0):

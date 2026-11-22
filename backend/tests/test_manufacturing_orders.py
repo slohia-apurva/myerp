@@ -149,3 +149,38 @@ def test_pack_details_and_the_expiry_date(owner, world):  # noqa: F811
     assert cancel.json()["status"] == "cancelled"
     with use_tenant(w["tenant"]):
         assert ManufacturingOrder.objects.get(pk=mo["id"]).cancel_reason == "Trial"
+
+
+def test_submit_picks_the_materials_and_holds_them(owner, world):  # noqa: F811
+    """Preview 17: the order is its own pick list."""
+    w = world
+    setup_boms(owner, w)
+    stock_in(w, "store", "60", item="loose")
+    stock_in(w, "bin", "20", item="loose", n=2)
+    mo = call(owner, "post", url(w), order(w, submit=True)).json()
+    [blend] = mo["lines"]
+    # 96.48 kg needed; 80 kg in stock: picked in full from both places, 16.48 short.
+    assert sum(Decimal(p["qty"]) for p in blend["picks"]) == 80
+    assert blend["pick_short"] == "16.48"
+    # The picks are held: another order finds nothing free, and the stock check agrees.
+    other = call(owner, "post", url(w), order(w, qty="5", submit=True)).json()
+    assert other["lines"][0]["picks"] == [] and other["lines"][0]["pick_short"] == "12.06"
+    # Change the picks: only 50 kg from the store.
+    rows = [{"location": w["store"], "qty": "50"}]
+    body = {"item": w["loose"], "rows": rows}
+    changed = call(owner, "patch", f"manufacturing-orders/{mo['id']}/picks/", body).json()
+    assert [(p["location"], p["qty"]) for p in changed["lines"][0]["picks"]] == [(w["store"], "50")]
+    too_much = {"item": w["loose"], "rows": [{"location": w["store"], "qty": "61"}]}
+    refused = call(owner, "patch", f"manufacturing-orders/{mo['id']}/picks/", too_much)
+    assert refused.status_code == 400 and "free" in str(refused.json())
+    places = call(owner, "get", f"manufacturing-orders/{mo['id']}/places/?item={w['loose']}")
+    assert sum(Decimal(s["free"]) for s in places.json()) == 80  # its own picks not kept aside
+    # The other order picks again and finds the 30 kg let go.
+    again = call(owner, "post", f"manufacturing-orders/{other['id']}/pick-again/").json()
+    assert again["lines"][0]["pick_short"] == "0"
+    pdf = call(owner, "get", f"manufacturing-orders/{mo['id']}/pick-list/")
+    assert pdf.status_code == 200 and pdf["Content-Type"] == "application/pdf"
+    # Cancelling lets the stock go.
+    call(owner, "post", f"manufacturing-orders/{mo['id']}/cancel/", {"reason": "Trial"})
+    free = call(owner, "get", f"manufacturing-orders/{other['id']}/places/?item={w['loose']}")
+    assert sum(Decimal(s["free"]) for s in free.json()) == 80

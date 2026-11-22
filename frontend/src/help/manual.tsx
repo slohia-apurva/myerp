@@ -2943,9 +2943,31 @@ export const MANUAL: Chapter[] = [
           close the order and make a new one. Once an order uses a BOM version,
           that version's materials can no longer change.
         </p>
+        <h3>Pick the materials</h3>
+        <p>
+          The order is its own pick list. On Submit each material gets its
+          bins, batches and packages chosen by the same rule as a sales pick
+          list: earliest expiry first, then oldest received; Quarantine and
+          Rejected batches never; only from "Materials From" (else the whole
+          branch); a customer's goods only from that customer's stock. The
+          "Pick Materials" box shows each material with what is "Still to
+          Issue", what is "Picked" and "Picked From", with a green ✓ or a red
+          ✕ and what is short. "Edit picks" opens one material with the
+          "Area", "Bin", "Batch" and "Package" pickers (each offers only what
+          is free) and the quantity in the stock unit; "+ Add package" adds a
+          row and "Done" saves it. "Pick again" proposes a material afresh
+          (or all of them, with "Pick again (all materials)"), for example once
+          stock comes in. Picked stock is held for the order: other orders,
+          pick lists, transfers and Own Use see it as not free until the
+          order is cancelled or closed. A material added after Submit is
+          picked when the order is saved.
+        </p>
         <p>
           "Print ▾" gives the "Manufacturing Order (Batch Sheet)": what to
-          make, the Pack Details, the materials and the expected by-products.
+          make, the Pack Details, the materials and the expected by-products;
+          and on a submitted order the "Material Pick List" for the store,
+          sorted by bin, with a tick box per row and "Picked By" and "Checked
+          By".
         </p>
         <Note>
           "Close MO" ends an open order made short: what is still to make is no

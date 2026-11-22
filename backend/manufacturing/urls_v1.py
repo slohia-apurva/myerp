@@ -1,6 +1,6 @@
 from django.urls import path
 
-from manufacturing import boms, orders
+from manufacturing import boms, orders, picks
 
 urlpatterns = [
     path("boms/", boms.BomListView.as_view(), name="boms"),
@@ -26,4 +26,8 @@ urlpatterns = [
     path("manufacturing-orders/<int:pk>/cancel/", orders.OrderCancelView.as_view()),
     path("manufacturing-orders/<int:pk>/close/", orders.OrderCloseView.as_view()),
     path("manufacturing-orders/<int:pk>/pdf/", orders.OrderPdfView.as_view()),
+    path("manufacturing-orders/<int:pk>/picks/", picks.PicksView.as_view()),
+    path("manufacturing-orders/<int:pk>/pick-again/", picks.PickAgainView.as_view()),
+    path("manufacturing-orders/<int:pk>/places/", picks.PlacesView.as_view()),
+    path("manufacturing-orders/<int:pk>/pick-list/", picks.PickPdfView.as_view()),
 ]

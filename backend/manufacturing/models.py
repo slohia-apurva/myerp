@@ -209,3 +209,27 @@ class ManufacturingOrderLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item} x {self.required}"
+
+
+class ManufacturingOrderPick(models.Model):
+    """Where a material of a submitted order is to be taken from (Sidharth,
+    2026-11-23, preview 17): one bin, batch and package each, in the item's
+    stock unit. Proposed on Submit by the pick list rule and changeable while
+    the order is open; an open order's picks are held for it."""
+
+    order = models.ForeignKey(ManufacturingOrder, on_delete=models.CASCADE, related_name="picks")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="+")
+    batch = models.ForeignKey(
+        "core.Batch", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    package = models.ForeignKey(
+        "core.Package", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    qty = models.DecimalField(**QTY)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} x {self.qty} from {self.location}"
