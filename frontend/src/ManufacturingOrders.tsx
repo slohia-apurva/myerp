@@ -35,27 +35,9 @@ type Line = {
   short: boolean;
   bom_note: string;
 };
-type Byproduct = {
-  item: number;
-  item_name: string;
-  qty: string;
-  unit_name: string;
-  kind_label: string;
-};
-type Cost = {
-  materials: string;
-  per_unit: string | null;
-  unit_name: string;
-  per_stock_unit: string | null;
-  stock_unit_name: string;
-  missing: string[];
-};
-type Materials = {
-  lines: Line[];
-  byproducts: Byproduct[];
-  cost: Cost | null;
-  bom?: number | null;
-};
+type Byproduct = { item: number; item_name: string; qty: string; unit_name: string; kind_label: string };
+type Cost = { materials: string; per_unit: string | null; unit_name: string; per_stock_unit: string | null; stock_unit_name: string; missing: string[] };
+type Materials = { lines: Line[]; byproducts: Byproduct[]; cost: Cost | null; bom?: number | null };
 type Order = Materials & {
   id: number;
   company: number;
@@ -111,22 +93,8 @@ type Order = Materials & {
   submitted_by_name: string;
   closed_at: string | null;
 };
-type Unit = {
-  unit: number;
-  name: string;
-  whole_numbers: boolean;
-  factor: string;
-};
-type Version = {
-  id: number;
-  number: string;
-  version: number;
-  name: string;
-  is_default: boolean;
-  kind: string;
-  customer: number | null;
-  packing_notes: string;
-};
+type Unit = { unit: number; name: string; whole_numbers: boolean; factor: string };
+type Version = { id: number; number: string; version: number; name: string; is_default: boolean; kind: string; customer: number | null; packing_notes: string };
 type Make = {
   id: number;
   name: string;
@@ -142,21 +110,9 @@ type Make = {
   best_before_unit: string;
   versions: Version[];
 };
-type Material = {
-  id: number;
-  name: string;
-  item_number: string;
-  stock_unit: number;
-  customer_goods: boolean;
-  units: Unit[];
-};
+type Material = { id: number; name: string; item_number: string; stock_unit: number; customer_goods: boolean; units: Unit[] };
 type Setup = {
-  branches: {
-    id: number;
-    name: string;
-    is_active: boolean;
-    areas: { id: number; name: string; is_active: boolean }[];
-  }[];
+  branches: { id: number; name: string; is_active: boolean; areas: { id: number; name: string; is_active: boolean }[] }[];
   people: { id: number; name: string }[];
   makes: Make[];
   materials: Material[];
@@ -177,33 +133,16 @@ const PERIODS = [
   { value: "days", label: "Days" },
   { value: "months", label: "Months" },
 ];
-export const ordersBase = (companyId: number) =>
-  `#/companies/${companyId}/manufacturing-orders`;
+export const ordersBase = (companyId: number) => `#/companies/${companyId}/manufacturing-orders`;
 const CRUMB = "Entry › Production › Manufacturing Order";
-const shortDate = (iso: string | null) =>
-  iso ? iso.slice(0, 10).split("-").reverse().join("/") : "";
-const at = (iso: string) =>
-  `${shortDate(iso)} at ${new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`;
-const pillClass = (s: string) =>
-  s === "not_started" || s === "in_process"
-    ? "pill on"
-    : s === "draft"
-      ? "pill warn"
-      : "pill";
+const shortDate = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
+const at = (iso: string) => `${shortDate(iso)} at ${new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`;
+const pillClass = (s: string) => (s === "not_started" || s === "in_process" ? "pill on" : s === "draft" ? "pill warn" : "pill");
 const plain = (n: number) => String(Number(n.toFixed(3)));
-const can = (session: SignedIn, action: string) =>
-  session.permissions.includes(`production.${action}`);
+const can = (session: SignedIn, action: string) => session.permissions.includes(`production.${action}`);
 const today = () => new Date().toLocaleDateString("en-CA");
-const versionLabel = (v: {
-  version: number;
-  name: string;
-  is_default: boolean;
-}) =>
-  `${v.is_default ? "★ " : ""}Version ${v.version}${v.name ? ` · ${v.name}` : ""}`;
-const pdf = (id: number, download = false) =>
-  openTab(
-    `/api/v1/manufacturing-orders/${id}/pdf/${download ? "?download=1" : ""}`,
-  );
+const versionLabel = (v: { version: number; name: string; is_default: boolean }) => `${v.is_default ? "★ " : ""}Version ${v.version}${v.name ? ` · ${v.name}` : ""}`;
+const pdf = (id: number, download = false) => openTab(`/api/v1/manufacturing-orders/${id}/pdf/${download ? "?download=1" : ""}`);
 const printItems = (id: number) => [
   { label: "Manufacturing Order (Batch Sheet)", onClick: () => pdf(id) },
   { label: "Download PDF", onClick: () => pdf(id, true) },
@@ -229,27 +168,14 @@ export function expiryOf(pkd: string, value: string, unit: string): string {
   return day.toISOString().slice(0, 10);
 }
 
-export function ManufacturingOrdersPage({
-  companyId,
-  session,
-}: {
-  companyId: number;
-  session: SignedIn;
-}) {
+export function ManufacturingOrdersPage({ companyId, session }: { companyId: number; session: SignedIn }) {
   const view = Number(hashParam("view"));
-  if (view > 0)
-    return <OrderView companyId={companyId} id={view} session={session} />;
-  if (hashParam("form") === "new")
-    return <OrderView companyId={companyId} id={0} session={session} />;
+  if (view > 0) return <OrderView companyId={companyId} id={view} session={session} />;
+  if (hashParam("form") === "new") return <OrderView companyId={companyId} id={0} session={session} />;
   return <OrderList companyId={companyId} session={session} />;
 }
 
-const COLUMNS: [
-  key: string,
-  label: string,
-  text: (o: Order) => string,
-  num?: boolean,
-][] = [
+const COLUMNS: [key: string, label: string, text: (o: Order) => string, num?: boolean][] = [
   ["number", "MO No", (o) => o.number || "Draft"],
   ["date", "Date", (o) => shortDate(o.order_date)],
   ["branch", "Branch", (o) => o.branch_name],
@@ -261,13 +187,7 @@ const COLUMNS: [
   ["status", "Status", (o) => o.status_label],
 ];
 
-function OrderList({
-  companyId,
-  session,
-}: {
-  companyId: number;
-  session: SignedIn;
-}) {
+function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
   const [view, setView] = useState(hashParam("status") ?? "open");
   const [rows, setRows] = useState<Order[]>([]);
   const [search, setSearch] = useState<Record<string, string>>({});
@@ -287,20 +207,14 @@ function OrderList({
     () =>
       rows.filter((o) =>
         COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "")
-            .toLowerCase()
-            .split(/\s+/)
-            .filter(Boolean);
+          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
           return words.every((w) => text(o).toLowerCase().includes(w));
         }),
       ),
     [rows, search],
   );
   const selected = rows.find((o) => o.id === selectedId) ?? null;
-  const printing = usePrintMenu({
-    title: `Manufacturing orders: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`,
-    scope: "",
-  });
+  const printing = usePrintMenu({ title: `Manufacturing orders: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`, scope: "" });
   const open = (id: number) => openTab(`${ordersBase(companyId)}?view=${id}`);
   return (
     <section className="page">
@@ -312,10 +226,7 @@ function OrderList({
           <>
             {printing.buttons}
             {can(session, "create") && (
-              <button
-                type="button"
-                onClick={() => openTab(`${ordersBase(companyId)}?form=new`)}
-              >
+              <button type="button" onClick={() => openTab(`${ordersBase(companyId)}?form=new`)}>
                 New Manufacturing Order
               </button>
             )}
@@ -328,19 +239,10 @@ function OrderList({
         <div className="side-main">
           <div className="row filters no-print">
             <span className="po-view">
-              <Combobox
-                value={view}
-                onChange={setView}
-                ariaLabel="Show"
-                options={VIEWS.map(([value, label]) => ({ value, label }))}
-              />
+              <Combobox value={view} onChange={setView} ariaLabel="Show" options={VIEWS.map(([value, label]) => ({ value, label }))} />
             </span>
             {Object.values(search).some(Boolean) && (
-              <button
-                type="button"
-                className="link"
-                onClick={() => setSearch({})}
-              >
+              <button type="button" className="link" onClick={() => setSearch({})}>
                 Clear searches
               </button>
             )}
@@ -357,15 +259,7 @@ function OrderList({
               <tr className="col-search no-print">
                 {COLUMNS.map(([key, label]) => (
                   <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(ev) =>
-                        setSearch({ ...search, [key]: ev.target.value })
-                      }
-                    />
+                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(ev) => setSearch({ ...search, [key]: ev.target.value })} />
                   </th>
                 ))}
               </tr>
@@ -383,9 +277,7 @@ function OrderList({
                   key={o.id}
                   tabIndex={0}
                   className={selected?.id === o.id ? "selected" : ""}
-                  onClick={() =>
-                    setSelectedId(selected?.id === o.id ? null : o.id)
-                  }
+                  onClick={() => setSelectedId(selected?.id === o.id ? null : o.id)}
                   onDoubleClick={() => open(o.id)}
                   onKeyDown={(ev) => {
                     if (ev.key === "Enter") open(o.id);
@@ -407,35 +299,22 @@ function OrderList({
                   <td>{o.batch_no}</td>
                   <td className="nowrap">{shortDate(o.due_date)}</td>
                   <td>
-                    <span className={pillClass(o.status)}>
-                      {o.status_label}
-                    </span>
+                    <span className={pillClass(o.status)}>{o.status_label}</span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && (
-            <p className="small no-print">
-              Click an order to see it at the right; double-click or press Enter
-              to open it in a new tab.
-            </p>
-          )}
+          {shown.length > 0 && <p className="small no-print">Click an order to see it at the right; double-click or press Enter to open it in a new tab.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Manufacturing order details">
-            <SidePanel
-              title={selected.number || "Draft"}
-              tag={selected.status_label}
-            >
+            <SidePanel title={selected.number || "Draft"} tag={selected.status_label}>
               <SideRows
                 rows={[
                   ["Item", selected.item_name],
                   ["Qty", `${selected.qty} ${selected.unit_name}`],
-                  [
-                    "BOM Version",
-                    `${selected.bom_number} · ${versionLabel({ version: selected.bom_version, name: selected.bom_name, is_default: selected.bom_default })}`,
-                  ],
+                  ["BOM Version", `${selected.bom_number} · ${versionLabel({ version: selected.bom_version, name: selected.bom_name, is_default: selected.bom_default })}`],
                   ["Branch", selected.branch_name],
                   ["Start", shortDate(selected.start_date)],
                   ["Due", shortDate(selected.due_date)],
@@ -446,22 +325,13 @@ function OrderList({
                 <button type="button" onClick={() => open(selected.id)}>
                   Open
                 </button>
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => pdf(selected.id)}
-                >
+                <button type="button" className="link" onClick={() => pdf(selected.id)}>
                   Print
                 </button>
               </div>
             </SidePanel>
             <SidePanel title="Activity">
-              <ChangeLog
-                company={companyId}
-                type="manufacturing_order"
-                id={selected.id}
-                stamp={JSON.stringify(selected)}
-              />
+              <ChangeLog company={companyId} type="manufacturing_order" id={selected.id} stamp={JSON.stringify(selected)} />
             </SidePanel>
           </div>
         )}
@@ -497,23 +367,10 @@ type Fields = {
   expiry_date: string;
   packing_notes: string;
 };
-type Added = {
-  key: number;
-  item: string;
-  unit: string;
-  per_unit: string;
-  loss_pct: string;
-};
+type Added = { key: number; item: string; unit: string; per_unit: string; loss_pct: string };
 let nextKey = 1;
-const emptyAdded = (): Added => ({
-  key: nextKey++,
-  item: "",
-  unit: "",
-  per_unit: "",
-  loss_pct: "",
-});
-const str = (v: number | string | null | undefined) =>
-  v == null ? "" : String(v);
+const emptyAdded = (): Added => ({ key: nextKey++, item: "", unit: "", per_unit: "", loss_pct: "" });
+const str = (v: number | string | null | undefined) => (v == null ? "" : String(v));
 const blank = (): Fields => ({
   branch: "",
   order_date: today(),
@@ -565,25 +422,9 @@ const fieldsOf = (o: Order): Fields => ({
   packing_notes: o.packing_notes,
 });
 const addedOf = (o: Order): Added[] =>
-  o.lines
-    .filter((l) => !l.from_bom)
-    .map((l) => ({
-      key: nextKey++,
-      item: str(l.item),
-      unit: str(l.unit),
-      per_unit: l.per_unit,
-      loss_pct: Number(l.loss_pct) ? l.loss_pct : "",
-    }));
+  o.lines.filter((l) => !l.from_bom).map((l) => ({ key: nextKey++, item: str(l.item), unit: str(l.unit), per_unit: l.per_unit, loss_pct: Number(l.loss_pct) ? l.loss_pct : "" }));
 
-function OrderView({
-  companyId,
-  id,
-  session,
-}: {
-  companyId: number;
-  id: number;
-  session: SignedIn;
-}) {
+function OrderView({ companyId, id, session }: { companyId: number; id: number; session: SignedIn }) {
   const base = ordersBase(companyId);
   const [o, setO] = useState<Order | null>(null);
   const [error, setError] = useState<unknown>("");
@@ -601,34 +442,16 @@ function OrderView({
     setO(x);
     setFields(fieldsOf(x));
     setAdded(addedOf(x));
-    setExpiryTyped(
-      !!x.expiry_date &&
-        x.expiry_date !==
-          expiryOf(
-            str(x.pkd_date),
-            str(x.best_before_value),
-            x.best_before_unit,
-          ),
-    );
+    setExpiryTyped(!!x.expiry_date && x.expiry_date !== expiryOf(str(x.pkd_date), str(x.best_before_value), x.best_before_unit));
   }, []);
   useEffect(() => {
-    if (id)
-      api<Order>(`v1/manufacturing-orders/${id}/`).then(take, (err) =>
-        setError(err),
-      );
+    if (id) api<Order>(`v1/manufacturing-orders/${id}/`).then(take, (err) => setError(err));
   }, [id, take]);
   const status = o?.status ?? "draft";
   const draft = status === "draft";
   const open = status === "not_started" || status === "in_process";
   const mayEdit = (draft || open) && can(session, "create");
-  const refreshSetup = useCallback(
-    () =>
-      api<Setup>(`v1/companies/${companyId}/manufacturing-orders/form/`).then(
-        setSetup,
-        (err) => setError(err),
-      ),
-    [companyId],
-  );
+  const refreshSetup = useCallback(() => api<Setup>(`v1/companies/${companyId}/manufacturing-orders/form/`).then(setSetup, (err) => setError(err)), [companyId]);
   useEffect(() => {
     if (mayEdit) refreshSetup();
   }, [mayEdit, refreshSetup]);
@@ -639,22 +462,13 @@ function OrderView({
       : "";
   useEffect(() => {
     if (!previewUrl) return setPreview(null);
-    const timer = window.setTimeout(
-      () => api<Materials>(previewUrl).then(setPreview, () => setPreview(null)),
-      300,
-    );
+    const timer = window.setTimeout(() => api<Materials>(previewUrl).then(setPreview, () => setPreview(null)), 300);
     return () => window.clearTimeout(timer);
   }, [previewUrl]);
   const mayAddMasters = session.permissions.includes("masters.edit");
-  const newPerson = mayAddMasters
-    ? creatable("sales_person", "sales-people", refreshSetup)
-    : undefined;
-  const newMaterial = mayAddMasters
-    ? creatable("item", "items", refreshSetup)
-    : undefined;
-  const newCustomer = mayAddMasters
-    ? creatable("customer", "customers", refreshSetup)
-    : undefined;
+  const newPerson = mayAddMasters ? creatable("sales_person", "sales-people", refreshSetup) : undefined;
+  const newMaterial = mayAddMasters ? creatable("item", "items", refreshSetup) : undefined;
+  const newCustomer = mayAddMasters ? creatable("customer", "customers", refreshSetup) : undefined;
   const close = () =>
     closeThisTab(() => {
       window.location.hash = base;
@@ -663,16 +477,8 @@ function OrderView({
     take(x);
     setCancelling(false);
     setClosing(false);
-    announceSaved("manufacturing_order_saved", {
-      id: x.id,
-      name: x.number || "Draft",
-    });
-    if (!id)
-      window.history.replaceState(
-        null,
-        "",
-        `${window.location.pathname}${window.location.search}${base}?view=${x.id}`,
-      );
+    announceSaved("manufacturing_order_saved", { id: x.id, name: x.number || "Draft" });
+    if (!id) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base}?view=${x.id}`);
   };
   const run = async (call: () => Promise<Order>, afterRefusal?: () => void) => {
     setError("");
@@ -704,72 +510,38 @@ function OrderView({
       pkd_date: fields.pkd_date || null,
       best_before_value: num(fields.best_before_value),
       expiry_date: fields.expiry_date || null,
-      added: added
-        .filter((a) => a.item)
-        .map((a) => ({
-          item: Number(a.item),
-          unit: Number(a.unit),
-          per_unit: a.per_unit || "0",
-          loss_pct: a.loss_pct || "0",
-        })),
+      added: added.filter((a) => a.item).map((a) => ({ item: Number(a.item), unit: Number(a.unit), per_unit: a.per_unit || "0", loss_pct: a.loss_pct || "0" })),
       submit,
     };
     const current = o?.id ?? 0;
     // A refused Submit still saved the draft: read it again.
     return run(
-      () =>
-        current
-          ? api<Order>(`v1/manufacturing-orders/${current}/`, body, "PATCH")
-          : api<Order>(`v1/companies/${companyId}/manufacturing-orders/`, body),
+      () => (current ? api<Order>(`v1/manufacturing-orders/${current}/`, body, "PATCH") : api<Order>(`v1/companies/${companyId}/manufacturing-orders/`, body)),
       () => {
-        if (submit && current)
-          api<Order>(`v1/manufacturing-orders/${current}/`).then(
-            take,
-            () => undefined,
-          );
+        if (submit && current) api<Order>(`v1/manufacturing-orders/${current}/`).then(take, () => undefined);
       },
     );
   };
   if (id && !o)
     return (
       <section className="page">
-        <PageHeader
-          title="Manufacturing Order"
-          crumbs={[{ label: CRUMB, href: base }]}
-        />
+        <PageHeader title="Manufacturing Order" crumbs={[{ label: CRUMB, href: base }]} />
         <ErrorNote error={error} />
       </section>
     );
   const branches = setup?.branches ?? [];
   const branch = branches.find((b) => String(b.id) === fields.branch);
-  const areaOptions = (branch?.areas ?? [])
-    .filter((a) => a.is_active)
-    .map((a) => ({ value: String(a.id), label: a.name }));
+  const areaOptions = (branch?.areas ?? []).filter((a) => a.is_active).map((a) => ({ value: String(a.id), label: a.name }));
   const makes = setup?.makes ?? [];
   const make = makes.find((i) => String(i.id) === fields.item);
   const versions = make?.versions ?? [];
-  const version =
-    versions.find((v) => String(v.id) === fields.bom) ?? versions[0];
+  const version = versions.find((v) => String(v.id) === fields.bom) ?? versions[0];
   const jobWork = (version?.kind ?? o?.kind) === "job_work";
   const materials = setup?.materials ?? [];
   const materialOf = (v: string) => materials.find((i) => String(i.id) === v);
-  const unitOptions = (setup?.units ?? []).map((u) => ({
-    value: String(u.id),
-    label: u.name,
-  }));
-  const withExpiry = (next: Fields): Fields =>
-    expiryTyped
-      ? next
-      : {
-          ...next,
-          expiry_date: expiryOf(
-            next.pkd_date,
-            next.best_before_value,
-            next.best_before_unit,
-          ),
-        };
-  const set = (patch: Partial<Fields>) =>
-    setFields(withExpiry({ ...fields, ...patch }));
+  const unitOptions = (setup?.units ?? []).map((u) => ({ value: String(u.id), label: u.name }));
+  const withExpiry = (next: Fields): Fields => (expiryTyped ? next : { ...next, expiry_date: expiryOf(next.pkd_date, next.best_before_value, next.best_before_unit) });
+  const set = (patch: Partial<Fields>) => setFields(withExpiry({ ...fields, ...patch }));
   /** A new item: its units, its ★ version and its Pack Details from the item master. */
   const pickItem = (value: string) => {
     const m = makes.find((i) => String(i.id) === value);
@@ -790,35 +562,17 @@ function OrderView({
   };
   const pickVersion = (value: string) => {
     const v = versions.find((x) => String(x.id) === value);
-    set({
-      bom: value,
-      packing_notes: v?.packing_notes ?? "",
-      customer:
-        v?.kind === "job_work" ? fields.customer || str(v.customer) : "",
-    });
+    set({ bom: value, packing_notes: v?.packing_notes ?? "", customer: v?.kind === "job_work" ? fields.customer || str(v.customer) : "" });
   };
   // Pkd Date follows the Start Date until it is changed by hand.
-  const setStart = (value: string) =>
-    set({
-      start_date: value,
-      pkd_date: fields.pkd_date === fields.start_date ? value : fields.pkd_date,
-      due_date: fields.due_date < value ? value : fields.due_date,
-    });
+  const setStart = (value: string) => set({ start_date: value, pkd_date: fields.pkd_date === fields.start_date ? value : fields.pkd_date, due_date: fields.due_date < value ? value : fields.due_date });
   const shown: Materials | null = draft && mayEdit ? preview : o;
   const bomLines = (shown?.lines ?? []).filter((l) => l.from_bom);
   const savedAdded = (o?.lines ?? []).filter((l) => !l.from_bom);
   const qtyNow = Number(fields.qty) || 0;
   const unitOf = make?.units.find((u) => String(u.unit) === fields.unit);
-  const title = o?.number
-    ? `Manufacturing Order ${o.number}`
-    : o
-      ? "Manufacturing Order (Draft)"
-      : "New Manufacturing Order";
-  const sub = o?.submitted_at
-    ? `Submitted as ${o.number} on ${at(o.submitted_at)}`
-    : o
-      ? `Draft made ${at(o.created_at)} · nothing reserved until saved`
-      : "Nothing is saved until you press Save";
+  const title = o?.number ? `Manufacturing Order ${o.number}` : o ? "Manufacturing Order (Draft)" : "New Manufacturing Order";
+  const sub = o?.submitted_at ? `Submitted as ${o.number} on ${at(o.submitted_at)}` : o ? `Draft made ${at(o.created_at)} · nothing reserved until saved` : "Nothing is saved until you press Save";
   return (
     <section className="page">
       <PageHeader
@@ -831,31 +585,18 @@ function OrderView({
               Close
             </button>
             {o && (draft || open) && can(session, "cancel") && !cancelling && (
-              <button
-                type="button"
-                className="link danger"
-                onClick={() => setCancelling(true)}
-              >
+              <button type="button" className="link danger" onClick={() => setCancelling(true)}>
                 Cancel
               </button>
             )}
             {o && open && can(session, "submit") && !closing && (
-              <button
-                type="button"
-                className="link danger"
-                onClick={() => setClosing(true)}
-              >
+              <button type="button" className="link danger" onClick={() => setClosing(true)}>
                 Close MO
               </button>
             )}
             {o && <ActionsMenu label="Print" items={printItems(o.id)} />}
             {mayEdit && (
-              <button
-                type="button"
-                className={draft ? "link" : undefined}
-                disabled={busy}
-                onClick={() => save(false)}
-              >
+              <button type="button" className={draft ? "link" : undefined} disabled={busy} onClick={() => save(false)}>
                 Save
               </button>
             )}
@@ -864,68 +605,33 @@ function OrderView({
                 Submit
               </button>
             )}
-            {o && !draft && status !== "cancelled" && (
-              <ActionsMenu label="Create" main items={NEXT_DOCS} />
-            )}
+            {o && !draft && status !== "cancelled" && <ActionsMenu label="Create" main items={NEXT_DOCS} />}
           </>
         }
       />
       <div className="doc-page">
         <div className="side-main">
           <div className="item-head doc-head">
-            <p className="doc-title">
-              {o
-                ? `${o.item_name} · ${o.qty} ${o.unit_name}`
-                : "Manufacturing Order"}
-            </p>
+            <p className="doc-title">{o ? `${o.item_name} · ${o.qty} ${o.unit_name}` : "Manufacturing Order"}</p>
             <p className="item-sub">
               {o?.number && <b>{o.number}</b>}
-              <span className={pillClass(status)}>
-                {o?.status_label ?? "New"}
-              </span>
-              {o && Number(o.made_qty) > 0 && (
-                <span className="small">Made so far: {o.made_qty}</span>
-              )}
+              <span className={pillClass(status)}>{o?.status_label ?? "New"}</span>
+              {o && Number(o.made_qty) > 0 && <span className="small">Made so far: {o.made_qty}</span>}
             </p>
           </div>
-          {o?.status === "cancelled" && (
-            <p className="use-note">Cancelled: {o.cancel_reason}</p>
-          )}
+          {o?.status === "cancelled" && <p className="use-note">Cancelled: {o.cancel_reason}</p>}
           {cancelling && o && (
             <div className="use-note no-print">
               <label>
                 <b>Why is this order cancelled?</b>
-                <input
-                  autoFocus
-                  value={reason}
-                  onChange={(ev) => setReason(ev.target.value)}
-                  placeholder="e.g. Customer's order changed"
-                />
+                <input autoFocus value={reason} onChange={(ev) => setReason(ev.target.value)} placeholder="e.g. Customer's order changed" />
               </label>
-              <p className="small">
-                An order can be cancelled only while nothing has been issued to
-                it. Its materials stop being reserved.
-              </p>
+              <p className="small">An order can be cancelled only while nothing has been issued to it. Its materials stop being reserved.</p>
               <div className="buttons">
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => setCancelling(false)}
-                >
+                <button type="button" className="link" onClick={() => setCancelling(false)}>
                   Keep it
                 </button>
-                <button
-                  type="button"
-                  className="link danger"
-                  disabled={busy}
-                  onClick={() =>
-                    run(() =>
-                      api<Order>(`v1/manufacturing-orders/${o.id}/cancel/`, {
-                        reason,
-                      }),
-                    )
-                  }
-                >
+                <button type="button" className="link danger" disabled={busy} onClick={() => run(() => api<Order>(`v1/manufacturing-orders/${o.id}/cancel/`, { reason }))}>
                   Cancel Order
                 </button>
               </div>
@@ -934,124 +640,45 @@ function OrderView({
           {closing && o && (
             <div className="use-note no-print">
               <p>
-                <b>Close this order as it stands?</b> What is still to make is
-                no longer planned, and materials not yet issued stop being
-                reserved.
+                <b>Close this order as it stands?</b> What is still to make is no longer planned, and materials not yet issued stop being reserved.
               </p>
               <div className="buttons">
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => setClosing(false)}
-                >
+                <button type="button" className="link" onClick={() => setClosing(false)}>
                   Keep it open
                 </button>
-                <button
-                  type="button"
-                  className="link danger"
-                  disabled={busy}
-                  onClick={() =>
-                    run(() =>
-                      api<Order>(`v1/manufacturing-orders/${o.id}/close/`, {}),
-                    )
-                  }
-                >
+                <button type="button" className="link danger" disabled={busy} onClick={() => run(() => api<Order>(`v1/manufacturing-orders/${o.id}/close/`, {}))}>
                   Close MO
                 </button>
               </div>
             </div>
           )}
           <ErrorNote error={error} />
-          <Fold
-            title="What to Make"
-            open
-            summary={
-              o
-                ? `${o.item_name} · ${o.qty} ${o.unit_name} · due ${shortDate(o.due_date)}`
-                : ""
-            }
-          >
+          <Fold title="What to Make" open summary={o ? `${o.item_name} · ${o.qty} ${o.unit_name} · due ${shortDate(o.due_date)}` : ""}>
             {mayEdit ? (
               <div className="item-fields">
                 {draft ? (
                   <>
                     <label>
                       <span className="req">Branch</span>
-                      <Combobox
-                        value={fields.branch}
-                        onChange={(v) =>
-                          set({ branch: v, materials_from: "", goods_to: "" })
-                        }
-                        required
-                        options={branches
-                          .filter(
-                            (b) =>
-                              b.is_active || String(b.id) === fields.branch,
-                          )
-                          .map((b) => ({ value: String(b.id), label: b.name }))}
-                      />
+                      <Combobox value={fields.branch} onChange={(v) => set({ branch: v, materials_from: "", goods_to: "" })} required options={branches.filter((b) => b.is_active || String(b.id) === fields.branch).map((b) => ({ value: String(b.id), label: b.name }))} />
                     </label>
                     <label className="wide">
                       <span className="req">Item</span>
-                      <Combobox
-                        value={fields.item}
-                        onChange={pickItem}
-                        required
-                        placeholder="Items that have an active BOM…"
-                        options={makes.map((i) => ({
-                          value: String(i.id),
-                          label: i.name,
-                          hint: i.item_number,
-                        }))}
-                      />
+                      <Combobox value={fields.item} onChange={pickItem} required placeholder="Items that have an active BOM…" options={makes.map((i) => ({ value: String(i.id), label: i.name, hint: i.item_number }))} />
                     </label>
                     <label>
                       <span className="req">Qty</span>
-                      <input
-                        className="num"
-                        inputMode="decimal"
-                        required
-                        value={fields.qty}
-                        onChange={(ev) => set({ qty: ev.target.value })}
-                      />
-                      {unitOf && Number(unitOf.factor) !== 1 && qtyNow > 0 && (
-                        <span className="small">
-                          = {plain(qtyNow * Number(unitOf.factor))}{" "}
-                          {
-                            make?.units.find((u) => u.unit === make.stock_unit)
-                              ?.name
-                          }
-                        </span>
-                      )}
+                      <input className="num" inputMode="decimal" required value={fields.qty} onChange={(ev) => set({ qty: ev.target.value })} />
+                      {unitOf && Number(unitOf.factor) !== 1 && qtyNow > 0 && <span className="small">= {plain(qtyNow * Number(unitOf.factor))} {make?.units.find((u) => u.unit === make.stock_unit)?.name}</span>}
                     </label>
                     <label>
                       <span className="req">Unit</span>
-                      <Combobox
-                        value={fields.unit}
-                        onChange={(v) => set({ unit: v })}
-                        required
-                        options={(make?.units ?? []).map((u) => ({
-                          value: String(u.unit),
-                          label: u.name,
-                        }))}
-                      />
+                      <Combobox value={fields.unit} onChange={(v) => set({ unit: v })} required options={(make?.units ?? []).map((u) => ({ value: String(u.unit), label: u.name }))} />
                     </label>
                     <label className="wide">
                       <span className="req">BOM Version</span>
-                      <Combobox
-                        value={str(version?.id)}
-                        onChange={pickVersion}
-                        required
-                        options={versions.map((v) => ({
-                          value: String(v.id),
-                          label: versionLabel(v),
-                          hint: v.number,
-                        }))}
-                      />
-                      <span className="small">
-                        Starts on the ★ default version; any active version can
-                        be picked.
-                      </span>
+                      <Combobox value={str(version?.id)} onChange={pickVersion} required options={versions.map((v) => ({ value: String(v.id), label: versionLabel(v), hint: v.number }))} />
+                      <span className="small">Starts on the ★ default version; any active version can be picked.</span>
                     </label>
                   </>
                 ) : (
@@ -1061,14 +688,8 @@ function OrderView({
                         rows={[
                           ["Branch", o.branch_name],
                           ["Item", o.item_name],
-                          [
-                            "Qty",
-                            `${o.qty} ${o.unit_name}${o.stock_unit_name !== o.unit_name ? ` (${o.stock_qty} ${o.stock_unit_name})` : ""}`,
-                          ],
-                          [
-                            "BOM Version",
-                            `${o.bom_number} · ${versionLabel({ version: o.bom_version, name: o.bom_name, is_default: o.bom_default })}`,
-                          ],
+                          ["Qty", `${o.qty} ${o.unit_name}${o.stock_unit_name !== o.unit_name ? ` (${o.stock_qty} ${o.stock_unit_name})` : ""}`],
+                          ["BOM Version", `${o.bom_number} · ${versionLabel({ version: o.bom_version, name: o.bom_name, is_default: o.bom_default })}`],
                           ["Customer", o.customer_name],
                           ["Order Date", shortDate(o.order_date)],
                           ["Due Date", shortDate(o.due_date)],
@@ -1077,122 +698,54 @@ function OrderView({
                           ["Goods Go To", o.goods_to_name],
                         ]}
                       />
-                      <p className="small">
-                        Once submitted, only the Start Date, Supervisor, Notes
-                        and added materials can change. Close the order and make
-                        a new one to change the rest.
-                      </p>
+                      <p className="small">Once submitted, only the Start Date, Supervisor, Notes and added materials can change. Close the order and make a new one to change the rest.</p>
                     </div>
                   )
                 )}
                 {jobWork && draft && (
                   <label>
                     <span className="req">Customer</span>
-                    <Combobox
-                      value={fields.customer}
-                      onChange={(v) => set({ customer: v })}
-                      required
-                      create={newCustomer}
-                      options={(setup?.customers ?? []).map((c) => ({
-                        value: String(c.id),
-                        label: c.name,
-                      }))}
-                    />
-                    <span className="small">
-                      Job work: only this customer's goods are counted
-                    </span>
+                    <Combobox value={fields.customer} onChange={(v) => set({ customer: v })} required create={newCustomer} options={(setup?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
+                    <span className="small">Job work: only this customer's goods are counted</span>
                   </label>
                 )}
                 {draft && (
                   <label>
                     <span className="req">Order Date</span>
-                    <input
-                      type="date"
-                      required
-                      value={fields.order_date}
-                      onChange={(ev) => set({ order_date: ev.target.value })}
-                    />
+                    <input type="date" required value={fields.order_date} onChange={(ev) => set({ order_date: ev.target.value })} />
                   </label>
                 )}
                 <label>
                   <span className="req">Start Date</span>
-                  <input
-                    type="date"
-                    required
-                    value={fields.start_date}
-                    max={draft ? undefined : fields.due_date}
-                    onChange={(ev) =>
-                      draft
-                        ? setStart(ev.target.value)
-                        : set({ start_date: ev.target.value })
-                    }
-                  />
+                  <input type="date" required value={fields.start_date} max={draft ? undefined : fields.due_date} onChange={(ev) => (draft ? setStart(ev.target.value) : set({ start_date: ev.target.value }))} />
                 </label>
                 {draft && (
                   <>
-                    <label>
-                      <span className="req">Due Date</span>
-                      <input
-                        type="date"
-                        required
-                        value={fields.due_date}
-                        min={fields.start_date}
-                        onChange={(ev) => set({ due_date: ev.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Sales Order
-                      <Combobox
-                        value={fields.sales_order}
-                        onChange={(v) => set({ sales_order: v })}
-                        empty="None"
-                        options={(setup?.sales_orders ?? []).map((s) => ({
-                          value: String(s.id),
-                          label: s.number,
-                          hint: s.customer_name,
-                        }))}
-                      />
-                    </label>
-                    <label>
-                      Materials From
-                      <Combobox
-                        value={fields.materials_from}
-                        onChange={(v) => set({ materials_from: v })}
-                        empty="Whole branch"
-                        options={areaOptions}
-                      />
-                    </label>
-                    <label>
-                      Goods Go To
-                      <Combobox
-                        value={fields.goods_to}
-                        onChange={(v) => set({ goods_to: v })}
-                        empty="Default store"
-                        options={areaOptions}
-                      />
-                    </label>
+                <label>
+                  <span className="req">Due Date</span>
+                  <input type="date" required value={fields.due_date} min={fields.start_date} onChange={(ev) => set({ due_date: ev.target.value })} />
+                </label>
+                <label>
+                  Sales Order
+                  <Combobox value={fields.sales_order} onChange={(v) => set({ sales_order: v })} empty="None" options={(setup?.sales_orders ?? []).map((s) => ({ value: String(s.id), label: s.number, hint: s.customer_name }))} />
+                </label>
+                <label>
+                  Materials From
+                  <Combobox value={fields.materials_from} onChange={(v) => set({ materials_from: v })} empty="Whole branch" options={areaOptions} />
+                </label>
+                <label>
+                  Goods Go To
+                  <Combobox value={fields.goods_to} onChange={(v) => set({ goods_to: v })} empty="Default store" options={areaOptions} />
+                </label>
                   </>
                 )}
                 <label>
                   Supervisor
-                  <Combobox
-                    value={fields.supervisor}
-                    onChange={(v) => set({ supervisor: v })}
-                    empty="None"
-                    create={newPerson}
-                    options={(setup?.people ?? []).map((p) => ({
-                      value: String(p.id),
-                      label: p.name,
-                    }))}
-                  />
+                  <Combobox value={fields.supervisor} onChange={(v) => set({ supervisor: v })} empty="None" create={newPerson} options={(setup?.people ?? []).map((p) => ({ value: String(p.id), label: p.name }))} />
                 </label>
                 <label className="wide">
                   Notes
-                  <input
-                    value={fields.notes}
-                    maxLength={500}
-                    onChange={(ev) => set({ notes: ev.target.value })}
-                  />
+                  <input value={fields.notes} maxLength={500} onChange={(ev) => set({ notes: ev.target.value })} />
                 </label>
               </div>
             ) : (
@@ -1201,14 +754,8 @@ function OrderView({
                   rows={[
                     ["Branch", o.branch_name],
                     ["Item", o.item_name],
-                    [
-                      "Qty",
-                      `${o.qty} ${o.unit_name}${o.stock_unit_name !== o.unit_name ? ` (${o.stock_qty} ${o.stock_unit_name})` : ""}`,
-                    ],
-                    [
-                      "BOM Version",
-                      `${o.bom_number} · ${versionLabel({ version: o.bom_version, name: o.bom_name, is_default: o.bom_default })}`,
-                    ],
+                    ["Qty", `${o.qty} ${o.unit_name}${o.stock_unit_name !== o.unit_name ? ` (${o.stock_qty} ${o.stock_unit_name})` : ""}`],
+                    ["BOM Version", `${o.bom_number} · ${versionLabel({ version: o.bom_version, name: o.bom_name, is_default: o.bom_default })}`],
                     ["Customer", o.customer_name],
                     ["Order Date", shortDate(o.order_date)],
                     ["Start Date", shortDate(o.start_date)],
@@ -1223,81 +770,36 @@ function OrderView({
               )
             )}
           </Fold>
-          <Fold
-            title="Pack Details"
-            open
-            summary={[
-              fields.batch_no && `Batch ${fields.batch_no}`,
-              fields.expiry_date && `Expiry ${shortDate(fields.expiry_date)}`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          >
+          <Fold title="Pack Details" open summary={[fields.batch_no && `Batch ${fields.batch_no}`, fields.expiry_date && `Expiry ${shortDate(fields.expiry_date)}`].filter(Boolean).join(" · ")}>
             {mayEdit && draft ? (
               <>
                 <div className="item-fields">
                   <label>
                     MRP (₹)
-                    <input
-                      className="num"
-                      inputMode="decimal"
-                      value={fields.mrp}
-                      onChange={(ev) => set({ mrp: ev.target.value })}
-                    />
+                    <input className="num" inputMode="decimal" value={fields.mrp} onChange={(ev) => set({ mrp: ev.target.value })} />
                   </label>
                   <label>
                     USP (₹)
-                    <input
-                      className="num"
-                      inputMode="decimal"
-                      value={fields.usp}
-                      onChange={(ev) => set({ usp: ev.target.value })}
-                    />
+                    <input className="num" inputMode="decimal" value={fields.usp} onChange={(ev) => set({ usp: ev.target.value })} />
                     <span className="small">Unit Selling Price</span>
                   </label>
                   <label>
                     USP Per
-                    <Combobox
-                      value={fields.usp_per}
-                      onChange={(v) => set({ usp_per: v })}
-                      empty="None"
-                      options={unitOptions}
-                    />
+                    <Combobox value={fields.usp_per} onChange={(v) => set({ usp_per: v })} empty="None" options={unitOptions} />
                   </label>
                   <label>
                     Batch No
-                    <input
-                      value={fields.batch_no}
-                      maxLength={60}
-                      onChange={(ev) => set({ batch_no: ev.target.value })}
-                    />
+                    <input value={fields.batch_no} maxLength={60} onChange={(ev) => set({ batch_no: ev.target.value })} />
                   </label>
                   <label>
                     Pkd Date
-                    <input
-                      type="date"
-                      value={fields.pkd_date}
-                      onChange={(ev) => set({ pkd_date: ev.target.value })}
-                    />
+                    <input type="date" value={fields.pkd_date} onChange={(ev) => set({ pkd_date: ev.target.value })} />
                   </label>
                   <label>
                     Best Before
                     <span className="row">
-                      <input
-                        className="num"
-                        inputMode="numeric"
-                        style={{ width: 80 }}
-                        value={fields.best_before_value}
-                        onChange={(ev) =>
-                          set({ best_before_value: ev.target.value })
-                        }
-                      />
-                      <Combobox
-                        value={fields.best_before_unit}
-                        onChange={(v) => set({ best_before_unit: v })}
-                        ariaLabel="Best before in"
-                        options={PERIODS}
-                      />
+                      <input className="num" inputMode="numeric" style={{ width: 80 }} value={fields.best_before_value} onChange={(ev) => set({ best_before_value: ev.target.value })} />
+                      <Combobox value={fields.best_before_unit} onChange={(v) => set({ best_before_unit: v })} ariaLabel="Best before in" options={PERIODS} />
                     </span>
                   </label>
                   <label>
@@ -1307,56 +809,27 @@ function OrderView({
                       value={fields.expiry_date}
                       onChange={(ev) => {
                         setExpiryTyped(!!ev.target.value);
-                        setFields({
-                          ...fields,
-                          expiry_date:
-                            ev.target.value ||
-                            expiryOf(
-                              fields.pkd_date,
-                              fields.best_before_value,
-                              fields.best_before_unit,
-                            ),
-                        });
+                        setFields({ ...fields, expiry_date: ev.target.value || expiryOf(fields.pkd_date, fields.best_before_value, fields.best_before_unit) });
                       }}
                     />
-                    <span className="small">
-                      {expiryTyped ? "Typed over" : "Pkd Date + Best Before"}
-                    </span>
+                    <span className="small">{expiryTyped ? "Typed over" : "Pkd Date + Best Before"}</span>
                   </label>
                   <label className="wide">
                     Packing Notes
-                    <textarea
-                      rows={2}
-                      value={fields.packing_notes}
-                      onChange={(ev) => set({ packing_notes: ev.target.value })}
-                    />
+                    <textarea rows={2} value={fields.packing_notes} onChange={(ev) => set({ packing_notes: ev.target.value })} />
                   </label>
                 </div>
-                <p className="small">
-                  Copied from the item and the BOM version; changing them here
-                  does not change the item or the BOM. They print on the batch
-                  sheet.
-                </p>
+                <p className="small">Copied from the item and the BOM version; changing them here does not change the item or the BOM. They print on the batch sheet.</p>
               </>
             ) : (
               o && (
                 <Facts
                   rows={[
                     ["MRP", o.mrp ? `₹ ${money(o.mrp)}` : ""],
-                    [
-                      "USP",
-                      o.usp
-                        ? `₹ ${money(o.usp)}${o.usp_per_name ? ` per ${o.usp_per_name}` : ""}`
-                        : "",
-                    ],
+                    ["USP", o.usp ? `₹ ${money(o.usp)}${o.usp_per_name ? ` per ${o.usp_per_name}` : ""}` : ""],
                     ["Batch No", o.batch_no],
                     ["Pkd Date", shortDate(o.pkd_date)],
-                    [
-                      "Best Before",
-                      o.best_before_value
-                        ? `${o.best_before_value} ${o.best_before_unit}`
-                        : "",
-                    ],
+                    ["Best Before", o.best_before_value ? `${o.best_before_value} ${o.best_before_unit}` : ""],
                     ["Expiry Date", shortDate(o.expiry_date)],
                     ["Packing Notes", o.packing_notes],
                   ]}
@@ -1364,11 +837,7 @@ function OrderView({
               )
             )}
           </Fold>
-          <Fold
-            title="Materials"
-            open
-            summary={`${bomLines.length} from the BOM${(mayEdit ? added.filter((a) => a.item).length : savedAdded.length) ? ` · ${mayEdit ? added.filter((a) => a.item).length : savedAdded.length} added` : ""}`}
-          >
+          <Fold title="Materials" open summary={`${bomLines.length} from the BOM${(mayEdit ? added.filter((a) => a.item).length : savedAdded.length) ? ` · ${mayEdit ? added.filter((a) => a.item).length : savedAdded.length} added` : ""}`}>
             <div className="table-scroll">
               <table className="grid po-lines">
                 <thead>
@@ -1389,11 +858,7 @@ function OrderView({
                   {bomLines.length === 0 && (
                     <tr>
                       <td colSpan={10} className="small">
-                        {fields.item
-                          ? qtyNow > 0
-                            ? "Working out the materials…"
-                            : "Type the quantity to see the materials."
-                          : "Pick the item to make."}
+                        {fields.item ? (qtyNow > 0 ? "Working out the materials…" : "Type the quantity to see the materials.") : "Pick the item to make."}
                       </td>
                     </tr>
                   )}
@@ -1402,30 +867,16 @@ function OrderView({
                       <td>{k + 1}</td>
                       <td>
                         <b>{l.item_name}</b> <span className="pill">BOM</span>
-                        {l.bom_note && (
-                          <span className="small error"> {l.bom_note}</span>
-                        )}
+                        {l.bom_note && <span className="small error"> {l.bom_note}</span>}
                       </td>
                       <td className="num">{l.per_unit}</td>
-                      <td className="num">
-                        {Number(l.loss_pct) ? l.loss_pct : ""}
-                      </td>
+                      <td className="num">{Number(l.loss_pct) ? l.loss_pct : ""}</td>
                       <td className="num">
                         <b>{l.required}</b>
                       </td>
                       <td>{l.unit_name}</td>
-                      <td className="num">
-                        {Number(l.issued) ? l.issued : ""}
-                      </td>
-                      <td className="num">
-                        {l.free == null ? (
-                          ""
-                        ) : l.short ? (
-                          <b className="error">{l.free}</b>
-                        ) : (
-                          l.free
-                        )}
-                      </td>
+                      <td className="num">{Number(l.issued) ? l.issued : ""}</td>
+                      <td className="num">{l.free == null ? "" : l.short ? <b className="error">{l.free}</b> : l.free}</td>
                       <td className="small">{l.source_text}</td>
                       <td />
                     </tr>
@@ -1433,19 +884,9 @@ function OrderView({
                   {mayEdit
                     ? added.map((a, k) => {
                         const m = materialOf(a.item);
-                        const was = savedAdded.find(
-                          (s) => String(s.item) === a.item,
-                        );
-                        const need =
-                          Number(a.per_unit || 0) *
-                          qtyNow *
-                          (1 + Number(a.loss_pct || 0) / 100);
-                        const setLine = (patch: Partial<Added>) =>
-                          setAdded((ls) =>
-                            ls.map((x) =>
-                              x.key === a.key ? { ...x, ...patch } : x,
-                            ),
-                          );
+                        const was = savedAdded.find((s) => String(s.item) === a.item);
+                        const need = Number(a.per_unit || 0) * qtyNow * (1 + Number(a.loss_pct || 0) / 100);
+                        const setLine = (patch: Partial<Added>) => setAdded((ls) => ls.map((x) => (x.key === a.key ? { ...x, ...patch } : x)));
                         return (
                           <tr key={a.key}>
                             <td>{bomLines.length + k + 1}</td>
@@ -1455,83 +896,29 @@ function OrderView({
                                 ariaLabel={`Added material ${k + 1}`}
                                 placeholder="Type to search items…"
                                 create={newMaterial}
-                                onChange={(v) =>
-                                  setLine({
-                                    item: v,
-                                    unit: str(materialOf(v)?.stock_unit),
-                                  })
-                                }
-                                options={materials
-                                  .filter((i) => jobWork || !i.customer_goods)
-                                  .map((i) => ({
-                                    value: String(i.id),
-                                    label: i.name,
-                                    hint: i.item_number,
-                                  }))}
+                                onChange={(v) => setLine({ item: v, unit: str(materialOf(v)?.stock_unit) })}
+                                options={materials.filter((i) => jobWork || !i.customer_goods).map((i) => ({ value: String(i.id), label: i.name, hint: i.item_number }))}
                               />
                               <span className="pill warn">Added</span>
                             </td>
                             <td className="num">
-                              <input
-                                className="num"
-                                inputMode="decimal"
-                                aria-label={`Per unit on added line ${k + 1}`}
-                                value={a.per_unit}
-                                onChange={(ev) =>
-                                  setLine({ per_unit: ev.target.value })
-                                }
-                              />
+                              <input className="num" inputMode="decimal" aria-label={`Per unit on added line ${k + 1}`} value={a.per_unit} onChange={(ev) => setLine({ per_unit: ev.target.value })} />
                             </td>
                             <td className="num">
-                              <input
-                                className="num"
-                                inputMode="decimal"
-                                aria-label={`Loss % on added line ${k + 1}`}
-                                value={a.loss_pct}
-                                onChange={(ev) =>
-                                  setLine({ loss_pct: ev.target.value })
-                                }
-                              />
+                              <input className="num" inputMode="decimal" aria-label={`Loss % on added line ${k + 1}`} value={a.loss_pct} onChange={(ev) => setLine({ loss_pct: ev.target.value })} />
                             </td>
                             <td className="num">
                               <b>{need ? plain(need) : ""}</b>
                             </td>
                             <td>
-                              <Combobox
-                                value={a.unit}
-                                ariaLabel={`Unit on added line ${k + 1}`}
-                                onChange={(v) => setLine({ unit: v })}
-                                options={(m?.units ?? []).map((u) => ({
-                                  value: String(u.unit),
-                                  label: u.name,
-                                }))}
-                              />
+                              <Combobox value={a.unit} ariaLabel={`Unit on added line ${k + 1}`} onChange={(v) => setLine({ unit: v })} options={(m?.units ?? []).map((u) => ({ value: String(u.unit), label: u.name }))} />
                             </td>
-                            <td className="num">
-                              {was && Number(was.issued) ? was.issued : ""}
-                            </td>
-                            <td className="num">
-                              {was?.free == null ? (
-                                ""
-                              ) : was.short ? (
-                                <b className="error">{was.free}</b>
-                              ) : (
-                                was.free
-                              )}
-                            </td>
+                            <td className="num">{was && Number(was.issued) ? was.issued : ""}</td>
+                            <td className="num">{was?.free == null ? "" : was.short ? <b className="error">{was.free}</b> : was.free}</td>
                             <td className="small">{was?.source_text ?? ""}</td>
                             <td>
                               {!(was && Number(was.issued)) && (
-                                <button
-                                  type="button"
-                                  className="link danger"
-                                  aria-label="Remove line"
-                                  onClick={() =>
-                                    setAdded((ls) =>
-                                      ls.filter((x) => x.key !== a.key),
-                                    )
-                                  }
-                                >
+                                <button type="button" className="link danger" aria-label="Remove line" onClick={() => setAdded((ls) => ls.filter((x) => x.key !== a.key))}>
                                   ✕
                                 </button>
                               )}
@@ -1543,23 +930,16 @@ function OrderView({
                         <tr key={`a${l.item}`}>
                           <td>{l.position}</td>
                           <td>
-                            <b>{l.item_name}</b>{" "}
-                            <span className="pill warn">Added</span>
+                            <b>{l.item_name}</b> <span className="pill warn">Added</span>
                           </td>
                           <td className="num">{l.per_unit}</td>
-                          <td className="num">
-                            {Number(l.loss_pct) ? l.loss_pct : ""}
-                          </td>
+                          <td className="num">{Number(l.loss_pct) ? l.loss_pct : ""}</td>
                           <td className="num">
                             <b>{l.required}</b>
                           </td>
                           <td>{l.unit_name}</td>
-                          <td className="num">
-                            {Number(l.issued) ? l.issued : ""}
-                          </td>
-                          <td className="num">
-                            {l.free == null ? "" : l.free}
-                          </td>
+                          <td className="num">{Number(l.issued) ? l.issued : ""}</td>
+                          <td className="num">{l.free == null ? "" : l.free}</td>
                           <td className="small">{l.source_text}</td>
                           <td />
                         </tr>
@@ -1569,30 +949,18 @@ function OrderView({
             </div>
             {mayEdit && (
               <div className="buttons">
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => setAdded((ls) => [...ls, emptyAdded()])}
-                >
+                <button type="button" className="link" onClick={() => setAdded((ls) => [...ls, emptyAdded()])}>
                   + Add material
                 </button>
               </div>
             )}
             <p className="small">
-              Materials marked "BOM" come from the chosen version and cannot be
-              changed here; to change them, change the BOM (or duplicate it as a
-              new version). "Added" materials can be changed or removed until
-              the order is completed or closed, but not below what was already
-              issued. "Free Here" is the stock free in the branch after other
-              orders' reservations; red means short. Required = Per Unit × Qty,
-              plus the loss.
+              Materials marked "BOM" come from the chosen version and cannot be changed here; to change them, change the BOM (or duplicate it as a new version). "Added" materials can be changed or removed until the order is completed
+              or closed, but not below what was already issued. "Free Here" is the stock free in the branch after other orders' reservations; red means short. Required = Per Unit × Qty, plus the loss.
             </p>
           </Fold>
           {(shown?.byproducts.length ?? 0) > 0 && (
-            <Fold
-              title="By-products"
-              summary={`${shown?.byproducts.length} expected`}
-            >
+            <Fold title="By-products" summary={`${shown?.byproducts.length} expected`}>
               <table className="grid po-lines">
                 <thead>
                   <tr>
@@ -1616,40 +984,18 @@ function OrderView({
             </Fold>
           )}
         </div>
-        <DocSide
-          type="manufacturing_order"
-          id={o?.id ?? null}
-          onChange={() => setFiles((n) => n + 1)}
-        >
+        <DocSide type="manufacturing_order" id={o?.id ?? null} onChange={() => setFiles((n) => n + 1)}>
           {shown?.cost && (
             <SidePanel title="Cost (Estimate)">
               <SideRows
                 rows={[
                   ["Materials", `₹ ${money(shown.cost.materials)}`],
-                  [
-                    "Per Unit",
-                    shown.cost.per_unit
-                      ? `₹ ${money(shown.cost.per_unit)} per ${shown.cost.unit_name}`
-                      : "",
-                  ],
-                  [
-                    "Per Stock Unit",
-                    shown.cost.per_stock_unit &&
-                    shown.cost.stock_unit_name !== shown.cost.unit_name
-                      ? `₹ ${money(shown.cost.per_stock_unit)} per ${shown.cost.stock_unit_name}`
-                      : "",
-                  ],
+                  ["Per Unit", shown.cost.per_unit ? `₹ ${money(shown.cost.per_unit)} per ${shown.cost.unit_name}` : ""],
+                  ["Per Stock Unit", shown.cost.per_stock_unit && shown.cost.stock_unit_name !== shown.cost.unit_name ? `₹ ${money(shown.cost.per_stock_unit)} per ${shown.cost.stock_unit_name}` : ""],
                 ]}
               />
-              {shown.cost.missing.length > 0 && (
-                <p className="small error">
-                  No rate yet for {shown.cost.missing.join(", ")}.
-                </p>
-              )}
-              <p className="small">
-                Today's FIFO rate, else the last receipt's. A customer's goods
-                are counted, never valued.
-              </p>
+              {shown.cost.missing.length > 0 && <p className="small error">No rate yet for {shown.cost.missing.join(", ")}.</p>}
+              <p className="small">Today's FIFO rate, else the last receipt's. A customer's goods are counted, never valued.</p>
             </SidePanel>
           )}
           {o && (
@@ -1664,12 +1010,7 @@ function OrderView({
                 />
               </SidePanel>
               <SidePanel title="Activity">
-                <ChangeLog
-                  company={companyId}
-                  type="manufacturing_order"
-                  id={o.id}
-                  stamp={JSON.stringify(o) + files}
-                />
+                <ChangeLog company={companyId} type="manufacturing_order" id={o.id} stamp={JSON.stringify(o) + files} />
               </SidePanel>
             </>
           )}
