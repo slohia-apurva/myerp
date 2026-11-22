@@ -14,8 +14,9 @@ ZERO = Decimal("0")
 
 def places(branch: Branch, area: WarehouseLocation | None = None):
     """The locations stock may be taken from: the area, its racks and their bins;
-    or every location of the branch."""
-    rows = WarehouseLocation.objects.filter(branch=branch)
+    or every location of the branch but its In Transit place."""
+    # Goods in transit to the branch are not there yet (stock.transfers).
+    rows = WarehouseLocation.objects.filter(branch=branch).exclude(purpose="transit")
     if area is None:
         return rows
     return rows.filter(Q(pk=area.pk) | Q(parent=area) | Q(parent__parent=area))

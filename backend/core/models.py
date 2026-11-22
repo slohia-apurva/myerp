@@ -303,6 +303,9 @@ class WarehouseLocation(models.Model):
         ("packing", "Packing"),
         ("despatch", "Despatch"),
         ("other", "Other"),
+        # Made by the system for each branch goods are sent to by stock
+        # transfer (stock.transfers): never picked, never typed.
+        ("transit", "In transit"),
     ]
 
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="locations")

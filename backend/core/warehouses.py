@@ -133,6 +133,10 @@ def save_location(company, location: L | None, data: dict) -> L:
         raise ValidationError({"purpose": ["Say what the area is for."]})
     if kind != L.AREA:
         purpose = ""
+    if location.purpose == "transit" or (purpose == "transit" and location.purpose != purpose):
+        raise ValidationError(
+            {"purpose": ["The In Transit place is kept by stock transfers and cannot be changed."]}
+        )
 
     if not new and location.is_default:
         if data.get("is_active") is False:

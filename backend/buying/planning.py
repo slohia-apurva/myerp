@@ -3,10 +3,12 @@ short and how much to buy, from each item's Stock Planning line there.
 
     In Stock  what the branch holds now (all its places)
     Reserved  everything going out of the branch, submitted or still a draft:
-              sales orders still to deliver (manufacturing and transfer
-              orders join once they are built)
+              sales orders still to deliver, draft stock transfers out
+              (manufacturing orders join once they are built)
     Incoming  everything coming in, drafts included: purchase orders still to
-              receive, so a check run twice never orders the same goods twice
+              receive and stock transfers coming (on the road too: goods in
+              the In Transit place are not In Stock), so a check run twice
+              never orders the same goods twice
     Expected  In Stock - Reserved + Incoming
 
 An item whose Expected is below its Safety Stock is short; the suggestion
@@ -38,6 +40,7 @@ from core.models import Branch, Item, ItemPlan, ItemUnit, Ledger, PriceList
 from core.price_lists import find_rate
 from selling.models import SalesOrder, SalesOrderLine
 from selling.stock import on_hand
+from stock.models import StockTransfer, StockTransferLine
 from tenancy.context import tenant_atomic
 
 ZERO = Decimal("0")
@@ -59,7 +62,8 @@ def _in_stock_units(rows, factors) -> dict[int, Decimal]:
 
 
 def reserved(branch: Branch, item_ids) -> dict[int, Decimal]:
-    """Still to deliver on the branch's sales orders, drafts included."""
+    """Still to deliver on the branch's sales orders, and draft stock transfers
+    out of it."""
     lines = SalesOrderLine.objects.filter(
         order__branch=branch,
         order__status__in=[SalesOrder.DRAFT, *SalesOrder.OPEN],
@@ -67,11 +71,20 @@ def reserved(branch: Branch, item_ids) -> dict[int, Decimal]:
         closed_at__isnull=True,
     ).values_list("item_id", "unit_id", "qty", "delivered_qty")
     rows = [(i, u, max(q - d, ZERO)) for i, u, q, d in lines]
+    # Draft stock transfers out of the branch (once dispatched, the goods have left).
+    rows += list(
+        StockTransferLine.objects.filter(
+            transfer__from_branch=branch,
+            transfer__status=StockTransfer.DRAFT,
+            item_id__in=item_ids,
+        ).values_list("item_id", "unit_id", "qty")
+    )
     return _in_stock_units(rows, _factors(item_ids))
 
 
 def incoming(branch: Branch, item_ids) -> dict[int, Decimal]:
-    """Still to receive on the branch's purchase orders, drafts included."""
+    """Still to receive on the branch's purchase orders, drafts included, and
+    stock transfers coming to it (drafts and in transit)."""
     lines = PurchaseOrderLine.objects.filter(
         order__branch=branch,
         order__status__in=[PurchaseOrder.DRAFT, *PurchaseOrder.OPEN],
@@ -79,6 +92,14 @@ def incoming(branch: Branch, item_ids) -> dict[int, Decimal]:
         closed_at__isnull=True,
     ).values_list("item_id", "unit_id", "qty", "received_qty")
     rows = [(i, u, max(q - r, ZERO)) for i, u, q, r in lines]
+    # Stock transfers to the branch, drafts and those on the road.
+    rows += list(
+        StockTransferLine.objects.filter(
+            transfer__to_branch=branch,
+            transfer__status__in=[StockTransfer.DRAFT, StockTransfer.IN_TRANSIT],
+            item_id__in=item_ids,
+        ).values_list("item_id", "unit_id", "qty")
+    )
     return _in_stock_units(rows, _factors(item_ids))
 
 
