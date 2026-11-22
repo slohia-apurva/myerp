@@ -269,3 +269,97 @@ class CustomerStockBin(models.Model):
 
     def __str__(self) -> str:
         return f"{self.line.item} {self.qty} from {self.location}"
+
+
+class OwnUse(models.Model):
+    """Our own stock used inside the company: office, canteen, maintenance, R&D,
+    damaged and thrown away (Sidharth, 2026-11-22, preview 9c). The goods leave
+    their bins at FIFO cost: Dr each line's Expense Ledger (the item's own
+    Expense Account to start with), Cr Stock. Draft -> Submit -> Cancel.
+    A draft counts as Reserved in the Stock Check."""
+
+    DRAFT, SUBMITTED, CANCELLED = "draft", "submitted", "cancelled"
+    STATUSES = [(DRAFT, "Draft"), (SUBMITTED, "Submitted"), (CANCELLED, "Cancelled")]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    # Pick only from this area (its racks and bins); else anywhere in the branch.
+    area = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    number = models.CharField(max_length=30, blank=True)  # given on Submit
+    entry_date = models.DateField()
+    reason = models.CharField(max_length=200, blank=True)
+    # The stores person who gave the goods out.
+    stores_person = models.ForeignKey(
+        SalesPerson, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
+    value = models.DecimalField(**MONEY, default=Decimal("0"))  # at cost, set on Submit
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-entry_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                "company",
+                "number",
+                condition=~models.Q(number=""),
+                name="own_use_number_unique",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.number or f"Draft own use {self.pk}"
+
+
+class OwnUseLine(models.Model):
+    """One item used, in a unit of the item, and the ledger it is charged to."""
+
+    entry = models.ForeignKey(OwnUse, on_delete=models.CASCADE, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
+    qty = models.DecimalField(**QTY)
+    # Blank: the item's Expense Account for the company (else its group's).
+    expense_ledger = models.ForeignKey(
+        Ledger, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    cost = models.DecimalField(**MONEY, default=Decimal("0"))  # set on Submit
+
+    class Meta:
+        ordering = ["position", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.item} × {self.qty}"
+
+
+class OwnUseBin(models.Model):
+    """A bin and batch (and package) a line's goods are taken from, in the
+    item's stock unit."""
+
+    line = models.ForeignKey(OwnUseLine, on_delete=models.CASCADE, related_name="bins")
+    location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="+")
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    package = models.ForeignKey(
+        Package, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    qty = models.DecimalField(**QTY)
+    cost = models.DecimalField(**MONEY, default=Decimal("0"))  # set on Submit
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"{self.line.item} {self.qty} from {self.location}"

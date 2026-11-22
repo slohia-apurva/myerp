@@ -2441,7 +2441,8 @@ export const MANUAL: Chapter[] = [
             For each item the columns are: "In Stock" (what the branch holds
             now; goods in its "In Transit" place do not count yet),
             "Reserved" (still to deliver on the branch's sales orders, drafts
-            included, and draft stock transfers out of it), "Incoming" (still
+            included, draft stock transfers out of it and draft own use),
+            "Incoming" (still
             to receive on the branch's purchase orders, drafts included, and
             stock transfers coming to it, drafts and those on the road),
             "Expected" (In Stock − Reserved
@@ -2696,6 +2697,69 @@ export const MANUAL: Chapter[] = [
           delivery it puts the goods back in the bins they came from. Files
           such as the customer's challan go in "Attachments" at the right, also
           after Submit.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "own-use",
+    title: "Own use",
+    summary: "Our own stock used inside the company (office, canteen, maintenance, R&D, damaged): out of stock at cost, charged to an expense ledger.",
+    body: (
+      <>
+        <p>
+          Own Use takes our own goods out of stock when they are used inside
+          the company rather than sold: tea for the office pantry, material
+          for maintenance or R&amp;D, goods damaged and thrown away. Open
+          "Entry", then "Stock", then "Own Use". The list shows each entry with
+          "Branch", "Items", "Reason", "Cost ₹" and "Status".
+        </p>
+        <h3>Make one</h3>
+        <ol>
+          <li>Click "New Own Use". It opens in a new tab.</li>
+          <li>
+            Pick the "Branch" and, if the goods should come from one area only,
+            the "Area" ("Whole branch" otherwise). Give the "Date", who "Issued
+            By" and the "Reason", such as "Office pantry, November".
+          </li>
+          <li>
+            Add the items with "Qty" and "Unit". "Free Here" shows what is free
+            at the place, in red when it is less than the quantity. Items
+            marked "Customer Provided" are not listed: they are not ours to
+            use.
+          </li>
+          <li>
+            "Expense Ledger" shows where the cost goes: the item's own "Expense
+            Account" for the company (Masters › Items), else its item group's
+            COGS/Expense Ledger. Pick another expense ledger on the line to
+            charge it elsewhere, for example "Staff Welfare".
+          </li>
+          <li>
+            Click "Save". The bins and batches are picked by the usual rule
+            (earliest expiry first) and show in "Taken From (bin · batch)". A
+            draft already counts as "Reserved" in the Stock Check.
+          </li>
+        </ol>
+        <h3>Submit</h3>
+        <p>
+          Click "Submit" when the goods are taken. The entry gets its number
+          (OU/...), the bins are picked again with the stock as it is then, and
+          the goods leave at their FIFO cost. The books get Dr each line's
+          Expense Ledger, Cr the item group's Stock Ledger. The "Ledger
+          Posting" section shows this: on a draft at today's cost, once
+          submitted what was posted. If stock is short or a line has no
+          expense ledger, a popup lists each line with "Go to line"; if the
+          item group's Stock Ledger is not set, the missing-ledgers popup
+          offers "Set ledgers" or "Ask to set". The draft is kept either way.
+        </p>
+        <p>
+          "Print ▾" gives the "Issue Slip": items, where they were taken from,
+          the expense ledger and the cost.
+        </p>
+        <Note>
+          "Cancel" sets a draft aside, or puts the goods of a submitted entry
+          back into the bins they came from and reverses the ledger entries.
+          Files go in "Attachments" at the right, also after Submit.
         </Note>
       </>
     ),

@@ -33,3 +33,15 @@ def _customer_stock(kind: str):
 # A customer's challan, a photo of the goods as they came.
 attachments.register("stock_receipt", _customer_stock("receipt"), "Stock Receipt")
 attachments.register("stock_delivery", _customer_stock("delivery"), "Stock Delivery")
+
+
+def _own_use(request, pk: int) -> attachments.Found:
+    from stock.own_use import _entry
+    from stock.transfers import may
+
+    if not may(request.user, "view"):
+        raise attachments.NotFound("No such own use entry.")
+    return attachments.Found(_entry(request, pk), may(request.user, "create"))
+
+
+attachments.register("own_use", _own_use, "Own Use")

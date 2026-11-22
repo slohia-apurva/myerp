@@ -42,7 +42,7 @@ from core.models import Branch, Item, ItemPlan, ItemUnit, Ledger, PriceList
 from core.price_lists import find_rate
 from selling.models import SalesOrder, SalesOrderLine
 from selling.stock import on_hand
-from stock.models import StockTransfer, StockTransferLine
+from stock.models import OwnUse, OwnUseLine, StockTransfer, StockTransferLine
 from tenancy.context import tenant_atomic
 
 ZERO = Decimal("0")
@@ -64,8 +64,8 @@ def _in_stock_units(rows, factors) -> dict[int, Decimal]:
 
 
 def reserved(branch: Branch, item_ids) -> dict[int, Decimal]:
-    """Still to deliver on the branch's sales orders, and draft stock transfers
-    out of it."""
+    """Still to deliver on the branch's sales orders, draft stock transfers out
+    of it, and draft own use."""
     lines = SalesOrderLine.objects.filter(
         order__branch=branch,
         order__status__in=[SalesOrder.DRAFT, *SalesOrder.OPEN],
@@ -79,6 +79,12 @@ def reserved(branch: Branch, item_ids) -> dict[int, Decimal]:
             transfer__from_branch=branch,
             transfer__status=StockTransfer.DRAFT,
             item_id__in=item_ids,
+        ).values_list("item_id", "unit_id", "qty")
+    )
+    # Draft own use (once submitted, the goods have left).
+    rows += list(
+        OwnUseLine.objects.filter(
+            entry__branch=branch, entry__status=OwnUse.DRAFT, item_id__in=item_ids
         ).values_list("item_id", "unit_id", "qty")
     )
     return _in_stock_units(rows, _factors(item_ids))

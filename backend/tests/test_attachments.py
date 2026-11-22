@@ -133,6 +133,7 @@ def test_a_company_can_need_a_file_before_submit(owner, buyer, world, alpha):  #
         "stock_transfer",
         "stock_receipt",
         "stock_delivery",
+        "own_use",
     ]
     wrong = call(owner, "patch", link, {"attachments_required": ["sales_return"]})
     assert wrong.status_code == 400 and "Unknown entry type" in str(wrong.json())
