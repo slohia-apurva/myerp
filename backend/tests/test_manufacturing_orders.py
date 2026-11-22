@@ -86,6 +86,9 @@ def test_an_order_takes_the_default_version_and_fixes_its_materials(owner, world
     assert done["status"] == "not_started" and "/MO/" in done["number"]
     bigger = call(owner, "patch", f"manufacturing-orders/{mo['id']}/", {**body, "qty": "50"})
     assert bigger.status_code == 400 and "keeps its branch" in str(bigger.json())
+    later = (TODAY + datetime.timedelta(days=1)).isoformat()
+    moved = call(owner, "patch", f"manufacturing-orders/{mo['id']}/", {**body, "order_date": later})
+    assert moved.status_code == 400 and "keeps its order date" in str(moved.json())
     body["added"] = [{"item": sachet, "unit": w["pcs"], "per_unit": "2"}]
     more = call(owner, "patch", f"manufacturing-orders/{mo['id']}/", body)
     assert more.status_code == 200, more.json()

@@ -2936,7 +2936,8 @@ export const MANUAL: Chapter[] = [
           Click "Submit" when the order is final. It gets its number (MO/...)
           and the status "Not Started"; it becomes "In Process" once
           materials are issued and "Completed" when everything is made. A
-          submitted order keeps its branch, item, quantity and BOM version;
+          submitted order keeps its branch, item, quantity, BOM version,
+          order date and customer;
           added materials, Pack Details, dates, places and notes can still
           change until it is completed or closed (an added material never
           below what was already issued). Once an order uses a BOM version,

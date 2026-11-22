@@ -690,13 +690,14 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                           ["Item", o.item_name],
                           ["Qty", `${o.qty} ${o.unit_name}${o.stock_unit_name !== o.unit_name ? ` (${o.stock_qty} ${o.stock_unit_name})` : ""}`],
                           ["BOM Version", `${o.bom_number} · ${versionLabel({ version: o.bom_version, name: o.bom_name, is_default: o.bom_default })}`],
+                          ["Customer", o.customer_name],
                         ]}
                       />
-                      <p className="small">A submitted order keeps its branch, item, quantity and BOM version. Close it and make a new one to change them.</p>
+                      <p className="small">A submitted order keeps its branch, item, quantity, BOM version, order date and customer. Close it and make a new one to change them.</p>
                     </div>
                   )
                 )}
-                {jobWork && (
+                {jobWork && draft && (
                   <label>
                     <span className="req">Customer</span>
                     <Combobox value={fields.customer} onChange={(v) => set({ customer: v })} required create={newCustomer} options={(setup?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />

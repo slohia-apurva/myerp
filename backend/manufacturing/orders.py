@@ -527,6 +527,13 @@ def _save(mo: MO, data: dict) -> None:
         )  # fmt: skip
         if customer is None:
             raise ValidationError({"customer": ["A job work order needs the customer."]})
+    if fixed and (data["order_date"] != mo.order_date or customer != mo.customer):
+        raise ValidationError(
+            {
+                "detail": "A submitted order keeps its order date (its number is made from it) "
+                "and its customer."
+            }
+        )
     if data["due_date"] < data["start_date"]:
         raise ValidationError({"due_date": ["The Due Date cannot be before the Start Date."]})
     so = _pick(
