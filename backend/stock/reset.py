@@ -1,7 +1,7 @@
 """Stock transfers count as entries for the Owner's "Reset data" tool."""
 
 from core.data_reset import register_entries
-from stock.models import CustomerStock, StockTransfer
+from stock.models import CustomerStock, OwnUse, StockTransfer
 
 
 def _transfers(company):
@@ -24,3 +24,11 @@ register_entries(
     lambda c: _customer(c).count(),
     lambda c: _customer(c).delete(),
 )
+
+
+def _own(company):
+    rows = OwnUse.objects.all()
+    return rows.filter(company=company) if company else rows
+
+
+register_entries("Own use entries", lambda c: _own(c).count(), lambda c: _own(c).delete())

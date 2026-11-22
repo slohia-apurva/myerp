@@ -219,7 +219,14 @@ def _register() -> None:
         SalesOrder,
     )
     from shipping.models import CourierAccount, Shipment
-    from stock.models import CustomerStock, CustomerStockBin, StockTransfer, StockTransferBin
+    from stock.models import (
+        CustomerStock,
+        CustomerStockBin,
+        OwnUse,
+        OwnUseBin,
+        StockTransfer,
+        StockTransferBin,
+    )
 
     def state(code):
         return india.STATES.get(code, code) if code else None
@@ -691,6 +698,35 @@ def _register() -> None:
                             f"{b.line.item} {_number(b.qty)} from {b.location}"
                             + (f" batch {b.batch}" if b.batch_id else "")
                             for b in CustomerStockBin.objects.filter(line__entry=e).select_related(
+                                "line__item", "location", "batch"
+                            )
+                        )
+                        or None,
+                    ),
+                },
+            ),
+            OwnUse: Tracked(
+                "own_use",
+                "Own use",
+                by_company,
+                labels={"branch": "Branch", "stores_person": "Issued by"},
+                extras={
+                    "entry_status": ("Status", lambda e: e.get_status_display()),
+                    "items": (
+                        "Items",
+                        lambda e: "; ".join(
+                            f"{ln.item} {_number(ln.qty)} {ln.unit.short_name}"
+                            + (f" to {ln.expense_ledger}" if ln.expense_ledger_id else "")
+                            for ln in e.lines.select_related("item", "unit", "expense_ledger")
+                        )
+                        or None,
+                    ),
+                    "bins": (
+                        "Taken from",
+                        lambda e: "; ".join(
+                            f"{b.line.item} {_number(b.qty)} from {b.location}"
+                            + (f" batch {b.batch}" if b.batch_id else "")
+                            for b in OwnUseBin.objects.filter(line__entry=e).select_related(
                                 "line__item", "location", "batch"
                             )
                         )

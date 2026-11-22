@@ -1,6 +1,6 @@
 from django.urls import path
 
-from stock import customer, transfers
+from stock import customer, own_use, transfers
 
 urlpatterns = [
     path(
@@ -65,4 +65,15 @@ urlpatterns = [
     path(
         "customer-stock/<int:pk>/pdf/", customer.EntryPdfView.as_view(), name="customer-stock-pdf"
     ),
+    path("companies/<int:pk>/own-use/", own_use.OwnUseListView.as_view(), name="own-use-list"),
+    path("companies/<int:pk>/own-use/form/", own_use.OwnUseFormView.as_view(), name="own-use-form"),
+    path("own-use/<int:pk>/", own_use.OwnUseDetailView.as_view(), name="own-use"),
+    path("own-use/<int:pk>/submit/", own_use.OwnUseSubmitView.as_view(), name="own-use-submit"),
+    path("own-use/<int:pk>/cancel/", own_use.OwnUseCancelView.as_view(), name="own-use-cancel"),
+    path(
+        "own-use/<int:pk>/ledger-posting/",
+        own_use.OwnUsePostingView.as_view(),
+        name="own-use-posting",
+    ),
+    path("own-use/<int:pk>/pdf/", own_use.OwnUsePdfView.as_view(), name="own-use-pdf"),
 ]
