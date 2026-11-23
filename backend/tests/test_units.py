@@ -61,7 +61,7 @@ def test_add_change_and_disable_a_unit(accountant, company):
         accountant,
         "post",
         "units/",
-        {"name": "Drum", "short_name": "drm", "gst_code": "DRM", "whole_numbers": True},
+        {"name": "Barrel", "short_name": "brl", "gst_code": "DRM", "whole_numbers": True},
     )
     assert made.status_code == 201, made.json()
     unit = made.json()
@@ -75,7 +75,7 @@ def test_add_change_and_disable_a_unit(accountant, company):
     assert [e["action"] for e in entries] == ["update", "create"]
     added = {c["label"]: c["new"] for c in entries[1]["changes"]}
     assert added["Whole numbers only"] == "Yes"
-    assert added["Short name"] == "drm"
+    assert added["Short name"] == "brl"
 
 
 def test_unit_checks(accountant, company):
@@ -117,5 +117,18 @@ def test_gst_code_can_be_changed_and_is_logged(accountant, company):
 
 def test_viewer_may_read_but_not_change(viewer, accountant, company):
     assert call(viewer, "get", "units/").status_code == 200
-    denied = call(viewer, "post", "units/", {"name": "Drum", "short_name": "drm"})
+    denied = call(viewer, "post", "units/", {"name": "Barrel", "short_name": "brl"})
     assert denied.status_code == 403
+
+
+def test_every_gst_unit_code_has_a_unit(alpha):
+    """Sidharth, 2026-11-23: all the GST unit codes are in the list from the start."""
+    from core.models import Unit
+    from core.units import GST_UNIT_CODES
+    from tenancy.context import use_tenant
+
+    with use_tenant(alpha):
+        codes = set(Unit.objects.values_list("gst_code", flat=True))
+        assert set(GST_UNIT_CODES) <= codes
+        pieces = Unit.objects.get(short_name="pcs")
+        assert (pieces.name, pieces.gst_code, pieces.whole_numbers) == ("Pieces", "PCS", True)

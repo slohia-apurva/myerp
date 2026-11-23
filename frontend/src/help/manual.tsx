@@ -1514,9 +1514,11 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Units are one list shared by every company in the group. Items will
-          pick their units from it. The list starts with the usual ones: Nos,
+          pick their units from it. The list starts with the usual ones (Nos,
           Packet, Inner box, Carton, Pallet, Bag, Bottle, Kilogram, Gram, Tonne,
-          Litre, Millilitre and Metre.
+          Litre, Millilitre, Metre) and one unit for every other GST unit code,
+          from Bale and Box to Square Foot, Unit and Yard, so every unit GST
+          returns know is there already.
         </p>
         <h3>Add a unit</h3>
         <ol>

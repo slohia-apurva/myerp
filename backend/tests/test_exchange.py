@@ -124,26 +124,26 @@ def test_export_for_print_and_as_files(viewer, alpha):
 
 
 def test_only_import_permission_may_import(viewer, accountant, alpha):
-    rows = [HEADER[1:], ["Drum", "drm", "DRM", "Yes", "Yes"]]
+    rows = [HEADER[1:], ["Barrel", "brl", "DRM", "Yes", "Yes"]]
     assert upload(viewer, rows).status_code == 403
     assert upload(accountant, rows).status_code == 403  # can edit, not import
     allowed = _client(alpha, "imp@x.in", "accountant", extra=["masters.import"])
     assert upload(allowed, rows, commit=True).json()["saved"] is True
-    assert "Drum" in unit_names(alpha)
+    assert "Barrel" in unit_names(alpha)
 
 
 def test_check_first_then_import(owner, alpha):
-    rows = [HEADER[1:], ["Drum", "drm", "DRM", "Yes", "Yes"], ["Box", "box", "box", "", ""]]
+    rows = [HEADER[1:], ["Barrel", "brl", "DRM", "Yes", "Yes"], ["Crate", "crt", "box", "", ""]]
     checked = upload(owner, rows).json()
     assert checked["errors"] == []
     assert (checked["new"], checked["saved"]) == (2, False)
-    assert not {"Drum", "Box"} & unit_names(alpha)  # a check saves nothing
+    assert not {"Barrel", "Crate"} & unit_names(alpha)  # a check saves nothing
 
     done = upload(owner, rows, commit=True, name="units.xlsx").json()
     assert done["saved"] is True
-    assert {"Drum", "Box"} <= unit_names(alpha)
+    assert {"Barrel", "Crate"} <= unit_names(alpha)
     with use_tenant(alpha):
-        box = Unit.objects.get(name="Box")
+        box = Unit.objects.get(name="Crate")
         assert box.gst_code == "BOX" and box.whole_numbers is False
         logged = AuditEntry.objects.filter(record_type="unit", record_id=box.pk)
         assert logged.count() == 1
@@ -152,10 +152,10 @@ def test_check_first_then_import(owner, alpha):
 def test_any_bad_row_saves_nothing_and_says_why(owner, alpha):
     rows = [
         HEADER[1:],
-        ["Drum", "drm", "DRM", "Yes", "Yes"],
+        ["Barrel", "brl", "DRM", "Yes", "Yes"],
         ["Carton", "c2", "CTN", "Yes", "Yes"],  # name clash, the form's own check
         ["Jar", "jar", "XYZ", "maybe", "Yes"],  # bad code, bad yes/no
-        ["Drum", "drm2", "DRM", "Yes", "Yes"],  # clashes with row 2 of the same file
+        ["Barrel", "brl2", "DRM", "Yes", "Yes"],  # clashes with row 2 of the same file
     ]
     out = upload(owner, rows, commit=True).json()
     assert out["saved"] is False
@@ -164,7 +164,7 @@ def test_any_bad_row_saves_nothing_and_says_why(owner, alpha):
     assert by_row[3] == ['Name: There is already a unit with the name "Carton".']
     assert any(m.startswith("GST unit code:") for m in by_row[4])
     assert any(m.startswith("Whole numbers only: write Yes or No") for m in by_row[4])
-    assert "Drum" not in unit_names(alpha)
+    assert "Barrel" not in unit_names(alpha)
 
 
 def test_change_by_id_and_report_unchanged(owner, alpha):
@@ -196,7 +196,7 @@ def test_change_by_id_and_report_unchanged(owner, alpha):
 
 
 def test_unknown_columns_are_refused(owner):
-    res = upload(owner, [["Name", "Colour"], ["Drum", "red"]])
+    res = upload(owner, [["Name", "Colour"], ["Barrel", "red"]])
     assert res.status_code == 400
     assert "Colour" in res.json()["detail"]
 
