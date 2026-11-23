@@ -542,3 +542,36 @@ def test_reimport_finds_customers_by_customer_number(owner, company, alpha):
     out = send_ledgers(owner, company, {"Ledgers": [head, row]}, commit=True).json()
     assert (out["new"], out["changed"], out["saved"]) == (0, 1, True), out
     assert out["results"][0]["changes"] == [{"field": "Notes", "old": "", "new": "Pays on time"}]
+
+
+def test_reimport_cannot_change_locked_fields_of_a_master_in_use(owner, alpha):
+    """A record in use keeps its key fields on import too, as on its form:
+    the row is refused with the form's own message and nothing is saved;
+    fields that stay open (the name) still change."""
+    for path, body in (("item-groups", '{"name": "Dairy"}'), ("brands", '{"name": "Apurvam"}')):
+        owner.post(f"/api/v1/{path}/", data=body, content_type="application/json", HTTP_HOST=HOST)
+    sheets = {"Items": [ITEMS, ["Ghee 500 ml", "Goods", "Dairy", "pkt", "0405", "Apurvam"]]}
+    assert send(owner, "items", sheets, commit=True).json()["saved"] is True
+    with use_tenant(alpha):
+        packet = Unit.objects.get(short_name__iexact="pkt")
+        code = packet.gst_code
+
+    row = [str(packet.pk), packet.name, packet.short_name, "BOX", "Yes", "Yes"]
+    out = upload(owner, [HEADER, row], commit=True).json()
+    assert out["saved"] is False
+    assert out["errors"][0]["messages"] == [
+        "GST unit code: Cannot change the GST unit code: this is in use (1 item). "
+        "You can still disable it."
+    ]
+    with use_tenant(alpha):
+        assert Unit.objects.get(pk=packet.pk).gst_code == code
+
+    row = [
+        str(packet.pk),
+        "Pouch",
+        packet.short_name,
+        code,
+        "Yes" if packet.whole_numbers else "No",
+    ]
+    out = upload(owner, [HEADER[:5], row], commit=True).json()
+    assert (out["changed"], out["saved"]) == (1, True), out

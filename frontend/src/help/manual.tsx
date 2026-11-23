@@ -1733,8 +1733,16 @@ export const MANUAL: Chapter[] = [
           An import saves every row or none. If even one row is wrong, nothing
           is saved, so the list is never left half changed. Each saved record
           shows in "Activity" like a change made on the form, under your name.
-          Rules that protect masters in use (for example a unit's "GST unit
-          code" once items use it) apply to imports too.
+          Rules that protect masters in use apply to imports too: once a record
+          is in use, the fields that are locked on its form (for example a
+          unit's "GST unit code" once items use it, or an item's "Stock unit"
+          once it has stock entries) cannot be changed by an import either. Such
+          a row is refused with the reason, for example 'GST unit code: Cannot
+          change the GST unit code: this is in use (1 item).', and nothing is
+          saved; the fields that stay open (names, notes, "Active") can still
+          be changed. Lists that come from Central (GST rates, HSN codes, GST
+          unit codes, countries, PIN codes, couriers) are never changed by an
+          import: a file can only pick an entry that is in them.
         </Note>
         <p>
           Anyone who can see a list can print it or download its PDF, and anyone
