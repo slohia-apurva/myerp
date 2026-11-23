@@ -83,10 +83,6 @@ type BomDetail = Bom & {
   used_by: string[];
 };
 
-const KINDS = [
-  { value: "own", label: "Own production" },
-  { value: "job_work", label: "Job work for a customer" },
-];
 const STATUSES = [
   { value: "active", label: "Active" },
   { value: "draft", label: "Draft" },
@@ -228,8 +224,7 @@ function BomList({ session, canEdit }: { session: SignedIn; canEdit: boolean }) 
                     ["Item", selected.item_name],
                     ["Version", `${selected.version} · ${selected.name}`],
                     ["Default", selected.is_default ? "★ Yes" : "No"],
-                    ["Kind", selected.kind_label],
-                    ["Customer", selected.customer_name],
+                    ["Job Work For", selected.kind === "job_work" ? selected.customer_name : ""],
                     ["Makes", `${plain(selected.makes_qty)} ${selected.makes_unit_short}`],
                     ["Materials", String(selected.material_count)],
                     ["Status", selected.is_active ? selected.status_label : "Disabled"],
@@ -377,8 +372,7 @@ function BomView({ id, canEdit }: { id: number; canEdit: boolean }) {
                   ["Version", `${b.version} · "${b.name}"`],
                   ["Makes", makes],
                   ["Default", b.is_default ? "★ Yes (the one orders start with)" : "No"],
-                  ["Kind", b.kind_label],
-                  ["Customer", b.kind === "job_work" ? b.customer_name || "Any customer" : ""],
+                  ["Job Work For", b.kind === "job_work" ? b.customer_name : ""],
                   ["Billed Under SAC", b.job?.sac ?? ""],
                   ["Despatched Under HSN", b.job?.hsn ?? ""],
                   ["Valid From", dmy(b.valid_from)],
@@ -559,18 +553,12 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
   const mayAddMasters = props.session.permissions.includes("masters.edit");
   const { items, refresh: refreshItems } = useItemList();
   const { units } = useUnits();
-  const [parties, setParties] = useState<{ id: number; name: string; customer_number: string }[]>([]);
-  useEffect(() => {
-    api<{ id: number; name: string; customer_number: string }[]>("v1/parties/").then(setParties, () => setParties([]));
-  }, []);
   const startItem = hashParam("item");
   const startName = useNewName();
   const [item, setItem] = useState(from ? String(from.item) : (startItem ?? ""));
   const [name, setName] = useState(b ? b.name : (startName ?? ""));
   const [makesQty, setMakesQty] = useState(from ? plain(from.makes_qty) : "1");
   const [makesUnit, setMakesUnit] = useState(from ? String(from.makes_unit) : "");
-  const [kind, setKind] = useState(from?.kind ?? "own");
-  const [customer, setCustomer] = useState(from?.customer ? String(from.customer) : "");
   const [validFrom, setValidFrom] = useState(b?.valid_from ?? "");
   const [status, setStatus] = useState(b?.status ?? "active");
   const [notes, setNotes] = useState(from?.notes ?? "");
@@ -611,8 +599,6 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
       name,
       makes_qty: makesQty,
       makes_unit: Number(makesUnit) || null,
-      kind,
-      customer: kind === "job_work" && customer ? Number(customer) : null,
       valid_from: validFrom || null,
       status,
       notes,
@@ -637,6 +623,8 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
   const setLine = (i: number, change: Partial<LineRow>) => setLines(lines.map((l, j) => (j === i ? { ...l, ...change } : l)));
   const setBy = (i: number, change: Partial<ByRow>) => setByRows(byRows.map((l, j) => (j === i ? { ...l, ...change } : l)));
   const chosen = itemById.get(Number(item));
+  // Job work when a material is a customer's goods; the customer is tagged on that item.
+  const jobFor = [...new Set(lines.map((l) => itemById.get(Number(l.item))).filter((it) => it?.default_request_type === "customer_provided").map((it) => it?.customer_name || "Customer not set on the item"))].join(", ");
   return (
     <FormPage
       title={props.title}
@@ -657,8 +645,8 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
       }
       tips={
         <p className="small">
-          The first active version of an item becomes its default by itself. A Draft is never offered to orders. A material that is a customer's own goods
-          (Customer Provided) may only be on a job work BOM.
+          The first active version of an item becomes its default by itself. A Draft is never offered to orders. A BOM that uses a customer's own goods
+          (Customer Provided, with the customer set on the item) is job work for that customer.
         </p>
       }
       activity={b ? <ChangeLog type="bom" id={b.id} stamp={JSON.stringify(b)} /> : undefined}
@@ -703,17 +691,16 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
               <Combobox value={makesUnit} required onChange={setMakesUnit} options={unitsOf(item)} />
             </Locked>
           </label>
-          <label>
-            <span className="req">Kind</span>
-            <Locked on={locked("kind")}>
-              <Combobox value={kind} onChange={setKind} options={KINDS} />
-            </Locked>
-          </label>
-          {kind === "job_work" && (
-            <label>
-              Customer
-              <Combobox value={customer} onChange={setCustomer} empty="Any customer" options={parties.filter((p) => p.customer_number).map((p) => ({ value: String(p.id), label: p.name }))} />
-            </label>
+          {jobFor && (
+            <div>
+              <dl className="kv">
+                <div>
+                  <dt>Job Work For</dt>
+                  <dd>{jobFor}</dd>
+                </div>
+              </dl>
+              <span className="small">From its customer-provided materials</span>
+            </div>
           )}
           <label>
             Valid From
@@ -733,7 +720,7 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
             <span className="small">Copied onto each Manufacturing Order, where they can be changed; they print on its batch sheet.</span>
           </label>
         </div>
-        {kind === "job_work" && chosen && !(chosen.item_type === "service" && chosen.delivery_hsn) && (
+        {jobFor && chosen && !(chosen.item_type === "service" && chosen.delivery_hsn) && (
           <p className="small">
             Job work is billed under a SAC code and despatched under an HSN code: make {chosen.name} a Service that keeps stock, with its SAC code and its
             Delivery HSN (Masters › Items).

@@ -476,7 +476,6 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const mayAddMasters = session.permissions.includes("masters.edit");
   const newPerson = mayAddMasters ? creatable("sales_person", "sales-people", refreshSetup) : undefined;
   const newMaterial = mayAddMasters ? creatable("item", "items", refreshSetup) : undefined;
-  const newCustomer = mayAddMasters ? creatable("customer", "customers", refreshSetup) : undefined;
   const close = () =>
     closeThisTab(() => {
       window.location.hash = base;
@@ -570,7 +569,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   };
   const pickVersion = (value: string) => {
     const v = versions.find((x) => String(x.id) === value);
-    set({ bom: value, packing_notes: v?.packing_notes ?? "", customer: v?.kind === "job_work" ? fields.customer || str(v.customer) : "" });
+    set({ bom: value, packing_notes: v?.packing_notes ?? "", customer: v?.kind === "job_work" ? str(v.customer) : "" });
   };
   // Pkd Date follows the Start Date until it is changed by hand.
   const setStart = (value: string) => set({ start_date: value, pkd_date: fields.pkd_date === fields.start_date ? value : fields.pkd_date, due_date: fields.due_date < value ? value : fields.due_date });
@@ -698,7 +697,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                           ["Item", o.item_name],
                           ["Qty", `${o.qty} ${o.unit_name}${o.stock_unit_name !== o.unit_name ? ` (${o.stock_qty} ${o.stock_unit_name})` : ""}`],
                           ["BOM Version", `${o.bom_number} · ${versionLabel({ version: o.bom_version, name: o.bom_name, is_default: o.bom_default })}`],
-                          ["Customer", o.customer_name],
+                          ["Job Work For", o.customer_name],
                           ["Order Date", shortDate(o.order_date)],
                           ["Due Date", shortDate(o.due_date)],
                           ["Sales Order", o.sales_order_number],
@@ -710,17 +709,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                     </div>
                   )
                 )}
-                {jobWork && draft && version?.customer ? (
+                {jobWork && draft && (
                   <div>
-                    <Facts rows={[["Customer", (setup?.customers ?? []).find((c) => c.id === version.customer)?.name ?? ""]]} />
-                    <span className="small">From the job work BOM version</span>
+                    <Facts rows={[["Job Work For", (setup?.customers ?? []).find((c) => c.id === version?.customer)?.name || "Set the customer on the items"]]} />
+                    <span className="small">From the customer-provided materials of this BOM version (Masters › Items)</span>
                   </div>
-                ) : jobWork && draft && (
-                  <label>
-                    <span className="req">Customer</span>
-                    <Combobox value={fields.customer} onChange={(v) => set({ customer: v })} required create={newCustomer} options={(setup?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
-                    <span className="small">Job work: only this customer's goods are counted</span>
-                  </label>
                 )}
                 {draft && (
                   <label>
@@ -769,7 +762,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                     ["Item", o.item_name],
                     ["Qty", `${o.qty} ${o.unit_name}${o.stock_unit_name !== o.unit_name ? ` (${o.stock_qty} ${o.stock_unit_name})` : ""}`],
                     ["BOM Version", `${o.bom_number} · ${versionLabel({ version: o.bom_version, name: o.bom_name, is_default: o.bom_default })}`],
-                    ["Customer", o.customer_name],
+                    ["Job Work For", o.customer_name],
                     ["Order Date", shortDate(o.order_date)],
                     ["Start Date", shortDate(o.start_date)],
                     ["Due Date", shortDate(o.due_date)],

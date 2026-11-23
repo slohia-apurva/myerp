@@ -380,9 +380,18 @@ def test_sales_and_purchase_tab_fields(accountant, unit):
     assert plain["mrp"] is None and plain["best_before_unit"] == "days"
 
 
-def test_default_material_request_type(accountant, unit):
-    made = make(accountant, unit, default_request_type="customer_provided").json()
-    assert made["default_request_type"] == "customer_provided"
+def test_default_material_request_type(accountant, unit, alpha):
+    # A Customer Provided item names its customer (Sidharth, 2026-11-23, preview 18).
+    asked = make(accountant, unit, default_request_type="customer_provided")
+    assert asked.status_code == 400 and "customer" in asked.json()
+    from core.models import Party
+
+    with use_tenant(alpha):
+        theirs = Party.objects.create(name="Organic Harvest", customer_number="CUST-0001").pk
+    made = make(accountant, unit, default_request_type="customer_provided", customer=theirs).json()
+    assert (made["default_request_type"], made["customer_name"]) == (
+        "customer_provided", "Organic Harvest",
+    )  # fmt: skip
     path = f"items/{made['id']}/"
     assert (
         call(accountant, "patch", path, {"default_request_type": "manufacture"}).status_code == 200

@@ -38,7 +38,7 @@ from audit import recorder
 from core import duplicates, exchange
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import lock_status, refuse_key_changes, uses
-from core.models import Item, Party, Unit
+from core.models import Item, Unit
 from core.numbering import follow_numbers, next_number
 from manufacturing.models import Bom, BomByproduct, BomLine
 from posting.models import StockLot
@@ -97,9 +97,6 @@ class ByproductSerializer(serializers.ModelSerializer):
 class BomSerializer(serializers.ModelSerializer):
     item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
     makes_unit = serializers.PrimaryKeyRelatedField(queryset=Unit.objects.all())
-    customer = serializers.PrimaryKeyRelatedField(
-        queryset=Party.objects.all(), allow_null=True, required=False
-    )
     lines = LineSerializer(many=True, required=False)
     byproducts = ByproductSerializer(many=True, required=False)
     item_name = serializers.CharField(source="item.name", read_only=True)
@@ -120,7 +117,9 @@ class BomSerializer(serializers.ModelSerializer):
             "status", "status_label", "is_active", "lines", "byproducts",
             "material_count", "lock",
         ]  # fmt: skip
-        read_only_fields = ["id", "version"]
+        # A job work BOM, and its customer, follow from its materials (Sidharth,
+        # 2026-11-23): one of them is a customer's goods, tagged on the item.
+        read_only_fields = ["id", "version", "kind", "customer"]
         extra_kwargs = {
             "number": {"required": False, "allow_blank": True},
             "name": {"required": False, "allow_blank": True},
@@ -423,8 +422,6 @@ def _check_lines(bom: Bom, kind: str, rows: list[dict], byproducts: list[dict]) 
             problems.append(f"{where}: Loss % must be from 0 to less than 100.")
         if factor(item, unit.pk) is None:
             problems.append(f"{where} is not kept in {unit.short_name}; pick one of its units.")
-        if item.default_request_type == Item.CUSTOMER_PROVIDED and kind != Bom.JOB_WORK:
-            problems.append(f"{where} is a customer's own goods: only a job work BOM may use it.")
         if _reaches(item.pk, bom.item_id, set()):
             problems.append(
                 f"{where} is itself made from {bom.item.name} (through its default BOM), "
@@ -441,6 +438,30 @@ def _check_lines(bom: Bom, kind: str, rows: list[dict], byproducts: list[dict]) 
             problems.append(f"{where} is not kept in {unit.short_name}; pick one of its units.")
     if problems:
         raise ValidationError({"lines": problems})
+
+
+def _job_work(bom: Bom, items: list[Item] | None) -> None:
+    """Job work when a material is a customer's goods; the customer is the one
+    those items are tagged with. Two customers' goods on one BOM are refused."""
+    if items is None:
+        items = [ln.item for ln in bom.lines.select_related("item__customer")] if bom.pk else []
+    theirs = [i for i in items if i.default_request_type == Item.CUSTOMER_PROVIDED]
+    missing = [i.name for i in theirs if i.customer_id is None]
+    if missing:
+        raise ValidationError(
+            {
+                "lines": [
+                    f"{', '.join(missing)}: set the customer on the item first (Masters › Items, "
+                    '"Customer Provided").'
+                ]
+            }
+        )
+    customers = {i.customer_id: i.customer for i in theirs}
+    if len(customers) > 1:
+        names = " and ".join(sorted(c.name for c in customers.values()))
+        raise ValidationError({"lines": [f"One BOM cannot use goods of {names}."]})
+    bom.kind = Bom.JOB_WORK if customers else Bom.OWN
+    bom.customer = next(iter(customers.values()), None)
 
 
 def _set_default(bom: Bom) -> None:
@@ -475,15 +496,11 @@ def save_bom(bom: Bom, data: dict, user=None) -> Bom:
         top = Bom.objects.filter(item=item).aggregate(m=Max("version"))["m"] or 0
         bom.version = top + 1
     for field in (
-        "kind", "customer", "makes_qty", "makes_unit", "valid_from", "notes", "packing_notes",
-        "status", "is_active",
+        "makes_qty", "makes_unit", "valid_from", "notes", "packing_notes", "status", "is_active",
     ):  # fmt: skip
         if field in data:
             setattr(bom, field, data[field])
-    if bom.kind != Bom.JOB_WORK:
-        bom.customer = None
-    if bom.customer is not None and not bom.customer.customer_number:
-        raise ValidationError({"customer": [f"{bom.customer.name} is not a customer."]})
+    _job_work(bom, [r["item"] for r in lines] if lines is not None else None)
     name = duplicates.tidy(data.get("name", bom.name)) or f"Version {bom.version}"
     duplicates.check_name(
         Bom.objects.filter(item=item),
@@ -636,8 +653,10 @@ exchange.register(
             "item_name",
             "item_number",
             "makes_unit_short",
-            "customer_name",
+            "kind",
             "kind_label",
+            "customer",
+            "customer_name",
             "status_label",
             "material_count",
             "lock",

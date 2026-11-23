@@ -262,7 +262,9 @@ class LineSerializer(serializers.Serializer):
 
 class EntrySerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=[RECEIPT, DELIVERY], required=False)
-    customer = serializers.IntegerField()
+    # Taken from the items (Sidharth, 2026-11-23): each Customer Provided item
+    # names its customer. Sent only while there is no item yet.
+    customer = serializers.IntegerField(required=False, allow_null=True)
     branch = serializers.IntegerField()
     area = serializers.IntegerField(required=False, allow_null=True)
     entry_date = serializers.DateField()
@@ -315,9 +317,35 @@ def default_put(e: CustomerStock) -> WarehouseLocation | None:
     )
 
 
+def customer_of_items(company, data: dict) -> Ledger:
+    """The company's ledger for the customer the entry's items belong to."""
+    ids = [row["item"] for row in data["lines"]]
+    items = {i.pk: i for i in Item.objects.filter(pk__in=ids).select_related("customer")}
+    party = next(
+        (
+            items[i].customer
+            for i in ids
+            if i in items and customer_goods(items[i]) and items[i].customer_id
+        ),
+        None,
+    )
+    if party is None:
+        return _customer(company, data.get("customer"))
+    ledger = (
+        Ledger.objects.filter(company=company, party_side="customer", party=party)
+        .select_related("party")
+        .first()
+    )
+    if ledger is None:
+        raise ValidationError(
+            {"customer": [f"{party.name} has no customer ledger in this company. Add it first."]}
+        )
+    return ledger
+
+
 def _save(e: CustomerStock, data: dict) -> None:
     company = e.company
-    e.customer = _customer(company, data["customer"])
+    e.customer = customer_of_items(company, data)
     e.branch = _branch(company, data["branch"], "branch")
     e.area = _area(e.branch, data.get("area"), "area")
     e.entry_date = data["entry_date"]
@@ -358,6 +386,13 @@ def _save(e: CustomerStock, data: dict) -> None:
             continue
         if not item.maintain_stock:
             errors.append(f"Line {k}: {item.name} does not keep stock.")
+            continue
+        if item.customer_id != e.customer.party_id:
+            whose = item.customer.name if item.customer_id else "no customer yet"
+            errors.append(
+                f"Line {k}: {item.name} belongs to {whose}, not {e.customer.name}. One entry "
+                "holds one customer's goods (set the customer on the item in Masters › Items)."
+            )
             continue
         unit = ItemUnit.objects.filter(item=item, unit=row["unit"]).select_related("unit").first()
         if unit is None:
@@ -775,10 +810,11 @@ class EntryFormView(APIView):
             Item.objects.filter(
                 is_active=True, maintain_stock=True, default_request_type=Item.CUSTOMER_PROVIDED
             )
-            .select_related("stock_unit")
+            .select_related("stock_unit", "customer")
             .prefetch_related("units__unit")
             .order_by("name")
         )
+        ledger_of = {c.party_id: c for c in customers}
         have = held(company, customer.party, items, branch, area) if customer and branch else {}
         return Response(
             {
@@ -824,6 +860,11 @@ class EntryFormView(APIView):
                         "name": i.name,
                         "item_number": i.item_number,
                         "batch_tracked": i.batch_tracked,
+                        # Whose goods (the item's customer) and that customer's ledger here.
+                        "owner_name": i.customer.name if i.customer else "",
+                        "customer": ledger_of[i.customer_id].pk
+                        if i.customer_id in ledger_of
+                        else None,
                         "stock_unit": i.stock_unit_id,
                         "stock_unit_name": _unit_name(i.stock_unit),
                         "units": [

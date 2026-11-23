@@ -80,6 +80,7 @@ LABELS = {
     "lead_time_days": "Lead time (days)",
     "min_order_qty": "Minimum order qty",
     "preferred_supplier": "Preferred supplier",
+    "customer": "Customer",
     "batch_tracked": "Batches tracked",
     "qc_required": "Quality check on receipt",
     "default_request_type": "Main fulfilment",

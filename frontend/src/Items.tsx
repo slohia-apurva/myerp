@@ -71,6 +71,8 @@ export type Item = {
   min_order_qty: string | null;
   preferred_supplier: number | null;
   preferred_supplier_name: string | null;
+  customer: number | null;
+  customer_name: string | null;
   batch_tracked: boolean;
   qc_required: boolean;
   default_request_type: string;
@@ -643,7 +645,12 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
                 .filter(Boolean)
                 .join(" · ")}
             >
-              <Facts rows={[["Main fulfilment", requestLabel(i.default_request_type)]]} />
+              <Facts
+                rows={[
+                  ["Main fulfilment", requestLabel(i.default_request_type)],
+                  ["Customer", i.default_request_type === "customer_provided" ? i.customer_name ?? "Customer not set" : ""],
+                ]}
+              />
               {i.plans.length > 0 ? (
                 <table className="grid">
                   <thead>
@@ -927,6 +934,7 @@ function ItemForm(props: {
   const [batches, setBatches] = useState(from?.batch_tracked ?? false);
   const [qc, setQc] = useState(from?.qc_required ?? false);
   const [requestType, setRequestType] = useState(from?.default_request_type ?? "");
+  const [owner, setOwner] = useState(from?.customer == null ? "" : String(from.customer));
   const [notes, setNotes] = useState(from?.notes ?? "");
   const changeName = (v: string) => setName(v);
   const [salesText, setSalesText] = useState(from?.sales_description ?? "");
@@ -1097,6 +1105,7 @@ function ItemForm(props: {
       batch_tracked: batches,
       qc_required: qc,
       default_request_type: requestType,
+      customer: requestType === "customer_provided" && owner ? Number(owner) : null,
       notes,
       sales_description: salesText,
       sales_unit: salesUnit ? Number(salesUnit) : null,
@@ -1431,6 +1440,18 @@ function ItemForm(props: {
                   />
                   <span className="small">How a shortage is filled where the item is bought or made. A new branch line starts with it.</span>
                 </label>
+                {requestType === "customer_provided" && (
+                  <label>
+                    <span className="req">Customer</span>
+                    <Combobox
+                      value={owner}
+                      onChange={setOwner}
+                      placeholder="Type to search customers…"
+                      options={parties.filter((x) => x.customer_number || String(x.id) === owner).map((x) => ({ value: String(x.id), label: x.customer_number ? `${x.name} (${x.customer_number})` : x.name }))}
+                    />
+                    <span className="small">Whose goods these are: counted, never valued. Every BOM, Manufacturing Order and Stock Receipt or Delivery takes the customer from here.</span>
+                  </label>
+                )}
               </div>
             </div>
           </Section>

@@ -1006,6 +1006,11 @@ class Item(models.Model):
     preferred_supplier = models.ForeignKey(
         "Party", null=True, blank=True, on_delete=models.PROTECT, related_name="preferred_items"
     )
+    # Whose goods a "Customer Provided" item is (Sidharth, 2026-11-23, preview
+    # 18): tagged once here; every entry takes the customer from its items.
+    customer = models.ForeignKey(
+        "Party", null=True, blank=True, on_delete=models.PROTECT, related_name="provided_items"
+    )
     batch_tracked = models.BooleanField(default=False)
     qc_required = models.BooleanField(default=False)
     # "Main Fulfilment": how a shortage of the item is filled (bought, made or

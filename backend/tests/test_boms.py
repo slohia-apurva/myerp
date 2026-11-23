@@ -117,19 +117,32 @@ def test_sources_cost_and_no_circles(owner, world):  # noqa: F811
 
 def test_job_work_mixes_the_customers_goods_with_ours(owner, world):  # noqa: F811
     w = world
-    theirs = add_item(w, "OHF Assam CTC", default_request_type=Item.CUSTOMER_PROVIDED)
-    carton = add_item(w, "Carton 24", unit="pcs")
-    stock_in(w, "store", "50", item="loose")
-    lines = [line(theirs, "2.4", w["kg"]), line(carton, "1", w["pcs"])]
-    own = call(owner, "post", "boms/", bom(w, "tea", lines))
-    assert own.status_code == 400 and "only a job work BOM" in str(own.json())
     with use_tenant(w["tenant"]):
         party = Party.objects.get(name="Organic Harvest Foods")
+        other = Party.objects.exclude(pk=party.pk).exclude(customer_number="").first()
+    # The customer is tagged on the item (Sidharth, 2026-11-23, preview 18).
+    untagged = add_item(w, "Loose CTC", default_request_type=Item.CUSTOMER_PROVIDED)
+    theirs = add_item(
+        w, "OHF Assam CTC", default_request_type=Item.CUSTOMER_PROVIDED, customer_id=party.pk
+    )
+    stock_in(w, "store", "50", item="loose")
+    lines = [line(untagged, "2.4", w["kg"])]
+    refused = call(owner, "post", "boms/", bom(w, "tea", lines))
+    assert refused.status_code == 400 and "set the customer on the item" in str(refused.json())
+    if other is not None:
+        mixed = add_item(
+            w, "Their Pouch", unit="pcs", default_request_type=Item.CUSTOMER_PROVIDED,
+            customer_id=other.pk,
+        )  # fmt: skip
+        both = [line(theirs, "2.4", w["kg"]), line(mixed, "1", w["pcs"])]
+        two = call(owner, "post", "boms/", bom(w, "tea", both))
+        assert two.status_code == 400 and "cannot use goods of" in str(two.json())
+    # A customer's goods make it job work for that customer; nothing to pick.
     lines = [line(theirs, "2.4", w["kg"]), line(w["loose"], "0.1", w["kg"])]
-    job = call(owner, "post", "boms/", bom(w, "tea", lines, kind="job_work", customer=party.pk))
+    job = call(owner, "post", "boms/", bom(w, "tea", lines))
     assert job.status_code == 201, job.json()
     j = job.json()
-    assert j["customer_name"] == "Organic Harvest Foods"
+    assert (j["kind"], j["customer_name"]) == ("job_work", "Organic Harvest Foods")
     theirs_row, ours_row = j["materials"]
     assert theirs_row["source_text"] == "Customer's stock" and theirs_row["cost"] == "0.00"
     assert ours_row["cost"] == "1.00"  # only our own material is costed

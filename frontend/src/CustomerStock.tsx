@@ -4,7 +4,7 @@ import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
-import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
+import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import type { PackageRow } from "./GoodsReceipts";
@@ -89,6 +89,8 @@ type FormItem = {
   name: string;
   item_number: string;
   batch_tracked: boolean;
+  owner_name: string;
+  customer: number | null;
   stock_unit: number;
   units: {
     unit: number;
@@ -468,14 +470,6 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
     if (mayEdit) refreshSetup();
   }, [mayEdit, refreshSetup]);
   const mayAddMasters = session.permissions.includes("masters.edit");
-  const newCustomer: Creatable | undefined =
-    mayAddMasters && setup?.customer_group
-      ? {
-          kind: "ledger",
-          href: (name) => `${window.location.pathname}${window.location.search}#/companies/${companyId}/ledgers?form=new-in-${setup.customer_group}&new=${encodeURIComponent(name)}`,
-          reload: refreshSetup,
-        }
-      : undefined;
   const newTransporter = mayAddMasters ? creatable("courier_account", `companies/${companyId}/couriers`, refreshSetup) : undefined;
   const newPerson = mayAddMasters ? creatable("sales_person", "sales-people", refreshSetup, "as=stores") : undefined;
   const newItem = mayAddMasters ? creatable("item", "items", refreshSetup) : undefined;
@@ -549,6 +543,12 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
     setProblems(null);
     if (position) window.setTimeout(() => document.getElementById(`cs-line-${position}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
   };
+  // Whose goods: the customer of the first item chosen (one entry, one customer's goods).
+  const owner = lines.map((l) => setup?.items.find((i) => String(i.id) === l.item)).find((i) => i?.owner_name);
+  const ownerLedger = owner?.customer ? String(owner.customer) : "";
+  useEffect(() => {
+    if (mayEdit && setup && ownerLedger !== fields.customer) setFields((f) => ({ ...f, customer: ownerLedger }));
+  }, [mayEdit, setup, ownerLedger, fields.customer]);
   if (id && !e)
     return (
       <section className="page">
@@ -669,17 +669,10 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
           <Fold title={receipt ? "Customer and Challan" : "Customer and Despatch"} open summary={e ? `${e.customer_name} · ${shortDate(e.entry_date)}` : ""}>
             {mayEdit ? (
               <div className="item-fields">
-                <label>
-                  <span className="req">Customer</span>
-                  <Combobox
-                    value={fields.customer}
-                    onChange={(v) => set({ customer: v })}
-                    required
-                    create={newCustomer}
-                    options={(setup?.customers ?? []).filter((c) => c.is_active || String(c.id) === fields.customer).map((c) => ({ value: String(c.id), label: c.name }))}
-                  />
-                  <span className="small">{receipt ? "Whose goods these are: they are held as that customer's stock" : "Only that customer's own stock is picked"}</span>
-                </label>
+<div>
+                  <Facts rows={[["Customer", owner?.owner_name || "Comes from the items"]]} />
+                  <span className="small">{owner && !owner.customer ? `${owner.owner_name} has no customer ledger in this company yet` : "Set on each item (Masters › Items, \"Customer Provided\")"}</span>
+                </div>
                 <label>
                   <span className="req">Branch</span>
                   <Combobox
@@ -825,10 +818,10 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
                                     unit: String(itemOf(v)?.stock_unit ?? ""),
                                   })
                                 }
-                                options={items.map((i) => ({
+                                options={items.filter((i) => !owner || i.owner_name === owner.owner_name || String(i.id) === l.item).map((i) => ({
                                   value: String(i.id),
                                   label: i.name,
-                                  hint: i.item_number,
+                                  hint: [i.item_number, i.owner_name].filter(Boolean).join(" · "),
                                 }))}
                               />
                             </td>

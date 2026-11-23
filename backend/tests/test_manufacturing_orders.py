@@ -109,19 +109,18 @@ def test_an_order_takes_the_default_version_and_fixes_its_materials(owner, world
         assert planning.incoming(head, [w["tea"]]).get(w["tea"], 0) == 0
 
 
-def test_job_work_needs_the_customer_and_customer_goods_need_job_work(owner, world):  # noqa: F811
+def test_job_work_takes_the_customer_from_the_items(owner, world):  # noqa: F811
     w = world
-    theirs = add_item(w, "OHF CTC", default_request_type=Item.CUSTOMER_PROVIDED)
-    setup_boms(owner, w)
-    job = call(
-        owner, "post", "boms/", bom(w, "tea", [line(theirs, "2.4", w["kg"])], kind="job_work")
-    ).json()
-    refused = call(owner, "post", url(w), order(w, bom=job["id"]))
-    assert refused.status_code == 400 and "needs the customer" in str(refused.json())
     with use_tenant(w["tenant"]):
         party = Party.objects.get(name="Organic Harvest Foods")
-    made = call(owner, "post", url(w), order(w, bom=job["id"], customer=party.pk))
+    theirs = add_item(
+        w, "OHF CTC", default_request_type=Item.CUSTOMER_PROVIDED, customer_id=party.pk
+    )
+    setup_boms(owner, w)
+    job = call(owner, "post", "boms/", bom(w, "tea", [line(theirs, "2.4", w["kg"])])).json()
+    made = call(owner, "post", url(w), order(w, bom=job["id"]))
     assert made.status_code == 201, made.json()
+    assert made.json()["customer_name"] == "Organic Harvest Foods"
     assert made.json()["lines"][0]["source_text"] == "Customer's stock"
     own = call(
         owner, "post", url(w), order(w, added=[{"item": theirs, "unit": w["kg"], "per_unit": "1"}])
