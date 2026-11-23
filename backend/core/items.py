@@ -202,6 +202,10 @@ class ItemSerializer(serializers.ModelSerializer):
     preferred_supplier_name = serializers.CharField(
         source="preferred_supplier.name", read_only=True, default=None
     )
+    customer = serializers.PrimaryKeyRelatedField(
+        queryset=Party.objects.all(), allow_null=True, required=False
+    )
+    customer_name = serializers.CharField(source="customer.name", read_only=True, default=None)
     plans = ItemPlanSerializer(many=True, required=False)
     units = ItemUnitSerializer(many=True, required=False)
     gst_rates = ItemGstRateSerializer(many=True, required=False)
@@ -239,6 +243,8 @@ class ItemSerializer(serializers.ModelSerializer):
             "min_order_qty",
             "preferred_supplier",
             "preferred_supplier_name",
+            "customer",
+            "customer_name",
             "batch_tracked",
             "qc_required",
             "default_request_type",
@@ -419,6 +425,7 @@ def _save_item(item: Item, data: dict) -> Item:
         "lead_time_days",
         "min_order_qty",
         "preferred_supplier",
+        "customer",
         "batch_tracked",
         "qc_required",
         "default_request_type",
@@ -594,6 +601,15 @@ def _save_item(item: Item, data: dict) -> Item:
         raise ValidationError(
             {"plans": ["An item without stock has no stock planning. Remove its branch lines."]}
         )
+    if item.default_request_type != Item.CUSTOMER_PROVIDED:
+        item.customer = None
+        Item.objects.filter(pk=item.pk).update(customer=None)
+    elif item.customer_id is None:
+        raise ValidationError({"customer": ["Pick the customer whose goods this item is."]})
+    elif not item.customer.customer_number:
+        raise ValidationError(
+            {"customer": [f"{item.customer.name} is not a customer. Pick a customer."]}
+        )
     if not item.default_request_type and item.plans.exists():
         raise ValidationError(
             {"default_request_type": ["Pick the Main Fulfilment: the item has branch lines."]}
@@ -744,7 +760,7 @@ def _follow_item_numbers(ctx) -> None:
 
 def _queryset():
     return Item.objects.select_related(
-        "stock_unit", "sales_unit", "purchase_unit", "preferred_supplier"
+        "stock_unit", "sales_unit", "purchase_unit", "preferred_supplier", "customer"
     ).prefetch_related(
         "units__unit",
         "units__contains_unit",
@@ -776,6 +792,7 @@ exchange.register(
             "lead_time_days": "Lead time (days)",
             "min_order_qty": "Minimum order qty",
             "preferred_supplier": "Preferred supplier",
+            "customer": "Customer (for Customer Provided)",
             "sales_description": "Sales description",
             "sales_unit": "Default sales unit",
             "purchase_description": "Purchase description",

@@ -23,6 +23,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
         "delivery_hsn": "delivery HSN",
         "batch_tracked": "batch tracking",
         "units": "units of measure",
+        "customer": "customer (whose goods it is)",
         # item_group is not here: once in use it may move, but only within its top-level group.
     },
     "price_list": {"kind": "type", "currency": "currency"},
@@ -51,7 +52,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
     "courier_account": {"carrier_id": "courier", "service": "service"},
     "insurance_policy": {"insurer": "insurer", "kind": "type of insurance"},
     # A BOM in use (by a Manufacturing Order) also keeps its materials (manufacturing.boms).
-    "bom": {"makes_qty": "quantity it makes", "makes_unit": "unit it makes", "kind": "kind"},
+    "bom": {"makes_qty": "quantity it makes", "makes_unit": "unit it makes"},
 }
 
 # A function per master that returns why the record is in use, or "".

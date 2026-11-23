@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pytest
 
-from core.models import Batch, Branch, Item, ItemUnit, Package, SalesPerson, Unit
+from core.models import Batch, Branch, Item, ItemUnit, Ledger, Package, SalesPerson, Unit
 from posting.models import GLEntry, StockMove
 from tenancy.context import use_tenant
 from tests.test_sales_orders import (  # noqa: F401  (fixtures)
@@ -28,16 +28,19 @@ def goods(world):  # noqa: F811
     w = world
     with use_tenant(w["tenant"]):
         tea = Item.objects.get(pk=w["tea"])
+        # The customer is tagged on the item (Sidharth, 2026-11-23, preview 18).
+        theirs = Ledger.objects.get(pk=w["local"]).party
         kg, nos = Unit.objects.get(name="Kilogram"), Unit.objects.get(name="Packet")
         more = {"hsn": "0902", "item_group": tea.item_group, "brand": tea.brand}
         ctc = Item.objects.create(
             item_number="ITEM-91", name="OHF Assam CTC", stock_unit=kg, batch_tracked=True,
-            default_request_type=Item.CUSTOMER_PROVIDED, **more,
+            default_request_type=Item.CUSTOMER_PROVIDED, customer=theirs, **more,
         )  # fmt: skip
         ItemUnit.objects.create(item=ctc, unit=kg, factor=1)
         pouch = Item.objects.create(
             item_number="ITEM-92", name="OHF Pouch 100 g", stock_unit=nos,
-            default_request_type=Item.CUSTOMER_PROVIDED, **{**more, "hsn": "3923"},
+            default_request_type=Item.CUSTOMER_PROVIDED, customer=theirs,
+            **{**more, "hsn": "3923"},
         )  # fmt: skip
         ItemUnit.objects.create(item=pouch, unit=nos, factor=1, whole_numbers=True)
         ravi = SalesPerson.objects.create(name="Ravi Stores", is_stores=True)
@@ -123,10 +126,10 @@ def test_delivery_takes_only_that_customers_stock(stores, owner, goods):  # noqa
     w = goods
     r = call(stores, "post", url(w), receipt(w, submit=True)).json()
     assert r["status"] == "submitted", r
-    # Another customer cannot take Organic Harvest Foods' tea.
-    theirs = call(stores, "post", url(w), delivery(w, customer="far", submit=True))
-    assert theirs.status_code == 400
-    assert "Bengal Tea Traders has only 0 kg free" in theirs.json()["problems"][0]["text"]
+    # The customer comes from the items: another customer cannot take their tea.
+    theirs = call(stores, "post", url(w), delivery(w, customer="far")).json()
+    assert theirs["customer"] == w["local"]
+    call(owner, "post", f"customer-stock/{theirs['id']}/cancel/", {"reason": "Wrong"})
     d = call(stores, "post", url(w), delivery(w)).json()
     [line] = d["lines"]
     # Whole bags (25 kg each) picked by their numbers.

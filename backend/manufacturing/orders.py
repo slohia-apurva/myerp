@@ -452,10 +452,13 @@ def _added(mo: MO, rows: list[dict], kind: str) -> list[dict]:
         if item.pk == mo.item_id:
             errors.append(f"Added material {k}: an order cannot use the item it makes.")
             continue
-        if item.default_request_type == Item.CUSTOMER_PROVIDED and kind != Bom.JOB_WORK:
+        if item.default_request_type == Item.CUSTOMER_PROVIDED and (
+            kind != Bom.JOB_WORK or item.customer_id != mo.customer_id
+        ):
+            whose = item.customer.name if item.customer_id else "a customer"
             errors.append(
-                f"Added material {k}: {item.name} is a customer's own goods: only a job work "
-                "order may use it."
+                f"Added material {k}: {item.name} is {whose}'s own goods: only a job work "
+                "order for that customer may use it."
             )
             continue
         unit = ItemUnit.objects.filter(item=item, unit=row["unit"]).select_related("unit").first()
@@ -562,14 +565,12 @@ def _save(mo: MO, data: dict) -> None:
                 "Close it and make a new one to change them."
             }
         )
-    customer = None
-    if bom.kind == Bom.JOB_WORK:  # the version's own customer, else the one picked
-        customer = _pick(
-            Party, bom.customer_id or data.get("customer"), "customer",
-            "Pick a customer from the list.", customer_number__gt="",
-        )  # fmt: skip
-        if customer is None:
-            raise ValidationError({"customer": ["A job work order needs the customer."]})
+    # Job work: the customer whose goods the version uses (tagged on the items).
+    customer = bom.customer if bom.kind == Bom.JOB_WORK else None
+    if bom.kind == Bom.JOB_WORK and customer is None:
+        raise ValidationError(
+            {"bom": ["Set the customer on this version's customer-provided materials first."]}
+        )
     if data["due_date"] < data["start_date"]:
         raise ValidationError({"due_date": ["The Due Date cannot be before the Start Date."]})
     so = _pick(

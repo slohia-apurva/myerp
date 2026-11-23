@@ -761,7 +761,13 @@ export const MANUAL: Chapter[] = [
             the item must keep and how a shortage is filled. Choose the "Main
             fulfilment": "Purchase" if the item is bought, "Manufacture" if it
             is made in-house, or "Customer Provided" if the customer supplies
-            it. An item to be manufactured shows a "BOMs" box on its page with
+            it. A "Customer Provided" item also needs its "Customer": whose
+            goods it is. Each customer's goods have an item of their own, so it
+            is set once here and every BOM, Manufacturing Order, Stock Receipt
+            and Stock Delivery takes it from the item. Like the item's other
+            key fields, it cannot change once the item is in use. Items made
+            before this box came were filled in from whose stock they are;
+            any left over show "Customer not set" until it is chosen. An item to be manufactured shows a "BOMs" box on its page with
             its BOM versions, "Open" and "New BOM" (see "BOMs"). Under "By Branch", click "Add branch" for each branch that
             should be checked, pick the "Branch" (only branches that keep stock
             are offered) and its "Fulfilment", which starts as the main one:
@@ -887,7 +893,7 @@ export const MANUAL: Chapter[] = [
             Under "What It Makes" pick the "Item", give a "Version Name" (for
             example "New pouch, Nov 2026"; left empty it is "Version 2"), how
             much one batch makes ("Makes Qty" and "Makes Unit", one of the
-            item's units), the "Kind", "Valid From", "Status", "Notes" and
+            item's units), "Valid From", "Status", "Notes" and
             "Packing Notes" (how to pack it: pouch, cartons, sealing). The
             Packing Notes are copied onto each Manufacturing Order, where they
             can be changed, and print on its batch sheet.
@@ -923,17 +929,19 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Job work</h3>
         <p>
-          A BOM of "Kind" "Job work for a customer" makes goods from a
-          customer's own material, and may add some of ours (a carton, say).
-          Name the "Customer" or leave it as "Any customer". The customer's
+          A BOM is job work when any of its materials is an item marked
+          "Customer Provided": it makes goods from a customer's own material,
+          and may add some of ours (a carton, say). There is nothing to choose:
+          the BOM shows "Job Work For" with the customer named on those items,
+          and one BOM cannot use two customers' goods. The customer's
           items are taken from their stock and are only counted, never valued;
           our own materials are costed, and their cost goes to the product.
           Job work is billed under a SAC code and despatched under an HSN code,
           so the item should be a Service that keeps stock, with its SAC code
           and its "Delivery HSN" (Masters › Items); the BOM's page shows both
           as "Billed Under SAC" and "Despatched Under HSN", and warns when the
-          item is not set up that way. Only a job work BOM may use an item
-          marked "Customer Provided".
+          item is not set up that way. A customer's goods are never posted to
+          the books, only counted.
         </p>
         <h3>Cost (Estimate)</h3>
         <p>
@@ -2746,7 +2754,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "New Stock Receipt". It opens in a new tab.</li>
           <li>
-            Pick the "Customer", the "Branch" and, if you like, the "Area"
+            Pick the "Branch" and, if you like, the "Area"
             where the goods go ("Receiving area or default store" otherwise).
             Give the "Date", the "Customer's Challan No" and "Challan Date",
             the "Transporter" ("By Customer" if they brought it), "Vehicle No",
@@ -2755,7 +2763,9 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             Add the items with "Qty" and "Unit". Only items marked "Customer
-            Provided" are listed. For each line pick where it is "Put In" (a
+            Provided" are listed. The "Customer" is not picked: it comes from
+            the first item (each item names its customer in Masters › Items),
+            and after that only that customer's items are offered. For each line pick where it is "Put In" (a
             bin or area; empty means the Area above), the "Batch" for an item
             that keeps batches (the customer's lot number will do), and how
             many "Bags" and of what "Bag Type".
@@ -2777,13 +2787,14 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "New Stock Delivery".</li>
           <li>
-            Pick the "Customer", the "Branch" and, if the goods should come from
+            Pick the "Branch" and, if the goods should come from
             one area only, the "Area" ("Whole branch" otherwise). Give the
             "Date", "Transporter", "Vehicle No", "E-way Bill No", who "Handed
             Over By" and the "Reason".
           </li>
           <li>
-            Add the items. "Customer's Stock" shows what that customer has at
+            Add the items. The "Customer" comes from the first item, as on
+            the receipt. "Customer's Stock" shows what that customer has at
             the branch, in red when it is less than the quantity.
           </li>
           <li>
@@ -2897,8 +2908,8 @@ export const MANUAL: Chapter[] = [
             with an active BOM are listed), the "Qty" and the "Unit". "BOM
             Version" starts on the item's ★ default version; pick another
             active version if this batch should use it. A job work version
-            also needs the "Customer": only that customer's goods are counted
-            for it.
+            shows "Job Work For", the customer named on its customer-provided
+            items: only that customer's goods are counted for it.
           </li>
           <li>
             Give the "Start Date" and "Due Date", and if you like the "Sales
@@ -2922,7 +2933,7 @@ export const MANUAL: Chapter[] = [
             an extra line, marked "Added", with its "Per Unit" (for one unit of
             the order), "Loss %" and "Unit". "Free Here" shows what is free in
             the branch after other orders, in red when short. A customer's
-            goods can be added only on a job work order.
+            goods can be added only on a job work order for that customer.
           </li>
           <li>
             Click "Save". From now on the order counts its materials as
