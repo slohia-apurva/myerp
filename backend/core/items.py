@@ -22,6 +22,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
@@ -354,7 +355,7 @@ def _take_number(item: Item, number: str | None) -> None:
     used as it is. Empty leaves the item's number, or gives a new item the next
     one of the series."""
     number = (number or "").strip()
-    if not number or number == item.item_number:
+    if not number or number.lower() == (item.item_number or "").lower():
         return
     if not ITEM_NUMBER.fullmatch(number):
         raise ValidationError(
@@ -780,6 +781,11 @@ exchange.register(
         queryset=lambda ctx: _queryset().order_by("name"),
         save=lambda ctx, item, data: _save_item(item or Item(), data),
         after=_follow_item_numbers,
+        codes={
+            "item_number": exchange.Code(
+                find=lambda text: Q(item_number__iexact=text), of=lambda item: item.item_number
+            )
+        },
         sources={"erpnext": erpnext.item_tables},
         labels={
             "stock_unit": "Default unit (stock unit)",

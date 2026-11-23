@@ -4235,3 +4235,16 @@ table.grid tr.sub td {
   padding: 0 2px;
   vertical-align: middle;
 }
+
+/* Import: the new and changed rows of a checked file (Exchange.tsx). */
+table.what-changes td {
+  vertical-align: top;
+}
+table.what-changes .old {
+  color: var(--slate);
+}
+table.what-changes .tag.changed {
+  color: var(--amber);
+  background: #fff4d6;
+  border-color: #f1dca0;
+}

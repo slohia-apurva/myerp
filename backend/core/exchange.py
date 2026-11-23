@@ -35,6 +35,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound, ParseError, PermissionDenied, ValidationError
@@ -97,6 +98,17 @@ class Sheet:
     link_label: str = ""  # child sheets: the first column's heading
 
 
+@dataclass(frozen=True)
+class Code:
+    """A master's own code (an item number, a customer number): it finds the
+    record when a row's ID is empty, and an import never changes it.
+    `find(text)` filters the master's records to the one with that code;
+    `of(record)` is the record's code now ("" when it has none)."""
+
+    find: Callable[[str], Q]
+    of: Callable[[Any], str]
+
+
 @dataclass
 class Context:
     """What an import or export runs for: who, and which company when the
@@ -144,6 +156,9 @@ class Master:
     sources: dict[str, Callable[[list, dict], tuple[list, list[str], dict]]] = field(
         default_factory=dict
     )
+    # The master's codes, by field path (item number; customer and vendor
+    # numbers): with the ID, they say which record a row changes.
+    codes: dict[str, Code] = field(default_factory=dict)
 
     def _columns(self, fields, prefix: str = "", rel: str = "", group: str = "") -> list[Column]:
         """Columns for these serializer fields. `prefix` is the path from the
@@ -255,7 +270,12 @@ STATE = Codec(
 
 
 def register(master: Master) -> None:
-    master.sheets()  # fail at start-up, not when someone exports
+    main = master.sheets()[0]  # fail at start-up, not when someone exports
+    missing = set(master.codes) - {c.field for c in main.columns}
+    if missing:
+        raise ImproperlyConfigured(
+            f"Import/export for {master.key}: the codes {sorted(missing)} are not columns."
+        )
     MASTERS[master.key] = master
 
 
@@ -720,10 +740,14 @@ def _body(rows: list[list[str]]) -> tuple[list[str], list[tuple[int, list[str]]]
     return rows[start], body
 
 
-def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
+def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bool = True) -> dict:
     """Check (and, when `commit`, save) every row. Nothing is saved unless all
     rows pass. `table` is the first sheet's rows, or every sheet as given by
-    `read_tables`. Returns a summary with the problems row by row."""
+    `read_tables`. A row changes the record with its ID or, when the ID is
+    empty, with its code (the master's `codes`); a row with neither adds one.
+    With `keep_codes` (always, except for another program's file, which
+    gives codes on purpose) a row may not change a record's code. Returns a
+    summary with the problems row by row, and what each row changes."""
     _names.clear()
     _running.set(ctx)
     tables = table if table and isinstance(table[0], tuple) else [("", table)]
@@ -737,6 +761,7 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
         raise ParseError("The first row must hold the column names, as in the exported file.")
     if len(body) > MAX_ROWS:
         raise ParseError(f"Import at most {MAX_ROWS} rows at a time.")
+    code_at = _code_columns(master, main, header)
 
     errors: list[dict] = []
 
@@ -786,6 +811,9 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
                         f"ID: there is no {master.noun} with ID {ref}. "
                         "Leave the ID empty to add a new one."
                     )
+            codes = {path: row[i].strip() if i < len(row) else "" for path, i in code_at.items()}
+            instance, wrong = _by_code(master, ctx, instance, ref, codes, keep_codes)
+            bad += wrong
             keys = {ref.lower()} if ref else set()
             own = data.get(master.link)
             if own is None and instance is not None:
@@ -816,7 +844,7 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
                 continue
             try:
                 with tenant_atomic():
-                    action, name = _save_row(master, ctx, instance, data)
+                    action, name, changes = _save_row(master, ctx, instance, data, sheets)
             except ValidationError as exc:
                 _report(exc.detail, main, sheets, n, lines, labels, problem)
                 continue
@@ -824,7 +852,10 @@ def run_import(master: Master, ctx: Context, table, commit: bool) -> dict:
                 problem(main, n, [f"Could not save: {exc}"])
                 continue
             counts[action] += 1
-            results.append({"row": n, "action": action, "name": name})
+            code = next((v for v in codes.values() if v), "")
+            results.append(
+                {"row": n, "action": action, "name": name, "code": code, "changes": changes}
+            )
         for sheet, grouped in children:
             for key in sorted(k for f, k in unclaimed if f == sheet.field):
                 for m, _ in grouped[key]:
@@ -894,7 +925,11 @@ def _report(detail, main: Sheet, sheets: list[Sheet], n: int, lines, labels, pro
         problem(main, n, own)
 
 
-def _save_row(master: Master, ctx: Context, instance, data: dict) -> tuple[str, str]:
+def _save_row(
+    master: Master, ctx: Context, instance, data: dict, sheets: list[Sheet]
+) -> tuple[str, str, list[dict]]:
+    """Save one row the screen's way: ("new" | "changed" | "same", the
+    record's name, what changed as [{field, old, new}])."""
     context = {"request": ctx.request}
     before = None
     if instance is not None:
@@ -905,10 +940,88 @@ def _save_row(master: Master, ctx: Context, instance, data: dict) -> tuple[str, 
     serializer.is_valid(raise_exception=True)
     record = master.save(ctx, instance, dict(serializer.validated_data))
     if instance is None:
-        return "new", str(record)
+        return "new", str(record), []
     record = master.queryset(ctx).get(pk=record.pk)
     after = dict(master.serializer(record, context=context).data)
-    return ("same" if after == before else "changed"), str(record)
+    if after == before:
+        return "same", str(record), []
+    return "changed", str(record), _changes(sheets, before, after)
+
+
+def _changes(sheets: list[Sheet], before: dict, after: dict) -> list[dict]:
+    """What a row changed, as the file shows it: each changed column of the
+    main sheet with its old and new text, and each list (units, parts) whose
+    lines changed."""
+    out = []
+    for c in sheets[0].columns:
+        old = c.codec.to_cell(_get(before, c.field))
+        new = c.codec.to_cell(_get(after, c.field))
+        if old != new:
+            out.append({"field": c.label, "old": old, "new": new})
+    for sheet in sheets[1:]:
+
+        def lines(record, sheet=sheet):
+            return [
+                [c.codec.to_cell(_get(x, c.field)) for c in sheet.columns]
+                for x in _get(record, sheet.field) or []
+            ]
+
+        old, new = lines(before), lines(after)
+        if old != new:
+            if len(old) == len(new):
+                n = sum(a != b for a, b in zip(old, new, strict=True))
+                text = f"{n} line{'s' if n != 1 else ''} changed"
+            else:
+                text = f"{len(old)} lines before, {len(new)} now"
+            out.append({"field": sheet.title, "old": "", "new": text})
+    return out
+
+
+def _code_columns(master: Master, main: Sheet, header: list[str]) -> dict[str, int]:
+    """Where the master's code columns are in the file: field path -> position."""
+    names = {h.strip().lower(): i for i, h in enumerate(header)}
+    out = {}
+    for c in main.columns:
+        if c.field in master.codes:
+            i = names.get(c.label.lower(), names.get(c.field.lower()))
+            if i is not None:
+                out[c.field] = i
+    return out
+
+
+def _by_code(
+    master: Master, ctx: Context, instance, ref: str, codes: dict[str, str], keep: bool
+) -> tuple[Any, list[str]]:
+    """The record a row is about, found by its code when the ID is empty, and
+    what is wrong with the row's codes: a code is never changed by an import."""
+    labels = {c.field: c.label for c in master.columns()}
+    problems = []
+    if instance is None and not ref:
+        for path, text in codes.items():
+            if not text:
+                continue
+            found = (
+                master.queryset(ctx)
+                .filter(master.codes[path].find(text))
+                .select_for_update(of=("self",))
+                .first()
+            )
+            if found is not None:
+                instance = found
+                break
+    if instance is None or not keep:
+        return instance, problems
+    for path, text in codes.items():
+        now = master.codes[path].of(instance) or ""
+        if text and now and text.lower() != now.lower():
+            label = labels[path]
+            where = f"the ID {ref} is" if ref else "this row is"
+            problems.append(
+                f"{label}: {where} the {master.noun} {now}, and its {label.lower()} "
+                f"never changes. Put back {now}, or leave the ID and {label} empty to "
+                f"add a new {master.noun}."
+            )
+    return instance, problems
 
 
 # --- Views -------------------------------------------------------------------
@@ -1034,5 +1147,7 @@ class ImportView(APIView):
                 "part": request.data.get("part") or "0",
             }
             tables, notes, extra = reader(tables, options)
-        out = run_import(master, ctx, tables, request.data.get("commit") == "1")
+        out = run_import(
+            master, ctx, tables, request.data.get("commit") == "1", keep_codes=not source
+        )
         return Response({**out, "notes": notes, **extra})

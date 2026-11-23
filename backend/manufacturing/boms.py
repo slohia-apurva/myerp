@@ -28,7 +28,7 @@ from __future__ import annotations
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Max, Sum
+from django.db.models import Max, Q, Sum
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
@@ -649,6 +649,11 @@ exchange.register(
         queryset=lambda ctx: _queryset().order_by("item__name", "version"),
         save=lambda ctx, bom, data: save_bom(bom or Bom(), data, ctx.request.user),
         link="number",
+        codes={
+            "number": exchange.Code(
+                find=lambda text: Q(number__iexact=text), of=lambda bom: bom.number
+            )
+        },
         exclude=(
             "item_name",
             "item_number",

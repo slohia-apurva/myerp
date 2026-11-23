@@ -298,16 +298,73 @@ export type PrintSheet = {
   sheets: { title: string; columns: string[]; rows: string[][]; right?: boolean[] }[];
 };
 
+type RowResult = {
+  row: number;
+  action: "new" | "changed" | "same";
+  name: string;
+  /** The record's code (item number, customer number), when it has one. */
+  code: string;
+  changes: { field: string; old: string; new: string }[];
+};
+
 type Outcome = {
   rows: number;
   new: number;
   changed: number;
   same: number;
+  results: RowResult[];
   errors: { sheet: string; row: number; messages: string[] }[];
   saved: boolean;
   /** What the server says about a file from another program (columns left out, say). */
   notes?: string[];
 };
+
+/** The new and changed rows of a checked file, each changed field with its
+ * old value struck through and the new one after it. */
+function WhatChanges({ results }: { results: RowResult[] }) {
+  const shown = (results ?? []).filter((r) => r.action !== "same");
+  if (shown.length === 0) return null;
+  return (
+    <table className="what-changes">
+      <thead>
+        <tr>
+          <th>Row</th>
+          <th>Code</th>
+          <th>Record</th>
+          <th></th>
+          <th>What Changes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {shown.map((r) => (
+          <tr key={r.row}>
+            <td>{r.row}</td>
+            <td>{r.code}</td>
+            <td>{r.name}</td>
+            <td>
+              <span className={`tag ${r.action}`}>{r.action === "new" ? "New" : "Changed"}</span>
+            </td>
+            <td>
+              {r.action === "new"
+                ? "New record"
+                : r.changes.map((c) => (
+                    <div key={c.field}>
+                      {c.field}:{" "}
+                      {c.old !== "" && (
+                        <>
+                          <s className="old">{c.old}</s> →{" "}
+                        </>
+                      )}
+                      {c.new === "" ? <i>(empty)</i> : c.new}
+                    </div>
+                  ))}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -372,12 +429,14 @@ export function ImportForm(props: {
           <p className="small">{props.help}</p>
         ) : (
         <p className="small">
-          Start from "Export" (it has every column, and the ID that tells MyERP which record to change) or from the{" "}
+          Start from "Export to Excel", change what you need in Excel, and import the same file. MyERP finds each
+          row's record by its ID (or, for items, customers, suppliers and BOMs, by its code when the ID is empty)
+          and changes it; a row with neither is a new one, as in the{" "}
           <a href={props.template} download>
             blank template
           </a>
-          . Leave the ID empty for a new one. Excel (.xlsx) or CSV. MyERP checks every row the way the form does, and
-          saves nothing until every row is right.
+          . Records not in the file are left as they are. Excel (.xlsx) or CSV. MyERP checks every row the way the
+          form does, and saves nothing until every row is right.
         </p>
         )}
         <label>
@@ -420,7 +479,10 @@ export function ImportForm(props: {
               </tbody>
             </table>
           ) : (
-            <p className="small">Nothing is saved yet. Press "Import" to save these rows.</p>
+            <>
+              <WhatChanges results={outcome.results} />
+              <p className="small">Nothing is saved yet. Press "Import" to save these changes.</p>
+            </>
           )}
           {outcome.notes?.map((n) => (
             <p key={n} className="small warn">
