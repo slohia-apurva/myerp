@@ -102,6 +102,12 @@ urlpatterns = [
         name="central-request-admin",
     ),
     path("central/gst-rates/", central.GstRateAdminListView.as_view(), name="central-gst-rates"),
+    path("central/gst-units/", central.GstUnitAdminListView.as_view(), name="central-gst-units"),
+    path(
+        "central/gst-units/<int:pk>/",
+        central.GstUnitAdminDetailView.as_view(),
+        name="central-gst-unit",
+    ),
     path(
         "central/gst-rates/<int:pk>/",
         central.GstRateAdminDetailView.as_view(),
