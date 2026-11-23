@@ -97,7 +97,7 @@ def populate(client, company, alpha):
     )
     assert item.status_code == 201, item.json()
     custom = call(
-        client, "post", "units/", {"name": "Drum", "short_name": "drm", "gst_code": "DRM"}
+        client, "post", "units/", {"name": "Barrel", "short_name": "brl", "gst_code": "DRM"}
     )
     assert custom.status_code == 201, custom.json()
 
@@ -187,7 +187,7 @@ def test_all_level_blanks_the_group_but_keeps_companies_and_people(owner, on, co
     assert done.status_code == 200, done.json()
     assert call(owner, "get", "items/").json() == []
     names = {u["name"] for u in call(owner, "get", "units/").json()}
-    assert "Drum" not in names and "Packet" in names
+    assert "Barrel" not in names and "Packet" in names
     with use_tenant(alpha):
         assert Ledger.objects.filter(company=company, name="Cash").exists()
         assert not Ledger.objects.filter(name="Fresh Mart").exists()
