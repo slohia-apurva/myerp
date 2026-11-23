@@ -110,10 +110,13 @@ function ErpnextItems(props: { onClose: () => void }) {
         if (commit && !out.saved) break; // a part that no longer passes: stop here, say so
       }
     } catch (err) {
+      // A file that cannot be read is not "ready": show only the problem.
       setError((err as Error).message);
-    } finally {
       setProgress("");
+      setChecked(null); // after a failed import part, check again before going on
+      return;
     }
+    setProgress("");
     if (commit) setImported(totals);
     else setChecked(totals);
   };
