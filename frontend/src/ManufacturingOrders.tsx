@@ -9,6 +9,7 @@ import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { MoPicks, type Pick, type PickLine } from "./MoPicks";
 
 /** Entry > Production > Manufacturing Order (Sidharth, 2026-11-23, preview 15d in mockups/planning):
  * what to make, how much, by when and with which BOM version (the item's ★ default to start with, or
@@ -34,6 +35,11 @@ type Line = {
   free: string | null;
   short: boolean;
   bom_note: string;
+  factor?: string;
+  stock_unit_name?: string;
+  picks?: Pick[];
+  picked_stock?: string;
+  pick_short?: string;
 };
 type Byproduct = { item: number; item_name: string; qty: string; unit_name: string; kind_label: string };
 type Cost = { materials: string; per_unit: string | null; unit_name: string; per_stock_unit: string | null; stock_unit_name: string; missing: string[] };
@@ -143,8 +149,10 @@ const can = (session: SignedIn, action: string) => session.permissions.includes(
 const today = () => new Date().toLocaleDateString("en-CA");
 const versionLabel = (v: { version: number; name: string; is_default: boolean }) => `${v.is_default ? "★ " : ""}Version ${v.version}${v.name ? ` · ${v.name}` : ""}`;
 const pdf = (id: number, download = false) => openTab(`/api/v1/manufacturing-orders/${id}/pdf/${download ? "?download=1" : ""}`);
-const printItems = (id: number) => [
+const pickList = (id: number) => openTab(`/api/v1/manufacturing-orders/${id}/pick-list/`);
+const printItems = (id: number, picked: boolean) => [
   { label: "Manufacturing Order (Batch Sheet)", onClick: () => pdf(id) },
+  ...(picked ? [{ label: "Material Pick List", onClick: () => pickList(id) }] : []),
   { label: "Download PDF", onClick: () => pdf(id, true) },
 ];
 const NEXT_DOCS = [
@@ -594,7 +602,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Close MO
               </button>
             )}
-            {o && <ActionsMenu label="Print" items={printItems(o.id)} />}
+            {o && <ActionsMenu label="Print" items={printItems(o.id, open)} />}
             {mayEdit && (
               <button type="button" className={draft ? "link" : undefined} disabled={busy} onClick={() => save(false)}>
                 Save
@@ -964,6 +972,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               or closed, but not below what was already issued. "Free Here" is the stock free in the branch after other orders' reservations; red means short. Required = Per Unit × Qty, plus the loss.
             </p>
           </Fold>
+          {o && open && <MoPicks<Order> orderId={o.id} lines={o.lines as PickLine[]} mayEdit={can(session, "create")} onSaved={take} />}
+          {o && draft && <p className="small">The materials are picked (bins, batches and packages) on Submit.</p>}
           {(shown?.byproducts.length ?? 0) > 0 && (
             <Fold title="By-products" summary={`${shown?.byproducts.length} expected`}>
               <table className="grid po-lines">

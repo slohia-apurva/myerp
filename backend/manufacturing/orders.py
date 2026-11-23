@@ -7,8 +7,9 @@ Draft        the item, quantity, BOM version (the item's default to start
              quantity and are fixed; materials added on the order may be
              changed or removed.
 Submit       gives the number (series "manufacturing_order"); the order is
-             "Not Started". Added materials and the Pack Details stay open;
-             what is made, how much and from which version do not.
+             "Not Started" and its materials are picked (manufacturing/picks.py).
+             Only the Start Date, Supervisor, Notes, added materials and the
+             picks still change.
 In Process   once a Material Issue is made (next part); Completed once the
              Production Entries make the whole quantity; "Close" ends an order
              made short. Cancel only while nothing has been issued.
@@ -364,7 +365,27 @@ def order_out(mo: MO, full: bool = True) -> dict:
         data.update(
             materials_out(mo.branch, mo.bom, mo.item, mo.qty, mo.unit_id, rows, mo, mo.customer)
         )
+        _with_picks(mo, data["lines"])
     return data
+
+
+def _with_picks(mo: MO, lines: list[dict]) -> None:
+    """Each material's picks (stock unit), what they cover and what is short."""
+    from manufacturing import picks
+
+    rows = picks.rows_out(mo) if mo.status in MO.OPEN else {}
+    want = picks.needs(mo) if mo.status in MO.OPEN else {}
+    items = {i.pk: i for i in Item.objects.filter(pk__in=[ln["item"] for ln in lines])}
+    for ln in lines:
+        item = items[ln["item"]]
+        mine = rows.pop(ln["item"], [])
+        got = sum((Decimal(p["qty"]) for p in mine), ZERO)
+        need = want.get(ln["item"], (None, ZERO))[1]
+        ln["picks"] = mine
+        ln["stock_unit_name"] = _short(item.stock_unit)
+        ln["factor"] = _plain(factor(item, ln["unit"]) or Decimal(1))
+        ln["picked_stock"] = _plain(got)
+        ln["pick_short"] = _plain(max(need - got, ZERO))
 
 
 def _fresh(mo: MO) -> dict:
@@ -630,6 +651,9 @@ def _submit(mo: MO, user) -> None:
     mo.submitted_at = timezone.now()
     mo.submitted_by = user
     mo.save()
+    from manufacturing import picks
+
+    picks.fill(mo)
 
 
 def _order(request, pk: int, lock: bool = False) -> MO:
@@ -711,6 +735,10 @@ class OrderDetailView(APIView):
         _save(mo, data)
         if data.get("submit") and mo.status == MO.DRAFT:
             _submit(mo, request.user)
+        elif mo.status in MO.OPEN:
+            from manufacturing import picks
+
+            picks.tidy(mo)
         return Response(_fresh(mo))
 
 
