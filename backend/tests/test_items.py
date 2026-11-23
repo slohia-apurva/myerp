@@ -317,6 +317,17 @@ def test_item_gst_rates_come_from_the_central_list(accountant, unit):
     again = off + [{"valid_from": "2027-04-01", "rate": "18"}]
     assert call(accountant, "patch", url, {"gst_rates": again}).status_code == 200
 
+    # A disabled rate is taken as history, before a later row with an active rate.
+    history = [
+        {"valid_from": "2017-07-01", "rate": "12"},
+        {"valid_from": "2025-09-22", "rate": "5"},
+    ]
+    res = call(accountant, "patch", url, {"gst_rates": history})
+    assert res.status_code == 200, res.json()
+    last = [{"valid_from": "2017-07-01", "rate": "5"}, {"valid_from": "2025-09-22", "rate": "12"}]
+    res = call(accountant, "patch", url, {"gst_rates": last})
+    assert "12% is not in the GST rates list" in str(res.json())
+
 
 def test_item_ticks_allow_purchase_sales_and_stock(accountant, unit):
     item = make(accountant, unit).json()

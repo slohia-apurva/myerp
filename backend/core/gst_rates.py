@@ -27,16 +27,22 @@ class GstRateListView(APIView):
 
 
 def refuse_unlisted_rates(new: list[dict], kept: set[tuple]) -> None:
-    """A new or changed row of an item's rate history must use an active rate
-    from the central list. A row the item already had stays as it is, even if
-    the rate has since been disabled."""
+    """A new or changed row of an item's rate history must use a rate from the
+    central list. A disabled rate (12% and 28% after September 2025) is taken
+    only as history: on a row followed by a later row with an active rate, as
+    an ERPNext item's "12%, then 5% from 22-09-2025" (Sidharth, 2026-11-23).
+    A row the item already had stays as it is, even if the rate has since been
+    disabled. `new` is sorted by date."""
     from rest_framework.exceptions import ValidationError
 
-    active = set(GstRate.objects.filter(is_active=True).values_list("rate", flat=True))
-    for r in new:
+    rows = dict(GstRate.objects.values_list("rate", "is_active"))
+    active = {rate for rate, on in rows.items() if on}
+    for i, r in enumerate(new):
         if (r["valid_from"], r["rate"]) in kept:
             continue
-        if Decimal(r["rate"]) not in active:
+        rate = Decimal(r["rate"])
+        later_active = any(Decimal(x["rate"]) in active for x in new[i + 1 :])
+        if rate not in active and not (rate in rows and later_active):
             raise ValidationError(
                 {
                     "gst_rates": [
