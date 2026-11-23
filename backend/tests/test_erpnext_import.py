@@ -77,21 +77,31 @@ def erpnext_file(rows) -> bytes:
     return buf.getvalue()
 
 
-def send_erpnext(client, rows, commit=False):
-    return client.post(
-        "/api/v1/exchange/items/import/",
-        {
-            "file": SimpleUploadedFile("Item.xlsx", erpnext_file(rows)),
-            "commit": "1" if commit else "0",
-            "source": "erpnext",
-        },
-        HTTP_HOST=HOST,
-    )
+def send_erpnext(client, rows, commit=False, name_map=None, **options):
+    data = {
+        "file": SimpleUploadedFile("Item.xlsx", erpnext_file(rows)),
+        "commit": "1" if commit else "0",
+        "source": "erpnext",
+        **options,
+    }
+    if name_map is not None:
+        wb = Workbook()
+        for n, (title, sheet) in enumerate(name_map.items()):
+            ws = wb.active if n == 0 else wb.create_sheet()
+            ws.title = title
+            for r in sheet:
+                ws.append(r)
+        buf = io.BytesIO()
+        wb.save(buf)
+        data["map"] = SimpleUploadedFile("map.xlsx", buf.getvalue())
+    return client.post("/api/v1/exchange/items/import/", data, HTTP_HOST=HOST)
 
 
 @pytest.fixture
 def owner(alpha):
     HsnCode.objects.get_or_create(hsn_code="998541", defaults={"description": "Packing"})
+    HsnCode.objects.get_or_create(hsn_code="998818", defaults={"description": "Job work"})
+    HsnCode.objects.get_or_create(hsn_code="09024040", defaults={"description": "Black tea"})
     client = _client(alpha, "owner@x.in", "owner")
     for path, name in (("item-groups", "Tea"), ("item-groups", "Services"), ("brands", "Apurvam")):
         client.post(
@@ -243,3 +253,46 @@ def test_migration_tools_switch(owner, alpha, settings):
     assert res.status_code == 403
     alpha.refresh_from_db()
     assert alpha.migration_tools is False
+
+
+def test_a_real_catalogue_name_map_disabled_job_work_and_parts(owner, alpha, monkeypatch):
+    """Sidharth's own export (2026-11-23): groups renamed in MyERP and units
+    with other names come in through a name map; disabled items can be left
+    out; job-work items get the Delivery HSN given; big files go in parts."""
+    from core import erpnext
+
+    rows = [
+        row("IT-000001", "Assam Dust", "BTRT-Assam Dust (GST 5%)", "Pcs", "Apurvam", "0902",
+            **{"UOM (UOMs)": "Pcs", "Conversion Factor (UOMs)": 1}),
+        row(**{"UOM (UOMs)": "Case", "Conversion Factor (UOMs)": 48}),
+        row(**{"UOM (UOMs)": "Nos", "Conversion Factor (UOMs)": 1}),
+        row("IT-000002", "Old Tea", "Tea", "Kg", "Apurvam", "0902", disabled=1),
+        row("IT-000003", "Blending for ABC", "Tea", "Kg", "Apurvam", "998818"),
+    ]  # fmt: skip
+    name_map = {
+        "Item groups": [
+            ["ERPNext Item Group", "Items", "MyERP Item Group (suggested)"],
+            ["BTRT-Assam Dust (GST 5%)", 1, "Tea"],
+        ],
+        "Units": [["ERPNext UOM", "Items", "MyERP unit"], ["Pcs", 1, "Nos"], ["Case", 1, "Carton"]],
+    }
+    # Without the map or the Delivery HSN the rows are refused, as the form would.
+    out = send_erpnext(owner, rows).json()
+    assert {e["row"] for e in out["errors"] if e["sheet"] == "Items"} == {2, 6}
+
+    monkeypatch.setattr(erpnext, "PART_SIZE", 1)
+    options = {"skip_disabled": "1", "delivery_hsn": "09024040"}
+    first = send_erpnext(owner, rows, name_map=name_map, **options).json()
+    assert (first["parts"], first["items"], first["errors"]) == (2, 2, []), first
+    assert any("1 disabled item left out" in n for n in first["notes"])
+    for part in (0, 1):
+        out = send_erpnext(owner, rows, True, name_map, part=str(part), **options).json()
+        assert out["saved"] is True and out["new"] == 1, out
+    with use_tenant(alpha):
+        dust = Item.objects.get(item_number="IT-000001")
+        assert (dust.item_group.name, dust.stock_unit.name) == ("Tea", "Nos")
+        assert dust.units.get(unit__name="Carton").factor == 48
+        assert dust.units.count() == 2  # Nos (the stock unit) and Carton; Pcs = Nos
+        job = Item.objects.get(item_number="IT-000003")
+        assert (job.item_type, job.delivery_hsn) == ("service", "09024040")
+        assert not Item.objects.filter(item_number="IT-000002").exists()

@@ -1190,8 +1190,10 @@ export const MANUAL: Chapter[] = [
         <h3>Items from ERPNext</h3>
         <ol>
           <li>
-            First add the item groups and brands in MyERP, with the same names
-            as in ERPNext. The import only matches them; it does not make them.
+            First add the item groups and brands in MyERP. The import only
+            matches groups, brands and units; it never makes them. Where a
+            MyERP name differs from the ERPNext one, write both in a name map
+            (see below).
           </li>
           <li>
             In ERPNext open the Item list, then "Menu" and "Export". Tick "Select
@@ -1200,15 +1202,34 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             In MyERP open "Admin", "Migration Tools", and click "Import Items…"
-            on the "Items" line. Choose the file and click "Check file".
+            on the "Items" line. Choose the file under "ERPNext Item Export" and,
+            if you have one, the name map under "Name Map". Leave "Leave Out
+            Disabled Items" ticked to skip items disabled in ERPNext. Under
+            "Delivery HSN For Job-Work Items" give the goods code for items with
+            a service code (starting 99) that keep stock, for example 09024040.
+            Click "Check file".
           </li>
           <li>
             Problems are listed with the row number of your ERPNext file, for
             example an item group that is not in MyERP or an HSN code that is
-            not in the HSN list. Fix them (in MyERP or in the file) and check
-            again. When every row is right, click "Import".
+            not in the HSN list. Fix them (in MyERP, in the name map or in the
+            file) and check again. When every row is right, click "Import".
           </li>
         </ol>
+        <p>
+          A big file is checked and imported 500 items at a time; the screen
+          shows which part it is on. Each part is saved as it goes, so if one
+          part stops, the parts before it stay saved. Running the same file
+          again is safe: items already imported are found by their code and
+          show as "with no change".
+        </p>
+        <p>
+          The name map is an Excel file with two sheets. "Item groups" has the
+          ERPNext group in the first column and the MyERP group in a column
+          headed "MyERP …"; "Units" does the same for units of measure (for
+          example Pcs → Nos, Meter → Metre, Case → Carton). Names not in the
+          map are matched as they are, by name or short name.
+        </p>
         <p>
           Each item keeps its ERPNext item code (for example IT-012465) as its
           "Item number". An item already in MyERP with the same code, or the
