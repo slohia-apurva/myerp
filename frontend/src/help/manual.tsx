@@ -1685,10 +1685,13 @@ export const MANUAL: Chapter[] = [
             ones).
           </li>
           <li>
-            Fill or change the rows in Excel. Keep the "ID" to change that
-            record. Leave "ID" empty on a row to add a new record. Keep the
-            column names in the first row as they are; you may delete columns
-            you do not want to touch, and those fields stay as they are.
+            Fill or change the rows in Excel. The first column, "ID", is
+            MyERP's own number for the record: it never changes, even when the
+            name does. Keep the "ID" to change that record. Leave "ID" empty on
+            a row to add a new record. Keep the column names in the first row as
+            they are; you may delete columns you do not want to touch, and those
+            fields stay as they are. Records that are not in the file are left
+            as they are.
           </li>
           <li>Save the file as Excel (.xlsx) or CSV.</li>
           <li>
@@ -1704,9 +1707,28 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             When every row is right, it shows how many rows are new, changed or
-            with no change. Click "Import" to save them.
+            with no change, and a "What Changes" table: each new or changed row
+            with its code and name, and for a changed row every field that
+            changes, the old value struck through and the new one after it (a
+            list such as "Units of measure" says how many lines change). Rows
+            with no change are not listed. Click "Import" to save them.
           </li>
         </ol>
+        <h3>Records with a code</h3>
+        <p>
+          Items ("Item number"), customers and suppliers on the Ledgers sheet
+          ("Customer number", "Vendor number") and BOMs ("BOM No") also have a
+          code. When a row's "ID" is empty, MyERP finds the record by its code
+          and changes it, so a file whose "ID" column was cleared or dropped
+          still updates the right records. A row with neither an ID nor a known
+          code adds a new record (an item or BOM keeps the code you give it;
+          empty takes the next number). A code never changes by import: a row
+          whose "ID" belongs to one record but whose code is different is
+          refused, for example "Item number: the ID 482 is the item IT-012470,
+          and its item number never changes." Other masters (units, brands,
+          item groups, people and the rest) have no code and are found by "ID"
+          only.
+        </p>
         <Note>
           An import saves every row or none. If even one row is wrong, nothing
           is saved, so the list is never left half changed. Each saved record

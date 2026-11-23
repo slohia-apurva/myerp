@@ -190,6 +190,8 @@ def test_change_by_id_and_report_unchanged(owner, alpha):
     ]
     out = upload(owner, rows[:3], commit=True).json()
     assert (out["changed"], out["same"], out["saved"]) == (1, 1, True)
+    changed = [r for r in out["results"] if r["action"] == "changed"]
+    assert changed[0]["changes"] == [{"field": "Short name", "old": "kg", "new": "kgs"}]
     with use_tenant(alpha):
         assert Unit.objects.get(pk=kg.pk).short_name == "kgs"
     assert len(export(owner).json()["sheets"][0]["rows"]) == len(exported["sheets"][0]["rows"])
@@ -474,3 +476,69 @@ def test_ledgers_with_customers_contacts_and_opening_bills(owner, company, alpha
     assert out["errors"][0]["messages"] == [
         "Under group: there is no ledger group called 'No such group'"
     ]
+
+
+# --- Re-importing an export: found by ID, or by the master's code ----------
+
+
+def test_reimport_finds_items_by_number_and_never_changes_it(owner, alpha):
+    for path, body in (("item-groups", '{"name": "Dairy"}'), ("brands", '{"name": "Apurvam"}')):
+        owner.post(f"/api/v1/{path}/", data=body, content_type="application/json", HTTP_HOST=HOST)
+    sheets = {"Items": [ITEMS, ["Ghee 500 ml", "Goods", "Dairy", "pkt", "0405", "Apurvam"]]}
+    assert send(owner, "items", sheets, commit=True).json()["saved"] is True
+    got = sheets_of(owner, "items")["Items"]
+    head = got[0]
+    row = ["" if v is None else str(v) for v in got[1]]
+    number = row[head.index("Item number")]
+    assert row[0] and number
+
+    # The ID taken out (a file from elsewhere): the item number finds the item.
+    row[0] = ""
+    row[head.index("Name")] = "Ghee 500 ml jar"
+    out = send(owner, "items", {"Items": [head, row]}, commit=True).json()
+    assert (out["new"], out["changed"], out["saved"]) == (0, 1, True), out
+    assert out["results"][0]["code"] == number
+    assert {"field": "Name", "old": "Ghee 500 ml", "new": "Ghee 500 ml jar"} in out["results"][0][
+        "changes"
+    ]
+
+    # With its ID, the row may not give the item another number.
+    row[0] = got[1][0]
+    row[head.index("Item number")] = "IT-999999"
+    out = send(owner, "items", {"Items": [head, row]}).json()
+    assert out["errors"][0]["messages"] == [
+        f"Item number: the ID {got[1][0]} is the item {number}, and its item number never "
+        f"changes. Put back {number}, or leave the ID and Item number empty to add a new item."
+    ]
+
+    # No ID and a number MyERP does not have: a new item with that number.
+    row[0] = ""
+    row[head.index("Name")] = "Ghee 1 litre"
+    out = send(owner, "items", {"Items": [head, row]}, commit=True).json()
+    assert (out["new"], out["saved"]) == (1, True), out
+    with use_tenant(alpha):
+        from core.models import Item
+
+        assert Item.objects.get(item_number="IT-999999").name == "Ghee 1 litre"
+
+
+def test_reimport_finds_customers_by_customer_number(owner, company, alpha):
+    sheets = {
+        "Ledgers": [
+            LEDGERS,
+            ["Fresh Mart", "Sundry Debtors", "", "", "Regular", FRESH_GSTIN, "", "", ""],
+        ]
+    }
+    assert send_ledgers(owner, company, sheets, commit=True).json()["saved"] is True
+    res = owner.get(f"/api/v1/exchange/ledgers/?as=xlsx&company={company}", HTTP_HOST=HOST)
+    ws = load_workbook(io.BytesIO(res.content))["Ledgers"]
+    rows = [["" if v is None else str(v) for v in r] for r in ws.values]
+    head = rows[0]
+    row = next(r for r in rows if r[1] == "Fresh Mart")
+    number = row[head.index("Customer number")]
+    assert number.startswith("CUST-")
+    row[0] = ""
+    row[head.index("Notes")] = "Pays on time"
+    out = send_ledgers(owner, company, {"Ledgers": [head, row]}, commit=True).json()
+    assert (out["new"], out["changed"], out["saved"]) == (0, 1, True), out
+    assert out["results"][0]["changes"] == [{"field": "Notes", "old": "", "new": "Pays on time"}]

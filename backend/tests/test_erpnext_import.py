@@ -198,7 +198,7 @@ def test_problems_point_at_rows_of_the_erpnext_file(owner):
     assert where[("Items", 5)] == ["HSN: That HSN code is not in the list. Pick one from the list."]
 
 
-def test_an_item_number_taken_by_another_item_is_refused(owner, alpha):
+def test_an_item_number_finds_its_item_and_is_never_doubled(owner, alpha):
     send_erpnext(owner, GOOD, commit=True)
     rows = [row("IT-012465", "Darjeeling Tea", "Tea", "Kg", "Apurvam", "0902")]
     out = send_erpnext(owner, rows).json()
@@ -208,9 +208,13 @@ def test_an_item_number_taken_by_another_item_is_refused(owner, alpha):
         owner, "items", {"Items": [["Item number", *ITEMS], ["it-012465", "Nilgiri", "Goods",
                                                              "Tea", "kg", "0902", "Apurvam"]]},
     ).json()  # fmt: skip
-    assert out["errors"][0]["messages"] == [
-        'Item number: The item number IT-012465 is already on the item "Assam Tea 1 kg".'
-    ]
+    # A MyERP file row with no ID: its item number finds the same item.
+    assert (out["new"], out["changed"], out["errors"]) == (0, 1, []), out
+    assert out["results"][0]["changes"][0] == {
+        "field": "Name",
+        "old": "Assam Tea 1 kg",
+        "new": "Nilgiri",
+    }
 
 
 def test_not_an_erpnext_file(owner):

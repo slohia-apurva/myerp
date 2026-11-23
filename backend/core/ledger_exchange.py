@@ -2,6 +2,8 @@
 ledgers, with the customer or supplier details of party ledgers and the
 opening bills, on the Ledgers screen of the company being worked in."""
 
+from django.db.models import Q
+
 from core import exchange
 from core.api import LedgerSerializer, add_ledger, change_ledger
 from core.sales_people import PERSON
@@ -38,6 +40,16 @@ exchange.register(
         queryset=_ledgers,
         save=_save,
         per_company=True,
+        codes={
+            "party.customer_number": exchange.Code(
+                find=lambda text: Q(party__customer_number__iexact=text, party_side="customer"),
+                of=lambda ledger: ledger.party.customer_number if ledger.party else "",
+            ),
+            "party.vendor_number": exchange.Code(
+                find=lambda text: Q(party__vendor_number__iexact=text, party_side="supplier"),
+                of=lambda ledger: ledger.party.vendor_number if ledger.party else "",
+            ),
+        },
         report=(
             "name",
             "group",
