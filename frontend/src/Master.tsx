@@ -53,9 +53,13 @@ export function hashParam(name: string): string | null {
   return new URLSearchParams(query).get(name);
 }
 
-/** Every function opens in a new browser tab, beside the list (Sidharth, 2026-11-13). */
-export function openTab(hash: string) {
-  window.open(`${window.location.pathname}${window.location.search}${hash}`, "_blank");
+/** Every function opens in a new browser tab, beside the list (Sidharth, 2026-11-13).
+ * Takes a page address ("#/…") or a server path ("/api/…", a PDF). A server path is opened
+ * as it is: put after the page's own path it would read "//api/…", which the browser takes
+ * for a web site called "api". */
+export function openTab(target: string) {
+  const url = target.startsWith("/") ? target : `${window.location.pathname}${window.location.search}${target}`;
+  window.open(url, "_blank");
 }
 
 /** The add / change / view page of a master, alone in its own tab (Sidharth, 2026-11-13):
