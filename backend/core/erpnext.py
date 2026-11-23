@@ -11,6 +11,18 @@ lead time, minimum order) are left out: they are set afresh in MyERP.
 The sheets made here go through the ordinary import (core/exchange.py), so
 every row meets the form's own checks. Rows keep the row numbers they have in
 the ERPNext file, so a problem "row 37" is row 37 of the person's file.
+
+For a real catalogue (Sidharth, 2026-11-23: 12,872 items) the import box
+also gives:
+- a name map file: sheets "Item groups" and "Units", each with the ERPNext
+  name in the first column and the MyERP name in the column whose heading
+  says "MyERP". Names not in the map are matched as they are. The import
+  never makes groups or units, only finds them;
+- "leave out disabled items";
+- a Delivery HSN for items with a service code (99..) that keep stock (job
+  work), which MyERP needs and ERPNext does not have;
+- parts: the file is checked and imported PART_SIZE items at a time (the
+  screen goes through the parts), so a request stays short.
 """
 
 from __future__ import annotations
@@ -23,6 +35,7 @@ from core.models import Item
 
 GOODS, SERVICE = "Goods", "Service"
 GST_START = "01-07-2017"  # when a tax row gives no "Valid From"
+PART_SIZE = 500  # items per request (about 15 s locally; well inside the 5-minute limit)
 
 # ERPNext column headings (labels, or field names) -> what they are.
 PARENT = {
@@ -86,10 +99,52 @@ def _flip(text: str) -> str:
     return text
 
 
-def item_tables(tables: list) -> tuple[list, list[str]]:
-    """ERPNext's Item export as the sheets of MyERP's item import, and notes
-    for the person on what was left out."""
+def _name_map(tables: list | None, *titles: str) -> dict[str, str]:
+    """ERPNext name -> MyERP name from the sheet with one of these titles
+    (or the only sheet): first column, and the column headed "MyERP ..."."""
+    if not tables:
+        return {}
+    found = [rows for title, rows in tables if _key(title) in titles]
+    if not found and len(tables) == 1:
+        found = [tables[0][1]]
+    if not found:
+        return {}
+    rows = [r for r in found[0] if any(str(c).strip() for c in r)]
+    if not rows:
+        return {}
+    to = next((i for i, h in enumerate(rows[0]) if "myerp" in _key(h)), None)
+    if to is None:
+        raise ParseError(
+            f'The name map\'s "{titles[0]}" sheet needs a column headed "MyERP ..." '
+            "holding the MyERP names."
+        )
+    out = {}
+    for row in rows[1:]:
+        if row and to < len(row) and str(row[0]).strip() and str(row[to]).strip():
+            out[_key(row[0])] = str(row[to]).strip()
+    return out
+
+
+def item_tables(tables: list, options: dict | None = None) -> tuple[list, list[str], dict]:
+    """ERPNext's Item export as the sheets of MyERP's item import (one part of
+    it), notes for the person on what was left out, and which part this is."""
     from core import exchange
+
+    options = options or {}
+    groups_map = _name_map(options.get("map"), "item groups", "groups")
+    units_map = _name_map(options.get("map"), "units", "uom", "uoms")
+    skip_disabled = bool(options.get("skip_disabled"))
+    delivery_hsn = str(options.get("delivery_hsn") or "").strip()
+    try:
+        part = max(int(options.get("part") or 0), 0)
+    except (TypeError, ValueError):
+        raise ParseError("Say which part of the file to read.") from None
+
+    def group_of(name: str) -> str:
+        return groups_map.get(_key(name), name)
+
+    def unit_of(name: str) -> str:
+        return units_map.get(_key(name), name)
 
     rows = tables[0][1] if tables else []
     head_at = next(
@@ -135,6 +190,8 @@ def item_tables(tables: list) -> tuple[list, list[str]]:
             fields.append(what)
     if "disabled" in at:
         fields.append("is_active")
+    if delivery_hsn:
+        fields.append("delivery_hsn")
     main_head = [exchange.ID_LABEL] + [label[f] for f in fields]
     units_head = [
         units_sheet.link_label,
@@ -153,33 +210,61 @@ def item_tables(tables: list) -> tuple[list, list[str]]:
         i = where.get(what)
         return row[i].strip() if i is not None and i < len(row) else ""
 
+    # Which file rows belong to which item, leaving out disabled ones if asked.
+    body = rows[head_at + 1 :]
+    starts = [i for i, row in enumerate(body) if cell(row, "code")]
+    skipped = 0
+    kept: list[tuple[int, int]] = []  # (first row, row after the last) of each item
+    for n, i in enumerate(starts):
+        end = starts[n + 1] if n + 1 < len(starts) else len(body)
+        if skip_disabled and _key(cell(body[i], "disabled")) in YES:
+            skipped += 1
+            continue
+        kept.append((i, end))
+    parts = max((len(kept) + PART_SIZE - 1) // PART_SIZE, 1)
+    if part >= parts:
+        raise ParseError(f"The file has {parts} part(s) only.")
+    mine = kept[part * PART_SIZE : (part + 1) * PART_SIZE]
+    wanted = {i for first, end in mine for i in range(first, end)}
+
     blank: list[str] = []
     main = [blank] * head_at + [main_head]
     units = [blank] * head_at + [units_head]
     rates = [blank] * head_at + [rates_head]
     no_rate: list[str] = []
-    current = None  # (name, stock unit, rates seen) of the item the child rows belong to
-    for row in rows[head_at + 1 :]:
-        code = cell(row, "code")
+    current = None  # (name, stock unit, rates seen, code, units seen) of the item
+    for i, row in enumerate(body):
         main_row = units_row = rates_row = blank
+        if i not in wanted:
+            main.append(main_row)
+            units.append(units_row)
+            rates.append(rates_row)
+            continue
+        code = cell(row, "code")
         if code:
             name = cell(row, "name")
-            stock = cell(row, "stock_unit")
+            stock = unit_of(cell(row, "stock_unit"))
+            hsn = cell(row, "hsn")
             pk = by_number.get(code.lower()) or by_name.get(name.lower())
+            job_work = hsn.startswith("99") and _key(cell(row, "maintain_stock")) in YES
             values = {
                 "item_number": code,
                 "name": name,
-                "item_type": SERVICE if cell(row, "hsn").startswith("99") else GOODS,
+                "item_type": SERVICE if hsn.startswith("99") else GOODS,
                 "is_active": _flip(cell(row, "disabled")),
+                "item_group": group_of(cell(row, "item_group")),
+                "stock_unit": stock,
+                "delivery_hsn": delivery_hsn if job_work else "",
             }
             main_row = [str(pk or "")] + [values.get(f, cell(row, f)) for f in fields]
             if current is not None and not current[2]:
                 no_rate.append(current[3])
-            current = (name, stock, set(), code)
+            current = (name, stock, set(), code, {_key(stock)})
         if current is not None:
-            name, stock, seen, _ = current
-            uom = cell(row, "uom", child)
-            if uom and _key(uom) != _key(stock):
+            name, stock, seen, _, had = current
+            uom = unit_of(cell(row, "uom", child))
+            if uom and _key(uom) not in had:
+                had.add(_key(uom))
                 units_row = [name, uom, cell(row, "factor", child), stock]
             template = cell(row, "template", child)
             if template:
@@ -228,4 +313,6 @@ def item_tables(tables: list) -> tuple[list, list[str]]:
     if left:
         shown = ", ".join(left[:8]) + (" …" if len(left) > 8 else "")
         notes.append(f"{len(left)} other ERPNext columns were left out: {shown}.")
-    return out, notes
+    if skipped:
+        notes.append(f"{skipped} disabled item{'s' if skipped != 1 else ''} left out, as asked.")
+    return out, notes, {"part": part, "parts": parts, "items": len(kept)}

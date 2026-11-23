@@ -138,7 +138,12 @@ class Master:
     # Other programs' export files this master can read, by name: each turns
     # the file's sheets into this master's own and gives notes for the person
     # (see core/erpnext.py).
-    sources: dict[str, Callable[[list], tuple[list, list[str]]]] = field(default_factory=dict)
+    # reader(sheets, options) -> (sheets, notes, extra): `options` are the
+    # import box's own choices (a name map file, parts), `extra` goes back in
+    # the answer (e.g. how many parts the file is checked in).
+    sources: dict[str, Callable[[list, dict], tuple[list, list[str], dict]]] = field(
+        default_factory=dict
+    )
 
     def _columns(self, fields, prefix: str = "", rel: str = "", group: str = "") -> list[Column]:
         """Columns for these serializer fields. `prefix` is the path from the
@@ -1009,6 +1014,7 @@ class ImportView(APIView):
             raise ParseError("The file is too big; import at most 5 MB at a time.")
         tables = read_tables(upload.name, upload.read())
         notes: list[str] = []
+        extra: dict = {}
         source = request.data.get("source") or ""
         if source:
             if not require_tenant().migration_tools:
@@ -1018,6 +1024,15 @@ class ImportView(APIView):
             reader = master.sources.get(source)
             if reader is None:
                 raise ParseError(f"{master.label} cannot be imported from that kind of file.")
-            tables, notes = reader(tables)
+            name_map = request.FILES.get("map")
+            if name_map is not None and name_map.size > MAX_BYTES:
+                raise ParseError("The name map file is too big.")
+            options = {
+                "map": read_tables(name_map.name, name_map.read()) if name_map else None,
+                "skip_disabled": request.data.get("skip_disabled") == "1",
+                "delivery_hsn": str(request.data.get("delivery_hsn") or "").strip(),
+                "part": request.data.get("part") or "0",
+            }
+            tables, notes, extra = reader(tables, options)
         out = run_import(master, ctx, tables, request.data.get("commit") == "1")
-        return Response({**out, "notes": notes})
+        return Response({**out, "notes": notes, **extra})
