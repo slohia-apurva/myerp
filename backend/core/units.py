@@ -12,23 +12,17 @@ from core.api import EDIT, VIEW, Signed, _check
 from core.locks import lock_status, refuse_key_changes
 from core.models import Unit
 from tenancy.context import tenant_atomic
+from tenancy.models import GstUnit
 
-# The GST unit quantity codes (UQC) accepted in GST returns, with their
-# official names.
-GST_UNIT_CODES = {
-    "BAG": "Bags", "BAL": "Bale", "BDL": "Bundles", "BKL": "Buckles",
-    "BOU": "Billions of units", "BOX": "Box", "BTL": "Bottles", "BUN": "Bunches",
-    "CAN": "Cans", "CBM": "Cubic meter", "CCM": "Cubic centimeter",
-    "CMS": "Centimeter", "CTN": "Cartons", "DOZ": "Dozen", "DRM": "Drum",
-    "GGR": "Great gross", "GMS": "Grams", "GRS": "Gross", "GYD": "Gross yards",
-    "KGS": "Kilograms", "KLR": "Kiloliter", "KME": "Kilometre", "LTR": "Litres",
-    "MLT": "Millilitre", "MTR": "Meters", "MTS": "Metric ton", "NOS": "Numbers",
-    "PAC": "Packs", "PCS": "Pieces", "PRS": "Pairs", "QTL": "Quintal",
-    "ROL": "Rolls", "SET": "Sets", "SQF": "Square feet", "SQM": "Square meters",
-    "SQY": "Square yards", "TBS": "Tablets", "TGM": "Ten gross", "THD": "Thousands",
-    "TON": "Tonnes", "TUB": "Tubes", "UGS": "US gallons", "UNT": "Units",
-    "YDS": "Yards", "OTH": "Others",
-}  # fmt: skip
+
+def gst_codes(active_only: bool = True) -> dict[str, str]:
+    """The GST unit codes (UQC) from the central list (tenancy.GstUnit, kept by
+    platform admins on Central > GST Units): code -> official name."""
+    rows = GstUnit.objects.all()
+    if active_only:
+        rows = rows.filter(is_active=True)
+    return dict(rows.values_list("code", "name"))
+
 
 # name, short name, whole numbers only, GST code. The group starts with these.
 STANDARD_UNITS = [
@@ -108,7 +102,10 @@ class UnitSerializer(serializers.ModelSerializer):
 def _save_unit(unit: Unit, data: dict) -> Unit:
     if "gst_code" in data:
         data["gst_code"] = data["gst_code"].strip().upper()
-        if data["gst_code"] not in GST_UNIT_CODES:
+        # A new or changed code must be active in the central list; a unit keeps
+        # the code it has even if that code is later disabled.
+        code = data["gst_code"]
+        if not code or (code != unit.gst_code and code not in gst_codes()):
             raise ValidationError({"gst_code": ["Pick a GST unit code from the list."]})
     elif not unit.gst_code:
         raise ValidationError({"gst_code": ["Pick a GST unit code from the list."]})
@@ -137,7 +134,7 @@ def _save_unit(unit: Unit, data: dict) -> Unit:
 
 def _gst_code_cell(text: str) -> str:
     code = text.split("-")[0].strip().upper()
-    if code not in GST_UNIT_CODES:
+    if code not in gst_codes(active_only=False):
         raise ValueError(f"{text!r} is not a GST unit code (see the How to fill sheet)")
     return code
 
@@ -154,7 +151,7 @@ exchange.register(
             "gst_code": exchange.Codec(
                 to_cell=lambda v: v or "",
                 from_cell=_gst_code_cell,
-                choices=lambda: [f"{c} ({n})" for c, n in GST_UNIT_CODES.items()],
+                choices=lambda: [f"{c} ({n})" for c, n in gst_codes().items()],
             )
         },
     )
@@ -202,4 +199,4 @@ class GstUnitCodeView(APIView):
 
     def get(self, request):
         _check(request, VIEW)
-        return Response([{"code": c, "name": n} for c, n in GST_UNIT_CODES.items()])
+        return Response([{"code": c, "name": n} for c, n in gst_codes().items()])

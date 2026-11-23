@@ -26,6 +26,7 @@ from tenancy.models import (
     CentralRequest,
     Country,
     GstRate,
+    GstUnit,
     HsnCode,
     PinCode,
     TdsSection,
@@ -49,6 +50,13 @@ CENTRAL_TABLES = [
         "GST rates",
         "The GST rates an item's rate history picks from.",
         GstRate,
+        "",
+    ),
+    (
+        "gst_units",
+        "GST units",
+        "The GST unit codes (UQC) every unit of measure links to.",
+        GstUnit,
         "",
     ),
     (
@@ -281,6 +289,65 @@ class GstRateAdminDetailView(APIView):
             row.is_active = bool(request.data["is_active"])
             row.save(update_fields=["is_active"])
         return Response(GstRateAdminSerializer(row).data)
+
+
+class GstUnitAdminSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GstUnit
+        fields = ["id", "code", "name", "is_active"]
+
+    def validate_code(self, value):
+        value = value.strip().upper()
+        if not re.fullmatch(r"[A-Z]{3}", value):
+            raise serializers.ValidationError("A GST unit code is three letters, e.g. KGS.")
+        return value
+
+    def validate_name(self, value):
+        value = " ".join(value.split())
+        if not value:
+            raise serializers.ValidationError("Give the code's official name.")
+        return value
+
+
+class GstUnitAdminListView(APIView):
+    """The central list of GST unit codes (Sidharth, 2026-11-23). Every
+    customer's units pick their code from it; only platform admins add to it.
+    Never deleted, only disabled."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _platform_admin(request)
+        return Response(GstUnitAdminSerializer(GstUnit.objects.all(), many=True).data)
+
+    def post(self, request):
+        _platform_admin(request)
+        serializer = GstUnitAdminSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        code = serializer.validated_data["code"]
+        if GstUnit.objects.filter(code=code).exists():
+            raise ValidationError({"code": [f"{code} is already in the list."]})
+        with transaction.atomic():
+            row = serializer.save()
+        return Response(GstUnitAdminSerializer(row).data, status=status.HTTP_201_CREATED)
+
+
+class GstUnitAdminDetailView(APIView):
+    """The name and the Active tick change; the code is the unit's identity."""
+
+    permission_classes = [Signed]
+
+    def patch(self, request, pk: int):
+        _platform_admin(request)
+        row = GstUnit.objects.filter(pk=pk).first()
+        if row is None:
+            raise NotFound("No such GST unit.")
+        data = {k: v for k, v in request.data.items() if k in ("name", "is_active")}
+        serializer = GstUnitAdminSerializer(row, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            serializer.save()
+        return Response(GstUnitAdminSerializer(row).data)
 
 
 class TdsSectionAdminSerializer(serializers.ModelSerializer):

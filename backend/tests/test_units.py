@@ -124,11 +124,71 @@ def test_viewer_may_read_but_not_change(viewer, accountant, company):
 def test_every_gst_unit_code_has_a_unit(alpha):
     """Sidharth, 2026-11-23: all the GST unit codes are in the list from the start."""
     from core.models import Unit
-    from core.units import GST_UNIT_CODES
     from tenancy.context import use_tenant
+    from tenancy.models import GstUnit
 
     with use_tenant(alpha):
         codes = set(Unit.objects.values_list("gst_code", flat=True))
-        assert set(GST_UNIT_CODES) <= codes
+        assert set(GstUnit.objects.values_list("code", flat=True)) <= codes
         pieces = Unit.objects.get(short_name="pcs")
         assert (pieces.name, pieces.gst_code, pieces.whole_numbers) == ("Pieces", "PCS", True)
+
+
+def test_gst_units_are_a_central_list(alpha, settings):
+    """Sidharth, 2026-11-23: platform admins keep the GST unit codes on Central;
+    a customer's unit picks an active one, and keeps one later disabled."""
+    from django.test import Client
+
+    from accounts.models import Role, User
+    from tenancy.context import use_tenant
+    from tenancy.models import GstUnit
+
+    settings.MYERP_PLATFORM_ADMINS = "boss@x.in"
+    with use_tenant(alpha):
+        boss = User.objects.create_user("boss@x.in", full_name="Boss")
+        boss.roles.set(Role.objects.filter(code="owner"))
+        client = Client()
+        client.force_login(boss)
+    host = {"HTTP_HOST": "alpha.localhost"}
+    listed = client.get("/api/v1/central/gst-units/", **host).json()
+    assert (
+        len(listed) == 45
+        and {"PCS": "Pieces"}.items() <= {r["code"]: r["name"] for r in listed}.items()
+    )
+    made = client.post(
+        "/api/v1/central/gst-units/",
+        {"code": "xyz", "name": " New  unit "},
+        "application/json",
+        **host,
+    )
+    assert made.status_code == 201 and made.json()["code"] == "XYZ"
+    again = client.post(
+        "/api/v1/central/gst-units/", {"code": "XYZ", "name": "x"}, "application/json", **host
+    )
+    assert again.status_code == 400
+
+    unit = client.post(
+        "/api/v1/units/",
+        {"name": "Jar", "short_name": "jar", "gst_code": "XYZ"},
+        "application/json",
+        **host,
+    )
+    assert unit.status_code == 201, unit.json()
+    xyz = GstUnit.objects.get(code="XYZ")
+    client.patch(
+        f"/api/v1/central/gst-units/{xyz.pk}/", {"is_active": False}, "application/json", **host
+    )
+    codes = [c["code"] for c in client.get("/api/v1/units/gst-codes/", **host).json()]
+    assert "XYZ" not in codes and "KGS" in codes
+    # The unit keeps its code; a new unit cannot take it.
+    kept = client.patch(
+        f"/api/v1/units/{unit.json()['id']}/", {"name": "Glass jar"}, "application/json", **host
+    )
+    assert kept.status_code == 200 and kept.json()["gst_code"] == "XYZ"
+    refused = client.post(
+        "/api/v1/units/",
+        {"name": "Pot", "short_name": "pot", "gst_code": "XYZ"},
+        "application/json",
+        **host,
+    )
+    assert refused.status_code == 400

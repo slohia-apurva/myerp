@@ -1060,7 +1060,11 @@ export const MANUAL: Chapter[] = [
           once that customer's data is across from its old program, and
           "Admin", "Migration Tools" leaves its menu. "Shared lists" shows each central list with
           the number of rows in it (click "Open" to look inside) and the "Load
-          lists from a file" box. "GST Rates" holds the rates every customer's
+          lists from a file" box. "GST Units" holds the official GST unit codes
+          (UQC, such as KGS or NOS) every customer's units link to: type a
+          "Code" and "Name" and click "Save" to add one, "Edit" to correct a
+          name, "Disable" when a code is withdrawn (units that already use it
+          keep it). "GST Rates" holds the rates every customer's
           items choose from: type a rate under "GST Rate (%)" and click "Add
           rate", or click "Disable" to stop offering a rate for new entries
           (items that already use it keep it; rates are never deleted).

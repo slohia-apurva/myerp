@@ -157,6 +157,23 @@ class GstRate(models.Model):
         return f"GST {self.rate.normalize():f}%"
 
 
+class GstUnit(models.Model):
+    """A GST unit quantity code (UQC: KGS, NOS, PCS ...) as GST returns and
+    e-invoices accept it. One central list for every tenant, kept by platform
+    admins (Sidharth, 2026-11-23); each tenant unit picks its code from it
+    (core.Unit.gst_code). Never deleted, only disabled."""
+
+    code = models.CharField(max_length=3, unique=True)
+    name = models.CharField(max_length=60)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["code"]
+
+    def __str__(self) -> str:
+        return f"{self.code} ({self.name})"
+
+
 class TdsSection(models.Model):
     """A TDS section (194C, 194J(b), 194Q...) with its rates and limits from a
     date. One central dated list for every tenant, read-only to them, like GST

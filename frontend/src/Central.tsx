@@ -22,7 +22,7 @@ type Info = {
 export function CentralPage() {
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"customers" | "lists" | "gst" | "tds" | "couriers" | "requests">("customers");
+  const [tab, setTab] = useState<"customers" | "lists" | "gst" | "units" | "tds" | "couriers" | "requests">("customers");
   const printing = usePrintMenu({ title: "Central tables" });
   const reload = useCallback(
     () =>
@@ -50,6 +50,7 @@ export function CentralPage() {
             ["customers", "Customers"],
             ["lists", "Shared lists"],
             ["gst", "GST Rates"],
+            ["units", "GST Units"],
             ["tds", "TDS Sections"],
             ["couriers", "Couriers"],
             ["requests", "Requests"],
@@ -142,6 +143,7 @@ export function CentralPage() {
         </>
       )}
       {tab === "gst" && <GstRates />}
+      {tab === "units" && <GstUnits />}
       {tab === "tds" && <TdsSections />}
       {tab === "requests" && <AdditionRequests />}
       {tab === "couriers" && (
@@ -334,6 +336,113 @@ function GstRates() {
               </tr>
             );
           })}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
+
+type CentralGstUnit = { id: number; code: string; name: string; is_active: boolean };
+
+/** The GST unit codes (UQC) every customer's units link to (Sidharth, 2026-11-23):
+ * only platform admins add to it or rename; codes are never deleted, only disabled. */
+function GstUnits() {
+  const [rows, setRows] = useState<CentralGstUnit[]>([]);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
+  const [error, setError] = useState<unknown>("");
+  const load = useCallback(() => api<CentralGstUnit[]>("v1/central/gst-units/").then(setRows), []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    try {
+      await api("v1/central/gst-units/", { code: code.trim(), name: name.trim() });
+      setCode("");
+      setName("");
+      load();
+    } catch (err) {
+      setError(err);
+    }
+  };
+  const rename = async () => {
+    if (!editing) return;
+    setError("");
+    try {
+      await api(`v1/central/gst-units/${editing.id}/`, { name: editing.name }, "PATCH");
+      setEditing(null);
+      load();
+    } catch (err) {
+      setError(err);
+    }
+  };
+  return (
+    <Section title="GST Units">
+      <p className="small">
+        The unit codes (UQC) GST returns and e-invoices accept. Every customer's units of measure pick their code from this
+        list. A disabled code can no longer be picked; units that already have it keep it. Codes are never deleted.
+      </p>
+      <form onSubmit={add} className="row" style={{ alignItems: "flex-end" }}>
+        <label>
+          <span className="req">Code</span>
+          <input required maxLength={3} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+        </label>
+        <label>
+          <span className="req">Name</span>
+          <input required value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <button>Save</button>
+      </form>
+      <ErrorNote error={error} />
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className={r.is_active ? "" : "off"}>
+              <td>{r.code}</td>
+              <td>
+                {editing?.id === r.id ? (
+                  <input value={editing.name} onChange={(e) => setEditing({ id: r.id, name: e.target.value })} />
+                ) : (
+                  r.name
+                )}
+              </td>
+              <td>{r.is_active ? <span className="pill on">Active</span> : <span className="pill">Disabled</span>}</td>
+              <td className="row-actions">
+                {editing?.id === r.id ? (
+                  <>
+                    <button type="button" onClick={rename}>
+                      Save
+                    </button>
+                    <button type="button" className="link" onClick={() => setEditing(null)}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="link" onClick={() => setEditing({ id: r.id, name: r.name })}>
+                    Edit
+                  </button>
+                )}
+                <ActiveButton
+                  url={`v1/central/gst-units/${r.id}/`}
+                  active={r.is_active}
+                  what={`${r.code} (${r.name})`}
+                  onDone={load}
+                  onError={setError}
+                />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </Section>
