@@ -168,7 +168,8 @@ function ErpnextItems(props: { onClose: () => void }) {
         <p className="small">
           An Excel file with a sheet "Item groups" and a sheet "Units": the ERPNext name in the first column and the
           MyERP name in the column headed "MyERP …". Names not in the map are matched as they are. Nothing is created:
-          every group and unit must already be in MyERP.
+          every group and unit must already be in MyERP. A group mapped to "Leave out" (or "Not to be imported") is
+          not imported.
         </p>
       </Section>
       <Section title="Choices">

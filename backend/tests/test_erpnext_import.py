@@ -268,23 +268,26 @@ def test_a_real_catalogue_name_map_disabled_job_work_and_parts(owner, alpha, mon
         row(**{"UOM (UOMs)": "Nos", "Conversion Factor (UOMs)": 1}),
         row("IT-000002", "Old Tea", "Tea", "Kg", "Apurvam", "0902", disabled=1),
         row("IT-000003", "Blending for ABC", "Tea", "Kg", "Apurvam", "998818"),
+        row("IT-000004", "Forklift", "Fixed Asset", "Nos", "Apurvam", "8427"),
     ]  # fmt: skip
     name_map = {
         "Item groups": [
             ["ERPNext Item Group", "Items", "MyERP Item Group (suggested)"],
             ["BTRT-Assam Dust (GST 5%)", 1, "Tea"],
+            ["Fixed Asset", 1, "Not to Imported"],
         ],
         "Units": [["ERPNext UOM", "Items", "MyERP unit"], ["Pcs", 1, "Nos"], ["Case", 1, "Carton"]],
     }
     # Without the map or the Delivery HSN the rows are refused, as the form would.
     out = send_erpnext(owner, rows).json()
-    assert {e["row"] for e in out["errors"] if e["sheet"] == "Items"} == {2, 6}
+    assert {e["row"] for e in out["errors"] if e["sheet"] == "Items"} == {2, 6, 7}
 
     monkeypatch.setattr(erpnext, "PART_SIZE", 1)
     options = {"skip_disabled": "1", "delivery_hsn": "09024040"}
     first = send_erpnext(owner, rows, name_map=name_map, **options).json()
     assert (first["parts"], first["items"], first["errors"]) == (2, 2, []), first
     assert any("1 disabled item left out" in n for n in first["notes"])
+    assert '1 item in "Fixed Asset" left out, as the name map says.' in first["notes"]
     for part in (0, 1):
         out = send_erpnext(owner, rows, True, name_map, part=str(part), **options).json()
         assert out["saved"] is True and out["new"] == 1, out
@@ -295,4 +298,4 @@ def test_a_real_catalogue_name_map_disabled_job_work_and_parts(owner, alpha, mon
         assert dust.units.count() == 2  # Nos (the stock unit) and Carton; Pcs = Nos
         job = Item.objects.get(item_number="IT-000003")
         assert (job.item_type, job.delivery_hsn) == ("service", "09024040")
-        assert not Item.objects.filter(item_number="IT-000002").exists()
+        assert not Item.objects.filter(item_number__in=["IT-000002", "IT-000004"]).exists()

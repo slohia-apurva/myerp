@@ -17,7 +17,9 @@ also gives:
 - a name map file: sheets "Item groups" and "Units", each with the ERPNext
   name in the first column and the MyERP name in the column whose heading
   says "MyERP". Names not in the map are matched as they are. The import
-  never makes groups or units, only finds them;
+  never makes groups or units, only finds them. A group mapped to "Leave out"
+  (or "Not to be imported", as Sidharth wrote for "Fixed Asset") leaves its
+  items out of the import;
 - "leave out disabled items";
 - a Delivery HSN for items with a service code (99..) that keep stock (job
   work), which MyERP needs and ERPNext does not have;
@@ -97,6 +99,11 @@ def _flip(text: str) -> str:
     if low in NO:
         return "Yes"
     return text
+
+
+def _leave_out(name: str) -> bool:
+    """A name map entry that says "don't bring these items across"."""
+    return bool(re.match(r"(leave out|skip|do not import|don'?t import|not to\b)", _key(name)))
 
 
 def _name_map(tables: list | None, *titles: str) -> dict[str, str]:
@@ -214,11 +221,16 @@ def item_tables(tables: list, options: dict | None = None) -> tuple[list, list[s
     body = rows[head_at + 1 :]
     starts = [i for i, row in enumerate(body) if cell(row, "code")]
     skipped = 0
+    left_out: dict[str, int] = {}  # ERPNext group -> items left out by the name map
     kept: list[tuple[int, int]] = []  # (first row, row after the last) of each item
     for n, i in enumerate(starts):
         end = starts[n + 1] if n + 1 < len(starts) else len(body)
         if skip_disabled and _key(cell(body[i], "disabled")) in YES:
             skipped += 1
+            continue
+        group = cell(body[i], "item_group")
+        if _leave_out(group_of(group)):
+            left_out[group] = left_out.get(group, 0) + 1
             continue
         kept.append((i, end))
     parts = max((len(kept) + PART_SIZE - 1) // PART_SIZE, 1)
@@ -315,4 +327,8 @@ def item_tables(tables: list, options: dict | None = None) -> tuple[list, list[s
         notes.append(f"{len(left)} other ERPNext columns were left out: {shown}.")
     if skipped:
         notes.append(f"{skipped} disabled item{'s' if skipped != 1 else ''} left out, as asked.")
+    for group, n in left_out.items():
+        notes.append(
+            f'{n} item{"s" if n != 1 else ""} in "{group}" left out, as the name map says.'
+        )
     return out, notes, {"part": part, "parts": parts, "items": len(kept)}

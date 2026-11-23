@@ -1232,7 +1232,9 @@ export const MANUAL: Chapter[] = [
           ERPNext group in the first column and the MyERP group in a column
           headed "MyERP …"; "Units" does the same for units of measure (for
           example Pcs → Nos, Meter → Metre, Case → Carton). Names not in the
-          map are matched as they are, by name or short name.
+          map are matched as they are, by name or short name. Write "Leave
+          out" (or "Not to be imported") as the MyERP group to keep a group's
+          items out of the import, as for "Fixed Asset".
         </p>
         <p>
           Each item keeps its ERPNext item code (for example IT-012465) as its
