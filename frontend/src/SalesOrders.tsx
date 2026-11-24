@@ -5,6 +5,7 @@ import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
+import { useItemSearch } from "./ItemSearch";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
@@ -558,7 +559,6 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
     (from?.charges ?? []).map((c) => ({ key: nextKey++, item: String(c.item), basis: c.basis, rate: c.rate, gst: c.gst_rate })),
   );
-  const [items, setItems] = useState<SellItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>("");
   const [warning, setWarning] = useState("");
@@ -593,11 +593,16 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
   };
 
   const visits = useReturns();
-  useEffect(() => {
-    if (!customer || !place) return setItems([]);
-    const q = new URLSearchParams({ customer, date: orderDate, branch: String(place.branch), ...(place.area ? { area: String(place.area) } : {}) });
-    api<SellItem[]>(`v1/companies/${companyId}/sales-orders/items/?${q}`).then(setItems, () => setItems([]));
-  }, [companyId, customer, orderDate, place, visits]);
+  // Items come from the server as the person types (ItemSearch.ts), never all at once.
+  const itemQuery =
+    customer && place
+      ? new URLSearchParams({ customer, date: orderDate, branch: String(place.branch), ...(place.area ? { area: String(place.area) } : {}) }).toString()
+      : "";
+  const { items, onType: findItems } = useItemSearch<SellItem>(
+    itemQuery ? `v1/companies/${companyId}/sales-orders/items/?${itemQuery}` : null,
+    lines.map((l) => l.item),
+    visits,
+  );
 
   // A customer just made with 'Create "…"' is filled in once the list has it.
   const [pending, setPending] = useState("");
@@ -985,7 +990,7 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
                       <tr key={l.key}>
                         <td>{i + 1}</td>
                         <td className="po-item">
-                          <Combobox value={l.item} onChange={(v) => change(l.key, { item: v })} placeholder="Type to search items…" ariaLabel={`Item ${i + 1}`} options={itemOptions} />
+                          <Combobox value={l.item} onChange={(v) => change(l.key, { item: v })} placeholder="Type to search items…" ariaLabel={`Item ${i + 1}`} options={itemOptions} onType={findItems} />
                           {theirs && <span className="small">{theirs}</span>}
                           {l.item && (
                             <textarea

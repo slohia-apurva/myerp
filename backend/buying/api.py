@@ -25,7 +25,7 @@ from core import attachments, fiscal, india, numbering, print_mark, words
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
-from core.items import gst_rate_on
+from core.items import gst_rate_on, picked
 from core.models import (
     Branch,
     Certificate,
@@ -1236,9 +1236,9 @@ class OrderItemsView(APIView):
         company = _company(request, pk)
         supplier = _supplier(request, company, request.query_params.get("supplier"))
         day = _day(request.query_params.get("date"))
-        items = items_for_party(supplier.party, "supplier").prefetch_related(
-            "units__unit", "gst_rates"
-        )
+        items = picked(
+            items_for_party(supplier.party, "supplier"), request.query_params
+        ).prefetch_related("units__unit", "gst_rates")
         theirs = {
             n.item_id: n
             for n in PartyItemName.objects.filter(party=supplier.party).only(

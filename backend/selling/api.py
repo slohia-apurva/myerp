@@ -33,7 +33,7 @@ from core import attachments, fiscal, numbering, words
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
-from core.items import gst_rate_on
+from core.items import gst_rate_on, picked
 from core.models import (
     Branch,
     CreditTerm,
@@ -1123,7 +1123,7 @@ class OrderItemsView(APIView):
         day = _day(request.query_params.get("date"))
         branch, area = _place(company, request.query_params)
         items = list(
-            items_for_party(customer.party, "customer")
+            picked(items_for_party(customer.party, "customer"), request.query_params)
             .select_related("sales_unit", "stock_unit")
             .prefetch_related("units__unit", "gst_rates")
         )

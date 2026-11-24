@@ -878,6 +878,31 @@ def _words(text: str) -> list[str]:
     return [w for w in text.replace("%", " ").split() if w]
 
 
+PICK_LIMIT = 50
+
+
+def picked(rows, params):
+    """For a type-to-search item picker on an entry form. With ?search=1 only the
+    first 50 items (by name) whose name, item no. or barcode holds every word typed
+    in q, plus the items named in ids (those already on the entry's lines), so a
+    form never loads all 12,000 items (Sidharth 2026-11-24). With no q at all, only
+    the ids. Without search=1, every row as before."""
+    if params.get("search") != "1":
+        return rows
+    ids = {int(x) for x in params.get("ids", "").split(",") if x.strip().isdigit()}
+    if "q" not in params:
+        return rows.filter(pk__in=ids)
+    found = rows
+    for word in _words(params.get("q", "")):
+        found = found.filter(
+            Q(name__icontains=word)
+            | Q(item_number__icontains=word)
+            | Q(units__barcode__icontains=word)
+        )
+    first = found.order_by("name", "pk").values_list("pk", "name").distinct()[:PICK_LIMIT]
+    return rows.filter(pk__in={pk for pk, _ in first} | ids)
+
+
 def _search(rows, params):
     """Keep the items that match every column search of the Items screen; each word
     typed in a box must appear in that column (capitals ignored), as the boxes do on
