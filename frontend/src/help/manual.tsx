@@ -648,8 +648,19 @@ export const MANUAL: Chapter[] = [
           item gets a number such as ITEM-00001. The list shows the item
           number, name, group, HSN, stock unit and today's GST rate. Click an
           item and its "Item Details" and "Activity" (the change log) show in
-          the panels on the right, with "View", "Edit" and "Duplicate" buttons under "Item Details". Type in the search box to find an item by
-          name, number, HSN or barcode.
+          the panels on the right, with "View", "Edit" and "Duplicate" buttons under "Item Details".
+        </p>
+        <p>
+          The list shows 25 items at a time, so it opens at once even with
+          thousands of items. Active items come first, in name order; inactive
+          items come at the end. Under the list, "Showing 1–25 of 12,457 items"
+          says where you are, and "‹ Previous", the page numbers and "Next ›"
+          move between pages. To find an item, type in the search boxes under
+          the column headings: they look through every item, not just the page
+          you see, and the list goes back to page 1. The "Item No" box also
+          finds an item by its barcode, and the "Item Group" box by the group's
+          name. "In Stock" has no search box. "Print" and "Download PDF" under
+          "Actions" print the page you see; "Export to Excel" gives every item.
         </p>
         <p>
           To bring your items across from ERPNext, use "Admin", "Migration
@@ -1485,8 +1496,8 @@ export const MANUAL: Chapter[] = [
           The arrow beside a group folds or opens the groups under it, and "Show
           levels" opens the tree to the depth you pick. The "Items" column
           counts the items in a group and in the groups below it; click the number to
-          see those items in the Items list (the "Item group" box above the list
-          shows which group is chosen; pick "All groups" to see every item). Click a group
+          see those items in the Items list (the line under the "Items" title
+          names the group; click "Show all items" to see every item). Click a group
           to see its details on the right, with its activity below. "Edit",
           "Duplicate" and "+ Sub-group" each open in a new tab.
         </p>

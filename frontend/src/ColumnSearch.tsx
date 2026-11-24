@@ -28,7 +28,8 @@ export function ColumnSearch(props: { onSearch?: (values: string[]) => void }) {
   useLayoutEffect(() => {
     const above = row.current?.previousElementSibling;
     if (!above) return;
-    setHeads(Array.from(above.children).map((th) => (th.textContent ?? "").trim() !== ""));
+    // A heading marked `data-no-search` (a figure the server cannot search, like In Stock) gets no box.
+    setHeads(Array.from(above.children).map((th) => (th.textContent ?? "").trim() !== "" && !(th as HTMLElement).hasAttribute("data-no-search")));
   }, []);
 
   const typed = values.some((v) => v.trim() !== "");

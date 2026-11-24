@@ -20,7 +20,8 @@ import { ItemStockBox, openItemStock, qty, useItemStock } from "./Reports";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
 import { ColumnSearch } from "./ColumnSearch";
 import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts, type ItemAccount } from "./ItemAccounts";
-import { useReturns } from "./Refresh";
+import { useOnReturn, useReturns } from "./Refresh";
+import { Pager, type Paged } from "./Pager";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -256,75 +257,117 @@ export function ItemsPage({ session, company }: { session: SignedIn; company?: C
   return <ItemList session={session} company={session.permissions.includes("stock.view") ? company : undefined} />;
 }
 
+/** What each column search box asks the server: the boxes in column order (Sidharth, 2026-11-24). */
+const SEARCH_KEYS = ["no", "name", "group_name", "hsn", "unit", "gst"];
+
 function ItemList({ session, company }: { session: SignedIn; company?: Company }) {
   const canEdit = session.permissions.includes("masters.edit");
   // Stock of the company picked at the top right, for those who may see stock.
   const stock = useItemStock(company?.id);
   const { units } = useUnits();
-  const [items, setItems] = useState<Item[]>([]);
-  const [query, setQuery] = useState("");
+  // One page of 25 at a time, found on the server: the catalogue can hold thousands of items.
+  const [data, setData] = useState<Paged<Item> | null>(null);
+  const [page, setPage] = useState(1);
+  const [searches, setSearches] = useState<string[]>([]);
+  const [typed, setTyped] = useState<string[]>([]);
   // `?group=<id>` (from the Items count on Item groups) shows that group and everything under it.
   const [groupFilter, setGroupFilter] = useState(hashParam("group") ?? "");
   const { groups: allGroups } = useItemGroups();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Item | null>(null);
   const [error, setError] = useState("");
+  // Wait for a pause in typing before asking the server; a new search starts at page 1.
+  useEffect(() => {
+    if (JSON.stringify(typed) === JSON.stringify(searches)) return;
+    const wait = setTimeout(() => {
+      setSearches(typed);
+      setPage(1);
+      setSelected(null);
+    }, 300);
+    return () => clearTimeout(wait);
+  }, [typed, searches]);
+  const turnPage = (p: number) => {
+    setPage(p);
+    setSelected(null);
+  };
   const reload = useCallback(() => {
-    api<Item[]>("v1/items/")
-      .then(setItems)
+    const q = new URLSearchParams({ page: String(page) });
+    searches.forEach((v, i) => {
+      if (v.trim() && SEARCH_KEYS[i]) q.set(SEARCH_KEYS[i], v.trim());
+    });
+    if (groupFilter) q.set("group", groupFilter);
+    return api<Paged<Item>>(`v1/items/?${q}`)
+      .then((d) => {
+        setData(d);
+        setError("");
+      })
       .catch((err: Error) => setError(err.message));
+  }, [page, searches, groupFilter]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  useOnReturn(reload);
+  const onSearch = useCallback((values: string[]) => setTyped(values), []);
+  const items = useMemo(() => data?.results ?? [], [data]);
+  // Show one item at the right, even when it is not on this page (just saved, or opened by link).
+  const show = useCallback((id: number) => {
+    api<Item>(`v1/items/${id}/`).then(setSelected, () => undefined);
   }, []);
-  useEffect(reload, [reload]);
   // The add / change form is its own tab: when it saves, refresh and select the item.
   useCreated("item_saved", (c) => {
     reload();
-    setQuery("");
-    setSelectedId(c.id);
+    show(c.id);
   });
-  const io = useExchange({ master: "items", noun: "items", session, onImported: reload });
+  const io = useExchange({ master: "items", noun: "items", session, onImported: () => void reload() });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
-    if (openId && items.some((i) => i.id === openId)) {
-      setQuery("");
-      setSelectedId(openId);
+    if (openId) {
+      show(openId);
       opened();
     }
-  }, [openId, items, opened]);
+  }, [openId, show, opened]);
 
-  const shown = useMemo(() => {
-    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    const inGroup = new Set<number>();
-    if (groupFilter) {
-      const add = (id: number) => {
-        inGroup.add(id);
-        allGroups.filter((g) => g.parent === id).forEach((g) => add(g.id));
-      };
-      add(Number(groupFilter));
-    }
-    return items.filter((i) => {
-      if (groupFilter && (i.item_group === null || !inGroup.has(i.item_group))) return false;
-      const text = [i.name, i.item_number, i.hsn, ...i.units.map((u) => u.barcode)].join(" ").toLowerCase();
-      return words.every((w) => text.includes(w));
-    });
-  }, [items, query, groupFilter, allGroups]);
-  const groupLabels = groupPaths(allGroups);
-  const selected = items.find((i) => i.id === selectedId) ?? shown[0] ?? null;
-  const pick = (i: Item) => setSelectedId(i.id);
+  const current = selected ?? items[0] ?? null;
+  const pick = (i: Item) => setSelected(i);
   const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
-    const at = selected ? shown.findIndex((i) => i.id === selected.id) : -1;
-    const next = shown[Math.min(shown.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))];
+    const at = current ? items.findIndex((i) => i.id === current.id) : -1;
+    const next = items[Math.min(items.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))];
     if (next) {
       pick(next);
       document.getElementById(`item-${next.id}`)?.focus();
     }
   };
+  const filtered = searches.some((v) => v.trim()) || groupFilter;
+  const groupName = allGroups.find((g) => String(g.id) === groupFilter)?.name;
+  const count = data?.count ?? 0;
 
   return (
     <section className="page">
       <PageHeader
         title="Items"
-        sub={`${items.length} ${items.length === 1 ? "item" : "items"}${query ? `, ${shown.length} match` : ""} · one catalogue for every company in the group`}
+        sub={
+          <>
+            {data === null ? "Loading…" : `${count.toLocaleString("en-IN")} ${count === 1 ? "item" : "items"}${filtered ? " match" : ""}`}
+            {groupFilter && (
+              <>
+                {` in ${groupName ?? "the group"} and the groups under it · `}
+                <a
+                  href="#/items"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setGroupFilter("");
+                    setPage(1);
+                    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#/items`);
+                  }}
+                >
+                  Show all items
+                </a>
+              </>
+            )}
+            {" · one catalogue for every company in the group"}
+          </>
+        }
         actions={
           <>
             {io.buttons}
@@ -336,21 +379,6 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
       {io.panel}
       <div className="side-layout">
         <div className="side-main">
-          <div className="row filters">
-            <input
-              type="search"
-              placeholder="Search by name, item number, HSN or barcode"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <Combobox
-              value={groupFilter}
-              onChange={setGroupFilter}
-              empty="All groups"
-              ariaLabel="Item group"
-              options={allGroups.map((g) => ({ value: String(g.id), label: groupLabels.get(g.id) ?? g.name }))}
-            />
-          </div>
           <table className="pick">
             <thead>
               <tr>
@@ -360,27 +388,31 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
                 <th>HSN</th>
                 <th>Stock Unit</th>
                 <th className="num">GST Rate</th>
-                {company && <th className="num">In Stock</th>}
+                {company && (
+                  <th className="num" data-no-search>
+                    In Stock
+                  </th>
+                )}
               </tr>
-              <ColumnSearch key={company ? "stock" : "plain"} />
+              <ColumnSearch key={company ? "stock" : "plain"} onSearch={onSearch} />
             </thead>
             <tbody onKeyDown={onListKey}>
-              {shown.length === 0 && (
+              {data !== null && items.length === 0 && (
                 <tr>
                   <td colSpan={company ? 7 : 6} className="small">
-                    No items match.
+                    {filtered ? "No items match." : "No items yet."}
                   </td>
                 </tr>
               )}
-              {shown.map((i) => {
+              {items.map((i) => {
                 const rate = rateToday(i.gst_rates);
                 return (
                   <tr
                     key={i.id}
                     id={`item-${i.id}`}
                     tabIndex={0}
-                    aria-selected={selected?.id === i.id}
-                    className={["ledger-row", i.is_active ? "" : "inactive", selected?.id === i.id ? "selected" : ""].join(" ")}
+                    aria-selected={current?.id === i.id}
+                    className={["ledger-row", i.is_active ? "" : "inactive", current?.id === i.id ? "selected" : ""].join(" ")}
                     onClick={() => pick(i)}
                     onDoubleClick={() => openItemView(i.id)}
                     onKeyDown={(e) => {
@@ -418,41 +450,42 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
               })}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small">Click an item to see its details at the right; double-click or press Enter to open it.</p>}
+          <Pager data={data} noun="items" onPage={turnPage} />
+          {items.length > 0 && <p className="small no-print">Click an item to see its details at the right; double-click or press Enter to open it.</p>}
         </div>
         <div className="side-col" aria-label="Item details">
-          {selected ? (
+          {current ? (
             <>
-              <SidePanel title="Item Details" tag={selected.item_number}>
+              <SidePanel title="Item Details" tag={current.item_number}>
                 <SideRows
                   rows={[
-                    ["Goods or service", typeLabel(selected.item_type)],
-                    ["Item group", selected.item_group_name ?? ""],
-                    ["Brand", selected.brand_name ?? ""],
-                    ["HSN code", selected.hsn],
-                    ...(selected.delivery_hsn ? ([["Delivery HSN", selected.delivery_hsn]] as [string, string][]) : []),
-                    ["Default unit", labelFor(units, selected.stock_unit, selected.stock_unit_name)],
-                    ["GST rate today", rateToday(selected.gst_rates) ? `${plain(rateToday(selected.gst_rates)!.rate)}%` : ""],
+                    ["Goods or service", typeLabel(current.item_type)],
+                    ["Item group", current.item_group_name ?? ""],
+                    ["Brand", current.brand_name ?? ""],
+                    ["HSN code", current.hsn],
+                    ...(current.delivery_hsn ? ([["Delivery HSN", current.delivery_hsn]] as [string, string][]) : []),
+                    ["Default unit", labelFor(units, current.stock_unit, current.stock_unit_name)],
+                    ["GST rate today", rateToday(current.gst_rates) ? `${plain(rateToday(current.gst_rates)!.rate)}%` : ""],
                   ]}
                 />
                 <div className="side-buttons">
-                  <button type="button" className="link" onClick={() => openItemView(selected.id)}>
+                  <button type="button" className="link" onClick={() => openItemView(current.id)}>
                     View
                   </button>
                   {canEdit && (
-                    <button type="button" className="link" onClick={() => openItemForm(String(selected.id))}>
+                    <button type="button" className="link" onClick={() => openItemForm(String(current.id))}>
                       Edit
                     </button>
                   )}
                   {canEdit && (
-                    <button type="button" className="link" onClick={() => openItemForm(`copy-${selected.id}`)}>
+                    <button type="button" className="link" onClick={() => openItemForm(`copy-${current.id}`)}>
                       Duplicate
                     </button>
                   )}
                 </div>
               </SidePanel>
-              {company && selected.maintain_stock && <ItemStockBox companyId={company.id} itemId={selected.id} />}
-              <ItemActivity item={selected} />
+              {company && current.maintain_stock && <ItemStockBox companyId={company.id} itemId={current.id} />}
+              <ItemActivity item={current} />
             </>
           ) : (
             <SidePanel title="Item Details">

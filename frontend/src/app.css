@@ -4248,3 +4248,24 @@ table.what-changes .tag.changed {
   background: #fff4d6;
   border-color: #f1dca0;
 }
+
+/* Long lists show 25 rows a page (Sidharth, 2026-11-24): the count at the left, page buttons at
+   the right, under the list. The current page is the solid green button. */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 2px;
+}
+.pager .pages {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pager .pages button {
+  min-width: 34px;
+  justify-content: center;
+}
