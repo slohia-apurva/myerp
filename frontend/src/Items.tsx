@@ -214,9 +214,10 @@ function ItemFormTab({ form }: { form: string }) {
       setItems([]);
       return;
     }
-    api<Item[]>("v1/items/")
-      .then(setItems)
-      .catch((err: Error) => setError(err.message));
+    // Only this item, not the whole list (12,000 items after the ERPNext import).
+    api<Item>(`v1/items/${Number(form.replace("copy-", ""))}/`)
+      .then((one) => setItems([one]))
+      .catch((err: Error) => (err.message.includes("No such item") ? setItems([]) : setError(err.message)));
   }, [form]);
   const copy = form.startsWith("copy-");
   const target = form === "new" ? null : (items?.find((i) => i.id === Number(form.replace("copy-", ""))) ?? null);
@@ -548,10 +549,10 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
-    api<Item[]>("v1/items/")
-      .then(setItems)
-      .catch((err: Error) => setError(err.message));
-  }, []);
+    api<Item>(`v1/items/${id}/`)
+      .then((one) => setItems([one]))
+      .catch((err: Error) => (err.message.includes("No such item") ? setItems([]) : setError(err.message)));
+  }, [id]);
   useEffect(reload, [reload]);
   useCreated("item_saved", reload);
   // The page opens in its own tab: Close shuts it (or shows the list if it was opened by hand).

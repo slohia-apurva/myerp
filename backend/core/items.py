@@ -270,7 +270,12 @@ class ItemSerializer(serializers.ModelSerializer):
 
     lock = serializers.SerializerMethodField()
 
-    def get_lock(self, item) -> dict:
+    def get_lock(self, item) -> dict | None:
+        # The list leaves it out: each item's "in use" tests are a dozen queries,
+        # far too many for 12,000 items (Sidharth's ERPNext import, 2026-11-24).
+        # The form and view read one item from items/<id>/, which has it.
+        if self.context.get("list"):
+            return None
         return lock_status("item", item)
 
     def get_warnings(self, item) -> list[str]:
@@ -761,7 +766,14 @@ def _follow_item_numbers(ctx) -> None:
 
 def _queryset():
     return Item.objects.select_related(
-        "stock_unit", "sales_unit", "purchase_unit", "preferred_supplier", "customer"
+        "stock_unit",
+        "sales_unit",
+        "purchase_unit",
+        "preferred_supplier",
+        "customer",
+        "item_group",
+        "brand",
+        "usp_per",
     ).prefetch_related(
         "units__unit",
         "units__contains_unit",
@@ -859,7 +871,8 @@ class ItemListView(APIView):
 
     def get(self, request):
         _check(request, VIEW)
-        return Response(ItemSerializer(_queryset().order_by("name"), many=True).data)
+        rows = _queryset().order_by("name")
+        return Response(ItemSerializer(rows, many=True, context={"list": True}).data)
 
     @tenant_atomic()
     def post(self, request):
@@ -900,6 +913,13 @@ class ItemDetailView(APIView):
     """Edit only: items are never deleted, only made inactive."""
 
     permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        item = _queryset().filter(pk=pk).first()
+        if item is None:
+            raise NotFound("No such item.")
+        return Response(ItemSerializer(item).data)
 
     @tenant_atomic()
     def patch(self, request, pk: int):
