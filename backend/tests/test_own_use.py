@@ -113,3 +113,21 @@ def test_customer_goods_are_not_ours_to_use(stores, world):  # noqa: F811
         Item.objects.filter(pk=w["tea"]).update(default_request_type=Item.CUSTOMER_PROVIDED)
     refused = call(stores, "post", url(w), body(w))
     assert refused.status_code == 400 and "customer's own goods" in str(refused.json())
+
+
+def test_form_gives_each_item_its_default_ledger(stores, owner, books):  # noqa: F811
+    """The form names every item's default Expense Ledger, worked out for all items
+    at once (12,000 items one by one took 48 s, 2026-11-24)."""
+    w = books
+    got = call(stores, "get", f"companies/{w['company']}/own-use/form/").json()
+    tea = next(i for i in got["items"] if i["id"] == w["tea"])
+    assert tea["ledger_name"] == "Cost of Tea"  # the item group's, as it has no own account
+    with use_tenant(w["tenant"]):
+        from core.models import ItemAccount
+
+        group = LedgerGroup.objects.get(company_id=w["company"], code="indirect_expenses")
+        own = Ledger.objects.create(company_id=w["company"], group=group, name="Tea for staff")
+        ItemAccount.objects.create(item_id=w["tea"], company_id=w["company"], expense_ledger=own)
+    got = call(stores, "get", f"companies/{w['company']}/own-use/form/").json()
+    tea = next(i for i in got["items"] if i["id"] == w["tea"])
+    assert (tea["ledger"], tea["ledger_name"]) == (own.pk, "Tea for staff")

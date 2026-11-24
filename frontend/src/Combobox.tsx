@@ -5,6 +5,7 @@ import { FloatingList } from "./FloatingList";
 export type Option = { value: string; label: string; indent?: number; hint?: string };
 
 const CREATE = "\u0000create";
+const LIMIT = 50;
 
 /** A type-to-search picker for masters (groups, states, terms, parties...).
  * Typing narrows the list (every word typed must appear in the name, in any
@@ -55,6 +56,19 @@ export function Combobox(props: {
     if (props.createHere && typedName && !exact) found.push({ value: CREATE, label: `${props.createHere.label} "${typedName}"` });
     return found;
   }, [all, typedName, typed, props.create, props.createHere]);
+
+  // Only the first LIMIT matches are drawn (12,000 items made each item picker slow to open,
+  // Sidharth 2026-11-24); a line under them says how many more there are, to type more.
+  const visible = useMemo(() => {
+    if (shown.length <= LIMIT) return shown;
+    const head = shown.slice(0, LIMIT);
+    const last = shown[shown.length - 1];
+    if (last.value === CREATE) head.push(last);
+    const picked = shown.find((o) => o.value === value);
+    if (picked && !head.includes(picked)) head.unshift(picked);
+    return head;
+  }, [shown, value]);
+  const more = shown.length - visible.length;
 
   // A record saved in the tab that "Create …" opened: reload the list, pick it.
   const waiting = useRef(false);
@@ -110,7 +124,7 @@ export function Combobox(props: {
         onClick={() => setOpen(true)}
         onFocus={(e) => {
           setOpen(true);
-          setCursor(Math.max(0, all.findIndex((o) => o.value === value)));
+          setCursor(Math.max(0, visible.findIndex((o) => o.value === value)));
           e.target.select();
         }}
         onChange={(e) => {
@@ -123,13 +137,13 @@ export function Combobox(props: {
           if (e.key === "ArrowDown") {
             e.preventDefault();
             setOpen(true);
-            setCursor((c) => Math.min(c + 1, shown.length - 1));
+            setCursor((c) => Math.min(c + 1, visible.length - 1));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
             setCursor((c) => Math.max(c - 1, 0));
           } else if (e.key === "Enter" && open) {
             e.preventDefault();
-            if (shown[cursor]) pick(shown[cursor]);
+            if (visible[cursor]) pick(visible[cursor]);
           } else if (e.key === "Escape") {
             close();
           }
@@ -142,7 +156,7 @@ export function Combobox(props: {
       {open && (
         <FloatingList anchor={box} listRef={list}>
           {shown.length === 0 && <li className="combo-none">Nothing matches</li>}
-          {shown.map((o, i) => (
+          {visible.map((o, i) => (
             <li
               key={o.value || "empty"}
               role="option"
@@ -161,6 +175,11 @@ export function Combobox(props: {
               {o.hint && <span className="small"> {o.hint}</span>}
             </li>
           ))}
+          {more > 0 && (
+            <li className="combo-none" aria-hidden="true">
+              {more.toLocaleString("en-IN")} more: type more of the name to narrow the list
+            </li>
+          )}
         </FloatingList>
       )}
     </div>
