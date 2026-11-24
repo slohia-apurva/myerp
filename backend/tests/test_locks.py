@@ -156,9 +156,17 @@ def test_an_item_in_use_moves_only_within_its_top_level_group(accountant, compan
         assert call(accountant, "patch", url, {"item_group": black}).status_code == 200
         refused = call(accountant, "patch", url, {"item_group": whole})
         assert refused.status_code == 400 and "Tea" in refused.json()["item_group"][0]
-        listed = call(accountant, "get", "items/").json()
-        lock = next(i for i in listed if i["id"] == item["id"])["lock"]
+        lock = call(accountant, "get", url).json()["lock"]
         assert lock["in_use"] == ["2 stock entries"] and "stock_unit" in lock["locked"]
+        # The list leaves "in use" out: a dozen queries per item is too slow for
+        # 12,000 items (Sidharth's ERPNext import, 2026-11-24). One item has it.
+        asked = []
+        locks.register("item", lambda record: asked.append(record) or "")
+        listed = call(accountant, "get", "items/").json()
+        assert next(i for i in listed if i["id"] == item["id"])["lock"] is None
+        assert asked == []
+        locks._USES["item"].pop()
+        assert call(accountant, "get", "items/999999/").status_code == 404
     finally:
         locks._USES["item"].remove(fn)
 
