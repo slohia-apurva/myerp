@@ -4338,3 +4338,29 @@ table.what-changes .tag.changed {
   font-size: 11px;
   border-color: transparent;
 }
+
+/* Click a list's heading to sort by it (Sidharth, 2026-11-24): grey ⇅ on the others, a green
+   ▲ or ▼ on the sorted one. The heading keeps its own look. */
+th .sort-head {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+th .sort-head .sort-arrow {
+  color: #9aa5b1;
+  font-size: 15px;
+  font-weight: 600;
+}
+th .sort-head.on,
+th .sort-head.on .sort-arrow {
+  color: var(--green);
+}
+th .sort-head:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}

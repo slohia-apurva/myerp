@@ -12,6 +12,8 @@ export type Column<T> = {
   standard?: boolean;
   num?: boolean;
   search?: string;
+  /** false: the heading cannot be clicked to sort (a figure worked out per company, say). */
+  sort?: false;
   cell: (row: T) => ReactNode;
 };
 
@@ -20,15 +22,56 @@ export type Column<T> = {
  * kept under their sign-in (v1/my-columns/<list>/) so it follows them to any computer. Returns the
  * columns to show, the menu item for the screen's "Actions ▾" and the pop-up.
  */
-export function useColumns<T>(list: string, all: Column<T>[]): { shown: Column<T>[]; item: MenuItem; panel: ReactNode } {
+export function useColumns<T>(
+  list: string,
+  all: Column<T>[],
+): { shown: Column<T>[]; item: MenuItem; panel: ReactNode; sort: string; heading: (c: Column<T>) => ReactNode } {
   const [chosen, setChosen] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
+  // The column the list is sorted by: "hsn" A to Z, "-hsn" Z to A, "" the screen's own order. Kept
+  // under the person's sign-in with their columns (Sidharth, 2026-11-24).
+  const [sort, setSort] = useState("");
   useEffect(() => {
     api<{ columns: string[] }>(`v1/my-columns/${list}/`).then(
       (r) => setChosen(r.columns),
       () => undefined,
     );
+    api<{ columns: string[] }>(`v1/my-columns/${list}-sort/`).then(
+      (r) => setSort(r.columns[0] ?? ""),
+      () => undefined,
+    );
   }, [list]);
+  const sortBy = (key: string) => {
+    const next = sort === key ? `-${key}` : key;
+    setSort(next);
+    api(`v1/my-columns/${list}-sort/`, { columns: [next] }, "PUT").catch(() => undefined);
+  };
+  /** A heading: click to sort by it (▲ A to Z, ▼ Z to A); the others show a grey ⇅. */
+  const heading = (c: Column<T>) => {
+    if (c.sort === false) return c.label;
+    const on = sort === c.key ? "▲" : sort === `-${c.key}` ? "▼" : "";
+    return (
+      // A span, not a button, so Print still reads the heading; the arrow is left out of print.
+      <span
+        role="button"
+        tabIndex={0}
+        className={`sort-head${on ? " on" : ""}`}
+        title={on === "▲" ? "Sorted A to Z: click for Z to A" : "Click to sort by this column"}
+        onClick={() => sortBy(c.key)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            sortBy(c.key);
+          }
+        }}
+      >
+        {c.label}{" "}
+        <span className="sort-arrow" aria-hidden="true">
+          {on || "⇅"}
+        </span>
+      </span>
+    );
+  };
   const fixed = all.filter((c) => c.fixed);
   const byKey = new Map(all.map((c) => [c.key, c]));
   const picked = chosen.map((k) => byKey.get(k)).filter((c): c is Column<T> => !!c && !c.fixed);
@@ -44,7 +87,7 @@ export function useColumns<T>(list: string, all: Column<T>[]): { shown: Column<T
   const panel = open ? (
     <ChooseColumns all={all} shown={shown.map((c) => c.key)} onSave={save} onCancel={() => setOpen(false)} />
   ) : null;
-  return { shown, item: { label: "Choose Columns…", onClick: () => setOpen(true) }, panel };
+  return { shown, item: { label: "Choose Columns…", onClick: () => setOpen(true) }, panel, sort, heading };
 }
 
 function ChooseColumns<T>(props: { all: Column<T>[]; shown: string[]; onSave: (keys: string[]) => Promise<void>; onCancel: () => void }) {
