@@ -17,6 +17,8 @@ Rules kept here:
   refill brings it up to; the "Preferred Supplier" is one of the suppliers.
 """
 
+import gzip
+import json
 import re
 from datetime import date
 from decimal import Decimal
@@ -24,9 +26,11 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import CharField, OuterRef, Q, Subquery
 from django.db.models.functions import Cast
+from django.http import HttpResponse
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
+from rest_framework.utils.encoders import JSONEncoder
 from rest_framework.views import APIView
 
 from audit import recorder
@@ -919,18 +923,40 @@ def _group_and_below(top: int) -> set[int]:
     return found
 
 
+LIST_CHUNK = 500
+
+
 class ItemListView(APIView):
     permission_classes = [Signed]
 
     def get(self, request):
         _check(request, VIEW)
-        rows = _queryset().order_by("name")
-        if "page" not in request.query_params:
-            return Response(ItemSerializer(rows, many=True, context={"list": True}).data)
-        # The Items screen asks for one page of 25 at a time, with its column searches
-        # (Sidharth, 2026-11-24): a long catalogue must open at once.
-        # Inactive items go to the end of the list (Sidharth, 2026-11-24).
-        rows = _search(rows, request.query_params).order_by("-is_active", "name", "pk")
+        if "page" in request.query_params:
+            return self._page(request)
+        # Built LIST_CHUNK items at a time and kept only as JSON text: the whole
+        # list at once (12,457 items after the ERPNext import, 2026-11-24) went
+        # past the server's 1 GB of memory.
+        ids = list(Item.objects.order_by("name").values_list("pk", flat=True))
+        parts = []
+        for start in range(0, len(ids), LIST_CHUNK):
+            chunk = _queryset().filter(pk__in=ids[start : start + LIST_CHUNK]).order_by("name")
+            data = ItemSerializer(chunk, many=True, context={"list": True}).data
+            if data:
+                parts.append(json.dumps(data, cls=JSONEncoder, ensure_ascii=False)[1:-1])
+        body = f"[{','.join(parts)}]".encode()
+        response = HttpResponse(content_type="application/json")
+        if "gzip" in request.headers.get("Accept-Encoding", ""):
+            body = gzip.compress(body, compresslevel=5)  # 17 MB of JSON is about 1 MB
+            response["Content-Encoding"] = "gzip"
+        response["Vary"] = "Accept-Encoding"
+        response.content = body
+        return response
+
+    def _page(self, request):
+        """The Items screen asks for one page of 25 at a time, with its column searches
+        (Sidharth, 2026-11-24): a long catalogue must open at once. Inactive items go
+        to the end of the list."""
+        rows = _search(_queryset(), request.query_params).order_by("-is_active", "name", "pk")
         count = rows.count()
         last = max(1, -(-count // PAGE_SIZE))
         try:
