@@ -165,6 +165,12 @@ def test_an_item_in_use_moves_only_within_its_top_level_group(accountant, compan
         listed = call(accountant, "get", "items/").json()
         assert next(i for i in listed if i["id"] == item["id"])["lock"] is None
         assert asked == []
+        zipped = accountant.get("/api/v1/items/", HTTP_HOST=HOST, HTTP_ACCEPT_ENCODING="gzip, br")
+        assert zipped["Content-Encoding"] == "gzip"
+        import gzip
+        import json
+
+        assert json.loads(gzip.decompress(zipped.content)) == listed
         locks._USES["item"].pop()
         assert call(accountant, "get", "items/999999/").status_code == 404
     finally:
