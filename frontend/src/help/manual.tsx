@@ -666,6 +666,13 @@ export const MANUAL: Chapter[] = [
           your columns; "Export to Excel" gives every item.
         </p>
         <p>
+          To sort the list, click a column heading: the whole list (not just
+          the page you see) is sorted by it, A to Z or smallest first, marked
+          ▲. Click again for Z to A or largest first, marked ▼. The other
+          headings show a grey ⇅. Inactive items still come last, and
+          "In Stock" cannot be sorted. Your sort is kept under your sign-in.
+        </p>
+        <p>
           To choose the columns, click "Actions" and "Choose Columns…". Tick the
           fields you want to see (for example "Brand", "MRP (₹)", "Preferred
           Supplier" or "Track Batches") and untick the rest; drag a line by its

@@ -548,3 +548,29 @@ def test_inactive_items_hidden_or_last(accountant, unit):
     assert [i["name"] for i in rows] == ["Basil"]
     rows = call(accountant, "get", "items/?page=1&inactive=1").json()["results"]
     assert [i["name"] for i in rows] == ["Basil", "Almond"]
+
+
+def test_items_list_sorts_by_a_column(accountant, unit, alpha):
+    """Click a heading to sort the whole list by it (Sidharth, 2026-11-24)."""
+    from core.models import ItemGstRate
+
+    made = {}
+    rows = [("Basil", "1701", "18"), ("Almond", "0902", "5"), ("Cumin", "0910", "12")]
+    for name, hsn, rate in rows:
+        made[name] = make(accountant, unit, name=name, hsn=hsn, units=[]).json()["id"]
+        with use_tenant(alpha):
+            ItemGstRate.objects.create(item_id=made[name], valid_from="2025-09-22", rate=rate)
+    gone = make(accountant, unit, name="Aardvark", units=[]).json()
+    call(accountant, "patch", f"items/{gone['id']}/", {"is_active": False})
+
+    def names(query):
+        rows = call(accountant, "get", f"items/?page=1&inactive=1&{query}").json()["results"]
+        return [i["name"] for i in rows]
+
+    assert names("") == ["Almond", "Basil", "Cumin", "Aardvark"]
+    assert names("sort=-name") == ["Cumin", "Basil", "Almond", "Aardvark"]
+    assert names("sort=hsn") == ["Almond", "Cumin", "Basil", "Aardvark"]
+    # numbers sort as numbers: 5, 12, 18
+    assert names("sort=gst") == ["Almond", "Cumin", "Basil", "Aardvark"]
+    assert names("sort=-gst") == ["Basil", "Cumin", "Almond", "Aardvark"]
+    assert names("sort=nonsense") == ["Almond", "Basil", "Cumin", "Aardvark"]

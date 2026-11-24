@@ -24,7 +24,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import CharField, OuterRef, Q, Subquery
+from django.db.models import CharField, F, OuterRef, Q, Subquery
 from django.db.models.functions import Cast
 from django.http import HttpResponse
 from rest_framework import serializers, status
@@ -911,10 +911,11 @@ def _search(rows, params):
                 match |= Q(**{f"{field}__icontains": word})
             rows = rows.filter(match)
     gst = _words(params.get("gst", ""))
-    if gst:
+    if gst or params.get("sort", "").removeprefix("-") == "gst":
         today = ItemGstRate.objects.filter(item=OuterRef("pk"), valid_from__lte=date.today())
         rows = rows.annotate(
-            gst_today=Cast(Subquery(today.order_by("-valid_from").values("rate")[:1]), CharField())
+            gst_rate=Subquery(today.order_by("-valid_from").values("rate")[:1]),
+            gst_today=Cast("gst_rate", CharField()),
         )
         for word in gst:
             rows = rows.filter(gst_today__startswith=word)
@@ -922,6 +923,41 @@ def _search(rows, params):
     if group.isdigit():
         rows = rows.filter(item_group__in=_group_and_below(int(group)))
     return rows
+
+
+# What each column of the Items list sorts by (Sidharth, 2026-11-24: click a heading).
+SORTS = {
+    "no": "item_number",
+    "name": "name",
+    "group": "item_group__name",
+    "hsn": "hsn",
+    "unit": "stock_unit__name",
+    "gst": "gst_rate",
+    "brand": "brand__name",
+    "type": "item_type",
+    "delivery_hsn": "delivery_hsn",
+    "mrp": "mrp",
+    "supplier": "preferred_supplier__name",
+    "customer": "customer__name",
+    "sales_unit": "sales_unit__name",
+    "purchase_unit": "purchase_unit__name",
+    "maintain_stock": "maintain_stock",
+    "batches": "batch_tracked",
+    "qc": "qc_required",
+    "allow_purchase": "allow_purchase",
+    "allow_sales": "allow_sales",
+    "lead": "lead_time_days",
+    "moq": "min_order_qty",
+}
+
+
+def _sort(key: str) -> list:
+    """`sort=hsn` sorts A to Z (smallest first), `sort=-hsn` Z to A; empty boxes last."""
+    field = SORTS.get(key.removeprefix("-"))
+    if field is None:
+        return []
+    expr = F(field)
+    return [expr.desc(nulls_last=True) if key.startswith("-") else expr.asc(nulls_last=True)]
 
 
 def _group_and_below(top: int) -> set[int]:
@@ -974,7 +1010,8 @@ class ItemListView(APIView):
         # Inactive items stay hidden unless "Show Inactive Items" is ticked (Sidharth, 2026-11-24).
         if request.query_params.get("inactive") != "1":
             rows = rows.filter(is_active=True)
-        rows = rows.order_by("-is_active", "name", "pk")
+        by = _sort(request.query_params.get("sort", ""))
+        rows = rows.order_by("-is_active", *by, "name", "pk")
         count = rows.count()
         last = max(1, -(-count // PAGE_SIZE))
         try:

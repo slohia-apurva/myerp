@@ -290,24 +290,6 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
     setPage(p);
     setSelected(null);
   };
-  const reload = useCallback(() => {
-    const q = new URLSearchParams({ page: String(page) });
-    Object.entries(searches).forEach(([k, v]) => {
-      if (v.trim()) q.set(k, v.trim());
-    });
-    if (groupFilter) q.set("group", groupFilter);
-    if (inactive) q.set("inactive", "1");
-    return api<Paged<Item>>(`v1/items/?${q}`)
-      .then((d) => {
-        setData(d);
-        setError("");
-      })
-      .catch((err: Error) => setError(err.message));
-  }, [page, searches, groupFilter, inactive]);
-  useEffect(() => {
-    reload();
-  }, [reload]);
-  useOnReturn(reload);
   const yes = (on: boolean) => (on ? "Yes" : "");
   // Every column the list can show; each person picks theirs with "Choose Columns…" (Sidharth, 2026-11-24).
   const columns = useColumns<Item>("items", [
@@ -345,6 +327,7 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
             label: "In Stock",
             standard: true,
             num: true,
+            sort: false as const,
             cell: (i: Item) =>
               i.maintain_stock && (
                 <a
@@ -378,6 +361,26 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
     { key: "lead", label: "Lead Time (days)", num: true, cell: (i) => (i.lead_time_days == null ? "" : String(i.lead_time_days)) },
     { key: "moq", label: "Min Order Qty", num: true, cell: (i) => plain(i.min_order_qty) },
   ]);
+  const sortKey = columns.sort;
+  const reload = useCallback(() => {
+    const q = new URLSearchParams({ page: String(page) });
+    Object.entries(searches).forEach(([k, v]) => {
+      if (v.trim()) q.set(k, v.trim());
+    });
+    if (groupFilter) q.set("group", groupFilter);
+    if (inactive) q.set("inactive", "1");
+    if (sortKey) q.set("sort", sortKey);
+    return api<Paged<Item>>(`v1/items/?${q}`)
+      .then((d) => {
+        setData(d);
+        setError("");
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [page, searches, groupFilter, inactive, sortKey]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  useOnReturn(reload);
   const shown = columns.shown;
   const onSearch = useCallback(
     (values: string[]) => {
@@ -475,7 +478,7 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
               <tr>
                 {shown.map((c) => (
                   <th key={c.key} className={c.num ? "num" : undefined} data-no-search={c.search ? undefined : ""}>
-                    {c.label}
+                    {columns.heading(c)}
                   </th>
                 ))}
               </tr>
