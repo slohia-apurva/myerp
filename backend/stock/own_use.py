@@ -33,6 +33,7 @@ from buying.api import _plain
 from core import attachments, numbering
 from core.api import Signed
 from core.companies import visible_companies
+from core.items import picked
 from core.models import Item, ItemUnit, Ledger, LedgerGroup, SalesPerson, WarehouseLocation
 from posting import accounts, service
 from posting import api as posting_api
@@ -610,8 +611,12 @@ class OwnUseFormView(APIView):
                 None,
             )
         items = list(
-            Item.objects.filter(is_active=True, maintain_stock=True)
-            .exclude(default_request_type=Item.CUSTOMER_PROVIDED)
+            picked(
+                Item.objects.filter(is_active=True, maintain_stock=True).exclude(
+                    default_request_type=Item.CUSTOMER_PROVIDED
+                ),
+                request.query_params,
+            )
             .select_related("stock_unit", "item_group")
             .prefetch_related("units__unit")
             .order_by("name")

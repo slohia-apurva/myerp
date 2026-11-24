@@ -4,6 +4,7 @@ import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
@@ -465,7 +466,9 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
   const draft = !e || e.status === "draft";
   const mayEdit = draft && can(session, "create");
   const setupUrl = `v1/companies/${companyId}/customer-stock/form/?kind=${kind}&customer=${fields.customer}&branch=${fields.branch}&area=${receipt ? "" : fields.area}`;
-  const refreshSetup = useCallback(() => api<Setup>(setupUrl).then(setSetup, (err) => setError(err)), [setupUrl]);
+  const refreshSetup = useCallback(() => api<Setup>(`${setupUrl}&search=1`).then(setSetup, (err) => setError(err)), [setupUrl]);
+  // Items come from the server as the person types (ItemSearch.ts), never all at once.
+  const { items, onType: findItems } = useItemSearch<FormItem>(mayEdit ? setupUrl : null, lines.map((l) => l.item), undefined, (a) => (a as Setup).items);
   useEffect(() => {
     if (mayEdit) refreshSetup();
   }, [mayEdit, refreshSetup]);
@@ -544,7 +547,7 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
     if (position) window.setTimeout(() => document.getElementById(`cs-line-${position}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
   };
   // Whose goods: the customer of the first item chosen (one entry, one customer's goods).
-  const owner = lines.map((l) => setup?.items.find((i) => String(i.id) === l.item)).find((i) => i?.owner_name);
+  const owner = lines.map((l) => items.find((i) => String(i.id) === l.item)).find((i) => i?.owner_name);
   const ownerLedger = owner?.customer ? String(owner.customer) : "";
   useEffect(() => {
     if (mayEdit && setup && ownerLedger !== fields.customer) setFields((f) => ({ ...f, customer: ownerLedger }));
@@ -560,7 +563,6 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
   const status = e?.status ?? "draft";
   const branches = setup?.branches ?? [];
   const branch = branches.find((b) => String(b.id) === fields.branch);
-  const items = setup?.items ?? [];
   const itemOf = (v: string) => items.find((i) => String(i.id) === v);
   const savedLines = e?.lines ?? [];
   const bags = e?.packages ?? [];
@@ -823,6 +825,7 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
                                   label: i.name,
                                   hint: [i.item_number, i.owner_name].filter(Boolean).join(" · "),
                                 }))}
+                                onType={findItems}
                               />
                             </td>
                             <td className="num">

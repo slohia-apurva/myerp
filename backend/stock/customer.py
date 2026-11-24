@@ -35,6 +35,7 @@ from core import attachments, numbering
 from core.api import Signed
 from core.batches import save_batch
 from core.companies import visible_companies
+from core.items import picked as picked_items
 from core.models import (
     PACKAGE_TYPES,
     Batch,
@@ -807,8 +808,11 @@ class EntryFormView(APIView):
         )
         customer = next((c for c in customers if str(c.pk) == params.get("customer")), None)
         items = list(
-            Item.objects.filter(
-                is_active=True, maintain_stock=True, default_request_type=Item.CUSTOMER_PROVIDED
+            picked_items(
+                Item.objects.filter(
+                    is_active=True, maintain_stock=True, default_request_type=Item.CUSTOMER_PROVIDED
+                ),
+                params,
             )
             .select_related("stock_unit", "customer")
             .prefetch_related("units__unit")

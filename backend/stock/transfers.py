@@ -40,6 +40,7 @@ from core import attachments, numbering
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
+from core.items import picked
 from core.models import Branch, Item, ItemUnit, Package, WarehouseLocation
 from core.stores import sync_default_store
 from posting import accounts, service
@@ -956,8 +957,12 @@ class TransferFormView(APIView):
                 None,
             )
         items = list(
-            Item.objects.filter(is_active=True, maintain_stock=True)
-            .exclude(default_request_type=Item.CUSTOMER_PROVIDED)
+            picked(
+                Item.objects.filter(is_active=True, maintain_stock=True).exclude(
+                    default_request_type=Item.CUSTOMER_PROVIDED
+                ),
+                request.query_params,
+            )
             .select_related("stock_unit")
             .prefetch_related("units__unit")
             .order_by("name")

@@ -4,6 +4,7 @@ import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
@@ -369,8 +370,10 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
   const setupUrl = `v1/companies/${companyId}/stock-transfers/form/?branch=${fields.from_branch}&area=${fields.from_area}`;
   useEffect(() => {
     if (!mayEdit) return;
-    api<Setup>(setupUrl).then(setSetup, (err) => setError(err));
+    api<Setup>(`${setupUrl}&search=1`).then(setSetup, (err) => setError(err));
   }, [mayEdit, setupUrl]);
+  // Items come from the server as the person types (ItemSearch.ts), never all at once.
+  const { items, onType: findItems } = useItemSearch<FormItem>(mayEdit ? setupUrl : null, lines.map((l) => l.item), undefined, (a) => (a as Setup).items);
   const close = () =>
     closeThisTab(() => {
       window.location.hash = transferBase(companyId);
@@ -457,7 +460,6 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
   const from = branches.find((b) => String(b.id) === fields.from_branch);
   const to = branches.find((b) => String(b.id) === fields.to_branch);
   const otherGstin = !!from && !!to && from.gstin !== to.gstin;
-  const items = setup?.items ?? [];
   const itemOf = (v: string) => items.find((i) => String(i.id) === v);
   const savedLines = t?.lines ?? [];
   const shortAny = receiving && savedLines.some((l) => l.bins.some((b) => Number(got[b.id]?.received_qty ?? b.qty) < Number(b.qty)));
@@ -668,6 +670,7 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
                                 placeholder="Type to search items…"
                                 onChange={(v) => setLine({ item: v, unit: String(itemOf(v)?.stock_unit ?? "") })}
                                 options={items.map((i) => ({ value: String(i.id), label: i.name, hint: i.item_number }))}
+                                onType={findItems}
                               />
                             </td>
                             <td className="num">
