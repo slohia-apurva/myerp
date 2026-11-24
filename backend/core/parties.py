@@ -160,7 +160,7 @@ class PartySerializer(serializers.ModelSerializer):
     lock = serializers.SerializerMethodField()
 
     def get_lock(self, party) -> dict | None:
-        if self.context.get("list"):  # an export: no per-record "in use" checks
+        if self.context.get("list"):  # lists and exports: too many queries per party
             return None
         return lock_status("party", party)
 
@@ -200,7 +200,12 @@ class PartySerializer(serializers.ModelSerializer):
         ]
 
     def get_document_count(self, party) -> int:
-        return party.documents.filter(is_active=True).count() if party.pk else 0
+        if not party.pk:
+            return 0
+        # Lists prefetch the documents (one query for all parties, not one each).
+        if "documents" in getattr(party, "_prefetched_objects_cache", {}):
+            return sum(1 for d in party.documents.all() if d.is_active)
+        return party.documents.filter(is_active=True).count()
 
     def get_companies(self, party) -> list[dict]:
         """The companies that have a ledger for this party."""

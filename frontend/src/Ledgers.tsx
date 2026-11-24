@@ -234,6 +234,17 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
 
   // Keep a ledger selected: the first in the list until the person picks one.
   const selected = ledgers.find((l) => l.id === selectedId) ?? visible[0] ?? null;
+  // The list leaves out each ledger's "in use" lock (a dozen queries a ledger, far too slow
+  // for thousands of customers); the selected one is read on its own, with it.
+  const [full, setFull] = useState<Ledger | null>(null);
+  useEffect(() => {
+    if (!selected) return;
+    let live = true;
+    api<Ledger>(`v1/ledgers/${selected.id}/`).then((l) => live && setFull(l), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [selected]);
   const pick = (l: Ledger) => setSelectedId(l.id);
   const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -374,7 +385,7 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
         </div>
         <div className="side-col">
           {selected ? (
-            <LedgerPanels ledger={selected} companyId={props.companyId} />
+            <LedgerPanels ledger={full?.id === selected.id ? full : selected} companyId={props.companyId} />
           ) : (
             <SidePanel title="Ledger Details">
               <p className="small">Click a ledger to see its details here.</p>
@@ -392,25 +403,29 @@ function LedgerFormTab(props: { companyId: number; form: string; session: Signed
   const inGroup = props.form.startsWith("new-in-");
   const key = Number(props.form.replace(/^(copy-|new-in-)/, ""));
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [ledgers, setLedgers] = useState<Ledger[] | null>(null);
+  // The ledger to edit or copy, read on its own (with its "in use" lock), not the whole list.
+  const [found, setFound] = useState<Ledger | null | undefined>(undefined);
   const loadDetail = useCallback(() => api<Detail>(`v1/companies/${props.companyId}/`).then(setDetail), [props.companyId]);
   useEffect(() => {
     loadDetail();
-    api<Ledger[]>(`v1/companies/${props.companyId}/ledgers/`).then(setLedgers);
-  }, [loadDetail, props.companyId]);
+  }, [loadDetail]);
   useOnReturn(loadDetail); // a ledger group added in another tab joins the Group list
   const canEdit = props.session.permissions.includes("masters.edit");
   // `&new=<name>`: opened by "Create …" in a picker (a purchase order's supplier, say).
   const startName = useNewName();
   const adding = props.form === "new" || inGroup;
   const editing = !adding && !copy;
-  const target = adding ? null : (ledgers?.find((l) => l.id === key) ?? null);
+  useEffect(() => {
+    if (adding) return setFound(null);
+    api<Ledger>(`v1/ledgers/${key}/`).then(setFound, () => setFound(null));
+  }, [adding, key]);
+  const target = adding ? null : (found ?? null);
   const ordered = useMemo(() => treeOrder(detail?.ledger_groups ?? []), [detail]);
   const toList = () => {
     window.location.hash = ledgersHash(props.companyId);
   };
   const title = editing ? (canEdit ? "Edit ledger" : "View ledger") : copy ? "Duplicate ledger" : "Add ledger";
-  if (!detail || ledgers === null)
+  if (!detail || found === undefined)
     return (
       <section className="page">
         <PageHeader title={title} />
