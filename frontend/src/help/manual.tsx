@@ -131,6 +131,13 @@ export const MANUAL: Chapter[] = [
           under "Actions" print only the lines you can see.
         </p>
         <p>
+          The item pickers on entry screens (purchase and sales orders, stock
+          transfers, own use, customer stock receipts and deliveries, and the
+          added materials on a manufacturing order) look up items as you type:
+          type part of the item's name or its item no. The list shows the
+          first 50 that match, so type more to narrow it.
+        </p>
+        <p>
           As you scroll down a long list, the search box, the column headings
           and the column search boxes stay at the top of the window, just under
           the green title band, so you always see which column is which. The

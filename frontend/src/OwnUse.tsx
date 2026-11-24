@@ -4,6 +4,7 @@ import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
@@ -314,7 +315,9 @@ function EntryView({ companyId, id, session }: { companyId: number; id: number; 
   const draft = !e || e.status === "draft";
   const mayEdit = draft && can(session, "create");
   const setupUrl = `v1/companies/${companyId}/own-use/form/?branch=${fields.branch}&area=${fields.area}`;
-  const refreshSetup = useCallback(() => api<Setup>(setupUrl).then(setSetup, (err) => setError(err)), [setupUrl]);
+  const refreshSetup = useCallback(() => api<Setup>(`${setupUrl}&search=1`).then(setSetup, (err) => setError(err)), [setupUrl]);
+  // Items come from the server as the person types (ItemSearch.ts), never all at once.
+  const { items, onType: findItems } = useItemSearch<FormItem>(mayEdit ? setupUrl : null, lines.map((l) => l.item), undefined, (a) => (a as Setup).items);
   useEffect(() => {
     if (mayEdit) refreshSetup();
   }, [mayEdit, refreshSetup]);
@@ -387,7 +390,6 @@ function EntryView({ companyId, id, session }: { companyId: number; id: number; 
   const status = e?.status ?? "draft";
   const branches = setup?.branches ?? [];
   const branch = branches.find((b) => String(b.id) === fields.branch);
-  const items = setup?.items ?? [];
   const itemOf = (v: string) => items.find((i) => String(i.id) === v);
   const ledgerOptions = (setup?.ledgers ?? []).map((l) => ({ value: String(l.id), label: l.name, hint: l.group_name }));
   const savedLines = e?.lines ?? [];
@@ -524,6 +526,7 @@ function EntryView({ companyId, id, session }: { companyId: number; id: number; 
                                 create={newItem}
                                 onChange={(v) => setLine({ item: v, unit: String(itemOf(v)?.stock_unit ?? ""), expense_ledger: "" })}
                                 options={items.map((i) => ({ value: String(i.id), label: i.name, hint: i.item_number }))}
+                                onType={findItems}
                               />
                             </td>
                             <td className="num">

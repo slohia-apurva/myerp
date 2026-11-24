@@ -35,6 +35,7 @@ from rest_framework.views import APIView
 from core import attachments, numbering
 from core.api import Signed
 from core.companies import visible_companies
+from core.items import picked
 from core.models import Item, ItemUnit, Party, SalesPerson, Unit, WarehouseLocation
 from manufacturing.boms import CUSTOMER, factor, money, rate_of, source, source_text
 from manufacturing.models import Bom, ManufacturingOrder, ManufacturingOrderLine
@@ -852,8 +853,16 @@ class OrderFormView(APIView):
         by_item: dict[int, list[Bom]] = {}
         for b in boms:
             by_item.setdefault(b.item_id, []).append(b)
+        stock = Item.objects.filter(is_active=True, maintain_stock=True)
+        # Items with a BOM to make; materials only as the person types (core.items.picked).
+        made = list(
+            stock.filter(pk__in=by_item)
+            .select_related("stock_unit")
+            .prefetch_related("units__unit")
+            .order_by("name")
+        )
         stock_items = list(
-            Item.objects.filter(is_active=True, maintain_stock=True)
+            picked(stock, request.query_params)
             .select_related("stock_unit")
             .prefetch_related("units__unit")
             .order_by("name")
@@ -913,8 +922,7 @@ class OrderFormView(APIView):
                             for b in by_item[i.pk]
                         ],
                     }
-                    for i in stock_items
-                    if i.pk in by_item
+                    for i in made
                 ],
                 "materials": [
                     {

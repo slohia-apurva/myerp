@@ -131,3 +131,20 @@ def test_form_gives_each_item_its_default_ledger(stores, owner, books):  # noqa:
     got = call(stores, "get", f"companies/{w['company']}/own-use/form/").json()
     tea = next(i for i in got["items"] if i["id"] == w["tea"])
     assert (tea["ledger"], tea["ledger_name"]) == (own.pk, "Tea for staff")
+
+
+def test_form_items_come_as_the_person_types(stores, books):  # noqa: F811
+    """With search=1 the form sends only the items matching what is typed (q) and
+    those on the lines (ids), not all 12,000 (Sidharth 2026-11-24)."""
+    w = books
+    base = f"companies/{w['company']}/own-use/form/?search=1"
+    assert call(stores, "get", base).json()["items"] == []
+    with use_tenant(w["tenant"]):
+        name = Item.objects.get(pk=w["tea"]).name
+    found = call(stores, "get", f"{base}&q={name.split()[0]}").json()["items"]
+    assert w["tea"] in [i["id"] for i in found]
+    assert len(found) <= 50
+    assert [i["id"] for i in call(stores, "get", f"{base}&ids={w['tea']}").json()["items"]] == [
+        w["tea"]
+    ]
+    assert call(stores, "get", f"{base}&q=no-such-item").json()["items"] == []

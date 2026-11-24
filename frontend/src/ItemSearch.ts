@@ -10,11 +10,13 @@ import { api } from "./api";
  * are always fetched, so the lines show their names and details. Pass `onType`
  * to every item `Combobox` (its `onType` prop). `items` holds every item fetched
  * for this url, sorted by name, so `items.find(...)` keeps working. `again` (the
- * screen's `useReturns()` count) asks afresh when the person comes back to the tab. */
+ * screen's `useReturns()` count) asks afresh when the person comes back to the tab.
+ * `select` picks the items out of an answer that holds more (a stock form's setup). */
 export function useItemSearch<T extends { id: number; name: string }>(
   url: string | null,
   lineIds: (string | number | null | undefined)[],
   again?: number,
+  select: (answer: unknown) => T[] = (a) => a as T[],
 ) {
   const [rows, setRows] = useState<Map<number, T>>(new Map());
   const [typed, setTyped] = useState("");
@@ -22,7 +24,7 @@ export function useItemSearch<T extends { id: number; name: string }>(
   const lastQ = useRef<string | null>(null); // the search last asked, so it is not asked twice
   const loading = useRef(false); // a fresh start is on its way with the lines' items
   const ids = [...new Set(lineIds.map((v) => String(v ?? "")).filter((v) => /^\d+$/.test(v)))].sort().join(",");
-  const ask = (extra: string) => api<T[]>(`${url}${url?.includes("?") ? "&" : "?"}search=1${extra}`);
+  const ask = (extra: string) => api<unknown>(`${url}${url?.includes("?") ? "&" : "?"}search=1${extra}`).then(select);
   const keep = (got: T[], fresh = false) =>
     setRows((prev) => {
       const m = fresh ? new Map<number, T>() : new Map(prev);

@@ -4,6 +4,7 @@ import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
@@ -459,7 +460,14 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const draft = status === "draft";
   const open = status === "not_started" || status === "in_process";
   const mayEdit = (draft || open) && can(session, "create");
-  const refreshSetup = useCallback(() => api<Setup>(`v1/companies/${companyId}/manufacturing-orders/form/`).then(setSetup, (err) => setError(err)), [companyId]);
+  const refreshSetup = useCallback(() => api<Setup>(`v1/companies/${companyId}/manufacturing-orders/form/?search=1`).then(setSetup, (err) => setError(err)), [companyId]);
+  // Materials to add come from the server as the person types (ItemSearch.ts), never all at once.
+  const { items: materials, onType: findMaterials } = useItemSearch<Material>(
+    mayEdit ? `v1/companies/${companyId}/manufacturing-orders/form/` : null,
+    added.map((a) => a.item),
+    undefined,
+    (a) => (a as Setup).materials,
+  );
   useEffect(() => {
     if (mayEdit) refreshSetup();
   }, [mayEdit, refreshSetup]);
@@ -544,7 +552,6 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const versions = make?.versions ?? [];
   const version = versions.find((v) => String(v.id) === fields.bom) ?? versions[0];
   const jobWork = (version?.kind ?? o?.kind) === "job_work";
-  const materials = setup?.materials ?? [];
   const materialOf = (v: string) => materials.find((i) => String(i.id) === v);
   const unitOptions = (setup?.units ?? []).map((u) => ({ value: String(u.id), label: u.name }));
   const withExpiry = (next: Fields): Fields => (expiryTyped ? next : { ...next, expiry_date: expiryOf(next.pkd_date, next.best_before_value, next.best_before_unit) });
@@ -904,6 +911,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                                 create={newMaterial}
                                 onChange={(v) => setLine({ item: v, unit: str(materialOf(v)?.stock_unit) })}
                                 options={materials.filter((i) => jobWork || !i.customer_goods).map((i) => ({ value: String(i.id), label: i.name, hint: i.item_number }))}
+                                onType={findMaterials}
                               />
                               <span className="pill warn">Added</span>
                             </td>
