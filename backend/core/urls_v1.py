@@ -30,6 +30,7 @@ from core import (
     qr,
     sales_people,
     terms,
+    trial_data,
     units,
     warehouses,
 )
@@ -66,6 +67,7 @@ urlpatterns = [
         name="item_supplier_prices",
     ),
     path("admin/reset/", data_reset.DataResetView.as_view(), name="data-reset"),
+    path("admin/trial-data/", trial_data.TrialDataView.as_view(), name="trial-data"),
     path(
         "central-requests/<int:pk>/seen/",
         central_requests.CentralRequestSeenView.as_view(),

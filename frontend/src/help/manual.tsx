@@ -1350,6 +1350,20 @@ export const MANUAL: Chapter[] = [
           moment the reset is done. Keep it: it is the only way to get the data
           back. The reset is also written to the company's "Activity".
         </Note>
+        <h3>Trial data</h3>
+        <p>
+          To try long lists before real data grows that large, the "Trial
+          Data" box under the reset makes thousands of made-up records: 6,000
+          customers, 4,000 suppliers, 5,000 transporters and 5,000 people.
+          Pick the "Company" (it gets their ledgers and transporters) and click
+          "Load Trial Data"; it takes a few seconds. Every name starts with
+          "TRIAL", customers and suppliers are numbered TCUST- and TVEND- (the
+          real CUST- and VEND- numbers are not used up), and nothing is posted.
+          "Remove Trial Data" deletes all of them again; if any is already on
+          an entry, nothing is removed and the screen says which. Like the
+          reset, this works only on staging and trial systems, never on live
+          books.
+        </p>
       </>
     ),
   },
