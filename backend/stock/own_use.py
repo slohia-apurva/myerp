@@ -617,6 +617,7 @@ class OwnUseFormView(APIView):
             .order_by("name")
         )
         held = free_at(items, branch, area) if branch else {}
+        ledgers = accounts.expense_ledgers_for(company, items)
         return Response(
             {
                 "branches": [
@@ -658,7 +659,7 @@ class OwnUseFormView(APIView):
                             }
                             for u in i.units.all()
                         ],
-                        "ledger": (d := default_ledger(company, i)) and d.pk,
+                        "ledger": (d := ledgers.get(i.pk)) and d.pk,
                         "ledger_name": d.name if d else "",
                         "in_stock": _plain(held.get(i.pk, ZERO)) if branch else None,
                     }

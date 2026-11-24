@@ -65,6 +65,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Sends API answers gzipped when the browser accepts it: a form with every item
+    # (12,000 after the ERPNext import) drops from about 2.4 MB to a tenth
+    # (2026-11-24). Django pads the output against BREACH.
+    "django.middleware.gzip.GZipMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # Serves the built React app (index.html and /assets/) before tenant lookup.
     "whitenoise.middleware.WhiteNoiseMiddleware",

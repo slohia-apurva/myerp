@@ -13,7 +13,15 @@ so the CA can place them (the entries move with the ledger).
 
 from rest_framework.exceptions import APIException, ValidationError
 
-from core.models import Company, Item, ItemAccount, ItemGroupAccount, Ledger, LedgerGroup
+from core.models import (
+    Company,
+    Item,
+    ItemAccount,
+    ItemGroup,
+    ItemGroupAccount,
+    Ledger,
+    LedgerGroup,
+)
 
 GRNI = "grni"
 BILLS_NOT_RECEIVED_GOODS = "bills_received_goods_not_received"
@@ -137,6 +145,28 @@ def expense_ledger(company: Company, item: Item) -> Ledger:
             }
         )
     return accounts.cogs_ledger
+
+
+def expense_ledgers_for(company: Company, items) -> dict[int, Ledger | None]:
+    """expense_ledger for many items at once, or None where neither is set: a few
+    queries in all, for forms that list every item (Own Use had 12,000 after the
+    ERPNext import and took 48 s asking one item at a time, 2026-11-24)."""
+    own = {
+        r.item_id: r.expense_ledger
+        for r in ItemAccount.objects.filter(company=company).select_related("expense_ledger")
+    }
+    parents = dict(ItemGroup.objects.values_list("pk", "parent_id"))
+    by_group = {
+        a.group_id: a.cogs_ledger
+        for a in ItemGroupAccount.objects.filter(company=company).select_related("cogs_ledger")
+    }
+
+    def top(pk):
+        while pk is not None and parents.get(pk) is not None:
+            pk = parents[pk]
+        return pk
+
+    return {i.pk: own[i.pk] if i.pk in own else by_group.get(top(i.item_group_id)) for i in items}
 
 
 def cogs_ledger(company: Company, item: Item) -> Ledger:
