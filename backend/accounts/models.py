@@ -67,6 +67,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Google's permanent account id, recorded at first sign-in. If the email
     # address is later given to a different Google account, it cannot sign in.
     google_sub = models.CharField(max_length=255, blank=True, default="")
+    # The columns each list shows for this person, by list: {"items": ["name", "hsn", ...]}
+    # (Sidharth, 2026-11-24: "Choose Columns…", user wise). A list not here shows its standard set.
+    list_columns = models.JSONField(default=dict, blank=True, editable=False)
     roles = models.ManyToManyField(Role, blank=True, related_name="users")
     # Companies this person may work in; none ticked means all companies.
     companies = models.ManyToManyField("core.Company", blank=True, related_name="+")

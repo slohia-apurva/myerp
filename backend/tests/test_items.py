@@ -528,6 +528,15 @@ def test_items_list_searches_group_and_gst_rate(accountant, unit, alpha):
     assert names("group_name=gre") == ["Sencha"]
     assert names("gst=18") == ["Sencha"]
     assert names("gst=5") == []
+    # columns added with "Choose Columns…" search too
+    with use_tenant(alpha):
+        from core.models import Brand
+
+        Brand.objects.create(name="Apurvam Gold")
+    gold = call(accountant, "get", "brands/").json()[0]["id"]
+    call(accountant, "patch", f"items/{a['id']}/", {"brand": gold})
+    assert names("brand=gold") == ["Sencha"]
+    assert names("sales_unit=zz") == []
 
 
 def test_inactive_items_hidden_or_last(accountant, unit):

@@ -21,6 +21,7 @@ import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLine
 import { ColumnSearch } from "./ColumnSearch";
 import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts, type ItemAccount } from "./ItemAccounts";
 import { useOnReturn, useReturns } from "./Refresh";
+import { useColumns } from "./Columns";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
@@ -257,8 +258,6 @@ export function ItemsPage({ session, company }: { session: SignedIn; company?: C
   return <ItemList session={session} company={session.permissions.includes("stock.view") ? company : undefined} />;
 }
 
-/** What each column search box asks the server: the boxes in column order (Sidharth, 2026-11-24). */
-const SEARCH_KEYS = ["no", "name", "group_name", "hsn", "unit", "gst"];
 
 function ItemList({ session, company }: { session: SignedIn; company?: Company }) {
   const canEdit = session.permissions.includes("masters.edit");
@@ -268,8 +267,9 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
   // One page of 25 at a time, found on the server: the catalogue can hold thousands of items.
   const [data, setData] = useState<Paged<Item> | null>(null);
   const [page, setPage] = useState(1);
-  const [searches, setSearches] = useState<string[]>([]);
-  const [typed, setTyped] = useState<string[]>([]);
+  // What each column search box asks the server, by the column's search name.
+  const [searches, setSearches] = useState<Record<string, string>>({});
+  const [typed, setTyped] = useState<Record<string, string>>({});
   // `?group=<id>` (from the Items count on Item groups) shows that group and everything under it.
   const [groupFilter, setGroupFilter] = useState(hashParam("group") ?? "");
   const { groups: allGroups } = useItemGroups();
@@ -292,8 +292,8 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
   };
   const reload = useCallback(() => {
     const q = new URLSearchParams({ page: String(page) });
-    searches.forEach((v, i) => {
-      if (v.trim() && SEARCH_KEYS[i]) q.set(SEARCH_KEYS[i], v.trim());
+    Object.entries(searches).forEach(([k, v]) => {
+      if (v.trim()) q.set(k, v.trim());
     });
     if (groupFilter) q.set("group", groupFilter);
     if (inactive) q.set("inactive", "1");
@@ -308,7 +308,87 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
     reload();
   }, [reload]);
   useOnReturn(reload);
-  const onSearch = useCallback((values: string[]) => setTyped(values), []);
+  const yes = (on: boolean) => (on ? "Yes" : "");
+  // Every column the list can show; each person picks theirs with "Choose Columns…" (Sidharth, 2026-11-24).
+  const columns = useColumns<Item>("items", [
+    { key: "no", label: "Item No", fixed: true, search: "no", cell: (i) => i.item_number },
+    {
+      key: "name",
+      label: "Item Name",
+      fixed: true,
+      search: "name",
+      cell: (i) => (
+        <>
+          {i.name}
+          {!i.is_active && <span className="small"> · inactive</span>}
+        </>
+      ),
+    },
+    { key: "group", label: "Item Group", standard: true, search: "group_name", cell: (i) => i.item_group_name ?? "" },
+    { key: "hsn", label: "HSN", standard: true, search: "hsn", cell: (i) => i.hsn },
+    { key: "unit", label: "Stock Unit", standard: true, search: "unit", cell: (i) => labelFor(units, i.stock_unit, i.stock_unit_name) },
+    {
+      key: "gst",
+      label: "GST Rate",
+      standard: true,
+      num: true,
+      search: "gst",
+      cell: (i) => {
+        const rate = rateToday(i.gst_rates);
+        return rate ? `${plain(rate.rate)}%` : "";
+      },
+    },
+    ...(company
+      ? [
+          {
+            key: "stock",
+            label: "In Stock",
+            standard: true,
+            num: true,
+            cell: (i: Item) =>
+              i.maintain_stock && (
+                <a
+                  href={`#/companies/${company.id}/stock-summary?item=${i.id}`}
+                  title="See this item's stock by batch and bin"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openItemStock(company.id, i.id);
+                  }}
+                >
+                  {qty(stock[String(i.id)] ?? "0")}
+                </a>
+              ),
+          },
+        ]
+      : []),
+    { key: "brand", label: "Brand", search: "brand", cell: (i) => i.brand_name ?? "" },
+    { key: "type", label: "Goods or Service", cell: (i) => typeLabel(i.item_type) },
+    { key: "delivery_hsn", label: "Delivery HSN", search: "delivery_hsn", cell: (i) => i.delivery_hsn ?? "" },
+    { key: "mrp", label: "MRP (₹)", num: true, cell: (i) => (i.mrp ? Number(i.mrp).toFixed(2) : "") },
+    { key: "supplier", label: "Preferred Supplier", search: "supplier", cell: (i) => i.preferred_supplier_name ?? "" },
+    { key: "customer", label: "Customer (Customer Provided)", search: "customer", cell: (i) => i.customer_name ?? "" },
+    { key: "sales_unit", label: "Sales Unit", search: "sales_unit", cell: (i) => (i.sales_unit ? labelFor(units, i.sales_unit, i.sales_unit_name) : "") },
+    { key: "purchase_unit", label: "Purchase Unit", search: "purchase_unit", cell: (i) => (i.purchase_unit ? labelFor(units, i.purchase_unit, i.purchase_unit_name) : "") },
+    { key: "maintain_stock", label: "Maintain Stock", cell: (i) => yes(i.maintain_stock) },
+    { key: "batches", label: "Track Batches", cell: (i) => yes(i.batch_tracked) },
+    { key: "qc", label: "QC Required", cell: (i) => yes(i.qc_required) },
+    { key: "allow_purchase", label: "Allow Purchase", cell: (i) => yes(i.allow_purchase) },
+    { key: "allow_sales", label: "Allow Sales", cell: (i) => yes(i.allow_sales) },
+    { key: "lead", label: "Lead Time (days)", num: true, cell: (i) => (i.lead_time_days == null ? "" : String(i.lead_time_days)) },
+    { key: "moq", label: "Min Order Qty", num: true, cell: (i) => plain(i.min_order_qty) },
+  ]);
+  const shown = columns.shown;
+  const onSearch = useCallback(
+    (values: string[]) => {
+      const next: Record<string, string> = {};
+      shown.forEach((c, i) => {
+        if (c.search && values[i]?.trim()) next[c.search] = values[i];
+      });
+      setTyped((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+    },
+    [shown],
+  );
   const items = useMemo(() => data?.results ?? [], [data]);
   // Show one item at the right, even when it is not on this page (just saved, or opened by link).
   const show = useCallback((id: number) => {
@@ -319,7 +399,15 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
     reload();
     show(c.id);
   });
-  const io = useExchange({ master: "items", noun: "items", session, onImported: () => void reload() });
+  const io = useExchange({
+    master: "items",
+    noun: "items",
+    session,
+    onImported: () => void reload(),
+    // Print and PDF show the page as it is on screen, in the person's own columns.
+    printScreen: { title: "Items" },
+    extra: [columns.item],
+  });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (openId) {
@@ -340,7 +428,7 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
       document.getElementById(`item-${next.id}`)?.focus();
     }
   };
-  const filtered = searches.some((v) => v.trim()) || groupFilter;
+  const filtered = Object.values(searches).some((v) => v.trim()) || groupFilter;
   const groupName = allGroups.find((g) => String(g.id) === groupFilter)?.name;
   const count = data?.count ?? 0;
 
@@ -379,77 +467,48 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
       />
       {error && <p className="error">{error}</p>}
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>Item No</th>
-                <th>Item Name</th>
-                <th>Item Group</th>
-                <th>HSN</th>
-                <th>Stock Unit</th>
-                <th className="num">GST Rate</th>
-                {company && (
-                  <th className="num" data-no-search>
-                    In Stock
+                {shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined} data-no-search={c.search ? undefined : ""}>
+                    {c.label}
                   </th>
-                )}
+                ))}
               </tr>
-              <ColumnSearch key={company ? "stock" : "plain"} onSearch={onSearch} />
+              <ColumnSearch key={shown.map((c) => c.key).join(",")} onSearch={onSearch} />
             </thead>
             <tbody onKeyDown={onListKey}>
               {data !== null && items.length === 0 && (
                 <tr>
-                  <td colSpan={company ? 7 : 6} className="small">
+                  <td colSpan={shown.length} className="small">
                     {filtered ? "No items match." : "No items yet."}
                   </td>
                 </tr>
               )}
-              {items.map((i) => {
-                const rate = rateToday(i.gst_rates);
-                return (
-                  <tr
-                    key={i.id}
-                    id={`item-${i.id}`}
-                    tabIndex={0}
-                    aria-selected={current?.id === i.id}
-                    className={["ledger-row", i.is_active ? "" : "inactive", current?.id === i.id ? "selected" : ""].join(" ")}
-                    onClick={() => pick(i)}
-                    onDoubleClick={() => openItemView(i.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") openItemView(i.id);
-                    }}
-                  >
-                    <td>{i.item_number}</td>
-                    <td>
-                      {i.name}
-                      {!i.is_active && <span className="small"> · inactive</span>}
+              {items.map((i) => (
+                <tr
+                  key={i.id}
+                  id={`item-${i.id}`}
+                  tabIndex={0}
+                  aria-selected={current?.id === i.id}
+                  className={["ledger-row", i.is_active ? "" : "inactive", current?.id === i.id ? "selected" : ""].join(" ")}
+                  onClick={() => pick(i)}
+                  onDoubleClick={() => openItemView(i.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") openItemView(i.id);
+                  }}
+                >
+                  {shown.map((c) => (
+                    <td key={c.key} className={c.num ? "num" : undefined}>
+                      {c.cell(i)}
                     </td>
-                    <td>{i.item_group_name ?? ""}</td>
-                    <td>{i.hsn}</td>
-                    <td>{labelFor(units, i.stock_unit, i.stock_unit_name)}</td>
-                    <td className="num">{rate ? `${plain(rate.rate)}%` : ""}</td>
-                    {company && (
-                      <td className="num">
-                        {i.maintain_stock && (
-                          <a
-                            href={`#/companies/${company.id}/stock-summary?item=${i.id}`}
-                            title="See this item's stock by batch and bin"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              openItemStock(company.id, i.id);
-                            }}
-                          >
-                            {qty(stock[String(i.id)] ?? "0")}
-                          </a>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
           <Pager data={data} noun="items" onPage={turnPage}>
