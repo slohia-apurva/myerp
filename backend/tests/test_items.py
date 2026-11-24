@@ -468,3 +468,74 @@ def test_the_delivery_hsn_is_cleared_when_it_does_not_apply(accountant, unit):
     service = {**plain, "name": "Blending charges", "item_type": "service", "maintain_stock": False}
     free = call(accountant, "post", "items/", {**service, "delivery_hsn": "0910"})
     assert free.status_code == 201 and free.json()["delivery_hsn"] == ""  # no stock: not used
+
+
+def test_items_list_pages_of_25_with_column_searches(accountant, unit):
+    """A long catalogue opens a page of 25 at a time, and the column searches look
+    through every item on the server (Sidharth, 2026-11-24)."""
+    for n in range(30):
+        made = call(
+            accountant,
+            "post",
+            "items/",
+            {"name": f"Tea {n:02d}", "stock_unit": unit("Kilogram"), "hsn": "0902"},
+        )
+        assert made.status_code == 201, made.json()
+    make(accountant, unit, name="Jaggery Powder", hsn="1701")
+
+    first = call(accountant, "get", "items/?page=1").json()
+    assert (first["count"], first["pages"], first["page"]) == (31, 2, 1)
+    assert len(first["results"]) == 25
+    assert first["results"][0]["name"] == "Jaggery Powder"
+    second = call(accountant, "get", "items/?page=2").json()
+    assert [i["name"] for i in second["results"]] == [f"Tea {n}" for n in range(24, 30)]
+    # a page past the end shows the last page
+    assert call(accountant, "get", "items/?page=9").json()["page"] == 2
+
+    def names(query):
+        rows = call(accountant, "get", f"items/?page=1&{query}").json()["results"]
+        return [i["name"] for i in rows]
+
+    assert names("name=tea+05") == ["Tea 05"]
+    assert names("name=jag+pow") == ["Jaggery Powder"]
+    assert names("hsn=1701") == ["Jaggery Powder"]
+    # Item No also finds a barcode
+    assert names("no=8901234500011") == ["Jaggery Powder"]
+    assert names("no=ITEM-00031") == ["Jaggery Powder"]
+    assert names("unit=pack") == ["Jaggery Powder"]
+    assert len(names("unit=kg")) == 25
+    assert names("name=tea&hsn=1701") == []
+    # the list without a page stays the whole catalogue for other screens
+    assert len(call(accountant, "get", "items/").json()) == 31
+
+
+def test_items_list_searches_group_and_gst_rate(accountant, unit, alpha):
+    from core.models import ItemGroup, ItemGstRate
+
+    with use_tenant(alpha):
+        tea = ItemGroup.objects.create(name="Tea")
+        green = ItemGroup.objects.create(name="Green", parent=tea)
+    a = make(accountant, unit, name="Sencha", item_group=green.pk).json()
+    make(accountant, unit, name="Salt", units=[])
+    with use_tenant(alpha):
+        ItemGstRate.objects.create(item_id=a["id"], valid_from="2025-09-22", rate="18")
+
+    def names(query):
+        rows = call(accountant, "get", f"items/?page=1&{query}").json()["results"]
+        return [i["name"] for i in rows]
+
+    assert names(f"group={tea.pk}") == ["Sencha"]
+    assert names("group_name=gre") == ["Sencha"]
+    assert names("gst=18") == ["Sencha"]
+    assert names("gst=5") == []
+
+
+def test_inactive_items_hidden_or_last(accountant, unit):
+    made = make(accountant, unit, name="Almond", units=[]).json()
+    make(accountant, unit, name="Basil", units=[])
+    call(accountant, "patch", f"items/{made['id']}/", {"is_active": False})
+    # hidden unless "Show Inactive Items" is ticked; then at the end
+    rows = call(accountant, "get", "items/?page=1").json()["results"]
+    assert [i["name"] for i in rows] == ["Basil"]
+    rows = call(accountant, "get", "items/?page=1&inactive=1").json()["results"]
+    assert [i["name"] for i in rows] == ["Basil", "Almond"]

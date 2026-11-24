@@ -24,7 +24,8 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import CharField, OuterRef, Q, Subquery
+from django.db.models.functions import Cast
 from django.http import HttpResponse
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
@@ -870,6 +871,58 @@ exchange.register(
 )
 
 
+PAGE_SIZE = 25
+
+
+def _words(text: str) -> list[str]:
+    return [w for w in text.replace("%", " ").split() if w]
+
+
+def _search(rows, params):
+    """Keep the items that match every column search of the Items screen; each word
+    typed in a box must appear in that column (capitals ignored), as the boxes do on
+    short lists."""
+    for word in _words(params.get("no", "")):
+        rows = rows.filter(
+            Q(item_number__icontains=word) | Q(units__barcode__icontains=word)
+        ).distinct()
+    for word in _words(params.get("name", "")):
+        rows = rows.filter(name__icontains=word)
+    for word in _words(params.get("group_name", "")):
+        rows = rows.filter(item_group__name__icontains=word)
+    for word in _words(params.get("hsn", "")):
+        rows = rows.filter(hsn__icontains=word)
+    for word in _words(params.get("unit", "")):
+        rows = rows.filter(
+            Q(stock_unit__name__icontains=word) | Q(stock_unit__short_name__icontains=word)
+        )
+    gst = _words(params.get("gst", ""))
+    if gst:
+        today = ItemGstRate.objects.filter(item=OuterRef("pk"), valid_from__lte=date.today())
+        rows = rows.annotate(
+            gst_today=Cast(Subquery(today.order_by("-valid_from").values("rate")[:1]), CharField())
+        )
+        for word in gst:
+            rows = rows.filter(gst_today__startswith=word)
+    group = params.get("group", "")
+    if group.isdigit():
+        rows = rows.filter(item_group__in=_group_and_below(int(group)))
+    return rows
+
+
+def _group_and_below(top: int) -> set[int]:
+    children: dict[int | None, list[int]] = {}
+    for pk, parent in ItemGroup.objects.values_list("pk", "parent_id"):
+        children.setdefault(parent, []).append(pk)
+    found, todo = set(), [top]
+    while todo:
+        pk = todo.pop()
+        if pk not in found:
+            found.add(pk)
+            todo.extend(children.get(pk, []))
+    return found
+
+
 LIST_CHUNK = 500
 
 
@@ -878,6 +931,8 @@ class ItemListView(APIView):
 
     def get(self, request):
         _check(request, VIEW)
+        if "page" in request.query_params:
+            return self._page(request)
         # Built LIST_CHUNK items at a time and kept only as JSON text: the whole
         # list at once (12,457 items after the ERPNext import, 2026-11-24) went
         # past the server's 1 GB of memory.
@@ -896,6 +951,32 @@ class ItemListView(APIView):
         response["Vary"] = "Accept-Encoding"
         response.content = body
         return response
+
+    def _page(self, request):
+        """The Items screen asks for one page of 25 at a time, with its column searches
+        (Sidharth, 2026-11-24): a long catalogue must open at once. Inactive items are
+        left out, or with ?inactive=1 come at the end of the list."""
+        rows = _search(_queryset(), request.query_params)
+        # Inactive items stay hidden unless "Show Inactive Items" is ticked (Sidharth, 2026-11-24).
+        if request.query_params.get("inactive") != "1":
+            rows = rows.filter(is_active=True)
+        rows = rows.order_by("-is_active", "name", "pk")
+        count = rows.count()
+        last = max(1, -(-count // PAGE_SIZE))
+        try:
+            page = min(max(1, int(request.query_params["page"])), last)
+        except ValueError:
+            page = 1
+        shown = rows[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
+        return Response(
+            {
+                "count": count,
+                "page": page,
+                "pages": last,
+                "page_size": PAGE_SIZE,
+                "results": ItemSerializer(shown, many=True, context={"list": True}).data,
+            }
+        )
 
     @tenant_atomic()
     def post(self, request):
