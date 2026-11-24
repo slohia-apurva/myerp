@@ -18,7 +18,10 @@ const LIMIT = 50;
  *
  * `createHere` is the one exception (Sidharth, 2026-11-15): a record made on the
  * line itself, such as a new batch on a goods receipt. It offers 'New "<typed>"'
- * and hands the typed text back instead of opening a tab. */
+ * and hands the typed text back instead of opening a tab.
+ *
+ * `onType` hears each change of the typed text, so a long list (items) can be
+ * fetched from the server as the person types. */
 export function Combobox(props: {
   options: Option[];
   value: string;
@@ -29,6 +32,8 @@ export function Combobox(props: {
   ariaLabel?: string;
   create?: Creatable;
   createHere?: { label: string; pick: (typed: string) => void };
+  /** Told what is typed, for a list the server searches (useItemSearch, ItemSearch.ts). */
+  onType?: (typed: string) => void;
 }) {
   const { options, value } = props;
   const all = useMemo(
@@ -129,6 +134,7 @@ export function Combobox(props: {
         }}
         onChange={(e) => {
           setText(e.target.value);
+          props.onType?.(e.target.value);
           setTyped(true);
           setOpen(true);
           setCursor(0);

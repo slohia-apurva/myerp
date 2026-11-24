@@ -5,6 +5,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
 import { CountryPicker } from "./Pin";
+import { useItemSearch } from "./ItemSearch";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
@@ -606,7 +607,6 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
     (from?.charges ?? []).map((c) => ({ key: nextKey++, item: String(c.item), basis: c.basis, rate: c.rate, gst: c.gst_rate, stock: c.add_to_stock })),
   );
-  const [items, setItems] = useState<BuyItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>("");
 
@@ -651,10 +651,12 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
   const br = setup?.branches.find((b) => String(b.id) === branch);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
-  useEffect(() => {
-    if (!supplier) return setItems([]);
-    api<BuyItem[]>(`v1/companies/${companyId}/purchase-orders/items/?supplier=${supplier}&date=${orderDate}`).then(setItems, () => setItems([]));
-  }, [companyId, supplier, orderDate, visits]);
+  // Items come from the server as the person types (ItemSearch.ts), never all at once.
+  const { items, onType: findItems } = useItemSearch<BuyItem>(
+    supplier ? `v1/companies/${companyId}/purchase-orders/items/?supplier=${supplier}&date=${orderDate}` : null,
+    lines.map((l) => l.item),
+    visits,
+  );
   // A supplier just made with 'Create "…"' is not in the list until it reloads: its
   // credit term and contacts are filled in once it is there.
   const [pending, setPending] = useState("");
@@ -1109,6 +1111,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                             placeholder="Type to search items…"
                             ariaLabel={`Item ${i + 1}`}
                             options={itemOptions}
+                            onType={findItems}
                           />
                           {theirs && <span className="small">{theirs}</span>}
                           {l.item && (

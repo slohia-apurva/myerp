@@ -279,6 +279,20 @@ def test_the_form_gets_suppliers_branches_and_items(buyer, world):
     ]
 
 
+def test_the_item_picker_searches_the_server(buyer, world):
+    # The picker sends what is typed (q) and the items already on the lines (ids),
+    # and gets only those, never every item (12,000 items on staging).
+    url = f"companies/{world['company']}/purchase-orders/items/?supplier={world['local']}&search=1"
+    names = lambda q: sorted(i["name"] for i in call(buyer, "get", f"{url}&{q}").json())  # noqa: E731
+    assert names("q=ctc") == ["CTC Tea"]
+    assert names("q=item-72") == ["Tea Box"]
+    assert names("q=box+tea") == ["Tea Box"]
+    assert names("q=nothing") == []
+    assert names(f"q=box&ids={world['tea']}") == ["CTC Tea", "Tea Box"]
+    assert names("q=") == ["CTC Tea", "Tea Box"]
+    assert names(f"ids={world['box']}") == ["Tea Box"]
+
+
 def test_a_submitted_order_puts_its_masters_in_use_but_a_draft_does_not(buyer, world, alpha):
     url = f"companies/{world['company']}/purchase-orders/"
     po = call(buyer, "post", url, order(world)).json()

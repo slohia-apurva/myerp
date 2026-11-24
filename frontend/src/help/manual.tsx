@@ -3178,7 +3178,9 @@ export const MANUAL: Chapter[] = [
           <li>
             Under "Items" pick an item in the empty row. Only items that may be
             bought from this supplier are offered (see the supplier's Products
-            list). The box under the item fills in with the item's "Purchase
+            list). Type part of the item's name or its item no. to find it: the
+            list shows the first 50 that match, so type more to narrow it. The box
+            under the item fills in with the item's "Purchase
             description"; change it for this order if you like (plain text,
             printed under the item name). The unit starts as the item's
             purchase unit. Type the "Qty".
@@ -4075,7 +4077,9 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             Under "Items" pick each item. Only items the customer may buy are
-            offered (as set on the customer's "Products" tab). The "Unit"
+            offered (as set on the customer's "Products" tab). Type part of the
+            item's name or its item no. to find it: the list shows the first 50
+            that match, so type more to narrow it. The "Unit"
             starts as the item's sales unit; you can pick any other unit of the
             item, and no other. The "Rate" fills in by itself, with where it
             came from under it: first the customer's own price, then its price
