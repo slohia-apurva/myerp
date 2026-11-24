@@ -954,9 +954,13 @@ class ItemListView(APIView):
 
     def _page(self, request):
         """The Items screen asks for one page of 25 at a time, with its column searches
-        (Sidharth, 2026-11-24): a long catalogue must open at once. Inactive items go
-        to the end of the list."""
-        rows = _search(_queryset(), request.query_params).order_by("-is_active", "name", "pk")
+        (Sidharth, 2026-11-24): a long catalogue must open at once. Inactive items are
+        left out, or with ?inactive=1 come at the end of the list."""
+        rows = _search(_queryset(), request.query_params)
+        # Inactive items stay hidden unless "Show Inactive Items" is ticked (Sidharth, 2026-11-24).
+        if request.query_params.get("inactive") != "1":
+            rows = rows.filter(is_active=True)
+        rows = rows.order_by("-is_active", "name", "pk")
         count = rows.count()
         last = max(1, -(-count // PAGE_SIZE))
         try:

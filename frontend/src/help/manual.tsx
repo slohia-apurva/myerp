@@ -652,8 +652,10 @@ export const MANUAL: Chapter[] = [
         </p>
         <p>
           The list shows 25 items at a time, so it opens at once even with
-          thousands of items. Active items come first, in name order; inactive
-          items come at the end. Under the list, "Showing 1–25 of 12,457 items"
+          thousands of items, in name order. Inactive items are hidden: tick
+          "Show Inactive Items" under the list to see them too, at the end of
+          the list and marked "inactive" (the tick is remembered in this
+          browser). Under the list, "Showing 1–25 of 12,457 items"
           says where you are, and "‹ Previous", the page numbers and "Next ›"
           move between pages. To find an item, type in the search boxes under
           the column headings: they look through every item, not just the page

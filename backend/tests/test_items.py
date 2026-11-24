@@ -530,9 +530,12 @@ def test_items_list_searches_group_and_gst_rate(accountant, unit, alpha):
     assert names("gst=5") == []
 
 
-def test_inactive_items_come_last(accountant, unit):
+def test_inactive_items_hidden_or_last(accountant, unit):
     made = make(accountant, unit, name="Almond", units=[]).json()
     make(accountant, unit, name="Basil", units=[])
     call(accountant, "patch", f"items/{made['id']}/", {"is_active": False})
+    # hidden unless "Show Inactive Items" is ticked; then at the end
     rows = call(accountant, "get", "items/?page=1").json()["results"]
+    assert [i["name"] for i in rows] == ["Basil"]
+    rows = call(accountant, "get", "items/?page=1&inactive=1").json()["results"]
     assert [i["name"] for i in rows] == ["Basil", "Almond"]

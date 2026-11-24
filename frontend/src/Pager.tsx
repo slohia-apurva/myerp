@@ -1,3 +1,5 @@
+import { useState, type ReactNode } from "react";
+
 /** One page of a long list, as the server sends it (Sidharth, 2026-11-24: 25 rows a page). */
 export type Paged<T> = { count: number; page: number; pages: number; page_size: number; results: T[] };
 
@@ -15,15 +17,20 @@ function numbers(page: number, pages: number): (number | "gap")[] {
 }
 
 /** "Showing 26–50 of 12,457 items" and the page buttons under a long list. */
-export function Pager({ data, noun, onPage }: { data: Paged<unknown> | null; noun: string; onPage: (page: number) => void }) {
-  if (!data || data.count === 0) return null;
+export function Pager({ data, noun, onPage, children }: { data: Paged<unknown> | null; noun: string; onPage: (page: number) => void; children?: ReactNode }) {
+  if (!data) return null;
   const from = (data.page - 1) * data.page_size + 1;
   const to = from + data.results.length - 1;
   const n = (v: number) => v.toLocaleString("en-IN");
   return (
     <div className="pager no-print">
-      <span className="small">
-        Showing {n(from)}–{n(to)} of {n(data.count)} {noun}
+      <span className="pager-left">
+        {data.count > 0 && (
+          <span className="small">
+            Showing {n(from)}–{n(to)} of {n(data.count)} {noun}
+          </span>
+        )}
+        {children}
       </span>
       {data.pages > 1 && (
         <span className="pages">
@@ -51,5 +58,37 @@ export function Pager({ data, noun, onPage }: { data: Paged<unknown> | null; nou
         </span>
       )}
     </div>
+  );
+}
+
+const INACTIVE_KEY = "myerp.showInactive";
+
+/** "Show Inactive Items": inactive records stay hidden unless ticked (Sidharth, 2026-11-24). The
+ * tick is remembered in this browser, one setting for every list. */
+export function useShowInactive(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(INACTIVE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(INACTIVE_KEY, v ? "1" : "0");
+    } catch {
+      // private window: the tick lasts for this page only
+    }
+  };
+  return [on, set];
+}
+
+/** The tick under a list, beside the page buttons. */
+export function ShowInactive({ noun, on, onChange }: { noun: string; on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="show-inactive">
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} /> Show Inactive {noun}
+    </label>
   );
 }

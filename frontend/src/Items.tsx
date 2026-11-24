@@ -21,7 +21,7 @@ import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLine
 import { ColumnSearch } from "./ColumnSearch";
 import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts, type ItemAccount } from "./ItemAccounts";
 import { useOnReturn, useReturns } from "./Refresh";
-import { Pager, type Paged } from "./Pager";
+import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -274,6 +274,7 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
   const [groupFilter, setGroupFilter] = useState(hashParam("group") ?? "");
   const { groups: allGroups } = useItemGroups();
   const [selected, setSelected] = useState<Item | null>(null);
+  const [inactive, setInactive] = useShowInactive();
   const [error, setError] = useState("");
   // Wait for a pause in typing before asking the server; a new search starts at page 1.
   useEffect(() => {
@@ -295,13 +296,14 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
       if (v.trim() && SEARCH_KEYS[i]) q.set(SEARCH_KEYS[i], v.trim());
     });
     if (groupFilter) q.set("group", groupFilter);
+    if (inactive) q.set("inactive", "1");
     return api<Paged<Item>>(`v1/items/?${q}`)
       .then((d) => {
         setData(d);
         setError("");
       })
       .catch((err: Error) => setError(err.message));
-  }, [page, searches, groupFilter]);
+  }, [page, searches, groupFilter, inactive]);
   useEffect(() => {
     reload();
   }, [reload]);
@@ -348,7 +350,7 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
         title="Items"
         sub={
           <>
-            {data === null ? "Loading…" : `${count.toLocaleString("en-IN")} ${count === 1 ? "item" : "items"}${filtered ? " match" : ""}`}
+            {data === null ? "Loading…" : `${count.toLocaleString("en-IN")}${inactive ? "" : " active"} ${count === 1 ? "item" : "items"}${filtered ? " match" : ""}`}
             {groupFilter && (
               <>
                 {` in ${groupName ?? "the group"} and the groups under it · `}
@@ -450,7 +452,16 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
               })}
             </tbody>
           </table>
-          <Pager data={data} noun="items" onPage={turnPage} />
+          <Pager data={data} noun="items" onPage={turnPage}>
+            <ShowInactive
+              noun="Items"
+              on={inactive}
+              onChange={(v) => {
+                setInactive(v);
+                turnPage(1);
+              }}
+            />
+          </Pager>
           {items.length > 0 && <p className="small no-print">Click an item to see its details at the right; double-click or press Enter to open it.</p>}
         </div>
         <div className="side-col" aria-label="Item details">

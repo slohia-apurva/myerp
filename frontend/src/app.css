@@ -4269,3 +4269,23 @@ table.what-changes .tag.changed {
   min-width: 34px;
   justify-content: center;
 }
+.pager .pager-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.pager label.show-inactive {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.pager label.show-inactive input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
