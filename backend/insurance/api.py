@@ -169,7 +169,9 @@ class PolicySerializer(serializers.ModelSerializer):
     top_ups = TopUpSerializer(many=True, required=False)
     lock = serializers.SerializerMethodField()
 
-    def get_lock(self, policy) -> dict:
+    def get_lock(self, policy) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         return lock_status("insurance_policy", policy)
 
     class Meta:

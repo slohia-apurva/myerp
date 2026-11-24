@@ -133,7 +133,9 @@ class BomSerializer(serializers.ModelSerializer):
     def get_material_count(self, bom) -> int:
         return len(bom.lines.all())
 
-    def get_lock(self, bom) -> dict:
+    def get_lock(self, bom) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         return lock_status("bom", bom)
 
 

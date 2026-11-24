@@ -159,7 +159,9 @@ class PartySerializer(serializers.ModelSerializer):
     document_count = serializers.SerializerMethodField()
     lock = serializers.SerializerMethodField()
 
-    def get_lock(self, party) -> dict:
+    def get_lock(self, party) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         return lock_status("party", party)
 
     class Meta:
