@@ -42,10 +42,11 @@ export type AccountRow = {
 
 type Picks = { stock: string; cogs: string; sales: string };
 
-export function useItemGroups() {
+export function useItemGroups(full = false) {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
-  // refresh returns the request, so "Create …" can wait for the new record.
-  const refresh = useCallback(() => api<ItemGroup[]>("v1/item-groups/").then(setGroups), []);
+  // refresh returns the request, so "Create …" can wait for the new record. Only the Item groups
+  // screen asks for `full` (in-use checks and accounts); pickers skip them, so screens open fast.
+  const refresh = useCallback(() => api<ItemGroup[]>(`v1/item-groups/${full ? "?full=1" : ""}`).then(setGroups), [full]);
   const reload = useCallback(() => {
     refresh();
   }, [refresh]);
@@ -72,7 +73,7 @@ const formParam = () => hashParam("form");
  * Add, Edit, Sub-group and Duplicate each open in a new tab. */
 export function ItemGroupsPage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
-  const { groups, reload } = useItemGroups();
+  const { groups, reload } = useItemGroups(true);
   const form = formParam();
   if (form) return <GroupFormTab form={form} canEdit={canEdit} />;
   return <GroupList session={session} canEdit={canEdit} groups={groups} reload={reload} />;
@@ -286,7 +287,7 @@ function GroupFormTab(props: { form: string; canEdit: boolean }) {
   const key = Number(props.form.replace(/^(copy|sub)-/, ""));
   const [groups, setGroups] = useState<ItemGroup[] | null>(null);
   useEffect(() => {
-    api<ItemGroup[]>("v1/item-groups/").then(setGroups);
+    api<ItemGroup[]>("v1/item-groups/?full=1").then(setGroups);
   }, []);
   const startName = useNewName();
   const target = props.form === "new" ? null : (groups?.find((g) => g.id === key) ?? null);

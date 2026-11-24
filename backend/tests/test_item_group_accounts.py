@@ -115,7 +115,7 @@ def test_locked_row_cannot_change_but_other_company_can_be_added(accountant, boo
         "_ACCOUNT_USES",
         [lambda g, c: "36 stock entries" if c.pk == books["company"] else ""],
     )
-    got = call(accountant, "get", "item-groups/").json()
+    got = call(accountant, "get", "item-groups/?full=1").json()
     assert got[0]["accounts"][0]["locked"] == ["36 stock entries"]
     changed = call(
         accountant,

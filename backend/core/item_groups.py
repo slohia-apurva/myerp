@@ -92,15 +92,21 @@ class ItemGroupSerializer(serializers.ModelSerializer):
     accounts_in = AccountRowSerializer(many=True, required=False, write_only=True)
     accounts_from = serializers.SerializerMethodField()
 
-    def get_lock(self, group) -> dict:
+    # Pickers on every screen read the list: they skip the "in use" checks and the
+    # accounts (many queries a group); the Item groups screen asks with ?full=1.
+    def get_lock(self, group) -> dict | None:
+        if self.context.get("lean"):
+            return None
         return lock_status("item_group", group)
 
-    def get_accounts(self, group) -> list:
+    def get_accounts(self, group) -> list | None:
+        if self.context.get("lean"):
+            return None
         return _account_rows(group)
 
     def get_accounts_from(self, group):
         """For a sub-group: the main group its accounts come from."""
-        if group.parent_id is None:
+        if self.context.get("lean") or group.parent_id is None:
             return None
         top = root_group(group)
         return {"id": top.pk, "name": top.name}
@@ -315,7 +321,8 @@ class ItemGroupListView(APIView):
 
     def get(self, request):
         _check(request, VIEW)
-        return Response(ItemGroupSerializer(_groups(), many=True).data)
+        lean = request.query_params.get("full") != "1"
+        return Response(ItemGroupSerializer(_groups(), many=True, context={"lean": lean}).data)
 
     @tenant_atomic()
     def post(self, request):

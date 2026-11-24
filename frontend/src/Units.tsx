@@ -33,10 +33,11 @@ export const labelFor = (units: Unit[], id: number | string | null, fallback: st
   return u ? unitLabel(u) : (fallback ?? "");
 };
 
-export function useUnits() {
+export function useUnits(full = false) {
   const [units, setUnits] = useState<Unit[]>([]);
-  // refresh returns the request, so "Create …" can wait for the new record.
-  const refresh = useCallback(() => api<Unit[]>("v1/units/").then(setUnits), []);
+  // refresh returns the request, so "Create …" can wait for the new record. Only the Units
+  // screen asks for `full` (each unit's "in use" check); pickers skip it, so screens open fast.
+  const refresh = useCallback(() => api<Unit[]>(`v1/units/${full ? "?full=1" : ""}`).then(setUnits), [full]);
   const reload = useCallback(() => {
     refresh();
   }, [refresh]);
@@ -64,7 +65,7 @@ const formParam = () => hashParam("form");
  * Duplicate open in a new tab. */
 export function UnitsPage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
-  const { units, reload } = useUnits();
+  const { units, reload } = useUnits(true);
   const form = formParam();
   if (form) return <UnitFormTab form={form} canEdit={canEdit} />;
   return <UnitList session={session} canEdit={canEdit} units={units} reload={reload} />;
@@ -179,7 +180,7 @@ function UnitFormTab(props: { form: string; canEdit: boolean }) {
   const [units, setUnits] = useState<Unit[]>([]);
   useEffect(() => {
     if (props.form === "new") return;
-    api<Unit[]>("v1/units/").then((rows) => {
+    api<Unit[]>("v1/units/?full=1").then((rows) => {
       setUnits(rows);
       setLoaded(true);
     });
