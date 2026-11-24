@@ -229,3 +229,22 @@ def test_a_posted_ledger_keeps_its_group_but_opening_balances_stay_editable(acco
         assert call(accountant, "patch", url, {"name": "Cash box"}).status_code == 200
     finally:
         locks._USES["ledger"].remove(fn)
+
+
+def test_unit_and_group_pickers_skip_the_in_use_checks(accountant):
+    """Most screens load units and item groups for their pickers: those lists skip the
+    in-use checks and group accounts (a dozen queries a row), so screens open at once;
+    the Units and Item groups screens ask for them with ?full=1 (Sidharth, 2026-11-24)."""
+    units = call(accountant, "get", "units/").json()
+    assert units and all(u["lock"] is None for u in units)
+    full = call(accountant, "get", "units/?full=1").json()
+    assert all(u["lock"] == {"in_use": [], "locked": []} for u in full)
+
+    made = call(accountant, "post", "item-groups/", {"name": "Spices"})
+    assert made.status_code == 201, made.json()
+    lean = next(g for g in call(accountant, "get", "item-groups/").json() if g["name"] == "Spices")
+    assert (lean["lock"], lean["accounts"], lean["accounts_from"]) == (None, None, None)
+    rich = call(accountant, "get", "item-groups/?full=1").json()
+    rich = next(g for g in rich if g["name"] == "Spices")
+    assert rich["lock"] == {"in_use": [], "locked": []}
+    assert rich["accounts"] == []

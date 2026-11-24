@@ -91,7 +91,11 @@ def seed_units(Unit) -> None:
 class UnitSerializer(serializers.ModelSerializer):
     lock = serializers.SerializerMethodField()
 
-    def get_lock(self, unit) -> dict:
+    def get_lock(self, unit) -> dict | None:
+        # Pickers on every screen read the list: they skip the "in use" checks (a dozen
+        # queries a unit); the Units screen asks for them with ?full=1.
+        if self.context.get("lean"):
+            return None
         return lock_status("unit", unit)
 
     class Meta:
@@ -163,7 +167,9 @@ class UnitListView(APIView):
 
     def get(self, request):
         _check(request, VIEW)
-        return Response(UnitSerializer(Unit.objects.order_by("name"), many=True).data)
+        lean = request.query_params.get("full") != "1"
+        rows = Unit.objects.order_by("name")
+        return Response(UnitSerializer(rows, many=True, context={"lean": lean}).data)
 
     @tenant_atomic()
     def post(self, request):
