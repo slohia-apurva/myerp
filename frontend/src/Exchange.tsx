@@ -25,6 +25,8 @@ export function useExchange(props: {
   /** Print and PDF the screen's own table (a tree, say) instead of the
    * export's columns. */
   printScreen?: { title: string; scope?: string };
+  /** More lines for the Actions menu, after the standard ones ("Choose Columns…"). */
+  extra?: MenuItem[];
 }): { buttons: ReactNode; panel: ReactNode } {
   const screen = usePrintMenu(props.printScreen ?? { title: "" });
   const perms = props.session.permissions;
@@ -58,6 +60,7 @@ export function useExchange(props: {
           { label: "Print", onClick: print },
           { label: "Download PDF", href: `${base}${query({ as: "pdf" })}` },
         ]),
+    ...(props.extra ?? []),
   ]);
 
   const panel = (

@@ -896,6 +896,20 @@ def _search(rows, params):
         rows = rows.filter(
             Q(stock_unit__name__icontains=word) | Q(stock_unit__short_name__icontains=word)
         )
+    # Columns a person may add with "Choose Columns…"
+    for param, fields in {
+        "brand": ["brand__name"],
+        "delivery_hsn": ["delivery_hsn"],
+        "supplier": ["preferred_supplier__name"],
+        "customer": ["customer__name"],
+        "sales_unit": ["sales_unit__name", "sales_unit__short_name"],
+        "purchase_unit": ["purchase_unit__name", "purchase_unit__short_name"],
+    }.items():
+        for word in _words(params.get(param, "")):
+            match = Q()
+            for field in fields:
+                match |= Q(**{f"{field}__icontains": word})
+            rows = rows.filter(match)
     gst = _words(params.get("gst", ""))
     if gst:
         today = ItemGstRate.objects.filter(item=OuterRef("pk"), valid_from__lte=date.today())

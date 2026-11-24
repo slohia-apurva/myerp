@@ -661,8 +661,18 @@ export const MANUAL: Chapter[] = [
           the column headings: they look through every item, not just the page
           you see, and the list goes back to page 1. The "Item No" box also
           finds an item by its barcode, and the "Item Group" box by the group's
-          name. "In Stock" has no search box. "Print" and "Download PDF" under
-          "Actions" print the page you see; "Export to Excel" gives every item.
+          name. Columns without a search box (such as "In Stock") cannot be searched.
+          "Print" and "Download PDF" under "Actions" print the page you see, in
+          your columns; "Export to Excel" gives every item.
+        </p>
+        <p>
+          To choose the columns, click "Actions" and "Choose Columns…". Tick the
+          fields you want to see (for example "Brand", "MRP (₹)", "Preferred
+          Supplier" or "Track Batches") and untick the rest; drag a line by its
+          ⋮⋮ handle, or use ▲ and ▼, to change the order, then click "Save".
+          "Item No" and "Item Name" always show. Your choice is kept under your
+          own sign-in, so it follows you to any computer, and other people keep
+          their own. "Reset" goes back to the standard columns.
         </p>
         <p>
           To bring your items across from ERPNext, use "Admin", "Migration
