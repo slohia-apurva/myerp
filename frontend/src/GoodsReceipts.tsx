@@ -10,7 +10,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
-import { GrnPrint, type PrintKind } from "./GrnPrint";
+import { GrnPrint, PRINT_KINDS, type PrintKind } from "./GrnPrint";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn, useReturns } from "./Refresh";
@@ -208,7 +208,7 @@ export function GoodsReceiptsPage({ companyId, session }: { companyId: number; s
   if (print > 0) {
     const layout = (hashParam("layout") ?? "note") as PrintKind;
     const only = (hashParam("only") ?? "").split(",").map(Number).filter(Boolean);
-    return <GrnPrint id={print} kind={["note", "bins", "labels", "sheet"].includes(layout) ? layout : "note"} only={only} />;
+    return <GrnPrint id={print} kind={PRINT_KINDS.includes(layout) ? layout : "note"} only={only} />;
   }
   if (view > 0) return <ReceiptView companyId={companyId} id={view} />;
   return <ReceiptList companyId={companyId} canCreate={can("create")} />;
@@ -223,11 +223,14 @@ function printMenu(companyId: number, id: number | null, opts: { submitted?: boo
     openTab(`${base(companyId)}?print=${id}&layout=${layout}${only.length ? `&only=${only.join(",")}` : ""}`);
   };
   const noBags = opts.submitted ? undefined : "Bags get their numbers on Submit";
+  const noSubmit = opts.submitted ? undefined : "Samples are labelled once the receipt is submitted";
   return [
     { label: "Goods Receipt Note", onClick: open("note") },
     { label: "Bin Sheets (A4)", onClick: open("bins") },
     { label: "Bag Labels (label printer, 100 × 50 mm)", onClick: open("labels"), disabled: !opts.submitted, title: noBags },
     { label: "Bag Labels (A4 sheet, 24 per page)", onClick: open("sheet"), disabled: !opts.submitted, title: noBags },
+    { label: "Retention Sample Labels (label printer, 100 × 50 mm)", onClick: open("samples"), disabled: !opts.submitted, title: noSubmit },
+    { label: "Retention Sample Labels (A4 sheet, 24 per page)", onClick: open("samplesheet"), disabled: !opts.submitted, title: noSubmit },
     { label: "Download PDF", onClick: open("note") },
   ];
 }

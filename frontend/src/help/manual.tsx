@@ -3662,7 +3662,41 @@ export const MANUAL: Chapter[] = [
             "Bag Labels (A4 sheet, 24 per page)": the same stickers, smaller,
             on A4 label sheets of 3 × 8.
           </li>
+          <li>
+            "Retention Sample Labels (label printer, 100 × 50 mm)" and
+            "Retention Sample Labels (A4 sheet, 24 per page)": labels for the
+            samples kept back from each batch received. See below.
+          </li>
         </ul>
+        <h3>Retention sample labels</h3>
+        <p>
+          Once the receipt is submitted, choose "Print ▾", then one of the
+          "Retention Sample Labels" layouts. Before anything prints, the page
+          shows a "Retention Sample Labels" box:
+        </p>
+        <ul>
+          <li>"Samples Per Batch": how many samples you keep of each batch (2 to start with). One label prints for each sample.</li>
+          <li>"Sample Size": what each sample holds, such as "250 g". Printed on the label; it can be left empty.</li>
+          <li>"Sampled On": the day the samples were taken, today to start with.</li>
+          <li>
+            A line for each item and batch on the receipt, with a tick box.
+            Untick the batches you do not keep a sample of (lines with no
+            batch start unticked). "Retain Until" is the batch's expiry date,
+            or one year from "Sampled On" when the batch has none; change it
+            on the line if your plan keeps samples longer.
+          </li>
+        </ul>
+        <p>
+          The labels show below the box as you change it. Press "Print
+          Labels" (or "Close" to go back). Each 100 × 50 mm label reads
+          "RETENTION SAMPLE" with the company and branch, such as "Apurvam
+          Organics LLP (Sankrail-2)", "Sample n of m" and the sample size, the
+          item and its code, the batch in large print, "Mfg / Exp", supplier,
+          GRN and PO numbers, "Sampled" date with a "By" line to sign, and
+          "Retain Until". Its QR code opens the batch in MyERP. The A4 sheet
+          labels carry the same details, smaller and without the QR code.
+          Nothing is saved: the labels can be printed again at any time.
+        </p>
         <p>
           The bin sheets and bag labels come once the receipt is submitted,
           because the bags get their numbers then. To reprint only some

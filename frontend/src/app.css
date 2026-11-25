@@ -3694,6 +3694,108 @@ label.attach-kind .combo * {
   color: #3e4c59;
   font-size: 7pt;
 }
+/* Retention sample labels (Sidharth, 2026-11-25): same 100 × 50 mm and A4 sizes as bag labels. */
+.sample-setup {
+  max-width: 900px;
+  margin: 0 auto 16px;
+  padding: 0 16px;
+}
+.sample-setup .item-fields {
+  grid-template-columns: repeat(3, 1fr);
+}
+.sample-setup td input[type="date"] {
+  width: auto;
+}
+.sample-setup-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.sample-label {
+  display: flex;
+  flex-direction: column;
+  padding: 2.5mm 3.5mm;
+}
+.sample-label-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 0.6mm solid #000;
+  padding-bottom: 0.8mm;
+  margin-bottom: 1.2mm;
+}
+.sample-label-title {
+  font-size: 11pt;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.sample-label-of {
+  text-align: right;
+  font-weight: 800;
+  font-size: 9.5pt;
+}
+.sample-label-of div {
+  font-size: 8pt;
+  font-weight: 600;
+}
+.sample-label-body {
+  display: flex;
+  gap: 2.5mm;
+}
+.sample-label-qr {
+  flex: none;
+  width: 21mm;
+  height: 21mm;
+}
+.sample-label-facts {
+  min-width: 0;
+}
+.sample-label-item {
+  display: flex;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.sample-label-item span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sample-setup td.nowrap {
+  white-space: nowrap;
+}
+.sample-label-batch {
+  font-size: 12pt;
+  font-weight: 800;
+}
+.sample-label dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.5mm;
+  margin: 0;
+  white-space: nowrap;
+}
+.sample-label dt {
+  color: #3e4c59;
+}
+.sample-label dd {
+  margin: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sample-label-foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #7b8794;
+  padding-top: 0.8mm;
+  font-size: 7.5pt;
+}
+.sample-label-foot b {
+  font-size: 9pt;
+}
+.sample-cell .label-cell-top {
+  font-size: 8pt;
+}
 .label-sheet {
   box-sizing: border-box;
   width: 210mm;

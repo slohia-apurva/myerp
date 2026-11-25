@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.models import AuditEntry
-from buying.api import _addresses_out, _company, _letterhead, orders_insurance
+from buying.api import _addresses_out, _company, _letterhead, branch_title, orders_insurance
 from buying.models import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -841,7 +841,14 @@ def _print_extras(r: GoodsReceipt) -> dict:
     address as on its (first) order."""
     first = r.orders.order_by("pk").first()
     supplier = _addresses_out(first)["supplier"] if first else {"name": r.supplier.name}
-    return _text({"letterhead": _letterhead(r.company), "supplier_place": supplier})
+    return _text(
+        {
+            "letterhead": _letterhead(r.company),
+            "supplier_place": supplier,
+            # Sample labels name the company and branch, "Company (Branch)" (Sidharth, 2026-11-25).
+            "branch_title": branch_title(r.company.name, r.branch.name if r.branch_id else ""),
+        }
+    )
 
 
 class ReceiptDetailView(APIView):

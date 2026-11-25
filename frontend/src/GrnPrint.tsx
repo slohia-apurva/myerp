@@ -3,6 +3,7 @@ import { api } from "./api";
 import { Barcode } from "./barcode";
 import { closeThisTab } from "./Create";
 import { ErrorNote } from "./ErrorNote";
+import { Section } from "./Brand";
 import type { GoodsReceipt, PackageRow, ReceiptLine } from "./GoodsReceipts";
 import type { Place } from "./PurchaseOrders";
 
@@ -10,7 +11,9 @@ import type { Place } from "./PurchaseOrders";
  * - "Goods Receipt Note": A4, no rates or values, with a bin-wise storage summary;
  * - "Bin Sheets (A4)": one page per bin the receipt filled, to hang at the bin, with the
  *   bin's barcode and a QR code that opens "Bin contents" on a phone;
- * - "Bag Labels": one label per bag, 100 × 50 mm on a label printer or 24 to an A4 sheet.
+ * - "Bag Labels": one label per bag, 100 × 50 mm on a label printer or 24 to an A4 sheet;
+ * - "Retention Sample Labels" (Sidharth, 2026-11-25): one label per retained sample of each
+ *   batch received, same two sizes, set up in a box on the print page before printing.
  * Each opens in its own tab and brings up the browser's print window, which also saves a PDF. */
 
 type Letterhead = {
@@ -27,8 +30,9 @@ type Letterhead = {
   pan: string;
   fssai: string;
 };
-type Receipt = GoodsReceipt & { letterhead: Letterhead; supplier_place: Place & { name?: string } };
-export type PrintKind = "note" | "bins" | "labels" | "sheet";
+type Receipt = GoodsReceipt & { letterhead: Letterhead; supplier_place: Place & { name?: string }; branch_title?: string };
+export type PrintKind = "note" | "bins" | "labels" | "sheet" | "samples" | "samplesheet";
+export const PRINT_KINDS: PrintKind[] = ["note", "bins", "labels", "sheet", "samples", "samplesheet"];
 
 const dmy = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("-") : "");
 const qty = (v: string | number | null | undefined) => Number(v ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 6 });
@@ -85,8 +89,10 @@ export function GrnPrint({ id, kind, only }: { id: number; kind: PrintKind; only
   }, []);
   useEffect(() => {
     if (!r) return;
-    const what = { note: "Goods receipt note", bins: "Bin sheets", labels: "Bag labels", sheet: "Bag labels" }[kind];
+    const what = { note: "Goods receipt note", bins: "Bin sheets", labels: "Bag labels", sheet: "Bag labels", samples: "Retention sample labels", samplesheet: "Retention sample labels" }[kind];
     document.title = `${what} ${r.number || "draft"}`;
+    // Sample labels are set up first (how many, size, which batches); printed with "Print Labels".
+    if (kind === "samples" || kind === "samplesheet") return;
     // Give the QR pictures a moment to load before the print window opens.
     const t = setTimeout(() => window.print(), kind === "bins" ? 900 : 400);
     return () => clearTimeout(t);
@@ -98,6 +104,7 @@ export function GrnPrint({ id, kind, only }: { id: number; kind: PrintKind; only
       </section>
     );
   const bags = (r.packages ?? []).filter((k) => !only.length || only.includes(k.id));
+  if (kind === "samples" || kind === "samplesheet") return <SamplePrint r={r} sheet={kind === "samplesheet"} />;
   return (
     <>
       <style>{PAGE_RULES[kind]}</style>
@@ -129,6 +136,8 @@ const PAGE_RULES: Record<PrintKind, string> = {
   bins: `@page { size: A4; margin: 12mm 12mm 12mm; }`,
   labels: `@page { size: 100mm 50mm; margin: 0; }`,
   sheet: `@page { size: A4; margin: 0; }`,
+  samples: `@page { size: 100mm 50mm; margin: 0; }`,
+  samplesheet: `@page { size: A4; margin: 0; }`,
 };
 
 // Goods Receipt Note -----------------------------------------------------------------
@@ -536,6 +545,209 @@ function LabelSheets({ number, bags }: { number: string; bags: PackageRow[] }) {
               <div>{[k.batch, k.expiry_date && `Exp ${dmy(k.expiry_date)}`].filter(Boolean).join(" · ")}</div>
               <div className="bag-label-mut">
                 {k.kind_label} {k.position} of {k.of_count} · {number}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
+// Retention sample labels ----------------------------------------------------------------
+
+/** One batch of one item on the receipt, as the sample labels list it. */
+type SampleRow = { key: string; item_name: string; item_number: string; batch: number | null; batch_number: string; mfg: string | null; expiry: string | null; order: string; tick: boolean; retain: string };
+const todayIso = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+/** A sample is kept until the batch expires; with no expiry, for one year from sampling. */
+export function retainUntil(expiry: string | null, sampledOn: string): string {
+  if (expiry) return expiry.slice(0, 10);
+  const [y, m, d] = sampledOn.split("-");
+  return y ? `${Number(y) + 1}-${m}-${m === "02" && d === "29" ? "28" : d}` : "";
+}
+/** The batches a receipt brought in, one row per item and batch (lines without a batch too,
+ * unticked, for items that are not batch-tracked). */
+export function sampleRows(r: GoodsReceipt, sampledOn: string): SampleRow[] {
+  const rows: SampleRow[] = [];
+  for (const l of r.lines ?? []) {
+    for (const p of l.putaways) {
+      const key = `${l.item_number}|${p.batch_number}`;
+      if (rows.some((x) => x.key === key)) continue;
+      rows.push({ key, item_name: l.item_name, item_number: l.item_number, batch: p.batch, batch_number: p.batch_number, mfg: p.mfg_date, expiry: p.expiry_date, order: l.order_number, tick: !!p.batch_number, retain: retainUntil(p.expiry_date, sampledOn) });
+    }
+  }
+  return rows;
+}
+/** The address the QR code on a sample label opens: the batch's trace page (receipts, bins,
+ * where it went), the same address on every label printed from now on. */
+export const batchLink = (id: number) => `${window.location.origin}${window.location.pathname}#/batches/${id}/trace`;
+
+function SamplePrint({ r, sheet }: { r: Receipt; sheet: boolean }) {
+  const [count, setCount] = useState("2");
+  const [size, setSize] = useState("");
+  const [sampledOn, setSampledOn] = useState(todayIso);
+  const [rows, setRows] = useState<SampleRow[]>(() => sampleRows(r, todayIso()));
+  const change = (key: string, patch: Partial<SampleRow>) => setRows((all) => all.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+  const pickDate = (v: string) => {
+    // Rows still on the default follow the new sampling date.
+    setRows((all) => all.map((x) => (x.retain === retainUntil(x.expiry, sampledOn) ? { ...x, retain: retainUntil(x.expiry, v) } : x)));
+    setSampledOn(v);
+  };
+  const n = Math.max(0, Math.min(20, Math.floor(Number(count) || 0)));
+  const labels = rows.filter((x) => x.tick).flatMap((x) => Array.from({ length: n }, (_, i) => ({ row: x, position: i + 1 })));
+  const co = r.branch_title || r.letterhead.name;
+  return (
+    <>
+      <style>{PAGE_RULES[sheet ? "samplesheet" : "samples"]}</style>
+      <div className="po-print-bar no-print">
+        <p>{sheet ? 'Load A4 label sheets (3 across, 8 down, 70 × 37 mm) and print at "Actual size".' : "Pick the label printer and paper size 100 × 50 mm in the print window."}</p>
+      </div>
+      <div className="sample-setup no-print">
+        <Section title="Retention Sample Labels">
+          <div className="item-fields">
+            <label>
+              <span className="req">Samples Per Batch</span>
+              <input type="number" min={1} max={20} step={1} value={count} onChange={(e) => setCount(e.target.value)} />
+            </label>
+            <label>
+              Sample Size
+              <input value={size} maxLength={20} placeholder="e.g. 250 g" onChange={(e) => setSize(e.target.value)} />
+            </label>
+            <label>
+              <span className="req">Sampled On</span>
+              <input type="date" value={sampledOn} onChange={(e) => e.target.value && pickDate(e.target.value)} />
+            </label>
+          </div>
+          <table className="grid">
+            <thead>
+              <tr>
+                <th style={{ width: 30 }}></th>
+                <th>Item</th>
+                <th>Batch</th>
+                <th>Expiry</th>
+                <th>Retain Until</th>
+                <th className="num">Labels</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((x) => (
+                <tr key={x.key}>
+                  <td>
+                    <input type="checkbox" aria-label={`Print ${x.item_name} ${x.batch_number}`} checked={x.tick} onChange={(e) => change(x.key, { tick: e.target.checked })} />
+                  </td>
+                  <td>
+                    {x.item_name} · {x.item_number}
+                  </td>
+                  <td className="nowrap">{x.batch_number || "—"}</td>
+                  <td className="nowrap">{dmy(x.expiry) || "—"}</td>
+                  <td>
+                    <input type="date" aria-label={`Retain until ${x.item_name} ${x.batch_number}`} value={x.retain} onChange={(e) => change(x.key, { retain: e.target.value })} />
+                  </td>
+                  <td className="num">{x.tick ? n : 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="small">Untick the batches you do not keep a sample of. "Retain Until" is the batch's expiry date, or one year from "Sampled On" when it has none, and can be changed per line.</p>
+          <div className="sample-setup-buttons">
+            <button type="button" className="link" onClick={() => closeThisTab(() => history.back())}>
+              Close
+            </button>
+            <button type="button" disabled={!labels.length} onClick={() => window.print()}>
+              Print Labels
+            </button>
+          </div>
+        </Section>
+      </div>
+      {!labels.length ? (
+        <p className="page no-print">Tick a batch and give the number of samples to see its labels.</p>
+      ) : sheet ? (
+        <SampleSheets r={r} size={size} sampledOn={sampledOn} labels={labels} n={n} />
+      ) : (
+        <div className="bag-labels">
+          {labels.map(({ row: x, position }) => (
+            <div key={`${x.key}|${position}`} className="bag-label sample-label">
+              <div className="sample-label-top">
+                <div>
+                  <div className="sample-label-title">RETENTION SAMPLE</div>
+                  <div className="bag-label-co">{co}</div>
+                </div>
+                <div className="sample-label-of">
+                  Sample {position} of {n}
+                  {size && <div>{size}</div>}
+                </div>
+              </div>
+              <div className="sample-label-body">
+                {x.batch && <img className="sample-label-qr" src={`/api/v1/qr/?text=${encodeURIComponent(batchLink(x.batch))}`} alt={`QR code for batch ${x.batch_number}`} />}
+                <div className="sample-label-facts">
+                  <div className="sample-label-item">
+                    <span>{x.item_name}</span>
+                    <span>&nbsp;· {x.item_number}</span>
+                  </div>
+                  <div className="sample-label-batch">{x.batch_number ? `Batch ${x.batch_number}` : "No batch"}</div>
+                  <dl>
+                    {(x.mfg || x.expiry) && (
+                      <>
+                        <dt>Mfg / Exp</dt>
+                        <dd>
+                          {dmy(x.mfg) || "—"} / {dmy(x.expiry) || "—"}
+                        </dd>
+                      </>
+                    )}
+                    <dt>Supplier</dt>
+                    <dd>{r.supplier_name}</dd>
+                    <dt>GRN</dt>
+                    <dd>{r.number}</dd>
+                    {x.order && (
+                      <>
+                        <dt>PO</dt>
+                        <dd>{x.order}</dd>
+                      </>
+                    )}
+                  </dl>
+                </div>
+              </div>
+              <div className="sample-label-foot">
+                <span>Sampled {dmy(sampledOn)} · By ____________</span>
+                <span>
+                  Retain Until <b>{dmy(x.retain)}</b>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function SampleSheets({ r, size, sampledOn, labels, n }: { r: Receipt; size: string; sampledOn: string; labels: { row: SampleRow; position: number }[]; n: number }) {
+  const pages: (typeof labels)[] = [];
+  for (let i = 0; i < labels.length; i += 24) pages.push(labels.slice(i, i + 24));
+  return (
+    <>
+      {pages.map((page, p) => (
+        <div key={p} className="label-sheet">
+          {page.map(({ row: x, position }) => (
+            <div key={`${x.key}|${position}`} className="label-cell sample-cell">
+              <div className="label-cell-top">
+                <b>RETENTION SAMPLE</b>
+                <b>
+                  {position} of {n}
+                </b>
+              </div>
+              <div className="label-cell-item">{x.item_name}</div>
+              <div>
+                Batch <b>{x.batch_number || "—"}</b>
+                {x.expiry && ` · Exp ${dmy(x.expiry)}`}
+              </div>
+              <div>{r.number}</div>
+              <div className="label-cell-item">{[r.supplier_name, size].filter(Boolean).join(" · ")}</div>
+              <div>
+                Sampled {dmy(sampledOn)} · Retain Until <b>{dmy(x.retain)}</b>
               </div>
             </div>
           ))}
