@@ -47,6 +47,22 @@ def _dress(alpha, g):
         )  # fmt: skip
         party.contacts.create(name="Ramesh Agarwal", phone="9830012345",
                               email="ramesh@dtt.in", is_primary=True)  # fmt: skip
+        # A carton of 10 packets of Tea Box, and our bank account and UPI ID.
+        from core.models import Item, ItemUnit, LedgerGroup, Unit
+
+        box = Item.objects.get(pk=g["box"]) if "box" in g else Item.objects.get(name="Tea Box")
+        ctn = Unit.objects.filter(name__iexact="Carton").first() or Unit.objects.create(
+            name="Carton", short_name="ctn"
+        )
+        ItemUnit.objects.create(item=box, unit=ctn, contains_qty=10,
+                                contains_unit=box.stock_unit, factor=10)  # fmt: skip
+        hdfc = Ledger.objects.create(
+            company=company, name="HDFC Current",
+            group=LedgerGroup.objects.get(company=company, code="bank_accounts"),
+            bank_name="HDFC Bank", bank_branch="Park Street",
+            account_number="50200012345678", ifsc="HDFC0000123",
+        )  # fmt: skip
+        Company.objects.filter(pk=company.pk).update(payment_ledger=hdfc, upi_id="apurvam@hdfcbank")
         PurchaseOrderLine.objects.filter(order__receipts=g["receipt"]).update(
             description="Assam CTC BOP, 2026 second flush\nMoisture below 6%, packed in 50 kg sacks"
         )
@@ -148,6 +164,10 @@ def test_the_return_challan_and_debit_note_print(store, buyer, received, alpha):
     assert dict(challan["print_meta"])["Against GRN"].startswith(g["receipt_number"])
     assert dn["doc_title"] == "DEBIT NOTE"
     assert dict(dn["print_meta"])["Against Your Bill"].startswith("DTT/1201")
+    # 3 packets returned: "0.3 ctn" under the quantity; our bank and QR to pay us back.
+    assert (dn["lines"][0]["qty_alt"], dn["lines"][0]["unit_alt"]) == ("0.3", "ctn")
+    assert dict(dn["payment"]["rows"])["Account No"] == "50200012345678"
+    assert challan["lines"][0]["unit_alt"] == "ctn"
     assert dn["lines"][0]["description"].endswith(f"Returned on {ret['number']}")
 
 

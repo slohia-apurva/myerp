@@ -61,6 +61,24 @@ def _supplier_box(inv: PurchaseInvoice, orders: list[PurchaseOrder]) -> dict:
     }
 
 
+def in_stock_units(lines: list[dict], rows) -> list[dict]:
+    """Each print line in the item's stock unit with the next unit up under it
+    (core.print_units, Sidharth 2026-11-25); `rows` are the lines' own records,
+    matched by "id", which know their item and unit. A line with no item (an
+    expense ledger) stays as it is."""
+    from core.print_units import in_stock_unit
+
+    known = {r.pk: r for r in rows}
+    out = []
+    for x in lines:
+        r = known.get(x.get("id"))
+        if r is None or not getattr(r, "item_id", None) or not r.unit_id:
+            out.append(x)
+            continue
+        out.append(in_stock_unit({**x, "unit": r.unit_id}, r.item))
+    return out
+
+
 def order_description(receipt_line) -> str:
     """The line's description on the purchase order (the item's purchase
     description unless changed there)."""
@@ -145,7 +163,14 @@ def print_data(inv: PurchaseInvoice) -> dict:
         "bill_to": _branch_address(inv.branch),
         "ship_to": _branch_address(received),
     }
-    data["lines"] = _lines(data, inv)
+    data["lines"] = in_stock_units(
+        _lines(data, inv),
+        inv.rate_lines.select_related("item__stock_unit")
+        if inv.kind == PurchaseInvoice.SUPPLEMENTARY
+        else inv.expense_lines.select_related("item__stock_unit")
+        if inv.kind == PurchaseInvoice.DIRECT
+        else inv.lines.select_related("item__stock_unit"),
+    )
     if inv.kind != PurchaseInvoice.REGULAR:
         data["charges"] = []
     for x in data.get("charges") or []:
