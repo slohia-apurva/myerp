@@ -851,6 +851,33 @@ class DebitNoteLine(models.Model):
         return f"{self.item_id}: {self.qty} @ {self.rate}"
 
 
+class DebitNoteCharge(models.Model):
+    """A charge debited back to the supplier (Sidharth, 2026-11-25, preview 106):
+    the bill's charge's share for the goods returned (`bill_charge`), or one
+    added by hand such as return freight. One added to the goods' stock cost
+    clears with them through "Goods Received but Bills not Received"; any other
+    is credited to the charge's expense ledger."""
+
+    note = models.ForeignKey(DebitNote, on_delete=models.CASCADE, related_name="charges")
+    position = models.PositiveSmallIntegerField()
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    bill_charge = models.ForeignKey(
+        PurchaseInvoiceCharge, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    amount = models.DecimalField(**MONEY, validators=[MinValueValidator(0)])
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    cgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    sgst = models.DecimalField(**MONEY, default=Decimal("0"))
+    igst = models.DecimalField(**MONEY, default=Decimal("0"))
+    in_stock_cost = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.item_id}: {self.amount}"
+
+
 class TdsReturnFiled(models.Model):
     """A quarter whose TDS return is filed (Sidharth, 2026-11-19): its bills'
     TDS can no longer be put right by a TDS Adjustment, and its bills with TDS

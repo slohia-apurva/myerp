@@ -81,7 +81,14 @@ def debit_note_data(note: DebitNote) -> dict:
         }
         for x in data["lines"]
     ]
-    data["charges"] = []
+    # Charges debited back: the bill's share, or added by hand (preview 106).
+    data["charges"] = [
+        {
+            **c,
+            "basis_label": "Share of the bill's charge" if c["bill_charge"] else "Added",
+        }
+        for c in data.get("charges") or []
+    ]
     your = " of ".join(x for x in [note.supplier_note_no, _dmy(note.supplier_note_date)] if x)
     data["print_meta"] = [
         (k, v or "")
