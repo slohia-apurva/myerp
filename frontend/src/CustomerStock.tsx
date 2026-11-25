@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTransporterSearch } from "./Shipments";
 import { api, ApiError, type SignedIn } from "./api";
 import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -112,7 +113,6 @@ type Setup = {
     areas: { id: number; name: string; is_active: boolean }[];
     places: { id: number; label: string }[];
   }[];
-  transporters: { id: number; name: string }[];
   package_types: { id: string; name: string }[];
   items: FormItem[];
 };
@@ -448,6 +448,8 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
   const [e, setE] = useState<Entry | null>(null);
   const [error, setError] = useState<unknown>("");
   const [fields, setFields] = useState<Fields>(blank);
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [fields.transporter]);
   const [lines, setLines] = useState<DraftLine[]>(() => [emptyLine()]);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [problems, setProblems] = useState<Problem[] | null>(null);
@@ -719,7 +721,8 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
                     onChange={(v) => set({ transporter: v })}
                     empty="By Customer"
                     create={newTransporter}
-                    options={(setup?.transporters ?? []).map((c) => ({
+                    onType={findTransporters}
+                    options={transporters.filter((c) => c.is_active || String(c.id) === fields.transporter).map((c) => ({
                       value: String(c.id),
                       label: c.name,
                     }))}

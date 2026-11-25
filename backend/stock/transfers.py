@@ -36,7 +36,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from buying.api import _money, _plain
-from core import attachments, numbering
+from core import attachments, numbering, paging
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -984,7 +984,9 @@ class TransferFormView(APIView):
                     }
                     for b in branches
                 ],
-                "transporters": [
+                "transporters": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": c.pk, "name": c.name}
                     for c in CourierAccount.objects.filter(company=company, is_active=True)
                 ],

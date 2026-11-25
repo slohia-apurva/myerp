@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTransporterSearch } from "./Shipments";
 import { api, ApiError, type SignedIn } from "./api";
 import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -101,7 +102,6 @@ type FormItem = {
 };
 type Setup = {
   branches: { id: number; name: string; gstin: string; is_active: boolean; areas: { id: number; name: string; is_active: boolean }[] }[];
-  transporters: { id: number; name: string }[];
   items: FormItem[];
 };
 type Problem = { line: number | null; text: string };
@@ -343,6 +343,8 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
   const [t, setT] = useState<Transfer | null>(null);
   const [error, setError] = useState<unknown>("");
   const [fields, setFields] = useState<Fields>(blank);
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [fields.transporter]);
   const [lines, setLines] = useState<DraftLine[]>(() => [{ key: nextKey++, item: "", unit: "", qty: "" }]);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [problems, setProblems] = useState<Problem[] | null>(null);
@@ -598,7 +600,7 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
                   </label>
                   <label>
                     Transporter
-                    <Combobox value={fields.transporter} onChange={(v) => set({ transporter: v })} empty="Own vehicle" options={(setup?.transporters ?? []).map((c) => ({ value: String(c.id), label: c.name }))} />
+                    <Combobox value={fields.transporter} onChange={(v) => set({ transporter: v })} empty="Own vehicle" onType={findTransporters} options={transporters.filter((c) => c.is_active || String(c.id) === fields.transporter).map((c) => ({ value: String(c.id), label: c.name }))} />
                   </label>
                   <label>
                     Vehicle No

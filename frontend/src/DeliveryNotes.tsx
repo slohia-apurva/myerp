@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTransporterSearch } from "./Shipments";
 import { api, ApiError, type SignedIn } from "./api";
 import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -350,10 +351,11 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
   const [note, setNote] = useState<Note | null>(null);
   const [error, setError] = useState<unknown>("");
   const [fields, setFields] = useState<Fields | null>(null);
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [fields?.transporter]);
   const [bins, setBins] = useState<DraftBin[]>([]);
   const [openLine, setOpenLine] = useState<number | null>(null);
   const [spots, setSpots] = useState<Record<number, Spot[]>>({});
-  const [transporters, setTransporters] = useState<{ id: number; name: string; is_active: boolean }[]>([]);
   const [problems, setProblems] = useState<Problem[] | null>(null);
   const [noLedgers, setNoLedgers] = useState<MissingLedgers | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -373,10 +375,6 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
   const mayEdit = draft && can(session, "create");
   useEffect(() => {
     if (!note || !mayEdit) return;
-    api<{ transporters: { id: number; name: string; is_active: boolean }[] }>(`v1/companies/${companyId}/sales-orders/setup/?search=1`).then(
-      (s) => setTransporters(s.transporters),
-      () => undefined,
-    );
     for (const l of note.lines ?? [])
       api<Spot[]>(`v1/delivery-notes/${id}/places/?item=${l.item}`).then((s) => setSpots((all) => ({ ...all, [l.item]: s })), () => undefined);
     // Only once per note: the places do not change while the page is open.
@@ -578,6 +576,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
                     value={fields.transporter}
                     onChange={(v) => set({ transporter: v })}
                     empty="By Customer"
+                    onType={findTransporters}
                     options={transporters.filter((t) => t.is_active || String(t.id) === fields.transporter).map((t) => ({ value: String(t.id), label: t.name }))}
                   />
                   <span className="small">From the order; "By Customer" if the customer collects</span>

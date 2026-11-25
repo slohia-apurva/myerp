@@ -1026,7 +1026,9 @@ class ReceiptSetupView(APIView):
                     for p in places
                     if p.kind != WarehouseLocation.RACK
                 ],
-                "transporters": [
+                "transporters": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": t.pk, "name": t.name}
                     for t in CourierAccount.objects.filter(company=company, is_active=True)
                 ],

@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useTransporterSearch } from "./Shipments";
 import { api, type SignedIn } from "./api";
 import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -181,12 +182,10 @@ type BranchRow = {
   is_head_office: boolean;
   address_block: Place;
 };
-type Transporter = { id: number; name: string; is_active: boolean };
 type Setup = {
   company_name: string;
   suppliers: Supplier[];
   branches: BranchRow[];
-  transporters: Transporter[];
   insurance_policies: PolicyPick[];
   terms_sets: { id: number; name: string; is_active: boolean; text: string }[];
   default_terms: number | null;
@@ -570,6 +569,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const [supAddr, setSupAddr] = useState(from?.supplier_address?.label ?? "");
   // "" is "By Supplier": the supplier sends the goods.
   const [transporter, setTransporter] = useState(from?.transporter ? String(from.transporter) : "");
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [transporter]);
   const [ref, setRef] = useState(order?.supplier_ref ?? "");
   // Transit insurance (preview 93b): a new order starts with the default policy, if any.
   const [insuredBy, setInsuredBy] = useState(from?.insured_by ?? "");
@@ -998,7 +999,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                   onChange={setTransporter}
                   empty="By Supplier"
                   create={newTransporter}
-                  options={(setup?.transporters ?? [])
+                  onType={findTransporters}
+                  options={transporters
                     .filter((t) => t.is_active || String(t.id) === transporter)
                     .map((t) => ({ value: String(t.id), label: t.name }))}
                 />

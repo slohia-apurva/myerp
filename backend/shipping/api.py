@@ -347,6 +347,16 @@ class CourierAccountListView(APIView):
         company = _company(request, pk)
         carriers = _carriers()
         rows = company.courier_accounts.all()
+        if request.query_params.get("search") == "1":
+            # An entry form's Transporter picker, as the person types (paging.picked).
+            return Response(
+                [
+                    {"id": a.pk, "name": a.name, "is_active": a.is_active}
+                    for a in paging.picked(rows, request.query_params, ["name", "gstin"]).order_by(
+                        "name"
+                    )
+                ]
+            )
         if "page" in request.query_params:
             return Response(_account_page(rows, request.query_params, carriers))
         # Lean rows: the list shows name, GSTIN, courier, service and code only.

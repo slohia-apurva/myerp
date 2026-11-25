@@ -1,6 +1,7 @@
 import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
 import { creatable, type Creatable } from "./Create";
 import { ErrorNote } from "./ErrorNote";
+import { useItemSearch } from "./ItemSearch";
 import { api, type SignedIn } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { usePrintMenu } from "./Exchange";
@@ -170,6 +171,14 @@ export function useCourierAccounts(companyId: number) {
   useEffect(reload, [reload]);
   useOnReturn(reload);
   return { accounts, reload, refresh };
+}
+
+/** The transporters an entry form's picker offers, asked from the server as the person
+ * types (courier-accounts/?search=1, ItemSearch.ts) instead of loading all of them (5,000
+ * trial transporters, Sidharth 2026-11-25). `ids` are those the form already has. */
+export function useTransporterSearch(companyId: number | null, ids: (string | number | null | undefined)[], again?: number) {
+  const { items, onType } = useItemSearch<{ id: number; name: string; is_active: boolean }>(companyId ? `v1/companies/${companyId}/courier-accounts/` : null, ids, again);
+  return { transporters: items, onType };
 }
 
 type Branch = { id: number; name: string };

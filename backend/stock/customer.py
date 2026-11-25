@@ -847,7 +847,9 @@ class EntryFormView(APIView):
                     }
                     for b in branches
                 ],
-                "transporters": [
+                "transporters": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": c.pk, "name": c.name}
                     for c in CourierAccount.objects.filter(company=company, is_active=True)
                 ],

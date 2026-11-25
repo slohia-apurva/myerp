@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTransporterSearch } from "./Shipments";
 import { api, type SignedIn } from "./api";
 import { DocSide } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -124,9 +125,6 @@ type Invoice = {
   lines?: Line[];
   charges?: Charge[];
   credit_notes?: { id: number; number: string; status: string; status_label: string; kind_label: string; note_date: string; total: string }[];
-};
-type Setup = {
-  transporters: { id: number; name: string; is_active: boolean }[];
 };
 type MoreNote = {
   id: number;
@@ -426,9 +424,10 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
   const [more, setMore] = useState<MoreNote[] | null>(null);
   const portalFile = useRef<HTMLInputElement>(null);
   const [transport, setTransport] = useState<Transport | null>(null);
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [transport?.transporter]);
   const [editTransport, setEditTransport] = useState(false);
   const [portal, setPortal] = useState<Portal | null>(null);
-  const [setup, setSetup] = useState<Setup | null>(null);
   const [noLedgers, setNoLedgers] = useState<MissingLedgers | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
@@ -450,12 +449,6 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
   const draft = inv?.status === "draft";
   const submitted = inv?.status === "submitted";
   const mayEdit = draft && can(session, "create");
-  useEffect(() => {
-    if (!inv || !can(session, "create") || inv.status === "cancelled") return;
-    api<Setup>(`v1/companies/${companyId}/sales-orders/setup/?search=1`).then(setSetup, () => undefined);
-    // Once per invoice: the lists do not change while the page is open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inv?.id]);
   const close = () =>
     closeThisTab(() => {
       window.location.hash = invoiceBase(companyId);
@@ -1025,7 +1018,8 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                       value={transport.transporter}
                       onChange={(v) => setT({ transporter: v })}
                       empty="By Customer"
-                      options={(setup?.transporters ?? []).filter((t) => t.is_active || String(t.id) === transport.transporter).map((t) => ({ value: String(t.id), label: t.name }))}
+                      onType={findTransporters}
+                      options={transporters.filter((t) => t.is_active || String(t.id) === transport.transporter).map((t) => ({ value: String(t.id), label: t.name }))}
                     />
                     <span className="small">From the delivery note; "By Customer" if the customer collects</span>
                   </label>

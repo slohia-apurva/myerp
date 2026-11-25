@@ -1072,7 +1072,9 @@ class OrderSetupView(APIView):
                     {"id": t.pk, "name": t.name, "is_active": t.is_active}
                     for t in CreditTerm.objects.all()
                 ],
-                "transporters": [
+                "transporters": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": t.pk, "name": t.name, "is_active": t.is_active}
                     for t in company.courier_accounts.order_by("name")
                 ],
