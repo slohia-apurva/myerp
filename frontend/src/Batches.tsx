@@ -11,6 +11,7 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn, useReturns } from "./Refresh";
+import { useItemSearch } from "./ItemSearch";
 
 /** Batches (lots) of batch-tracked items. A batch number is unique within its
  * item only: two items may both have batch 1234 (Sidharth, 2026-11-15). */
@@ -50,13 +51,11 @@ export function useBatches() {
 }
 
 /** The items that keep batches, for the item picker. */
-function useBatchItems() {
-  const [items, setItems] = useState<Item[]>([]);
+function useBatchItems(chosen: number | string | null) {
+  // Asked from the server as the person types, never the whole catalogue
+  // (12,457 items on staging): ItemSearch.ts, as on the entry screens.
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
-  useEffect(() => {
-    api<Item[]>("v1/items/").then((rows) => setItems(rows.filter((i) => i.batch_tracked)));
-  }, [visits]);
-  return items;
+  return useItemSearch<Item>("v1/items/?batch_tracked=1", [chosen], visits);
 }
 
 const formParam = () => hashParam("form");
@@ -250,8 +249,8 @@ function BatchForm(props: {
 }) {
   const b = props.batch;
   const from = b ?? props.copyOf ?? null;
-  const items = useBatchItems();
   const [item, setItem] = useState(from ? String(from.item) : "");
+  const { items, onType } = useBatchItems(item);
   const [number, setNumber] = useState(props.startName ?? b?.number ?? "");
   const [supplierNo, setSupplierNo] = useState(b?.supplier_batch_no ?? "");
   const [mfg, setMfg] = useState(b?.mfg_date ?? "");
@@ -316,6 +315,7 @@ function BatchForm(props: {
               options={items.map((i) => ({ value: String(i.id), label: `${i.item_number} ${i.name}` }))}
               value={item}
               onChange={setItem}
+              onType={onType}
               required
               placeholder="Only items that track batches"
               ariaLabel="Item"

@@ -131,14 +131,17 @@ export const MANUAL: Chapter[] = [
           under "Actions" print only the lines you can see.
         </p>
         <p>
-          The item pickers on entry screens (purchase and sales orders, stock
-          transfers, own use, customer stock receipts and deliveries, and the
-          added materials on a manufacturing order) look up items as you type:
-          type part of the item's name or its item no. The list shows the
-          first 50 that match, so type more to narrow it. The "Supplier" and
-          "Buying Agent" pickers on purchase orders, purchase invoices and
-          bills, and the "Customer" picker on sales orders, work the same way:
-          type part of the name, the customer or vendor number, or the GSTIN.
+          Every item picker looks up items as you type: type part of the item's
+          name or its item no. The list shows the first 50 that match, so type
+          more to narrow it. This is how the entry screens work (purchase and
+          sales orders, stock transfers, own use, customer stock receipts and
+          deliveries, and the added materials on a manufacturing order) and the
+          masters too: "Batches", "BOMs", the rates on a price list or on a
+          customer or supplier, the "Products" box of a customer or supplier,
+          and the item on "Stock ledger". The "Supplier" and "Buying Agent"
+          pickers on purchase orders, purchase invoices and bills, and the
+          "Customer" picker on sales orders, work the same way: type part of the
+          name, the customer or vendor number, or the GSTIN.
         </p>
         <p>
           As you scroll down a long list, the search box, the column headings

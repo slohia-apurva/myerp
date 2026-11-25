@@ -574,3 +574,46 @@ def test_items_list_sorts_by_a_column(accountant, unit, alpha):
     assert names("sort=gst") == ["Almond", "Cumin", "Basil", "Aardvark"]
     assert names("sort=-gst") == ["Basil", "Cumin", "Almond", "Aardvark"]
     assert names("sort=nonsense") == ["Almond", "Basil", "Cumin", "Aardvark"]
+
+
+def test_a_picker_asks_for_the_items_it_needs_not_the_whole_catalogue(accountant, unit):
+    """The pickers on the masters screens (batches, BOMs, price lists, a party's
+    products, the stock reports) ask with ?search=1: the first 50 matches plus the
+    items already chosen. The whole list was 16 MB of JSON with 12,457 items
+    (2026-11-25)."""
+    for name in ("Darjeeling Tea", "Assam Tea", "Nilgiri Tea"):
+        body = {"name": name, "stock_unit": unit("Kilogram"), "hsn": "0902"}
+        if name == "Assam Tea":
+            body["batch_tracked"] = True
+        assert call(accountant, "post", "items/", body).status_code == 201
+    jaggery = make(accountant, unit, name="Jaggery Powder", hsn="1701").json()["id"]
+
+    def names(query):
+        return [i["name"] for i in call(accountant, "get", f"items/?search=1&{query}").json()]
+
+    assert names("q=darj") == ["Darjeeling Tea"]
+    assert names("q=jag") == ["Jaggery Powder"]
+    # Nothing typed: only the items already on the form's lines.
+    assert names(f"ids={jaggery}") == ["Jaggery Powder"]
+    assert names(f"q=darj&ids={jaggery}") == ["Darjeeling Tea", "Jaggery Powder"]
+    # The Batches screen asks for the items that keep batches, the stock reports
+    # for those that keep stock.
+    assert names("q=tea&batch_tracked=1") == ["Assam Tea"]
+    assert len(names("q=tea&maintain_stock=1")) == 3
+
+
+def test_the_dashboard_counts_items_without_a_brand(accountant, unit, alpha):
+    """A number from the server, instead of reading the whole item list (2026-11-25)."""
+    from core.models import Brand, Item
+
+    assert call(accountant, "get", "items/counts/").json() == {"without_brand": 0}
+    first = make(accountant, unit).json()["id"]
+    assert call(accountant, "get", "items/counts/").json() == {"without_brand": 0}
+    with use_tenant(alpha):
+        Item.objects.filter(pk=first).update(brand=None)
+        Brand.objects.all()  # the item above keeps its brand only if one was set
+    assert call(accountant, "get", "items/counts/").json() == {"without_brand": 1}
+    with use_tenant(alpha):
+        Item.objects.filter(pk=first).update(is_active=False)
+    # A disabled item is not asked about.
+    assert call(accountant, "get", "items/counts/").json() == {"without_brand": 0}

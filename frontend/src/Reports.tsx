@@ -3,6 +3,7 @@ import { api } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { ColumnSearch } from "./ColumnSearch";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
 import { openTab } from "./Master";
@@ -74,12 +75,10 @@ function useBranches(companyId: number) {
   return branches;
 }
 
-function useItems() {
-  const [items, setItems] = useState<ItemRow[]>([]);
-  useEffect(() => {
-    api<ItemRow[]>("v1/items/").then((rows) => setItems(rows.filter((i) => i.maintain_stock !== false)));
-  }, []);
-  return items;
+function useItems(chosen: string) {
+  // The items that keep stock, asked from the server as the person types
+  // (ItemSearch.ts): the whole catalogue is 12,457 items on staging.
+  return useItemSearch<ItemRow>("v1/items/?maintain_stock=1", [chosen]);
 }
 
 /** Opens the entry a report row came from, in a new tab. */
@@ -239,8 +238,8 @@ export function StockSummaryPage({ companyId }: { companyId: number }) {
 /** Reports › Stock Ledger: every move of one item in a period, with the balance after each. */
 export function StockLedgerPage({ companyId }: { companyId: number }) {
   const branches = useBranches(companyId);
-  const items = useItems();
   const [item, setItem] = useState(hashParam("item"));
+  const { items, onType } = useItems(item);
   const [to, setTo] = useState(hashParam("to") || today());
   const [from, setFrom] = useState(hashParam("from") || yearStart(hashParam("to") || today()));
   const [branch, setBranch] = useState(hashParam("branch"));
@@ -291,6 +290,7 @@ export function StockLedgerPage({ companyId }: { companyId: number }) {
             <Combobox
               options={items.map((i) => ({ value: String(i.id), label: i.name, hint: i.item_number }))}
               value={item}
+              onType={onType}
               onChange={(v) => {
                 setItem(v);
                 setBatch("");

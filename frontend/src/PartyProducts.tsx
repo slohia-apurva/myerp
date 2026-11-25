@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { api } from "./api";
+import { useMemo } from "react";
 import { Combobox } from "./Combobox";
 import { Section } from "./Brand";
 import { usePrintMenu } from "./Exchange";
 import { useReturns } from "./Refresh";
+import { useItemSearch } from "./ItemSearch";
 
 export type PartyProduct = {
   item: number;
@@ -33,11 +33,14 @@ export function PartyProducts({
   canEdit: boolean;
   partyName?: string;
 }) {
-  const [items, setItems] = useState<ItemRow[]>([]);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
-  useEffect(() => {
-    api<ItemRow[]>("v1/items/").then(setItems);
-  }, [visits]);
+  // Asked from the server as the person types (ItemSearch.ts), plus the items
+  // already listed: the whole catalogue is 12,457 items on staging.
+  const { items, onType } = useItemSearch<ItemRow>(
+    "v1/items/",
+    value.map((r) => r.item),
+    visits,
+  );
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const listed = new Set(value.map((r) => r.item));
   const options = items
@@ -96,6 +99,7 @@ export function PartyProducts({
             <Combobox
               options={options}
               value=""
+              onType={onType}
               placeholder="Type to search items…"
               ariaLabel="Add product"
               onChange={(v) => {

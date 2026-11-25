@@ -225,6 +225,7 @@ urlpatterns = [
     path("units/<int:pk>/", units.UnitDetailView.as_view(), name="unit"),
     path("items/", items.ItemListView.as_view(), name="items"),
     path("items/<int:pk>/", items.ItemDetailView.as_view(), name="item"),
+    path("items/counts/", items.ItemCountsView.as_view(), name="item-counts"),
     path("items/plan-branches/", items.PlanBranchesView.as_view(), name="item-plan-branches"),
     path("companies/", api.CompanyListView.as_view(), name="companies"),
     path("companies/<int:pk>/", api.CompanyDetailView.as_view(), name="company"),
