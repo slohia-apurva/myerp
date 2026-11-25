@@ -265,7 +265,9 @@ class LedgerSerializer(serializers.ModelSerializer):
     system = serializers.SerializerMethodField()
 
     def get_lock(self, ledger) -> dict | None:
-        if self.context.get("list"):  # an export: no per-record "in use" checks
+        # Lists and exports leave it out (a dozen queries a ledger; 10,000 customers
+        # took minutes, 2026-11-25); the screens read one ledger from ledgers/<id>/.
+        if self.context.get("list"):
             return None
         status = lock_status("ledger", ledger)
         if _fixed(ledger):
@@ -967,7 +969,8 @@ def change_ledger(request, ledger: Ledger, data: dict) -> Ledger:
 
 
 class LedgerListView(APIView):
-    """GET ?q=text&group=id (group includes the groups under it)."""
+    """GET ?q=text&group=id (group includes the groups under it). Each ledger's
+    "in use" lock is left out; ledgers/<id>/ has it."""
 
     permission_classes = [Signed]
 
@@ -977,7 +980,12 @@ class LedgerListView(APIView):
         ledgers = company.ledgers.select_related(
             "group", "party", "salesman", "preferred_transporter"
         ).prefetch_related(
-            "opening_bills", "party__addresses", "party__contacts", "party__ledgers__company"
+            "opening_bills",
+            "party__addresses",
+            "party__contacts",
+            "party__ledgers__company",
+            "party__products",
+            "party__documents",
         )
         if q := request.query_params.get("q", "").strip():
             ledgers = ledgers.filter(
@@ -991,7 +999,7 @@ class LedgerListView(APIView):
             if group is None:
                 raise NotFound("No such group.")
             ledgers = ledgers.filter(group_id__in={group.pk, *group.descendant_ids()})
-        return Response(LedgerSerializer(ledgers, many=True).data)
+        return Response(LedgerSerializer(ledgers, many=True, context={"list": True}).data)
 
     @tenant_atomic()
     def post(self, request, pk: int):
@@ -1004,7 +1012,20 @@ class LedgerListView(APIView):
 
 
 class LedgerDetailView(APIView):
+    """GET: one ledger with its "in use" lock. PATCH: change it."""
+
     permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        ledger = (
+            Ledger.objects.select_related("group", "party", "salesman", "preferred_transporter")
+            .filter(pk=pk)
+            .first()
+        )
+        if ledger is None or not visible_companies(request.user).filter(pk=ledger.company_id):
+            raise NotFound("No such ledger.")
+        return Response(LedgerSerializer(ledger).data)
 
     def _ledger(self, request, pk: int) -> Ledger:
         _check(request, EDIT)
@@ -1043,7 +1064,7 @@ class PartyListView(APIView):
     def get(self, request):
         _check(request, VIEW)
         parties = Party.objects.select_related("credit_term").prefetch_related(
-            "addresses", "contacts", "ledgers__company"
+            "addresses", "contacts", "ledgers__company", "products", "documents"
         )
         if "not_in" in request.query_params:
             try:
@@ -1058,7 +1079,10 @@ class PartyListView(APIView):
                 parties = parties.exclude(pk__in=taken.values("party"))
             else:
                 parties = parties.exclude(ledgers__company=company)
-        return Response(PartySerializer(parties.order_by("name"), many=True).data)
+        # Pickers read this list: no per-party "in use" lock (core.parties.PartySerializer).
+        return Response(
+            PartySerializer(parties.order_by("name"), many=True, context={"list": True}).data
+        )
 
 
 class PeopleView(APIView):

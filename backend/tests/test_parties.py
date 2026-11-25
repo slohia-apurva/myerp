@@ -481,8 +481,12 @@ def test_a_party_in_use_reports_its_locked_fields(accountant, company):
     fn = lambda record: "12 sales invoices"  # noqa: E731
     locks.register("party", fn)
     try:
+        # The list leaves the lock out (too many queries for thousands of
+        # customers); the one ledger read on its own has it.
         rows = call(accountant, "get", f"companies/{company}/ledgers/").json()
-        got = next(r for r in rows if r["id"] == made.json()["id"])
+        listed = next(r for r in rows if r["id"] == made.json()["id"])
+        assert listed["lock"] is None and listed["party"]["lock"] is None
+        got = call(accountant, "get", url).json()
         assert got["party"]["lock"]["in_use"] == ["12 sales invoices"]
         assert set(got["party"]["lock"]["locked"]) == {"gst_type", "gstin", "pan", "state_code"}
         refused = call(accountant, "patch", url, {"party": {"gst_type": "consumer"}})
