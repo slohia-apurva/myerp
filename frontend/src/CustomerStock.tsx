@@ -5,6 +5,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
 import { useItemSearch } from "./ItemSearch";
+import { usePeopleSearch } from "./SalesPeople";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
@@ -112,7 +113,6 @@ type Setup = {
     places: { id: number; label: string }[];
   }[];
   transporters: { id: number; name: string }[];
-  stores_people: { id: number; name: string }[];
   package_types: { id: string; name: string }[];
   items: FormItem[];
 };
@@ -469,6 +469,8 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
   const refreshSetup = useCallback(() => api<Setup>(`${setupUrl}&search=1`).then(setSetup, (err) => setError(err)), [setupUrl]);
   // Items come from the server as the person types (ItemSearch.ts), never all at once.
   const { items, onType: findItems } = useItemSearch<FormItem>(mayEdit ? setupUrl : null, lines.map((l) => l.item), undefined, (a) => (a as Setup).items);
+  // Stores people come from the server as the person types (usePeopleSearch), never all at once.
+  const { people: storesPeople, onType: findPeople } = usePeopleSearch("stores", [fields.stores_person]);
   useEffect(() => {
     if (mayEdit) refreshSetup();
   }, [mayEdit, refreshSetup]);
@@ -737,7 +739,8 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
                     value={fields.stores_person}
                     onChange={(v) => set({ stores_person: v })}
                     create={newPerson}
-                    options={(setup?.stores_people ?? []).map((p) => ({
+                    onType={findPeople}
+                    options={storesPeople.map((p) => ({
                       value: String(p.id),
                       label: p.name,
                     }))}

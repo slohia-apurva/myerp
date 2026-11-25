@@ -6,6 +6,7 @@ import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
 import { CountryPicker } from "./Pin";
 import { useItemSearch } from "./ItemSearch";
+import { usePeopleSearch } from "./SalesPeople";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
@@ -180,13 +181,11 @@ type BranchRow = {
   is_head_office: boolean;
   address_block: Place;
 };
-type Purchaser = { id: number; name: string; email: string; is_active: boolean };
 type Transporter = { id: number; name: string; is_active: boolean };
 type Setup = {
   company_name: string;
   suppliers: Supplier[];
   branches: BranchRow[];
-  purchasers: Purchaser[];
   transporters: Transporter[];
   insurance_policies: PolicyPick[];
   terms_sets: { id: number; name: string; is_active: boolean; text: string }[];
@@ -657,6 +656,12 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     visits,
     (a) => (a as Setup).suppliers,
   );
+  // Purchasers for the Buying Agent likewise (usePeopleSearch).
+  const { people: purchasers, onType: findPurchasers } = usePeopleSearch("purchaser", [agent.startsWith("p") ? agent.slice(1) : ""], visits);
+  const findAgents = (text: string) => {
+    findSuppliers(text);
+    findPurchasers(text);
+  };
   const sup = suppliers.find((s) => String(s.id) === supplier);
   const br = setup?.branches.find((b) => String(b.id) === branch);
   // Items come from the server as the person types (ItemSearch.ts), never all at once.
@@ -717,7 +722,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   };
 
   const ag = suppliers.find((s) => `l${s.id}` === agent);
-  const agUser = setup?.purchasers.find((u) => `p${u.id}` === agent);
+  const agUser = purchasers.find((u) => `p${u.id}` === agent);
   const pickAgent = (picked: string) => {
     // A purchaser made with "Create …" comes back as its bare id.
     const value = /^\d+$/.test(picked) ? `p${picked}` : picked;
@@ -1059,7 +1064,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                 <Combobox
                   value={agent}
                   onChange={pickAgent}
-                  onType={findSuppliers}
+                  onType={findAgents}
                   empty="None"
                   create={newPurchaser}
                   placeholder="Type to search…"
@@ -1067,7 +1072,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                     ...suppliers
                       .filter((s) => (s.is_active && String(s.id) !== supplier) || `l${s.id}` === agent)
                       .map((s) => ({ value: `l${s.id}`, label: s.name, hint: "Supplier" })),
-                    ...(setup?.purchasers ?? [])
+                    ...purchasers
                       .filter((u) => u.is_active || `p${u.id}` === agent)
                       .map((u) => ({ value: `p${u.id}`, label: u.name, hint: "Purchaser" })),
                   ]}

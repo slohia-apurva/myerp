@@ -1500,7 +1500,10 @@ export const MANUAL: Chapter[] = [
         <p>
           You can also add someone straight from a customer, supplier or goods
           receipt: type the name in "Salesman", "Purchaser" or "Received By"
-          and pick 'Create "…"'.
+          and pick 'Create "…"'. Those boxes, and the people boxes on purchase
+          and sales orders, stock entries and manufacturing orders, look the
+          person up as you type: they show the first 50 names, so type part of
+          a name or mobile number to find anyone else.
         </p>
         <p>
           The list shows 25 people a page; "Showing 1–25 of …" and the page

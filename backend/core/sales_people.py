@@ -227,6 +227,27 @@ def _works_as(word: str) -> Q:
     return match
 
 
+AS = {"salesman": "is_salesman", "purchaser": "is_purchaser", "stores": "is_stores"}
+
+
+def _picker_rows(params) -> list[dict]:
+    """?search=1&as=salesman|purchaser|stores&q=&ids=: the people an entry form's
+    picker offers as the person types (paging.picked), with the person's email for
+    a purchase order's Buying Agent."""
+    rows = SalesPerson.objects.select_related("user")
+    if params.get("as") in AS:
+        rows = rows.filter(**{AS[params["as"]]: True})
+    return [
+        {
+            "id": p.pk,
+            "name": p.name,
+            "email": p.email or (p.user.email if p.user_id else ""),
+            "is_active": p.is_active,
+        }
+        for p in paging.picked(rows, params, ["name", "mobile"]).order_by("name")
+    ]
+
+
 class SalesPersonListView(APIView):
     permission_classes = [Signed]
 
@@ -234,6 +255,8 @@ class SalesPersonListView(APIView):
         """?page=N: one page of 25 for the People screen (paging.one_page), with its
         column searches. Otherwise everyone, for the pickers."""
         _check(request, VIEW)
+        if request.query_params.get("search") == "1":
+            return Response(_picker_rows(request.query_params))
         if "page" in request.query_params:
             params = request.query_params
             rows = paging.search(_people(), params, SEARCHES)

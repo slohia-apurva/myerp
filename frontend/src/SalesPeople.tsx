@@ -10,6 +10,7 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn } from "./Refresh";
+import { useItemSearch } from "./ItemSearch";
 import { useColumns } from "./Columns";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 
@@ -32,16 +33,16 @@ export type SalesPerson = {
   party_count: number;
 };
 
-export function useSalesPeople() {
-  const [people, setPeople] = useState<SalesPerson[]>([]);
-  // refresh returns the request, so "Create …" can wait for the new record.
-  const refresh = useCallback(() => api<SalesPerson[]>("v1/sales-people/").then(setPeople), []);
-  const reload = useCallback(() => {
-    refresh();
-  }, [refresh]);
-  useEffect(reload, [reload]);
-  useOnReturn(reload);
-  return { people, reload, refresh };
+/** One person as an entry form's picker gets them (sales-people/?search=1). */
+export type PickedPerson = { id: number; name: string; email: string; is_active: boolean };
+
+/** The people an entry form's picker offers, asked from the server as the person types
+ * (ItemSearch.ts) instead of loading everyone (5,000 trial people, Sidharth 2026-11-25).
+ * `as` keeps those ticked Salesman, Purchaser or Stores; `ids` are the people the form
+ * already has, always fetched so their names show. Pass `onType` to the Combobox. */
+export function usePeopleSearch(as: "salesman" | "purchaser" | "stores" | "", ids: (string | number | null | undefined)[], again?: number) {
+  const { items, onType } = useItemSearch<PickedPerson>(`v1/sales-people/${as ? `?as=${as}` : ""}`, ids, again);
+  return { people: items, onType };
 }
 
 export const worksAs = (p: SalesPerson) =>

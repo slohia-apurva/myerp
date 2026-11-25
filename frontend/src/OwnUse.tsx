@@ -5,6 +5,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
 import { useItemSearch } from "./ItemSearch";
+import { usePeopleSearch } from "./SalesPeople";
 import { money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
@@ -72,7 +73,6 @@ type FormItem = {
 };
 type Setup = {
   branches: { id: number; name: string; is_active: boolean; areas: { id: number; name: string; is_active: boolean }[] }[];
-  stores_people: { id: number; name: string }[];
   ledgers: { id: number; name: string; group_name: string }[];
   items: FormItem[];
 };
@@ -318,6 +318,8 @@ function EntryView({ companyId, id, session }: { companyId: number; id: number; 
   const refreshSetup = useCallback(() => api<Setup>(`${setupUrl}&search=1`).then(setSetup, (err) => setError(err)), [setupUrl]);
   // Items come from the server as the person types (ItemSearch.ts), never all at once.
   const { items, onType: findItems } = useItemSearch<FormItem>(mayEdit ? setupUrl : null, lines.map((l) => l.item), undefined, (a) => (a as Setup).items);
+  // Stores people come from the server as the person types (usePeopleSearch), never all at once.
+  const { people: storesPeople, onType: findPeople } = usePeopleSearch("stores", [fields.stores_person]);
   useEffect(() => {
     if (mayEdit) refreshSetup();
   }, [mayEdit, refreshSetup]);
@@ -470,7 +472,7 @@ function EntryView({ companyId, id, session }: { companyId: number; id: number; 
                 </label>
                 <label>
                   Issued By
-                  <Combobox value={fields.stores_person} onChange={(v) => set({ stores_person: v })} create={newPerson} options={(setup?.stores_people ?? []).map((p) => ({ value: String(p.id), label: p.name }))} />
+                  <Combobox value={fields.stores_person} onChange={(v) => set({ stores_person: v })} create={newPerson} onType={findPeople} options={storesPeople.map((p) => ({ value: String(p.id), label: p.name }))} />
                 </label>
                 <label className="wide">
                   Reason

@@ -64,3 +64,25 @@ def one_page(
         "page_size": PAGE_SIZE,
         "results": serialize(rows[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]),
     }
+
+
+PICK_LIMIT = 50
+
+
+def picked(rows: QuerySet, params, fields: list[str]) -> QuerySet:
+    """For a type-to-search picker on an entry form (Sidharth 2026-11-24: big
+    masters load as the person types). ?q= gives the first 50 active rows by name
+    whose `fields` hold every word typed (an empty q gives the first 50), and
+    ?ids= adds the rows the form already has, active or not."""
+    ids = {int(x) for x in params.get("ids", "").split(",") if x.strip().isdigit()}
+    if "q" not in params:
+        return rows.filter(pk__in=ids)
+    found = search(rows.filter(is_active=True), {"q": params.get("q", "")}, {"q": fields})
+    first = found.order_by("name", "pk").values_list("pk", flat=True)[:PICK_LIMIT]
+    return rows.filter(pk__in=set(first) | ids)
+
+
+def lean_setup(params) -> bool:
+    """An entry form's setup asked with ?search=1 leaves out the big master lists
+    that the form's pickers fetch as the person types."""
+    return params.get("search") == "1"
