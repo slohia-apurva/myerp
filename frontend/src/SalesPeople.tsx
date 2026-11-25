@@ -13,6 +13,7 @@ import { useOnReturn } from "./Refresh";
 import { useItemSearch } from "./ItemSearch";
 import { useColumns } from "./Columns";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
+import { useKept } from "./Keep";
 
 /** People (Sidharth, 2026-11-16, preview 83; "Stores" added 2026-11-17, preview 88): the
  * people who sell to customers, buy from suppliers or receive goods in the stores, with or
@@ -62,9 +63,9 @@ function PeopleList(props: { session: SignedIn; canEdit: boolean }) {
   const { canEdit } = props;
   // One page of 25 at a time, found on the server (Sidharth, 2026-11-24: large lists).
   const [data, setData] = useState<Paged<SalesPerson> | null>(null);
-  const [page, setPage] = useState(1);
-  const [searches, setSearches] = useState<Record<string, string>>({});
-  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [page, setPage] = useKept("SalesPeople.page", 1);
+  const [searches, setSearches] = useKept<Record<string, string>>("SalesPeople.searches", {});
+  const [typed, setTyped] = useKept<Record<string, string>>("SalesPeople.typed", {});
   const [inactive, setInactive] = useShowInactive();
   const [selected, setSelected] = useState<SalesPerson | null>(null);
   const [error, setError] = useState("");

@@ -90,7 +90,7 @@ export function useOpenParam(): [number | null, () => void] {
     params.delete("open");
     const rest = params.toString();
     const url = `${window.location.pathname}${window.location.search}${path}${rest ? `?${rest}` : ""}`;
-    window.history.replaceState(null, "", url);
+    window.history.replaceState(window.history.state, "", url);
   }, []);
   return [id, opened];
 }

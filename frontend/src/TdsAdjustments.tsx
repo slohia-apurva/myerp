@@ -10,6 +10,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useKept } from "./Keep";
 
 /** Entry › Accounts › TDS Adjustment (Sidharth, 2026-11-19, preview 95c): TDS missed on submitted bills
  * is deducted now (Dr supplier, Cr "TDS Payable <section>"), or TDS deducted in excess is given back.
@@ -94,10 +95,10 @@ const COLUMNS: [key: string, label: string, text: (r: Adjustment) => string, num
 ];
 
 function AdjustmentList({ companyId }: { companyId: number }) {
-  const [view, setView] = useState("submitted");
+  const [view, setView] = useKept("TdsAdjustments.view", "submitted");
   const [rows, setRows] = useState<Adjustment[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("TdsAdjustments.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("TdsAdjustments.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {
     api<Adjustment[]>(`v1/companies/${companyId}/tds-adjustments/?view=${view}`).then(setRows, setError);
@@ -198,7 +199,7 @@ function AdjustmentList({ companyId }: { companyId: number }) {
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click an adjustment to see it at the right (click it again to close the panel); double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click an adjustment to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="TDS adjustment details">
@@ -377,7 +378,7 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
       }
       if (!draftId) {
         setDraftId(done.id);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
       }
       setSaved((n) => n + 1);
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
@@ -385,7 +386,7 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
       const kept = keptDraft(err);
       if (kept && !draftId) {
         setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });

@@ -12,6 +12,7 @@ import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useItemSearch } from "./ItemSearch";
+import { useKept } from "./Keep";
 
 /** Batches (lots) of batch-tracked items. A batch number is unique within its
  * item only: two items may both have batch 1234 (Sidharth, 2026-11-15). */
@@ -72,7 +73,7 @@ export function BatchesPage({ session }: { session: SignedIn }) {
 
 function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[]; reload: () => void }) {
   const { batches, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Batches.selectedId", null);
   const [itemFilter, setItemFilter] = useState("");
   useCreated("batch_saved", (c) => {
     reload();

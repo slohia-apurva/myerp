@@ -8,6 +8,7 @@ import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName } 
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useKept } from "./Keep";
 
 /** `?form=new`, `?form=<id>`, `?form=sub-<parent id>` or `?form=copy-<id>`: this tab was
  * opened to add, change or duplicate one ledger group (Sidharth, 2026-11-13). */
@@ -49,7 +50,7 @@ function GroupList(props: {
     onImported: props.reload,
     printScreen: { title: "Ledger groups", scope: detail?.company.name },
   });
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("LedgerGroups.selectedId", null);
   useCreated("ledger_group_saved", (c) => {
     props.reload();
     setSelected(c.id);

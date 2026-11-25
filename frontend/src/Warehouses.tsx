@@ -9,6 +9,7 @@ import { useExchange } from "./Exchange";
 import { InUseNote, type LockInfo } from "./Lock";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Masters > Warehouses: a company's warehouses (branches ticked "Warehouse") with their
  * racks, bins and areas. The details of the clicked row are on the right; Add and Edit open
@@ -82,7 +83,7 @@ function WarehouseList(props: {
   reload: () => void;
 }) {
   const { companyId, canEdit, warehouses, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Warehouses.selectedId", null);
   const [shut, setShut] = useState<Set<number>>(new Set()); // racks folded closed
   useCreated("warehouse_location_saved", (c) => {
     reload();

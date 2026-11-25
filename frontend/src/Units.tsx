@@ -11,6 +11,7 @@ import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Units of measure: one list for every company in the group. */
 export type Unit = {
@@ -73,7 +74,7 @@ export function UnitsPage({ session }: { session: SignedIn }) {
 
 function UnitList(props: { session: SignedIn; canEdit: boolean; units: Unit[]; reload: () => void }) {
   const { units, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Units.selectedId", null);
   useCreated("unit_saved", (c) => {
     reload();
     setSelected(c.id);

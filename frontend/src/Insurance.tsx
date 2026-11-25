@@ -13,6 +13,7 @@ import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { Fold, FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
 import { ActionCells, ActionHeads } from "./RowActions";
+import { useKept } from "./Keep";
 
 /** Masters › Insurance Policies (Sidharth, 2026-11-18, previews 93a and 93d): the
  * company's marine, fire and stock policies, with the top-ups that refill a marine
@@ -106,7 +107,7 @@ export function InsurancePage({ companyId, session, companyName }: { companyId: 
 function PolicyList(props: { companyId: number; session: SignedIn; canEdit: boolean; companyName: string }) {
   const { companyId, canEdit } = props;
   const { policies, reload } = usePolicies(companyId);
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Insurance.selectedId", null);
   useCreated("insurance_policy_saved", (p) => {
     reload();
     setSelected(p.id);

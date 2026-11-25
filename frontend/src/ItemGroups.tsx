@@ -11,6 +11,7 @@ import { InUseNote, type LockInfo } from "./Lock";
 import type { Ledger } from "./Ledgers";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn, useReturns } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Item groups: one tree for every company in the group, like ledger groups. */
 export type ItemGroup = {
@@ -81,7 +82,7 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
 
 function GroupList(props: { session: SignedIn; canEdit: boolean; groups: ItemGroup[]; reload: () => void }) {
   const { groups, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("ItemGroups.selectedId", null);
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
   useCreated("item_group_saved", (c) => {

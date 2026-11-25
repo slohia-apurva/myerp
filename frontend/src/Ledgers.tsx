@@ -15,6 +15,7 @@ import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { useOnReturn } from "./Refresh";
 import { ColumnSearch } from "./ColumnSearch";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
+import { useKept } from "./Keep";
 
 export type Ledger = {
   id: number;
@@ -120,12 +121,12 @@ type LedgerPages = { count: number; groups: Record<string, GroupPage> };
 function LedgerList(props: { companyId: number; groupId?: number; session: SignedIn }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [data, setData] = useState<LedgerPages | null>(null);
-  const [typed, setTyped] = useState("");
-  const [name, setName] = useState("");
-  const [pages, setPages] = useState<Record<number, number>>({});
+  const [typed, setTyped] = useKept("Ledgers.typed", "");
+  const [name, setName] = useKept("Ledgers.name", "");
+  const [pages, setPages] = useKept<Record<number, number>>("Ledgers.pages", {});
   const [inactive, setInactive] = useShowInactive();
   const [groupFilter, setGroupFilter] = useState(props.groupId ? String(props.groupId) : "");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useKept<number | null>("Ledgers.selectedId", null);
   const [error, setError] = useState("");
   const canEdit = props.session.permissions.includes("masters.edit");
   const ordered = useMemo(() => treeOrder(detail?.ledger_groups ?? []), [detail]);

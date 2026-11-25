@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { keptGet, keptSet } from "./Keep";
 
 /** Does every word typed in a column's box appear in that cell (capitals ignored)? */
 const matches = (text: string, typed: string) => {
@@ -22,6 +23,9 @@ export function ColumnSearch(props: { onSearch?: (values: string[]) => void }) {
   const row = useRef<HTMLTableRowElement>(null);
   const [heads, setHeads] = useState<boolean[]>([]);
   const [values, setValues] = useState<string[]>([]);
+  // What was typed is kept for when "Close" comes back to the list (Keep.ts), under the
+  // column headings, so two lists on one screen keep theirs apart.
+  const [keepAs, setKeepAs] = useState("");
   const [none, setNone] = useState(false);
 
   // Which columns have a heading: the headings row is the one just above.
@@ -30,7 +34,16 @@ export function ColumnSearch(props: { onSearch?: (values: string[]) => void }) {
     if (!above) return;
     // A heading marked `data-no-search` (a figure the server cannot search, like In Stock) gets no box.
     setHeads(Array.from(above.children).map((th) => (th.textContent ?? "").trim() !== "" && !(th as HTMLElement).hasAttribute("data-no-search")));
+    const name = `cols:${Array.from(above.children)
+      .map((th) => (th.textContent ?? "").trim())
+      .join("|")}`;
+    setKeepAs(name);
+    const kept = keptGet<string[]>(name);
+    if (kept) setValues(kept);
   }, []);
+  useEffect(() => {
+    if (keepAs) keptSet(keepAs, values);
+  }, [keepAs, values]);
 
   const typed = values.some((v) => v.trim() !== "");
   const onSearch = props.onSearch;

@@ -12,6 +12,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { invoiceBase, makeSalesInvoice } from "./SalesInvoices";
+import { useKept } from "./Keep";
 
 /** Entry > Sales > Delivery Note: the goods going out to the customer (Sidharth, 2026-11-20,
  * previews 7-9 in mockups/sales). Made from a picked pick list with its bins and batches; Submit
@@ -173,10 +174,10 @@ const COLUMNS: [key: string, label: string, text: (n: Note) => string, num?: boo
 ];
 
 function NoteList({ companyId }: { companyId: number }) {
-  const [view, setView] = useState("all");
+  const [view, setView] = useKept("DeliveryNotes.view", "all");
   const [notes, setNotes] = useState<Note[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("DeliveryNotes.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("DeliveryNotes.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<Note[]>(`v1/companies/${companyId}/delivery-notes/?view=${view}`)
@@ -281,7 +282,7 @@ function NoteList({ companyId }: { companyId: number }) {
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click a note to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click a note to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Delivery note details">
@@ -505,7 +506,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
               {note.invoice && (
                 <span className="tag">
                   {note.billed ? "Billed on " : "Draft invoice "}
-                  <a href={`${invoiceBase(companyId)}?view=${note.invoice.id}`} target="_blank" rel="noreferrer">
+                  <a href={`${invoiceBase(companyId)}?view=${note.invoice.id}`}>
                     {note.invoice.number || "Open"}
                   </a>
                 </span>
@@ -513,13 +514,13 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
               <span className="tag">{note.despatch_from}</span>
               <span className="tag">
                 From Pick List{" "}
-                <a href={`#/companies/${companyId}/pick-lists?view=${note.pick_list}`} target="_blank" rel="noreferrer">
+                <a href={`#/companies/${companyId}/pick-lists?view=${note.pick_list}`}>
                   {note.pick_list_number}
                 </a>
               </span>
               <span className="tag">
                 Against{" "}
-                <a href={`#/companies/${companyId}/sales-orders?view=${note.order}`} target="_blank" rel="noreferrer">
+                <a href={`#/companies/${companyId}/sales-orders?view=${note.order}`}>
                   {note.order_number}
                 </a>
               </span>

@@ -12,6 +12,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
 import { useReturns } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Entry > Purchase > Debit Note (Sidharth, 2026-11-15, preview 75): goods sent back on a
  * Purchase Return, debited against the supplier's bill at the bill's rate and GST. Submit
@@ -118,10 +119,10 @@ const COLUMNS: [key: string, label: string, text: (r: Note) => string, num?: boo
 ];
 
 function NoteList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
-  const [view, setView] = useState("submitted");
+  const [view, setView] = useKept("DebitNotes.view", "submitted");
   const [rows, setRows] = useState<Note[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("DebitNotes.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("DebitNotes.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {
     api<Note[]>(`v1/companies/${companyId}/debit-notes/?view=${view}`).then(setRows, setError);
@@ -250,7 +251,7 @@ function NoteList({ companyId, canCreate }: { companyId: number; canCreate: bool
             )}
           </table>
           {shown.length > 0 && (
-            <p className="small no-print">Click a debit note to see it at the right (click it again to close the panel); double-click or press Enter to open it in a new tab.</p>
+            <p className="small no-print">Click a debit note to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>
           )}
         </div>
         {selected && (
@@ -428,7 +429,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
       }
       if (!draftId) {
         setDraftId(done.id);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
       }
       setSaved(done);
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
@@ -436,7 +437,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
       const kept = keptDraft(err);
       if (kept && !draftId) {
         setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });

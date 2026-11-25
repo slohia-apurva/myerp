@@ -13,6 +13,7 @@ import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedge
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { makeCreditNote } from "./CreditNotes";
 import { TotalsPanel } from "./PurchaseOrders";
+import { useKept } from "./Keep";
 
 /** Entry > Sales > Sales Invoice: the tax invoice for one or more submitted delivery notes of a
  * customer (Sidharth, 2026-11-20, previews 14a/14b in mockups/sales). Quantities are what the notes
@@ -210,10 +211,10 @@ const COLUMNS: [key: string, label: string, text: (i: Invoice) => string, num?: 
 ];
 
 function InvoiceList({ companyId }: { companyId: number }) {
-  const [view, setView] = useState("all");
+  const [view, setView] = useKept("SalesInvoices.view", "all");
   const [rows, setRows] = useState<Invoice[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("SalesInvoices.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("SalesInvoices.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<Invoice[]>(`v1/companies/${companyId}/sales-invoices/?view=${view}`)
@@ -318,7 +319,7 @@ function InvoiceList({ companyId }: { companyId: number }) {
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click an invoice to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click an invoice to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Sales invoice details">
@@ -567,7 +568,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                 {inv.delivery_notes.map((n, k) => (
                   <span key={n.id}>
                     {k > 0 && ", "}
-                    <a href={`#/companies/${companyId}/delivery-notes?view=${n.id}`} target="_blank" rel="noreferrer">
+                    <a href={`#/companies/${companyId}/delivery-notes?view=${n.id}`}>
                       {n.number}
                     </a>
                   </span>
@@ -578,7 +579,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                 {inv.orders.map((o, k) => (
                   <span key={o.id}>
                     {k > 0 && ", "}
-                    <a href={`#/companies/${companyId}/sales-orders?view=${o.id}`} target="_blank" rel="noreferrer">
+                    <a href={`#/companies/${companyId}/sales-orders?view=${o.id}`}>
                       {o.number}
                     </a>
                   </span>
@@ -829,7 +830,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                   {inv.delivery_notes.map((n) => (
                     <tr key={n.id}>
                       <td>
-                        <a href={`#/companies/${companyId}/delivery-notes?view=${n.id}`} target="_blank" rel="noreferrer">
+                        <a href={`#/companies/${companyId}/delivery-notes?view=${n.id}`}>
                           {n.number}
                         </a>
                       </td>
@@ -1125,7 +1126,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
               {(inv.credit_notes ?? []).map((c) => (
                 <div key={c.id} className="side-row">
                   <span>
-                    <a href={`#/companies/${companyId}/credit-notes?view=${c.id}`} target="_blank" rel="noreferrer">
+                    <a href={`#/companies/${companyId}/credit-notes?view=${c.id}`}>
                       {c.number || "Draft"}
                     </a>
                     <span className="small"> · {c.kind_label.replace("Sales Return – ", "Return, ")}</span>

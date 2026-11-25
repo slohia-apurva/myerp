@@ -12,6 +12,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useKept } from "./Keep";
 
 /** Entry > Stock > Own Use: our own stock used inside the company, for the office, canteen,
  * maintenance, R&D, or damaged and thrown away (Sidharth, 2026-11-22, preview 9c in
@@ -130,10 +131,10 @@ const COLUMNS: [key: string, label: string, text: (e: Entry) => string, num?: bo
 ];
 
 function EntryList({ companyId, session }: { companyId: number; session: SignedIn }) {
-  const [view, setView] = useState(hashParam("status") ?? "all");
+  const [view, setView] = useKept("OwnUse.view", hashParam("status") ?? "all");
   const [rows, setRows] = useState<Entry[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("OwnUse.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("OwnUse.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<Entry[]>(`v1/companies/${companyId}/own-use/?view=${view}`)
@@ -240,7 +241,7 @@ function EntryList({ companyId, session }: { companyId: number; session: SignedI
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click an entry to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click an entry to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Own use details">
@@ -335,7 +336,7 @@ function EntryView({ companyId, id, session }: { companyId: number; id: number; 
     setCancelling(false);
     setSaved((k) => k + 1);
     announceSaved("own_use_saved", { id: x.id, name: x.number || "Draft" });
-    if (!id) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base}?view=${x.id}`);
+    if (!id) window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base}?view=${x.id}`);
   };
   const refusal = (err: unknown) => {
     const missing = missingLedgersOf(err);

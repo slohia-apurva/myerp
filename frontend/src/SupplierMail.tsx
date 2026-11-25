@@ -330,7 +330,7 @@ export function OrderMail({
           </label>
           <div className="field">
             <span className="fact-label">Attached</span>
-            <a href={`/api/v1/${path}/${orderId}/pdf/`} target="_blank" rel="noreferrer">
+            <a href={`/api/v1/${path}/${orderId}/pdf/`} target="myerp-print" rel="noreferrer">
               {draft.attachment}
             </a>
           </div>

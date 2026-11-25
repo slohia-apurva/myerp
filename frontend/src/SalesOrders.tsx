@@ -19,6 +19,7 @@ import { AddressBlock, ContactTicks, PaymentPanel, TotalsPanel, type Contact, ty
 import { OrderMail } from "./SupplierMail";
 import { type PickBrief } from "./PickLists";
 import { useOnReturn, useReturns } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Entry > Sales > Sales Order: what a customer asked the company for. A draft can be
  * changed; Submit gives it its number and fixes it. Nothing here posts to the books.
@@ -288,10 +289,10 @@ const COLUMNS: [key: string, label: string, text: (o: SalesOrder) => string, num
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
   const canCreate = session.permissions.includes("sales.create");
   const { setup } = useSetup(companyId);
-  const [view, setView] = useState("open");
+  const [view, setView] = useKept("SalesOrders.view", "open");
   const [orders, setOrders] = useState<SalesOrder[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("SalesOrders.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("SalesOrders.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<SalesOrder[]>(`v1/companies/${companyId}/sales-orders/?view=${view}`)
@@ -424,7 +425,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
             )}
           </table>
           {shown.length > 0 && (
-            <p className="small no-print">Click an order to see it at the right (click it again to close the panel); double-click or press Enter to open it in a new tab.</p>
+            <p className="small no-print">Click an order to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>
           )}
         </div>
         {selected && (
@@ -727,7 +728,7 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
     });
   const [draftId, setDraftId] = useState<number | null>(order?.id ?? null);
   const [savedAt, setSavedAt] = useState("");
-  const keepAt = (id: number) => window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${id}`);
+  const keepAt = (id: number) => window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${id}`);
   const save = async (submit: boolean) => {
     setError("");
     setBusy(true);
@@ -1402,7 +1403,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               <span>
                 <b>
                   Pick List{" "}
-                  <a href={pickHref(livePick.id)} target="_blank" rel="noreferrer">
+                  <a href={pickHref(livePick.id)}>
                     {livePick.number}
                   </a>{" "}
                   {livePick.status === "picked" ? "picked." : "made on Submit."}
@@ -1427,7 +1428,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                       {" → "}
                       {n.action === "po" && n.order ? (
                         <>
-                          <a href={poHref(n.order)} target="_blank" rel="noreferrer">
+                          <a href={poHref(n.order)}>
                             draft Purchase Order
                           </a>{" "}
                           to {n.supplier_name} for {n.qty} {n.unit_name}
@@ -1437,7 +1438,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                         "Manufacture: no order yet. Once Bills of Materials and Manufacturing Orders are built, Submit makes a Manufacturing Order here, and draft POs for any material that is short"
                       ) : n.action === "st" && n.transfer ? (
                         <>
-                          <a href={stHref(n.transfer)} target="_blank" rel="noreferrer">
+                          <a href={stHref(n.transfer)}>
                             draft Stock Transfer
                           </a>{" "}
                           from {n.from_name} for {n.qty} {n.unit_name}
@@ -1463,22 +1464,18 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           )}
           {!draft && order.status !== "cancelled" && (
             <div className="doc-counts no-print" aria-label="Documents made from this order">
-              <a className={picks.length ? "" : "none"} href={livePick ? pickHref(livePick.id) : `#/companies/${companyId}/pick-lists`} target="_blank" rel="noreferrer">
+              <a className={picks.length ? "" : "none"} href={livePick ? pickHref(livePick.id) : `#/companies/${companyId}/pick-lists`}>
                 <b>{picks.filter((p) => p.status !== "cancelled").length}</b> Pick List
               </a>
               <a
                 className={notes.length ? "" : "none"}
                 href={notes.length === 1 && lastNote ? `${deliveryBase(companyId)}?view=${lastNote.id}` : deliveryBase(companyId)}
-                target="_blank"
-                rel="noreferrer"
               >
                 <b>{notes.length}</b> {notes.length === 1 ? "Delivery Note" : "Delivery Notes"}
               </a>
               <a
                 className={pos.length ? "" : "none"}
                 href={pos.length === 1 ? poHref(pos[0].id) : `#/companies/${companyId}/purchase-orders`}
-                target="_blank"
-                rel="noreferrer"
                 title={pos.map((p) => `${p.number || "Draft"} · ${p.supplier_name} · ${p.status_label}`).join("\n")}
               >
                 <b>{pos.length}</b> {pos.length === 1 ? "Purchase Order" : "Purchase Orders"}
@@ -1486,8 +1483,6 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               <a
                 className={sts.length ? "" : "none"}
                 href={sts.length === 1 ? stHref(sts[0].id) : `#/companies/${companyId}/stock-transfers`}
-                target="_blank"
-                rel="noreferrer"
                 title={sts.map((t) => `${t.number || "Draft"} · from ${t.from_branch_name} · ${t.status_label}`).join("\n")}
               >
                 <b>{sts.length}</b> {sts.length === 1 ? "Stock Transfer" : "Stock Transfers"}
@@ -1617,11 +1612,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                           <td>
                             {l.cover &&
                               (l.cover.transfer ? (
-                                <a className="pill on" href={stHref(l.cover.transfer)} target="_blank" rel="noreferrer" title={l.cover.supplier}>
+                                <a className="pill on" href={stHref(l.cover.transfer)} title={l.cover.supplier}>
                                   {l.cover.text}
                                 </a>
                               ) : l.cover.order ? (
-                                <a className="pill on" href={poHref(l.cover.order)} target="_blank" rel="noreferrer" title={l.cover.supplier}>
+                                <a className="pill on" href={poHref(l.cover.order)} title={l.cover.supplier}>
                                   {l.cover.text}
                                 </a>
                               ) : (

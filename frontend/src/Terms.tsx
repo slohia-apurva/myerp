@@ -11,6 +11,7 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Terms and conditions: named sets of the terms printed on orders, for purchase or sales. */
 export type TermsSet = {
@@ -70,7 +71,7 @@ export function TermsPage({ session }: { session: SignedIn }) {
 
 function ListPage(props: { session: SignedIn; canEdit: boolean; sets: TermsSet[]; reload: () => void }) {
   const { sets, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Terms.selectedId", null);
   useCreated("terms_saved", (c) => {
     reload();
     setSelected(c.id);

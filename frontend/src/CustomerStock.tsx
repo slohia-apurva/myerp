@@ -13,6 +13,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import type { PackageRow } from "./GoodsReceipts";
 import { BagLabelPrint } from "./GrnPrint";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useKept } from "./Keep";
 
 /** Entry > Stock > Stock Receipt and Stock Delivery: a customer's own goods coming in (their tea for
  * job work, their packing material, against their challan) and going back to them unused
@@ -193,10 +194,10 @@ function columns(kind: Kind): [key: string, label: string, text: (e: Entry) => s
 function EntryList({ companyId, session, kind }: { companyId: number; session: SignedIn; kind: Kind }) {
   const text = TEXT[kind];
   const cols = useMemo(() => columns(kind), [kind]);
-  const [view, setView] = useState(hashParam("status") ?? "all");
+  const [view, setView] = useKept("CustomerStock.view", hashParam("status") ?? "all");
   const [rows, setRows] = useState<Entry[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("CustomerStock.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("CustomerStock.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<Entry[]>(`v1/companies/${companyId}/customer-stock/?kind=${kind}&view=${view}`)
@@ -309,7 +310,7 @@ function EntryList({ companyId, session, kind }: { companyId: number; session: S
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click an entry to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click an entry to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label={`${text.title} details`}>
@@ -491,7 +492,7 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
       id: x.id,
       name: x.number || "Draft",
     });
-    if (!id) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base}?view=${x.id}`);
+    if (!id) window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base}?view=${x.id}`);
   };
   const refusal = (err: unknown) => {
     const data = err instanceof ApiError ? (err.data as { problems?: Problem[] } | undefined) : undefined;

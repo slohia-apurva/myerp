@@ -4,7 +4,7 @@ import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { closeThisTab } from "./Create";
 import { ErrorNote } from "./ErrorNote";
-import { hashParam, openTab } from "./Master";
+import { hashParam, openNewTab } from "./Master";
 
 /** A request to add an entry to a central list, sent to the MyERP team (Sidharth, 2026-11-14). */
 export type AdditionRequest = {
@@ -34,7 +34,7 @@ export const REQUEST_LISTS = [
 
 /** Opens the "Request Addition" screen in a new tab, the list (and a typed entry) filled in. */
 export function openRequestAddition(kind: Kind, entry = "") {
-  openTab(`#/request-addition?kind=${kind}${entry ? `&entry=${encodeURIComponent(entry)}` : ""}`);
+  openNewTab(`#/request-addition?kind=${kind}${entry ? `&entry=${encodeURIComponent(entry)}` : ""}`);
 }
 
 /** "Not in the list? Request Addition" link for a dropdown that picks from a central list. */

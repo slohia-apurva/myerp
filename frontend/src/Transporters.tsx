@@ -15,6 +15,7 @@ import { ColumnSearch } from "./ColumnSearch";
 import { useColumns } from "./Columns";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 type Account = CourierAccount & { lock?: LockInfo; preferred_by?: number };
 
@@ -39,11 +40,11 @@ function AccountList(props: { companyId: number; canEdit: boolean; session: Sign
   const { companyId, canEdit } = props;
   // One page of 25 at a time, found on the server (Sidharth, 2026-11-24: large lists).
   const [data, setData] = useState<Paged<Account> | null>(null);
-  const [page, setPage] = useState(1);
-  const [searches, setSearches] = useState<Record<string, string>>({});
-  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [page, setPage] = useKept("Transporters.page", 1);
+  const [searches, setSearches] = useKept<Record<string, string>>("Transporters.searches", {});
+  const [typed, setTyped] = useKept<Record<string, string>>("Transporters.typed", {});
   const [inactive, setInactive] = useShowInactive();
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Transporters.selectedId", null);
   const [error, setError] = useState("");
   useEffect(() => {
     if (JSON.stringify(typed) === JSON.stringify(searches)) return;

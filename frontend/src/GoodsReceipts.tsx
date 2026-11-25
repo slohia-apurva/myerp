@@ -15,6 +15,7 @@ import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedge
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn, useReturns } from "./Refresh";
 import { usePeopleSearch } from "./SalesPeople";
+import { useKept } from "./Keep";
 
 /** Entry > Purchase > Goods Receipt: what arrived against a supplier's purchase orders, and
  * which bins and batches it went into. Submit posts the stock (Dr Stock, Cr Goods Received
@@ -251,10 +252,10 @@ const COLUMNS: [key: string, label: string, text: (r: GoodsReceipt) => string, n
 ];
 
 function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
-  const [view, setView] = useState("all");
+  const [view, setView] = useKept("GoodsReceipts.view", "all");
   const [rows, setRows] = useState<GoodsReceipt[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("GoodsReceipts.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("GoodsReceipts.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {
     api<GoodsReceipt[]>(`v1/companies/${companyId}/goods-receipts/?view=${view}`).then(setRows, setError);
@@ -386,7 +387,7 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
             )}
           </table>
           {shown.length > 0 && (
-            <p className="small no-print">Click a receipt to see it at the right (click it again to close the panel); double-click or press Enter to open it in a new tab.</p>
+            <p className="small no-print">Click a receipt to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>
           )}
         </div>
         {selected && (
@@ -712,7 +713,7 @@ function ReceiptForm(props: {
       }
       if (!draftId) {
         setDraftId(saved.id);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${saved.id}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${saved.id}`);
       }
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
       setSaves((n) => n + 1);
@@ -721,7 +722,7 @@ function ReceiptForm(props: {
       const kept = keptDraft(err);
       if (kept && !draftId) {
         setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setSaves((n) => n + 1);
       // Missing item group ledgers: all of them in a popup, not an error at the top (Sidharth, 2026-11-17).

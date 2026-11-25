@@ -12,6 +12,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { useKept } from "./Keep";
 
 /** Entry > Stock > Stock Transfer: goods moving between two branches of one company with the same
  * GSTIN (Sidharth, 2026-11-22, preview 9a in mockups/planning). Draft → Dispatch (the goods leave
@@ -147,10 +148,10 @@ const COLUMNS: [key: string, label: string, text: (t: Transfer) => string, num?:
 ];
 
 function TransferList({ companyId, session }: { companyId: number; session: SignedIn }) {
-  const [view, setView] = useState(hashParam("status") ?? "all");
+  const [view, setView] = useKept("StockTransfers.view", hashParam("status") ?? "all");
   const [rows, setRows] = useState<Transfer[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("StockTransfers.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("StockTransfers.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<Transfer[]>(`v1/companies/${companyId}/stock-transfers/?view=${view}`)
@@ -258,7 +259,7 @@ function TransferList({ companyId, session }: { companyId: number; session: Sign
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click a transfer to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click a transfer to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Stock transfer details">
@@ -386,7 +387,7 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
     setReceiving(false);
     setSaved((k) => k + 1);
     announceSaved("stock_transfer_saved", { id: x.id, name: x.number || "Draft" });
-    if (!id) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${transferBase(companyId)}?view=${x.id}`);
+    if (!id) window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${transferBase(companyId)}?view=${x.id}`);
   };
   const refusal = (err: unknown) => {
     const missing = missingLedgersOf(err);

@@ -20,6 +20,7 @@ import { defaultPolicy, TransitInsuranceFold, TransitInsuranceView, type OrderIn
 import { PoPrint } from "./PoPrint";
 import { OrderMail, SupplierMail } from "./SupplierMail";
 import { useOnReturn, useReturns } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -293,10 +294,10 @@ const replyClass = (s: string) => (s === "accepted" ? "pill on" : s === "issue" 
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
   const canCreate = session.permissions.includes("purchase.create");
   const { setup } = useSetup(companyId);
-  const [view, setView] = useState("open");
+  const [view, setView] = useKept("PurchaseOrders.view", "open");
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("PurchaseOrders.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("PurchaseOrders.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<PurchaseOrder[]>(`v1/companies/${companyId}/purchase-orders/?view=${view}`)
@@ -430,7 +431,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
             )}
           </table>
           {shown.length > 0 && (
-            <p className="small no-print">Click an order to see it at the right (click it again to close the panel); double-click or press Enter to open it in a new tab.</p>
+            <p className="small no-print">Click an order to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>
           )}
         </div>
         {selected && (
@@ -877,7 +878,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       if (!draftId) {
         setDraftId(saved.id);
         // Reloading this tab now opens the saved draft (no new form, no reload now).
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${saved.id}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${saved.id}`);
       }
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
       setBusy(false);
@@ -885,7 +886,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       const kept = keptDraft(err);
       if (kept && !draftId) {
         setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });

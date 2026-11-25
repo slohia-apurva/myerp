@@ -12,6 +12,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { MoPicks, type Pick, type PickLine } from "./MoPicks";
+import { useKept } from "./Keep";
 
 /** Entry > Production > Manufacturing Order (Sidharth, 2026-11-23, preview 15d in mockups/planning):
  * what to make, how much, by when and with which BOM version (the item's ★ default to start with, or
@@ -197,10 +198,10 @@ const COLUMNS: [key: string, label: string, text: (o: Order) => string, num?: bo
 ];
 
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
-  const [view, setView] = useState(hashParam("status") ?? "open");
+  const [view, setView] = useKept("ManufacturingOrders.view", hashParam("status") ?? "open");
   const [rows, setRows] = useState<Order[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("ManufacturingOrders.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("ManufacturingOrders.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<Order[]>(`v1/companies/${companyId}/manufacturing-orders/?view=${view}`)
@@ -314,7 +315,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click an order to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click an order to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Manufacturing order details">
@@ -495,7 +496,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
     setCancelling(false);
     setClosing(false);
     announceSaved("manufacturing_order_saved", { id: x.id, name: x.number || "Draft" });
-    if (!id) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base}?view=${x.id}`);
+    if (!id) window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base}?view=${x.id}`);
   };
   const run = async (call: () => Promise<Order>, afterRefusal?: () => void) => {
     setError("");

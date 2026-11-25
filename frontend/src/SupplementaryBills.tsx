@@ -145,7 +145,7 @@ function SupplementaryForm(props: { companyId: number; from: DraftFrom; bill?: S
       }
       if (!draftId) {
         setDraftId(done.id);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
       }
       setSaved(done);
       setSavedAt(
@@ -158,7 +158,7 @@ function SupplementaryForm(props: { companyId: number; from: DraftFrom; bill?: S
       const kept = keptDraft(err);
       if (kept && !draftId) {
         setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });

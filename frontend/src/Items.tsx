@@ -12,7 +12,7 @@ import { useBrands } from "./Brands";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { groupPaths, useItemGroups } from "./ItemGroups";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
-import { Fold, hashParam, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ItemBoms } from "./Boms";
 import { labelFor, unitLabel, useUnits, type Unit } from "./Units";
 import { longDate, type Company } from "./Companies";
@@ -23,6 +23,7 @@ import { accountsSummary, ItemAccountsEditor, saveItemAccounts, useItemAccounts,
 import { useOnReturn, useReturns } from "./Refresh";
 import { useColumns } from "./Columns";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
+import { useKept } from "./Keep";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -193,18 +194,18 @@ function viewParam(): number | null {
   return id > 0 ? id : null;
 }
 
-/** Open an item's own page in a new tab, beside the list. */
+/** Open an item's own page (same tab; Close comes back to the list). */
 /** "Customer", "Supplier" or both, from the numbers the party was given. */
 const partyKind = (p?: { customer_number: string; vendor_number: string }) =>
   [p?.customer_number && "Customer", p?.vendor_number && "Supplier"].filter(Boolean).join(", ");
 
 function openItemView(id: number) {
-  window.open(`${window.location.pathname}${window.location.search}#/items?view=${id}`, "_blank");
+  openTab(`#/items?view=${id}`);
 }
 
-/** Open the add / change form of an item in a new tab, beside the list. */
+/** Open the add / change form of an item (same tab; Cancel comes back). */
 function openItemForm(form: string) {
-  window.open(`${window.location.pathname}${window.location.search}#/items?form=${form}`, "_blank");
+  openTab(`#/items?form=${form}`);
 }
 
 /** The form alone, in its own tab: Save and Cancel close the tab and the list refreshes. */
@@ -266,10 +267,10 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
   const { units } = useUnits();
   // One page of 25 at a time, found on the server: the catalogue can hold thousands of items.
   const [data, setData] = useState<Paged<Item> | null>(null);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useKept("Items.page", 1);
   // What each column search box asks the server, by the column's search name.
-  const [searches, setSearches] = useState<Record<string, string>>({});
-  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [searches, setSearches] = useKept<Record<string, string>>("Items.searches", {});
+  const [typed, setTyped] = useKept<Record<string, string>>("Items.typed", {});
   // `?group=<id>` (from the Items count on Item groups) shows that group and everything under it.
   const [groupFilter, setGroupFilter] = useState(hashParam("group") ?? "");
   const { groups: allGroups } = useItemGroups();
@@ -451,7 +452,7 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
                     e.preventDefault();
                     setGroupFilter("");
                     setPage(1);
-                    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#/items`);
+                    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#/items`);
                   }}
                 >
                   Show all items

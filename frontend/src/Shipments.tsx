@@ -8,6 +8,7 @@ import { usePrintMenu } from "./Exchange";
 import { Combobox } from "./Combobox";
 import { type Company, type Contact } from "./Companies";
 import { useOnReturn, useReturns } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Couriers, transporters and shipments (spec 06, step 1). Statuses are
  * typed by hand until each courier's tracking API is connected. */
@@ -238,8 +239,8 @@ export function ShipmentsPage({
         refreshAccounts,
       )
     : undefined;
-  const [view, setView] = useState("action");
-  const [q, setQ] = useState("");
+  const [view, setView] = useKept("Shipments.view", "action");
+  const [q, setQ] = useKept("Shipments.q", "");
   const [rows, setRows] = useState<Shipment[]>([]);
   const [open, setOpen] = useState<number | "new" | null>(null);
   const [stamp, setStamp] = useState(0);

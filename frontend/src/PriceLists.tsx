@@ -12,6 +12,7 @@ import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { PriceTable, priceBody, rowFromServer, type PriceRow } from "./PriceLines";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Price lists: named sets of rates for selling or buying, each rate from a date and a quantity. */
 export type PriceList = {
@@ -65,7 +66,7 @@ export function PriceListsPage({ session }: { session: SignedIn }) {
 
 function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList[]; reload: () => void }) {
   const { lists, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("PriceLists.selectedId", null);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   useEffect(() => {
     api<Currency[]>("v1/currencies/").then(setCurrencies, () => setCurrencies([]));
