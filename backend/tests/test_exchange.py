@@ -575,3 +575,18 @@ def test_reimport_cannot_change_locked_fields_of_a_master_in_use(owner, alpha):
     ]
     out = upload(owner, [HEADER[:5], row], commit=True).json()
     assert (out["changed"], out["saved"]) == (1, True), out
+
+
+def test_an_export_skips_the_in_use_checks(viewer, alpha, monkeypatch):
+    """Each record's "in use" checks are a dozen queries; an export never shows
+    them, and 12,000 items took over 300 s on staging (2026-11-24)."""
+    from core import locks
+
+    asked = []
+    real = locks.lock_status
+    monkeypatch.setattr(locks, "lock_status", lambda *a: asked.append(a) or real(*a))
+    from core import units
+
+    monkeypatch.setattr(units, "lock_status", locks.lock_status)
+    assert export(viewer).status_code == 200
+    assert asked == []

@@ -63,7 +63,9 @@ class TermsSetSerializer(serializers.ModelSerializer):
             ({"id": c.pk, "name": c.name} for c in rows), key=lambda r: r["name"].casefold()
         )
 
-    def get_lock(self, terms) -> dict:
+    def get_lock(self, terms) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         return lock_status("terms", terms)
 
 

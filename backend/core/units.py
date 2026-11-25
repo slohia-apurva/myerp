@@ -92,6 +92,8 @@ class UnitSerializer(serializers.ModelSerializer):
     lock = serializers.SerializerMethodField()
 
     def get_lock(self, unit) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         # Pickers on every screen read the list: they skip the "in use" checks (a dozen
         # queries a unit); the Units screen asks for them with ?full=1.
         if self.context.get("lean"):

@@ -480,7 +480,11 @@ def _tables_out(master: Master, ctx: Context, blank: bool) -> list[Table]:
     data = []
     if not blank:
         records = master.queryset(ctx)
-        data = master.serializer(records, many=True, context={"request": ctx.request}).data
+        # "list": the serializers skip their per-record "in use" checks, which an
+        # export never shows (12,000 items took over 300 s, 2026-11-24).
+        data = master.serializer(
+            records, many=True, context={"request": ctx.request, "list": True}
+        ).data
     main = sheets[0]
     link = next((c for c in main.columns if c.field == master.link), None)
     tables = [

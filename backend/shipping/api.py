@@ -98,7 +98,9 @@ class CourierAccountSerializer(serializers.ModelSerializer):
         required=False,
     )
 
-    def get_lock(self, account) -> dict:
+    def get_lock(self, account) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         return lock_status("courier_account", account)
 
     class Meta:

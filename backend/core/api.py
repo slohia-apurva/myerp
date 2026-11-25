@@ -264,7 +264,9 @@ class LedgerSerializer(serializers.ModelSerializer):
 
     system = serializers.SerializerMethodField()
 
-    def get_lock(self, ledger) -> dict:
+    def get_lock(self, ledger) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         status = lock_status("ledger", ledger)
         if _fixed(ledger):
             # A fixed system ledger keeps its name but may change group even in use.

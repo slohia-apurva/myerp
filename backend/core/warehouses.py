@@ -30,7 +30,9 @@ class LocationSerializer(serializers.ModelSerializer):
     bin_count = serializers.IntegerField(read_only=True, default=0)
     lock = serializers.SerializerMethodField()
 
-    def get_lock(self, location) -> dict:
+    def get_lock(self, location) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         return lock_status("warehouse_location", location)
 
     class Meta:

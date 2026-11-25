@@ -95,6 +95,8 @@ class ItemGroupSerializer(serializers.ModelSerializer):
     # Pickers on every screen read the list: they skip the "in use" checks and the
     # accounts (many queries a group); the Item groups screen asks with ?full=1.
     def get_lock(self, group) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         if self.context.get("lean"):
             return None
         return lock_status("item_group", group)

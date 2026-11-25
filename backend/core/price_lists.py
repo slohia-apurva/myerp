@@ -105,7 +105,9 @@ class PriceListSerializer(serializers.ModelSerializer):
     def get_price_count(self, plist) -> int:
         return plist.lines.count()
 
-    def get_lock(self, plist) -> dict:
+    def get_lock(self, plist) -> dict | None:
+        if self.context.get("list"):  # an export: no per-record "in use" checks
+            return None
         from core.locks import lock_status
 
         return lock_status("price_list", plist)
