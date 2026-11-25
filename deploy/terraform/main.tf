@@ -341,6 +341,12 @@ resource "google_cloud_run_v2_service" "app" {
         }
 
         cpu_idle = true
+
+        # Full CPU while the instance starts, so Django is imported quickly: a
+        # person who wakes a sleeping instance waited 6.5 seconds on the median
+        # (198 instance starts in the week to 2026-11-25). Charged only for the
+        # startup, not while the instance runs.
+        startup_cpu_boost = true
       }
 
       dynamic "env" {
