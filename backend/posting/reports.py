@@ -31,6 +31,18 @@ PAGES = {
     "debit_note": "debit-notes",
     "tds_adjustment": "tds-adjustments",
     "credit_note": "credit-notes",
+    "purchase_order": "purchase-orders",
+    "sales_order": "sales-orders",
+    "pick_list": "pick-lists",
+    "delivery_note": "delivery-notes",
+    "sales_invoice": "sales-invoices",
+    "stock_transfer": "stock-transfers",
+    "stock_transfer_in": "stock-transfers",
+    "stock_transfer_receipt": "stock-transfers",
+    "stock_receipt": "stock-receipts",
+    "stock_delivery": "stock-deliveries",
+    "own_use": "own-use",
+    "manufacturing_order": "manufacturing-orders",
 }
 NAMES = {
     "goods_receipt": "Goods Receipt",
@@ -39,6 +51,18 @@ NAMES = {
     "debit_note": "Debit Note",
     "tds_adjustment": "TDS Adjustment",
     "credit_note": "Credit Note",
+    "purchase_order": "Purchase Order",
+    "sales_order": "Sales Order",
+    "pick_list": "Pick List",
+    "delivery_note": "Delivery Note",
+    "sales_invoice": "Sales Invoice",
+    "stock_transfer": "Stock Transfer",
+    "stock_transfer_in": "Stock Transfer (dispatched)",
+    "stock_transfer_receipt": "Stock Transfer (received)",
+    "stock_receipt": "Stock Receipt",
+    "stock_delivery": "Stock Delivery",
+    "own_use": "Own Use",
+    "manufacturing_order": "Manufacturing Order",
 }
 
 

@@ -4520,3 +4520,12 @@ form.master-form > .side-main {
 .hold-note p:last-child {
   margin-bottom: 0;
 }
+
+/* Batch Trace (2026-11-25): a cell's note goes under its name or number. */
+.trace-table td .small {
+  display: block;
+  margin-top: 2px;
+}
+.trace-table td:first-child {
+  white-space: nowrap;
+}
