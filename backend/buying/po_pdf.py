@@ -509,6 +509,15 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
     right_cols = {3, 5, ncol - 1} | ({6} if gst else set())
     data = [[Paragraph(t(h), head_r if i in right_cols else head) for i, h in enumerate(heads)]]
     styles = []
+
+    def small(v) -> str:
+        """A second, smaller line in a cell: the quantity in the unit just above
+        the stock unit (Sidharth, 2026-11-25: "240 Nos" over "10 Case")."""
+        if v in (None, ""):
+            return ""
+        shown = _plain(v) if isinstance(v, Decimal) else t(v)
+        return f"<br/><font size=7 color='#3E4C59'>{shown}</font>"
+
     for i, x in enumerate(lines):
         number = f" · {t(x['item_number'])}" if x.get("item_number") else ""
         text = f"<b>{t(x['item_name'])}{number}</b>"
@@ -524,8 +533,8 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
             Paragraph(str(i + 1), body),
             Paragraph(text, body),
             Paragraph(t(x["hsn"]), body),
-            Paragraph(_plain(x["qty"]), body_r),
-            Paragraph(t(x["unit_name"]), body),
+            Paragraph(_plain(x["qty"]) + small(x.get("qty_alt")), body_r),
+            Paragraph(t(x["unit_name"]) + small(x.get("unit_alt")), body),
             Paragraph(r, body_r),
         ]
         if gst:
@@ -588,7 +597,8 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
             + [Paragraph(money(charges_value), bold_r)]
         )
         styles += [("SPAN", (1, n), (ncol - 2, n)), ("LINEABOVE", (1, n), (-1, n), 0.8, c(DEEP))]
-    fixed = {0: 16, 2: 44, 3: 50, 4: 34, 5: 56, ncol - 1: 70}
+    # HSN wide enough for 8 digits on one line.
+    fixed = {0: 16, 2: 50, 3: 44, 4: 34, 5: 56, ncol - 1: 70}
     if gst:
         fixed[6] = 34
     item_w = width - sum(fixed.values())
@@ -757,6 +767,11 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
 
     # --- import documents, terms and signature ---------------------------------
     story_tail = [KeepTogether(sums)]
+    if pay := o.get("payment"):
+        story_tail += [
+            Spacer(1, 10),
+            KeepTogether(_payment_box(pay, width, t, style, lab, c, bold)),
+        ]
     dues_parts: list = []
     if o.get("dues"):
         dh = style("dh", 7.5, colour=MUTED)
@@ -1012,3 +1027,54 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
         story = [*prefix, *story]
     doc.build(story, canvasmaker=printout._numbered_canvas(footer))
     return out.getvalue()
+
+
+def _payment_box(pay: dict, width: float, t, style, lab, c, bold: str):
+    """Our bank account and a UPI QR for the customer to pay into (Sidharth,
+    2026-11-25). `pay` is core.payment.details(): "rows" of (label, value),
+    and "upi_url" / "upi_note" when the company has a UPI ID."""
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+
+    rows = [
+        [Paragraph(t(k), style("pk", 7.5, 10, bold, DEEP)), Paragraph(t(v), style("pv", 7.5, 10))]
+        for k, v in pay["rows"]
+        if v
+    ]
+    facts = Table(rows, colWidths=[78, None])
+    facts.setStyle(
+        TableStyle(
+            [
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ]
+        )
+    )
+    words = [Paragraph("PAYMENT DETAILS", lab), Spacer(1, 3), facts]
+    qr_cell = ""
+    if pay.get("upi_url"):
+        qr = QrCodeWidget(pay["upi_url"])
+        x0, y0, x1, y1 = qr.getBounds()
+        side = 70
+        art = Drawing(side, side, transform=[side / (x1 - x0), 0, 0, side / (y1 - y0), 0, 0])
+        art.add(qr)
+        qr_cell = [
+            art,
+            Paragraph(t(pay.get("upi_note") or ""), style("un", 6.5, 8.5, bold, DEEP, "center")),
+        ]
+    box = Table([[words, qr_cell]], colWidths=[width - 196, 96] if qr_cell else [width - 104, 4])
+    box.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), c(CARD)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    box.hAlign = "LEFT"
+    return box

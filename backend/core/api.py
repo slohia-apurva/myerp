@@ -10,6 +10,7 @@ Who may do what:
   posting rules rely on them.
 """
 
+import re
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -102,6 +103,11 @@ class CompanySerializer(serializers.ModelSerializer):
     print_image = serializers.SerializerMethodField()
     print_image_own = serializers.SerializerMethodField()
 
+    payment_ledger_name = serializers.SerializerMethodField()
+
+    def get_payment_ledger_name(self, company) -> str:
+        return company.payment_ledger.name if company.payment_ledger_id else ""
+
     def get_print_image(self, company) -> str:
         return print_mark.data_url(*print_mark.image_of(company))
 
@@ -151,6 +157,9 @@ class CompanySerializer(serializers.ModelSerializer):
             "print_ganesha",
             "print_image",
             "print_image_own",
+            "payment_ledger",
+            "payment_ledger_name",
+            "upi_id",
             "attachments_required",
             "attachment_types",
             "deduct_194q",
@@ -166,6 +175,21 @@ class CompanySerializer(serializers.ModelSerializer):
 
     def get_state(self, company) -> str:
         return india.STATES.get(company.state_code, "")
+
+
+UPI_ID = re.compile(r"[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9.]{1,63}")
+
+
+def _check_payment(company: Company, data: dict) -> None:
+    """The payment ledger must be one of this company's bank ledgers; a UPI ID
+    looks like name@bank."""
+    ledger = data.get("payment_ledger")
+    if ledger is not None and (ledger.company_id != company.pk or not ledger.group.is_bank_group()):
+        raise ValidationError({"payment_ledger": ["Pick one of this company's bank ledgers."]})
+    if "upi_id" in data:
+        data["upi_id"] = data["upi_id"].strip()
+        if data["upi_id"] and not UPI_ID.fullmatch(data["upi_id"]):
+            raise ValidationError({"upi_id": ["A UPI ID looks like apurvam@hdfcbank."]})
 
 
 class BranchSerializer(serializers.ModelSerializer):
@@ -585,9 +609,12 @@ class CompanyDetailView(APIView):
             "multi_currency",
             "modules",
             "print_ganesha",
+            "payment_ledger",
+            "upi_id",
             "attachments_required",
             "deduct_194q",
         ]
+        _check_payment(company, data)
         refuse_key_changes("company", company, data)
         _save(company, data, [*fields, *extra])
         if not company.multi_currency and company.ledgers.exclude(currency=None).exists():
@@ -1067,6 +1094,10 @@ class LedgerListView(APIView):
             if group is None:
                 raise NotFound("No such group.")
             ledgers = ledgers.filter(group_id__in={group.pk, *group.descendant_ids()})
+        if request.query_params.get("bank") == "1":
+            # The bank ledgers, for "Bank Account for Payment" under Printing.
+            banks = [g.pk for g in company.ledger_groups.all() if g.is_bank_group()]
+            ledgers = ledgers.filter(group_id__in=banks, is_active=True)
         if request.query_params.get("paged") == "1":
             return Response(_ledger_pages(ledgers, request.query_params))
         return Response(LedgerSerializer(ledgers, many=True, context={"list": True}).data)

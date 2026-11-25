@@ -353,7 +353,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Printing",
-              'Tick "Print a small Lord Ganesha image…" to print a small image at the top centre of the first page of every printout: purchase orders, reports and all other prints. "Use our own image…" puts your own PNG or JPG (up to 300 KB) in its place; "Use the standard image" brings the standard one back. The image is saved as soon as it is chosen.',
+              'Tick "Print a small Lord Ganesha image…" to print a small image at the top centre of the first page of every printout: purchase orders, reports and all other prints. "Use our own image…" puts your own PNG or JPG (up to 300 KB) in its place; "Use the standard image" brings the standard one back. The image is saved as soon as it is chosen. When editing a saved company, "Bank Account for Payment" picks one of the company\'s bank ledgers and "UPI ID" takes an ID like apurvam@hdfcbank: sales orders then print a "Payment Details" box with the bank, account number and IFSC, and a "Scan to pay" QR code that opens the customer\'s UPI app with the order total filled in.',
             ],
             [
               "Attachments",
@@ -4306,7 +4306,13 @@ export const MANUAL: Chapter[] = [
           The order's page says "Submitted as …" with the date and time.
           "Email Customer" mails the order confirmation, with the order as a
           PDF, to the ticked contacts; a copy goes in the order's Activity.
-          "Print ▾" holds "Sales order" and "Download PDF". Submit also makes
+          "Print ▾" holds "Sales order" and "Download PDF". The print shows
+          each quantity in the item's stock unit ("240 Nos") with, under it,
+          the quantity in the unit just above ("10 Case"); the rate is always
+          per stock unit. Goods go to the billing address when the order has
+          no other "Ship To". The company's bank account and UPI QR code print
+          under "Payment Details" once they are set under Company › "Printing".
+          Submit also makes
           the order's pick list (see "Pick lists"): a note at the top says
           whether every item was found in stock, with "Open Pick List", and
           the boxes under it count the pick lists, delivery notes and
