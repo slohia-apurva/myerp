@@ -12,7 +12,7 @@ import type { CourierAccount } from "./Shipments";
 import { creatable } from "./Create";
 import { useCreditTerms } from "./CreditTerms";
 import { useTermsSets } from "./Terms";
-import { useSalesPeople } from "./SalesPeople";
+import { usePeopleSearch } from "./SalesPeople";
 import { usePriceLists } from "./PriceLists";
 import { PriceTable, rowFromServer, type PriceRow } from "./PriceLines";
 import { money, type Company, StateSelect, useStates, type State } from "./Companies";
@@ -294,14 +294,16 @@ export function PartyFields({
   const linked = new Set([companyId, ...(p.companies ?? []).map((c) => c.id)]);
   const term = terms.find((t) => t.id === p.credit_term);
   // From Masters > People: those ticked for this side, and not disabled.
-  const { people, refresh: refreshPeople } = useSalesPeople();
-  const newPerson = creatable("sales_person", "sales-people", refreshPeople, `as=${supplier ? "purchaser" : "salesman"}`);
   // A customer's usual transporter (when the company has Sales) or a supplier's (when it
   // has Purchase): one of this company's own. A supplier with none sends the goods itself.
   const modules = companies.find((c) => c.id === companyId)?.modules ?? [];
   const hasTransport = modules.includes(supplier ? "purchase" : "sales");
   const [transporters, setTransporters] = useState<CourierAccount[]>([]);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
+  // They come from the server as the person types (usePeopleSearch), never all at once.
+  const { people, onType: findPeople } = usePeopleSearch(supplier ? "purchaser" : "salesman", [p.salesman], visits);
+  // A person made with 'Create "…"' is fetched by id once picked.
+  const newPerson = creatable("sales_person", "sales-people", () => Promise.resolve(), `as=${supplier ? "purchaser" : "salesman"}`);
   const refreshTransporters = useCallback(
     () => api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setTransporters),
     [companyId],
@@ -470,9 +472,10 @@ export function PartyFields({
             value={p.salesman === null ? "" : String(p.salesman)}
             empty="None"
             options={people
-              .filter((x) => (supplier ? x.is_purchaser : x.is_salesman) && (x.is_active || x.id === p.salesman))
+              .filter((x) => x.is_active || x.id === p.salesman)
               .map((x) => ({ value: String(x.id), label: x.is_active ? x.name : `${x.name} (disabled)` }))}
             onChange={(v) => set({ salesman: v ? Number(v) : null })}
+            onType={findPeople}
             create={newPerson}
           />
         </label>

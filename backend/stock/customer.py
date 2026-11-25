@@ -31,7 +31,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from buying.api import _plain
-from core import attachments, numbering
+from core import attachments, numbering, paging
 from core.api import Signed
 from core.batches import save_batch
 from core.companies import visible_companies
@@ -851,7 +851,9 @@ class EntryFormView(APIView):
                     {"id": c.pk, "name": c.name}
                     for c in CourierAccount.objects.filter(company=company, is_active=True)
                 ],
-                "stores_people": [
+                "stores_people": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": p.pk, "name": p.name}
                     for p in SalesPerson.objects.filter(is_stores=True, is_active=True).order_by(
                         "name"

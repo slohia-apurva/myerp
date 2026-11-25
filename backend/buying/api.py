@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from audit.models import AuditEntry
 from buying import imports
 from buying.models import GoodsReceipt, PurchaseOrder, PurchaseOrderCharge, PurchaseOrderLine
-from core import attachments, fiscal, india, numbering, print_mark, words
+from core import attachments, fiscal, india, numbering, paging, print_mark, words
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -1186,7 +1186,9 @@ class OrderSetupView(APIView):
                     .prefetch_related("locations")
                 ],
                 # Masters > Salesmen and Purchasers: the people ticked Purchaser.
-                "purchasers": [
+                "purchasers": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": p.pk, "name": p.name, "email": person_email(p), "is_active": p.is_active}
                     for p in SalesPerson.objects.filter(is_purchaser=True).select_related("user")
                 ],

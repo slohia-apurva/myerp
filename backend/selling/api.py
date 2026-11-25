@@ -29,7 +29,7 @@ from buying.api import (
     _party_fssai,
     _plain,
 )
-from core import attachments, fiscal, numbering, words
+from core import attachments, fiscal, numbering, paging, words
 from core.api import Signed
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -1062,7 +1062,9 @@ class OrderSetupView(APIView):
                     }
                     for b in Branch.objects.filter(company=company).select_related("company")
                 ],
-                "salesmen": [
+                "salesmen": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": p.pk, "name": p.name, "is_active": p.is_active}
                     for p in SalesPerson.objects.filter(is_salesman=True)
                 ],

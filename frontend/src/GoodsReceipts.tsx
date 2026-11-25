@@ -13,6 +13,7 @@ import { GrnPrint, type PrintKind } from "./GrnPrint";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn, useReturns } from "./Refresh";
+import { usePeopleSearch } from "./SalesPeople";
 
 /** Entry > Purchase > Goods Receipt: what arrived against a supplier's purchase orders, and
  * which bins and batches it went into. Submit posts the stock (Dr Stock, Cr Goods Received
@@ -131,7 +132,6 @@ type Setup = {
   locations: Place[];
   transporters: { id: number; name: string }[];
   /** Masters › People ticked "Stores": for Received By and QC By. */
-  stores_people: { id: number; name: string; is_active: boolean }[];
   suppliers: { id: number; name: string }[];
   package_types: [string, string][];
   can_submit: boolean;
@@ -166,7 +166,7 @@ function useSetup(companyId: number) {
   const [setup, setSetup] = useState<Setup | null>(null);
   // refresh returns the request, so "Create …" can wait for the new person.
   const refresh = useCallback(
-    () => api<Setup>(`v1/companies/${companyId}/goods-receipts/setup/`).then(setSetup, () => setSetup(null)),
+    () => api<Setup>(`v1/companies/${companyId}/goods-receipts/setup/?search=1`).then(setSetup, () => setSetup(null)),
     [companyId],
   );
   useEffect(() => {
@@ -549,6 +549,8 @@ function ReceiptForm(props: {
 
   // The supplier's open orders (with what is still to come), once a supplier is picked.
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
+  // Stores people come from the server as the person types (usePeopleSearch), never all at once.
+  const { people: storesPeople, onType: findPeople } = usePeopleSearch("stores", [receivedBy, qcBy], visits);
   useEffect(() => {
     if (!supplier) return setPending([]);
     api<PendingOrder[]>(`v1/companies/${companyId}/goods-receipts/pending/?supplier=${supplier}`).then(setPending, () => setPending([]));
@@ -742,11 +744,11 @@ function ReceiptForm(props: {
   };
   // Masters › People ticked "Stores"; a disabled one stays only where already picked.
   const peopleFor = (picked: string) =>
-    (setup?.stores_people ?? [])
+    storesPeople
       .filter((p) => p.is_active || String(p.id) === picked)
       .map((p) => ({ value: String(p.id), label: p.name }));
   const newPerson = props.mayAddPeople ? creatable("sales_person", "sales-people", refreshSetup, "as=stores") : undefined;
-  const noPeople = setup !== null && setup.stores_people.length === 0;
+  const noPeople = setup !== null && storesPeople.length === 0;
   const goToLine = (l: LineDraft) => {
     setBinCheck(null);
     setOpenBins(l.key);
@@ -848,7 +850,7 @@ function ReceiptForm(props: {
               </label>
               <label>
                 Received By
-                <Combobox value={receivedBy} onChange={setReceivedBy} empty="Not given" options={peopleFor(receivedBy)} create={newPerson} />
+                <Combobox value={receivedBy} onChange={setReceivedBy} empty="Not given" options={peopleFor(receivedBy)} onType={findPeople} create={newPerson} />
                 {noPeople && <span className="small">No Stores people yet. Add them in Masters › People.</span>}
               </label>
               {currency !== "INR" && (
@@ -990,7 +992,7 @@ function ReceiptForm(props: {
               </label>
               <label>
                 Checked By
-                <Combobox value={qcBy} onChange={setQcBy} empty="Not given" options={peopleFor(qcBy)} create={newPerson} />
+                <Combobox value={qcBy} onChange={setQcBy} empty="Not given" options={peopleFor(qcBy)} onType={findPeople} create={newPerson} />
               </label>
             </div>
             <p className="small">New batches of items marked "QC required" go into stock as "Quarantine" and can be released on the Batches screen.</p>

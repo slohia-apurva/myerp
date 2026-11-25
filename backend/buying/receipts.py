@@ -28,7 +28,7 @@ from buying.models import (
     PurchaseOrder,
     PurchaseOrderLine,
 )
-from core import attachments, numbering
+from core import attachments, numbering, paging
 from core.api import Signed
 from core.batches import save_batch
 from core.companies import visible_companies
@@ -1031,7 +1031,9 @@ class ReceiptSetupView(APIView):
                     for t in CourierAccount.objects.filter(company=company, is_active=True)
                 ],
                 # Masters > People ticked "Stores": for Received By and QC By.
-                "stores_people": [
+                "stores_people": []
+                if paging.lean_setup(request.query_params)
+                else [
                     {"id": p.pk, "name": p.name, "is_active": p.is_active}
                     for p in SalesPerson.objects.filter(is_stores=True).order_by("name")
                 ],

@@ -6,6 +6,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { TermsText } from "./Terms";
 import { useItemSearch } from "./ItemSearch";
+import { usePeopleSearch } from "./SalesPeople";
 import { Combobox } from "./Combobox";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } from "./Create";
@@ -165,7 +166,6 @@ type Setup = {
   customers: Customer[];
   despatch: Despatch[];
   branches: BranchRow[];
-  salesmen: Named[];
   transporters: Named[];
   terms_sets: (Named & { text: string })[];
   default_terms: number | null;
@@ -568,6 +568,8 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
   // Customers come from the server as the person types (ItemSearch.ts), never all at once:
   // the setup is read without them, and the order's customer is always fetched.
   const visits = useReturns();
+  // Salesmen come from the server as the person types (usePeopleSearch), never all at once.
+  const { people: salesmen, onType: findSalesmen } = usePeopleSearch("salesman", [salesman], visits);
   const { items: customers, onType: findCustomers } = useItemSearch<Customer>(
     `v1/companies/${companyId}/sales-orders/setup/`,
     [customer],
@@ -880,7 +882,8 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
                   onChange={setSalesman}
                   empty="None"
                   create={newSalesman}
-                  options={(setup?.salesmen ?? []).filter((s) => s.is_active || String(s.id) === salesman).map((s) => ({ value: String(s.id), label: s.name }))}
+                  onType={findSalesmen}
+                  options={salesmen.filter((s) => s.is_active || String(s.id) === salesman).map((s) => ({ value: String(s.id), label: s.name }))}
                 />
                 <span className="small">From the customer; you can change it here</span>
               </label>

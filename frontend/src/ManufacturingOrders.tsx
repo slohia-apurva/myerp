@@ -5,6 +5,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
 import { useItemSearch } from "./ItemSearch";
+import { usePeopleSearch } from "./SalesPeople";
 import { money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
@@ -120,7 +121,6 @@ type Make = {
 type Material = { id: number; name: string; item_number: string; stock_unit: number; customer_goods: boolean; units: Unit[] };
 type Setup = {
   branches: { id: number; name: string; is_active: boolean; areas: { id: number; name: string; is_active: boolean }[] }[];
-  people: { id: number; name: string }[];
   makes: Make[];
   materials: Material[];
   customers: { id: number; name: string }[];
@@ -461,6 +461,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const open = status === "not_started" || status === "in_process";
   const mayEdit = (draft || open) && can(session, "create");
   const refreshSetup = useCallback(() => api<Setup>(`v1/companies/${companyId}/manufacturing-orders/form/?search=1`).then(setSetup, (err) => setError(err)), [companyId]);
+  // People come from the server as the person types (usePeopleSearch), never all at once.
+  const { people, onType: findPeople } = usePeopleSearch("", [fields.supervisor]);
   // Materials to add come from the server as the person types (ItemSearch.ts), never all at once.
   const { items: materials, onType: findMaterials } = useItemSearch<Material>(
     mayEdit ? `v1/companies/${companyId}/manufacturing-orders/form/` : null,
@@ -754,7 +756,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 )}
                 <label>
                   Supervisor
-                  <Combobox value={fields.supervisor} onChange={(v) => set({ supervisor: v })} empty="None" create={newPerson} options={(setup?.people ?? []).map((p) => ({ value: String(p.id), label: p.name }))} />
+                  <Combobox value={fields.supervisor} onChange={(v) => set({ supervisor: v })} empty="None" create={newPerson} onType={findPeople} options={people.map((p) => ({ value: String(p.id), label: p.name }))} />
                 </label>
                 <label className="wide">
                   Notes

@@ -127,3 +127,30 @@ def test_the_people_list_comes_a_page_at_a_time(accountant, alpha):  # noqa: F81
     assert call(accountant, "get", f"sales-people/{thirty}/").json()["name"] == "Person 30"
     # The pickers still get everyone.
     assert len(call(accountant, "get", "sales-people/").json()) == 30
+
+
+def test_entry_form_pickers_search_people_on_the_server(accountant, alpha, company):  # noqa: F811
+    """Sidharth 2026-11-25: an entry form's people pickers ask as the person types
+    (?search=1), and the forms' setups asked with ?search=1 leave the people out."""
+    from core.models import SalesPerson
+
+    with use_tenant(alpha):
+        SalesPerson.objects.bulk_create(
+            SalesPerson(name=f"Stores {n:02d}", is_stores=True, is_active=n != 1)
+            for n in range(1, 61)
+        )
+        SalesPerson.objects.create(name="Seller One", is_salesman=True)
+        off = SalesPerson.objects.get(name="Stores 01").pk
+    first = call(accountant, "get", "sales-people/?search=1&as=stores&q=").json()
+    assert len(first) == 50 and first[0]["name"] == "Stores 02"  # active only, 50 at most
+    found = call(accountant, "get", "sales-people/?search=1&as=stores&q=stores%205").json()
+    # Every word anywhere in the name: 05, 15, 25, 35, 45 and 50 to 59.
+    assert len(found) == 15 and found[0]["name"] == "Stores 05"
+    assert call(accountant, "get", "sales-people/?search=1&as=salesman&q=stores").json() == []
+    kept = call(accountant, "get", f"sales-people/?search=1&ids={off}").json()
+    assert [p["name"] for p in kept] == ["Stores 01"]  # a disabled one the form already has
+
+    lean = call(accountant, "get", f"companies/{company}/goods-receipts/setup/?search=1").json()
+    assert lean["stores_people"] == []
+    full = call(accountant, "get", f"companies/{company}/goods-receipts/setup/").json()
+    assert len(full["stores_people"]) == 60
