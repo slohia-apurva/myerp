@@ -181,8 +181,11 @@ export const MANUAL: Chapter[] = [
             ledgers open for the company you are working in. Owners also see "Admin", which
             holds "Company", "Users", "User roles" and "Reset data". "Help"
             opens this manual at the page for the screen you are on. On a
-            phone the menu runs onto two lines, with the company on its own
-            line under it and then the bell, "Help" and "Sign out".
+            phone the M logo, the company, the bell, "Help" and "Sign out" sit
+            on one line, with the menu under them (on two short lines). Phone
+            screens use smaller text, buttons and headings so more fits on the
+            screen; tapping a field does not zoom in, but you can still pinch to
+            zoom.
           </li>
           <li>
             <strong>Company</strong> (top right, beside "Help"): the company you
