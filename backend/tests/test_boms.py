@@ -184,3 +184,17 @@ def test_boms_export_and_import_with_materials_on_a_sheet(owner, world):  # noqa
         assert (new.version, new.is_default, new.lines.get().qty) == (2, False, Decimal("4.8"))
     nxt = call(owner, "post", "boms/", bom(w, "tea", [line(w["loose"], "1", w["kg"])])).json()
     assert nxt["number"] == "BOM-00010"  # carries on after the imported number
+
+
+def test_the_bom_list_leaves_out_the_in_use_checks(owner, world):  # noqa: F811
+    """One COUNT a row made 400 BOMs take 0.8 seconds (2026-11-25). The list has no
+    "in use" checks; the BOM's own page (boms/<id>/) has them."""
+    w = world
+    made = call(owner, "post", "boms/", bom(w, "tea", [line(w["loose"], "2.4", w["kg"])]))
+    assert made.status_code == 201, made.json()
+    pk = made.json()["id"]
+    rows = call(owner, "get", "boms/").json()
+    assert [r["id"] for r in rows] == [pk]
+    assert rows[0]["lock"] is None and rows[0]["material_count"] == 1
+    one = call(owner, "get", f"boms/{pk}/").json()
+    assert one["lock"] == {"in_use": [], "locked": []}

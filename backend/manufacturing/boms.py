@@ -737,7 +737,10 @@ class BomListView(APIView):
         item = request.query_params.get("item")
         if item:
             rows = rows.filter(item_id=item)
-        return Response(BomSerializer(rows, many=True).data)
+        # No "in use" checks per row: one query a BOM, and the list does not show
+        # them (400 BOMs took 0.8 seconds, 2026-11-25). The BOM's own page and its
+        # form read boms/<id>/, which has them.
+        return Response(BomSerializer(rows, many=True, context={"list": True}).data)
 
     @tenant_atomic()
     def post(self, request):
