@@ -6,6 +6,7 @@ WhatsApp to the customer comes later."""
 from __future__ import annotations
 
 import html
+from decimal import Decimal
 
 from django.http import HttpResponse
 from rest_framework.exceptions import ValidationError
@@ -15,18 +16,33 @@ from rest_framework.views import APIView
 from audit.models import AuditEntry
 from buying.po_pdf import order_pdf
 from buying.supplier_mail import _dmy, _emails, _people, _signature
-from core import mail
+from core import mail, payment, print_units
 from core.api import Signed
-from core.models import PartyContact
+from core.models import Item, PartyContact
 from selling.api import SUBMIT, VIEW, _check, _fresh, _order
 from selling.models import SalesOrder
 from tenancy.context import tenant_atomic
 
 
+def print_data(o: SalesOrder) -> dict:
+    """The order as its print shows it (Sidharth, 2026-11-25): quantities in the
+    stock unit with the next unit up under them, rates per stock unit, goods
+    shipped to the billing address when the order names no other, and the
+    company's bank account and UPI QR to pay into."""
+    data = _fresh(o)
+    items = {i.pk: i for i in Item.objects.filter(pk__in=[ln["item"] for ln in data["lines"]])}
+    data["lines"] = [print_units.in_stock_unit(ln, items[ln["item"]]) for ln in data["lines"]]
+    ab = data.get("addresses") or {}
+    if not ab.get("ship_to") and ab.get("customer"):
+        ab["ship_to"] = {**ab["customer"], "name": o.customer.name}
+    data["payment"] = payment.details(o.company, Decimal(data["total"]), o.number or "")
+    return data
+
+
 def order_file(o: SalesOrder) -> tuple[str, bytes, str]:
     return (
         f"{(o.number or 'draft').replace('/', '-')}.pdf",
-        order_pdf(_fresh(o)),
+        order_pdf(print_data(o)),
         "application/pdf",
     )
 
