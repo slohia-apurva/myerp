@@ -1055,84 +1055,93 @@ function PutawayBox(props: {
       <div className="grn-put-head">
         <b>Put away into bins</b> <span className="small-inline">· split the accepted quantity across bins{l.info.batch_tracked ? ", batches" : ""} and packages</span>
       </div>
-      <table className="grid">
-        <thead>
-          <tr>
-            <th>Bin</th>
-            {l.info.batch_tracked && (
-              <>
-                <th>Batch No</th>
-                <th>Mfg Date</th>
-                <th>Expiry</th>
-              </>
-            )}
-            <th className="num">Packages</th>
-            <th>Package Type</th>
-            <th className="num">Qty per Package</th>
-            <th className="num">Qty ({unit})</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {l.puts.map((p, n) => {
-            const existing = p.batch.startsWith("b") ? props.batches.find((b) => `b${b.id}` === p.batch) : undefined;
-            const isNew = p.batch.startsWith("n");
-            return (
-              <tr key={p.key}>
-                <td className="grn-bin">
-                  <Combobox value={p.location} onChange={(v) => props.onChange(p.key, { location: v })} ariaLabel={`Bin ${n + 1}`} placeholder="Bin or area…" options={placeOptions} />
-                </td>
-                {l.info.batch_tracked && (
-                  <>
-                    <td className="grn-batch">
-                      <Combobox
-                        value={p.batch}
-                        onChange={(v) => props.onChange(p.key, { batch: v })}
-                        ariaLabel={`Batch ${n + 1}`}
-                        placeholder="Pick or type a new one…"
-                        options={batchOptions}
-                        createHere={{ label: "New batch", pick: (typed) => props.onChange(p.key, { batch: `n${typed}` }) }}
-                      />
-                      {isNew && <span className="tag">New batch</span>}
-                    </td>
-                    <td>{isNew ? <input type="date" aria-label={`Mfg date ${n + 1}`} value={p.mfg} onChange={(e) => props.onChange(p.key, { mfg: e.target.value })} /> : shortDate(existing?.mfg_date ?? null)}</td>
-                    <td>
-                      {isNew ? (
-                        <input type="date" aria-label={`Expiry ${n + 1}`} value={p.expiry} min={p.mfg || undefined} onChange={(e) => props.onChange(p.key, { expiry: e.target.value })} />
-                      ) : (
-                        shortDate(existing?.expiry_date ?? null)
-                      )}
-                    </td>
-                  </>
-                )}
-                <td className="num grn-pk-n">
-                  <input inputMode="numeric" aria-label={`Packages ${n + 1}`} value={p.pkgs} placeholder="Loose" onChange={(e) => props.onChange(p.key, { pkgs: e.target.value.replace(/\D/g, "") })} />
-                </td>
-                <td className="grn-pk-type">
-                  <Combobox value={p.pkgType} onChange={(v) => props.onChange(p.key, { pkgType: v })} ariaLabel={`Package type ${n + 1}`} empty="None" options={typeOptions} />
-                </td>
-                <td className="num">
-                  <input inputMode="decimal" aria-label={`Qty per package ${n + 1}`} value={p.pkgQty} onChange={(e) => props.onChange(p.key, { pkgQty: e.target.value })} />
-                </td>
-                <td className="num">
-                  {packed(p) ? (
-                    <b>{p.qty}</b>
-                  ) : (
-                    <input inputMode="decimal" aria-label={`Qty ${n + 1}`} value={p.qty} onChange={(e) => props.onChange(p.key, { qty: e.target.value })} />
+      <div className="grn-put-scroll">
+        <table className="grid">
+          <thead>
+            <tr>
+              <th>Bin</th>
+              {l.info.batch_tracked && (
+                <>
+                  <th>Batch No</th>
+                  <th>Mfg Date / Expiry</th>
+                </>
+              )}
+              <th className="num">Packages</th>
+              <th>Package Type</th>
+              <th className="num">Qty per Package</th>
+              <th className="num">Qty ({unit})</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {l.puts.map((p, n) => {
+              const existing = p.batch.startsWith("b") ? props.batches.find((b) => `b${b.id}` === p.batch) : undefined;
+              const isNew = p.batch.startsWith("n");
+              return (
+                <tr key={p.key}>
+                  <td className="grn-bin">
+                    <Combobox value={p.location} onChange={(v) => props.onChange(p.key, { location: v })} ariaLabel={`Bin ${n + 1}`} placeholder="Bin or area…" options={placeOptions} />
+                  </td>
+                  {l.info.batch_tracked && (
+                    <>
+                      <td className="grn-batch">
+                        <Combobox
+                          value={p.batch}
+                          onChange={(v) => props.onChange(p.key, { batch: v })}
+                          ariaLabel={`Batch ${n + 1}`}
+                          placeholder="Pick or type a new one…"
+                          options={batchOptions}
+                          createHere={{ label: "New batch", pick: (typed) => props.onChange(p.key, { batch: `n${typed}` }) }}
+                        />
+                        {isNew && <span className="tag">New batch</span>}
+                      </td>
+                      {/* Both dates in one column, one under the other, so the bins fit beside the files. */}
+                      <td>
+                        <div className="grn-dates">
+                          {isNew ? (
+                            <>
+                              <input type="date" aria-label={`Mfg date ${n + 1}`} title="Mfg Date" value={p.mfg} onChange={(e) => props.onChange(p.key, { mfg: e.target.value })} />
+                              <input type="date" aria-label={`Expiry ${n + 1}`} title="Expiry" value={p.expiry} min={p.mfg || undefined} onChange={(e) => props.onChange(p.key, { expiry: e.target.value })} />
+                            </>
+                          ) : (
+                            <>
+                              <span>{shortDate(existing?.mfg_date ?? null)}</span>
+                              <span>{shortDate(existing?.expiry_date ?? null)}</span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </>
                   )}
-                </td>
-                <td>
-                  {l.puts.length > 1 && (
-                    <button type="button" className="link danger" title="Remove this bin" onClick={() => props.onRemove(p.key)}>
-                      ×
-                    </button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <td className="num grn-pk-n">
+                    <input inputMode="numeric" aria-label={`Packages ${n + 1}`} value={p.pkgs} placeholder="Loose" onChange={(e) => props.onChange(p.key, { pkgs: e.target.value.replace(/\D/g, "") })} />
+                  </td>
+                  <td className="grn-pk-type">
+                    <Combobox value={p.pkgType} onChange={(v) => props.onChange(p.key, { pkgType: v })} ariaLabel={`Package type ${n + 1}`} empty="None" options={typeOptions} />
+                  </td>
+                  <td className="num">
+                    <input inputMode="decimal" aria-label={`Qty per package ${n + 1}`} value={p.pkgQty} onChange={(e) => props.onChange(p.key, { pkgQty: e.target.value })} />
+                  </td>
+                  <td className="num">
+                    {packed(p) ? (
+                      <b>{p.qty}</b>
+                    ) : (
+                      <input inputMode="decimal" aria-label={`Qty ${n + 1}`} value={p.qty} onChange={(e) => props.onChange(p.key, { qty: e.target.value })} />
+                    )}
+                  </td>
+                  <td>
+                    {l.puts.length > 1 && (
+                      <button type="button" className="link danger" title="Remove this bin" onClick={() => props.onRemove(p.key)}>
+                        ×
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       <div className="grn-put-foot">
         <button type="button" className="link" onClick={props.onAdd}>
           + Add bin
