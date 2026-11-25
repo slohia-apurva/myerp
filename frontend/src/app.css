@@ -4381,11 +4381,13 @@ th .sort-head:focus-visible {
   outline-offset: 2px;
 }
 
-/* Item lines on entry screens: values at 14px like the rest of the app, notes under a line a
-   little smaller (Sidharth, 2026-11-25). */
-.po-lines {
+/* Item lines and other tables on entry screens, form and view: values at 14px like the rest
+   of the app, notes under a line a little smaller (Sidharth, 2026-11-25). */
+.po-lines,
+.doc-page table.grid {
   font-size: 14px;
 }
-.po-lines td .small {
+.po-lines td .small,
+.doc-page table.grid td .small {
   font-size: 12.5px;
 }
