@@ -563,9 +563,11 @@ def test_a_party_has_a_preferred_transporter_of_its_own_company(accountant, comp
     # The transporter says who prefers it, and counts as in use.
     with use_tenant(alpha):
         assert mine.preferred_by.count() == 2
+    # The list is lean; the one transporter carries the count and the "in use" reasons.
     listed = call(accountant, "get", f"companies/{company}/courier-accounts/").json()
-    row = next(a for a in listed if a["id"] == mine.pk)
-    assert row["preferred_by"] == 2 and row["lock"]["in_use"] == ["1 customer", "1 supplier"]
+    assert any(a["id"] == mine.pk for a in listed)
+    one = call(accountant, "get", f"courier-accounts/{mine.pk}/").json()
+    assert one["preferred_by"] == 2 and one["lock"]["in_use"] == ["1 customer", "1 supplier"]
 
     # A disabled transporter stays on the customer that has it but is not offered to others.
     with use_tenant(alpha):

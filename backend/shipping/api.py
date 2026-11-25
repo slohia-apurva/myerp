@@ -124,8 +124,12 @@ class CourierAccountSerializer(serializers.ModelSerializer):
         read_only_fields = ["state_code", "credentials_updated_at"]
 
 
-def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
-    data = CourierAccountSerializer(a).data
+def _account_out(a: CourierAccount, carriers: dict[int, Carrier], lean: bool = False) -> dict:
+    """One transporter for the screens. `lean` is for a list: it leaves out the
+    "in use" checks and the "Preferred By" count, which are a dozen queries a
+    row (66 seconds for 5,000 transporters, 2026-11-25). The screen asks for the
+    one row it shows with GET courier-accounts/<id>/."""
+    data = CourierAccountSerializer(a, context={"list": True} if lean else {}).data
     carrier = carriers.get(a.carrier_id)
     data["carrier_name"] = carrier.name if carrier else ""
     data["service_label"] = a.get_service_display()
@@ -143,7 +147,8 @@ def _account_out(a: CourierAccount, carriers: dict[int, Carrier]) -> dict:
         for f in (carrier.credential_fields if carrier else [])
     ]
     data["integration"] = carrier.integration if carrier else "none"
-    data["preferred_by"] = a.preferred_by.count()
+    if not lean:
+        data["preferred_by"] = a.preferred_by.count()
     return data
 
 
@@ -296,7 +301,10 @@ class CourierAccountListView(APIView):
             raise PermissionDenied("Your role does not allow this.")
         company = _company(request, pk)
         carriers = _carriers()
-        return Response([_account_out(a, carriers) for a in company.courier_accounts.all()])
+        # Lean rows: the list shows name, GSTIN, courier, service and code only.
+        return Response(
+            [_account_out(a, carriers, lean=True) for a in company.courier_accounts.all()]
+        )
 
     @tenant_atomic()
     def post(self, request, pk: int):
@@ -310,9 +318,20 @@ class CourierAccountListView(APIView):
 
 
 class CourierAccountDetailView(APIView):
-    """Edit only: accounts are never deleted, only disabled."""
+    """One transporter, with its "in use" checks and "Preferred By" count (the
+    list leaves both out). Edited here too; accounts are never deleted, only disabled."""
 
     permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        if not (request.user.can(VIEW) or any(request.user.can(c) for c in SEE)):
+            raise PermissionDenied("Your role does not allow this.")
+        account = CourierAccount.objects.filter(
+            pk=pk, company__in=visible_companies(request.user)
+        ).first()
+        if account is None:
+            raise NotFound("No such transporter.")
+        return Response(_account_out(account, _carriers()))
 
     @tenant_atomic()
     def patch(self, request, pk: int):
