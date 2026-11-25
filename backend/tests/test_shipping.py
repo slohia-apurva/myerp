@@ -196,12 +196,28 @@ def test_courier_of_an_account_in_use_cannot_change(owner, company, b2b, store):
 
 
 def test_transporter_says_what_uses_it_and_what_is_locked(owner, company, b2b, store):
-    rows = call(owner, "get", f"companies/{company}/courier-accounts/").json()
-    assert rows[0]["lock"] == {"in_use": [], "locked": []}
+    one = call(owner, "get", f"courier-accounts/{b2b}/").json()
+    assert one["lock"] == {"in_use": [], "locked": []}
+    assert ship(store, company, b2b).status_code == 201
+    one = call(owner, "get", f"courier-accounts/{b2b}/").json()
+    assert one["lock"]["in_use"] == ["1 shipment"]
+    assert set(one["lock"]["locked"]) == {"carrier_id", "service"}
+
+
+def test_the_transporter_list_leaves_out_the_in_use_checks(owner, company, b2b, store):
+    """A dozen queries a row made the list take a minute with 5,000 transporters
+    (2026-11-25): the list is lean and the screen asks for the clicked row."""
     assert ship(store, company, b2b).status_code == 201
     rows = call(owner, "get", f"companies/{company}/courier-accounts/").json()
-    assert rows[0]["lock"]["in_use"] == ["1 shipment"]
-    assert set(rows[0]["lock"]["locked"]) == {"carrier_id", "service"}
+    assert rows[0]["name"] and rows[0]["lock"] is None and "preferred_by" not in rows[0]
+    one = call(owner, "get", f"courier-accounts/{b2b}/").json()
+    assert one["lock"]["in_use"] == ["1 shipment"] and one["preferred_by"] == 0
+
+
+def test_one_transporter_is_served_to_a_viewer_and_a_missing_one_says_so(owner, viewer, b2b):
+    assert call(viewer, "get", f"courier-accounts/{b2b}/").status_code == 200
+    gone = call(owner, "get", f"courier-accounts/{b2b + 10_000}/")
+    assert gone.status_code == 404 and "No such transporter" in str(gone.json())
 
 
 def test_storekeeper_enters_a_shipment_and_it_starts_booked(store, company, b2b, customer):
