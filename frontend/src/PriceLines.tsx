@@ -59,11 +59,19 @@ export const priceBody = (rows: PriceRow[]) =>
       from_date: r.from_date,
     }));
 
-export function useItemChoices(chosen: (number | null)[] = []) {
+/** Which items a party's own Item Prices may pick: those it may be sold (customer) or
+ * bought from (supplier); with products listed on its "Products" tab, only those
+ * plus items ticked "Offer to all" (Sidharth 2026-11-25). */
+export type PartyItems = { side: "customer" | "supplier"; products: number[] };
+
+export function useItemChoices(chosen: (number | null)[] = [], party?: PartyItems) {
   // Asked from the server as the person types (ItemSearch.ts), plus the items
   // already on the rows: the whole catalogue is 12,457 items on staging.
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
-  return useItemSearch<Item>("v1/items/", chosen, visits);
+  const url = party
+    ? `v1/items/?side=${party.side}&products=${[...new Set(party.products)].sort((a, b) => a - b).join(",")}`
+    : "v1/items/";
+  return useItemSearch<Item>(url, chosen, visits);
 }
 
 export function useCustomerChoices() {
@@ -83,9 +91,11 @@ export function PriceTable(props: {
   by: "item" | "customer" | "supplier";
   item?: Item | null;
   readOnly?: boolean;
+  /** On a party's Item Prices: offer only the items that party may deal in. */
+  party?: PartyItems;
 }) {
   const { rows, onChange, by, readOnly } = props;
-  const { items, onType } = useItemChoices(rows.map((r) => r.item));
+  const { items, onType } = useItemChoices(rows.map((r) => r.item), props.party);
   const parties = useCustomerChoices();
   const { units } = useUnits();
   const unitById = useMemo(() => new Map(units.map((u) => [u.id, u])), [units]);

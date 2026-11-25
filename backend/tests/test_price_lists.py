@@ -283,3 +283,34 @@ def test_a_supplier_takes_an_active_buying_list_and_its_rate_follows_it(accounta
         assert price_lists.rate_for(supplier, tea, pack, 2000, on, side="buying") == Decimal("110")
     refused = call(accountant, "patch", f"price-lists/{buying['id']}/", {"kind": "selling"})
     assert refused.status_code == 400 and "1 customer or supplier" in str(refused.json())
+
+
+def test_a_partys_own_prices_keep_to_its_products(alpha, accountant, world):
+    # With products listed, the Item Prices picker offers only those (and "Offer to
+    # all"), and the server refuses a price for any other item (Sidharth 2026-11-25).
+    from core.models import PartyProduct
+
+    def offered(products=""):
+        url = f"items/?search=1&q=&side=customer&products={products}"
+        return sorted(i["name"] for i in call(accountant, "get", url).json())
+
+    everything = offered()
+    assert "Green Tea" in everything and len(everything) >= 2
+    assert offered(str(world["tea"])) == ["Green Tea"]
+    with use_tenant(alpha):
+        PartyProduct.objects.create(party_id=world["fresh"], item_id=world["tea"])
+        Item.objects.filter(pk=world["jag"]).update(offer_to_all=True)
+    assert offered(str(world["tea"])) == ["Green Tea", "Jaggery"]
+    with use_tenant(alpha):
+        Item.objects.filter(pk=world["jag"]).update(offer_to_all=False)
+    url = f"parties/{world['fresh']}/item-prices/"
+    ok = call(accountant, "put", url, [line(world)])
+    assert ok.status_code == 200, ok.json()
+    bad = call(accountant, "put", url, [line(world), line(world, item="jag")])
+    assert bad.status_code == 400
+    assert "is not one of this customer's products" in bad.json()["prices"][0]
+    # A party with no products listed may be priced for any item.
+    other = call(
+        accountant, "put", f"parties/{world['other']}/item-prices/", [line(world, item="jag")]
+    )
+    assert other.status_code == 200, other.json()

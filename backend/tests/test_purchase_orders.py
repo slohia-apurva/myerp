@@ -20,6 +20,7 @@ from core.models import (
     ItemUnit,
     Ledger,
     PartyItemPrice,
+    PartyProduct,
     PriceList,
     PriceListLine,
     Unit,
@@ -291,6 +292,22 @@ def test_the_item_picker_searches_the_server(buyer, world):
     assert names(f"q=box&ids={world['tea']}") == ["CTC Tea", "Tea Box"]
     assert names("q=") == ["CTC Tea", "Tea Box"]
     assert names(f"ids={world['box']}") == ["Tea Box"]
+
+
+def test_the_item_picker_offers_only_the_suppliers_products(buyer, world, alpha):
+    # With products listed on the supplier, the search picker offers only those
+    # and items ticked "Offer to all" (Sidharth 2026-11-25).
+    url = f"companies/{world['company']}/purchase-orders/items/?supplier={world['local']}&search=1"
+    names = lambda q: sorted(i["name"] for i in call(buyer, "get", f"{url}&{q}").json())  # noqa: E731
+    assert names("q=") == ["CTC Tea", "Tea Box"]
+    with use_tenant(alpha):
+        party = Ledger.objects.get(pk=world["local"]).party
+        PartyProduct.objects.create(party=party, item_id=world["box"])
+    assert names("q=") == ["Tea Box"]
+    assert names("q=ctc") == []
+    with use_tenant(alpha):
+        Item.objects.filter(pk=world["tea"]).update(offer_to_all=True)
+    assert names("q=") == ["CTC Tea", "Tea Box"]
 
 
 def test_a_submitted_order_puts_its_masters_in_use_but_a_draft_does_not(buyer, world, alpha):

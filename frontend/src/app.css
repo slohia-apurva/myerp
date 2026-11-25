@@ -4391,3 +4391,9 @@ th .sort-head:focus-visible {
 .doc-page table.grid td .small {
   font-size: 12.5px;
 }
+
+/* Masters forms (FormPage, Master.tsx): fields, values, tables and pickers at 14px like the
+   entry screens, not the browser's 16px (Sidharth, 2026-11-25). Box headings stay 15px. */
+form.master-form > .side-main {
+  font-size: 14px;
+}

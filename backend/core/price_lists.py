@@ -263,6 +263,34 @@ def _side(request) -> str:
     return side
 
 
+def _refuse_items_not_dealt(party: Party, side: str, rows) -> None:
+    """A party's own price is only for an item it may deal in: with products listed
+    on its form, those and items ticked "Offer to all" (Sidharth 2026-11-25). Prices
+    it already has stay, so a shorter product list does not block the save."""
+    from core.parties import items_for_party
+
+    allowed = set(
+        items_for_party(party, "customer" if side == PriceList.SELLING else "supplier").values_list(
+            "pk", flat=True
+        )
+    )
+    allowed |= set(
+        PartyItemPrice.objects.filter(party=party, side=side).values_list("item_id", flat=True)
+    )
+    bad = sorted({r["item"].name for r in rows if r["item"].pk not in allowed})
+    if bad:
+        who = "customer" if side == PriceList.SELLING else "supplier"
+        raise ValidationError(
+            {
+                "prices": [
+                    f"{name} is not one of this {who}'s products. Add it on the "
+                    '"Products" tab first, or tick "Offer to all" on the item.'
+                    for name in bad
+                ]
+            }
+        )
+
+
 class PartyPricesView(APIView):
     """GET or PUT one customer's (or, with ?side=buying, supplier's) own prices; PUT
     replaces the set."""
@@ -286,6 +314,7 @@ class PartyPricesView(APIView):
         serializer = PartyPriceSerializer(data=rows, many=True)
         serializer.is_valid(raise_exception=True)
         side = _side(request)
+        _refuse_items_not_dealt(party, side, serializer.validated_data)
         _replace_party_prices(
             PartyItemPrice.objects.filter(party=party), serializer.validated_data, "prices", side
         )

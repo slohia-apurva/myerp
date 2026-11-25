@@ -1020,6 +1020,21 @@ class ItemListView(APIView):
             # The stock reports pick among the items that keep stock.
             if request.query_params.get("maintain_stock") == "1":
                 rows = rows.filter(maintain_stock=True)
+            # A party's own Item Prices pick among the items it may deal in: those
+            # allowed for sale (side=customer) or purchase (side=supplier), and with
+            # products listed on its form, only those plus "Offer to all".
+            side = request.query_params.get("side")
+            if side in ("customer", "supplier"):
+                rows = rows.filter(
+                    **{"allow_sales" if side == "customer" else "allow_purchase": True}
+                )
+                listed = {
+                    int(x)
+                    for x in request.query_params.get("products", "").split(",")
+                    if x.strip().isdigit()
+                }
+                if listed:
+                    rows = rows.filter(Q(offer_to_all=True) | Q(pk__in=listed))
             rows = picked(rows, request.query_params).order_by("name")
             return Response(ItemSerializer(rows, many=True, context={"list": True}).data)
         # Built LIST_CHUNK items at a time and kept only as JSON text: the whole
