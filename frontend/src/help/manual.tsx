@@ -638,8 +638,10 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             Open the "Item Prices" section of the same ledger and click "Add
-            price": item, unit, "From Qty", "Rate" and "From Date". Click "Save"
-            on the ledger.
+            price": item, unit, "From Qty", "Rate" and "From Date", then "Done".
+            Click "Save" on the ledger. Each saved price shows as one line (item,
+            then unit, from qty and date under it, the rate at the right); click
+            "Edit" on a line to change it, or "Remove" inside it to drop it.
           </li>
           <li>
             When the customer (or supplier) has items listed on its "Products"

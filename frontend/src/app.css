@@ -4520,3 +4520,18 @@ form.master-form > .side-main {
 .hold-note p:last-child {
   margin-bottom: 0;
 }
+
+/* A party's Item Prices as lines (PriceLines.tsx): item with its unit, qty and date under it,
+   the rate at the right; fits a phone (Sidharth, 2026-11-25). */
+table.price-lines {
+  width: 100%;
+}
+table.price-lines td {
+  vertical-align: top;
+}
+table.price-lines .price-open .row > label {
+  flex: 1 1 140px;
+}
+table.price-lines .price-open .row > label.wide {
+  flex: 2 1 240px;
+}

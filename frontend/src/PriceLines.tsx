@@ -5,6 +5,7 @@ import { type Item } from "./Items";
 import { unitLabel, useUnits, type Unit } from "./Units";
 import { useReturns } from "./Refresh";
 import { useItemSearch } from "./ItemSearch";
+import { longDate, money } from "./Companies";
 
 /** One rate: an item (or, on an item's own page, a customer) in one unit, from a
  * quantity, from a date. Shared by price lists, a customer's Item Prices and an
@@ -93,7 +94,17 @@ export function PriceTable(props: {
   readOnly?: boolean;
   /** On a party's Item Prices: offer only the items that party may deal in. */
   party?: PartyItems;
+  /** Saved rows show as one line each with "Edit"; a row opened or newly added shows its
+   * boxes until "Done" (repeating sub-records, Sidharth 2026-11-16 and 2026-11-25). */
+  asLines?: boolean;
+  /** With asLines: changes when another record is loaded, folding every row. */
+  resetKey?: unknown;
 }) {
+  if (props.asLines) return <PriceLines {...props} />;
+  return <PriceGrid {...props} />;
+}
+
+function PriceGrid(props: Parameters<typeof PriceTable>[0]) {
   const { rows, onChange, by, readOnly } = props;
   const { items, onType } = useItemChoices(rows.map((r) => r.item), props.party);
   const parties = useCustomerChoices();
@@ -216,6 +227,159 @@ export function PriceTable(props: {
             type="button"
             className="link"
             onClick={() => onChange([...rows, blankRow(props.item?.id ?? null, props.item?.stock_unit ?? null)])}
+          >
+            Add price
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** A party's own Item Prices as lines: "IT-003442 · Green Tea", then unit, from qty and
+ * date under it, the rate at the right, and "Edit". Fits a phone. */
+function PriceLines(props: Parameters<typeof PriceTable>[0]) {
+  const { rows, onChange, readOnly } = props;
+  const { items, onType } = useItemChoices(rows.map((r) => r.item), props.party);
+  const { units } = useUnits();
+  const unitById = useMemo(() => new Map(units.map((u) => [u.id, u])), [units]);
+  const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  // Rows open for editing, by index; a new row opens, saved ones start folded.
+  const [open, setOpen] = useState<Set<number>>(new Set());
+  useEffect(() => setOpen(new Set()), [props.resetKey]);
+  const set = (i: number, change: Partial<PriceRow>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...change } : r)));
+  const unitsOf = (itemId: number | null): Unit[] => {
+    const item = itemId ? itemById.get(itemId) : null;
+    if (!item) return [];
+    return item.units.map((u) => unitById.get(u.unit)).filter((u): u is Unit => !!u);
+  };
+  const itemText = (r: PriceRow) => {
+    const it = r.item ? itemById.get(r.item) : null;
+    return it ? `${it.item_number} · ${it.name}` : (r.item_name ?? "");
+  };
+  const unitText = (r: PriceRow) => {
+    const u = r.unit ? unitById.get(r.unit) : null;
+    return u ? u.short_name || u.name : "";
+  };
+  const remove = (i: number) => {
+    onChange(rows.filter((_, j) => j !== i));
+    setOpen((o) => new Set([...o].filter((j) => j !== i).map((j) => (j > i ? j - 1 : j))));
+  };
+  const fold = (i: number, button: HTMLElement) => {
+    const empty = button.closest(".price-open")?.querySelector<HTMLInputElement>(":invalid");
+    if (empty) return empty.reportValidity();
+    const r = rows[i];
+    if (!r.item || !r.unit) return;
+    setOpen((o) => {
+      const n = new Set(o);
+      n.delete(i);
+      return n;
+    });
+  };
+  return (
+    <>
+      {rows.length === 0 && <p className="small">No prices yet.</p>}
+      {rows.length > 0 && (
+        <table className="row-list price-lines">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th className="num">Rate</th>
+              {!readOnly && <th />}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) =>
+              !open.has(i) || readOnly ? (
+                <tr key={i}>
+                  <td>
+                    {itemText(r)}
+                    <div className="small">
+                      {[unitText(r), `From Qty ${r.min_qty || "1"}`, r.from_date ? `From ${longDate(r.from_date)}` : ""]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </td>
+                  <td className="num">{r.rate ? money(r.rate) : ""}</td>
+                  {!readOnly && (
+                    <td className="row-edit">
+                      <button type="button" className="link" onClick={() => setOpen((o) => new Set(o).add(i))}>
+                        Edit
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ) : (
+                <tr key={i}>
+                  <td colSpan={3} className="row-open">
+                    <div className="address-card price-open">
+                      <div className="row">
+                        <label className="wide">
+                          Item
+                          <Combobox
+                            value={r.item ? String(r.item) : ""}
+                            onType={onType}
+                            placeholder="Type to search items…"
+                            ariaLabel="Item"
+                            options={items
+                              .filter((x) => x.is_active || x.id === r.item)
+                              .map((x) => ({ value: String(x.id), label: `${x.item_number} · ${x.name}` }))}
+                            onChange={(v) => {
+                              const id = Number(v) || null;
+                              const it = id ? itemById.get(id) : null;
+                              set(i, { item: id, unit: it ? it.stock_unit : null });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Unit
+                          <Combobox
+                            value={r.unit ? String(r.unit) : ""}
+                            ariaLabel="Unit"
+                            options={unitsOf(r.item).map((u) => ({ value: String(u.id), label: unitLabel(u) }))}
+                            onChange={(v) => set(i, { unit: Number(v) || null })}
+                          />
+                        </label>
+                      </div>
+                      <div className="row">
+                        <label>
+                          From Qty
+                          <input className="num" inputMode="decimal" value={r.min_qty} onChange={(e) => set(i, { min_qty: e.target.value })} />
+                        </label>
+                        <label>
+                          Rate
+                          <input className="num" inputMode="decimal" required value={r.rate} onChange={(e) => set(i, { rate: e.target.value })} />
+                        </label>
+                        <label>
+                          From Date
+                          <input type="date" required value={r.from_date} onChange={(e) => set(i, { from_date: e.target.value })} />
+                        </label>
+                      </div>
+                      <div className="address-flags">
+                        <button type="button" className="link danger" onClick={() => remove(i)}>
+                          Remove
+                        </button>
+                        <button type="button" onClick={(e) => fold(i, e.currentTarget)}>
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+      )}
+      {!readOnly && (
+        <div>
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setOpen((o) => new Set(o).add(rows.length));
+              onChange([...rows, blankRow(null, null)]);
+            }}
           >
             Add price
           </button>
