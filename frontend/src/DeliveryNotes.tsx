@@ -39,6 +39,7 @@ type Line = {
   position: number;
   item: number;
   item_name: string;
+  item_number?: string;
   hsn: string;
   unit_name: string;
   stock_unit_name: string;
@@ -657,7 +658,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
                         <td>{l.position}</td>
                         <td>
                           <b>{l.item_name}</b>
-                          <div className="small">HSN {l.hsn}</div>
+                          <div className="small">{l.item_number && `${l.item_number} · `}HSN {l.hsn}</div>
                         </td>
                         <td className="num">{l.ordered}</td>
                         <td className="num">{l.sent_earlier}</td>

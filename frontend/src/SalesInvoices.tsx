@@ -26,6 +26,7 @@ type Line = {
   position: number;
   item: number;
   item_name: string;
+  item_number?: string;
   hsn: string;
   unit_name: string;
   qty: string;
@@ -953,7 +954,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                       <td>{l.position}</td>
                       <td>
                         <b>{l.item_name}</b>
-                        <div className="small">{[`HSN ${l.hsn}`, several && l.note_number, l.rate_source].filter(Boolean).join(" · ")}</div>
+                        <div className="small">{[l.item_number, `HSN ${l.hsn}`, several && l.note_number, l.rate_source].filter(Boolean).join(" · ")}</div>
                       </td>
                       <td className="num">{l.qty}</td>
                       <td>{l.unit_name}</td>

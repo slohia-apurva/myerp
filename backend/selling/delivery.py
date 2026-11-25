@@ -120,6 +120,7 @@ def _line_out(ln: DeliveryNoteLine, note: DeliveryNote) -> dict:
         "order_line": ol.pk,
         "item": ln.item_id,
         "item_name": ln.item.name,
+        "item_number": ln.item.item_number,
         # The goods code goes on the challan and the e-way bill (a job-work
         # service keeps its goods code apart).
         "hsn": ln.item.delivery_hsn or ln.item.hsn,

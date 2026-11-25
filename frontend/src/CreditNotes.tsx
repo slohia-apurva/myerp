@@ -604,7 +604,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
                         <td>
                           <b>{l.item_name}</b>
                           <div className="small">
-                            {[`HSN ${l.hsn}`, back && l.sent_from && `went out from ${l.sent_from}`, back && l.cost_rate && `back at cost ₹${money(l.cost_rate)} a ${l.unit_name}`]
+                            {[l.item_number, `HSN ${l.hsn}`, back && l.sent_from && `went out from ${l.sent_from}`, back && l.cost_rate && `back at cost ₹${money(l.cost_rate)} a ${l.unit_name}`]
                               .filter(Boolean)
                               .join(" · ")}
                           </div>

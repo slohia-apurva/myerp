@@ -50,6 +50,7 @@ def rate_line_out(ln: PurchaseInvoiceRateLine) -> dict:
         "invoice_line": il.pk,
         "item": ln.item_id,
         "item_name": ln.item.name,
+        "item_number": ln.item.item_number,
         "hsn": ln.item.hsn,
         "unit_name": ln.unit.short_name or ln.unit.name,
         "billed_qty": _plain(il.qty),

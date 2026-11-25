@@ -1860,6 +1860,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                       <td>{i + 1}</td>
                       <td>
                         <b>{l.item_name}</b>
+                        <div className="small">{l.item_number}</div>
                         {l.description && <div className="line-desc">{l.description}</div>}
                       </td>
                       <td>{l.hsn}</td>

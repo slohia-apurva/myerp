@@ -8,6 +8,7 @@ export type RateLine = {
   id?: number;
   invoice_line: number;
   item_name: string;
+  item_number?: string;
   hsn: string;
   unit_name: string;
   billed_qty: string;
@@ -101,7 +102,7 @@ export function RateLinesTable(props: { lines: RateLine[]; way: "down" | "up"; i
                 <td className="po-item">
                   <b>{l.item_name}</b>
                   <span className="small">
-                    HSN {l.hsn}
+                    {l.item_number && `${l.item_number} · `}HSN {l.hsn}
                     {onChange ? stockNote(l) : split}
                   </span>
                 </td>

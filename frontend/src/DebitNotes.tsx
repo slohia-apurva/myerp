@@ -568,7 +568,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
                           <td className="po-item">
                             <b>{l.item_name}</b>
                             <span className="small">
-                              HSN {l.hsn} · billed {Number(l.billed_qty)} {l.unit_name} at ₹{money(l.rate)}
+                              {l.item_number && `${l.item_number} · `}HSN {l.hsn} · billed {Number(l.billed_qty)} {l.unit_name} at ₹{money(l.rate)}
                             </span>
                           </td>
                           <td className="nowrap">{l.return_number}</td>
@@ -794,7 +794,7 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
                         <td>{i + 1}</td>
                         <td className="po-item">
                           <b>{l.item_name}</b>
-                          <span className="small">HSN {l.hsn}</span>
+                          <span className="small">{l.item_number && `${l.item_number} · `}HSN {l.hsn}</span>
                         </td>
                         <td className="nowrap">{l.return_number}</td>
                         <td className="num">{Number(l.qty)}</td>

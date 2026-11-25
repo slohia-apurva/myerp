@@ -24,6 +24,7 @@ type Line = {
   receipt_line: number;
   item: number;
   item_name: string;
+  item_number?: string;
   hsn: string;
   unit_name: string;
   location: number;
@@ -544,7 +545,7 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
                           <td className="po-item">
                             <b>{l.item_name}</b>
                             <span className="small">
-                              HSN {l.hsn}
+                              {l.item_number && `${l.item_number} · `}HSN {l.hsn}
                               {num(l.qty) > 0 && !l.billed && " · not billed yet: the bill will need a Debit Note for what goes back"}
                             </span>
                           </td>
@@ -760,7 +761,7 @@ function ReturnView({ companyId, id, can, canDebit }: { companyId: number; id: n
                       <td>{i + 1}</td>
                       <td className="po-item">
                         <b>{l.item_name}</b>
-                        <span className="small">HSN {l.hsn}</span>
+                        <span className="small">{l.item_number && `${l.item_number} · `}HSN {l.hsn}</span>
                       </td>
                       <td>{l.batch_number || "—"}</td>
                       <td>{l.location_name}</td>

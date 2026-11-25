@@ -3735,7 +3735,10 @@ export const MANUAL: Chapter[] = [
             "Items" lists each receipt line still to bill ("To Bill"), at the
             order's rate. Change "Bill Qty", "Bill Rate" or "GST %" to match the
             bill; a line whose rate differs is shaded and says by how much.
-            "Remove" leaves a line for a later bill.
+            "Remove" leaves a line for a later bill. Under each item name the
+            line shows its item no. and HSN, here and on the submitted bill;
+            debit notes, returns, delivery notes, sales invoices, credit notes
+            and stock entries show them the same way.
           </li>
           <li>
             "Charges on the Bill" (freight, loading) come from the order. A
