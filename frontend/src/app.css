@@ -4722,6 +4722,7 @@ html {
   th {
     font-size: 11px;
   }
+}
 
 /* Scan Picking (Sidharth, 2026-11-25, mockups/scan-picking): one column made for a phone or a
    scanner gun; bins as titled boxes, the scan box always ready. Uses the usual buttons. */
