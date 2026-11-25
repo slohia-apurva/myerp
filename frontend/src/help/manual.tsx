@@ -187,6 +187,15 @@ export const MANUAL: Chapter[] = [
           </li>
         </ul>
 
+        <h3>How quickly screens open</h3>
+        <p>
+          MyERP sends each screen to your browser the first time you open it, so
+          the first time you open a screen in a day it may take a moment and show
+          an empty band; after that it opens at once, because your browser keeps
+          it. Signing in itself is quick because only the menu and the dashboard
+          come first.
+        </p>
+
         <h3>Saving and cancelling</h3>
         <p>
           Every form that adds or changes something has a green "Save" button.
