@@ -12,6 +12,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
 import { useKept } from "./Keep";
+import type { Check } from "./ScanPicking";
 
 /** Entry > Sales > Pick List: where the stores take a sales order's goods from,
  * bin and batch per item (Sidharth, 2026-11-19, preview 6). Made by itself when
@@ -33,6 +34,8 @@ type Row = {
   /** In the item's stock unit. */
   qty: string;
   qty_unit?: string;
+  /** What Scan Picking checked of this row. */
+  verified?: { done: boolean; got: string; how: string } | null;
 };
 type PickItem = {
   order_line: number;
@@ -75,6 +78,7 @@ type PickList = PickBrief & {
   submitted_at: string | null;
   submitted_by_name: string;
   items?: PickItem[];
+  check?: Check;
 };
 type Place = { value: string; label: string; full: number; count: number };
 type Spot = {
@@ -283,6 +287,7 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
   const [reason, setReason] = useState("");
   const [files, setFiles] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [unchecked, setUnchecked] = useState(0);
   const reload = useCallback(() => {
     api<PickList>(`v1/pick-lists/${id}/`)
       .then(setPick)
@@ -393,8 +398,21 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                 Save
               </button>
             )}
+            {isOpen && !editing && can(session, "create") && (
+              <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/scan-picking?list=${pick.id}`)}>
+                Scan to Pick
+              </button>
+            )}
             {isOpen && !editing && can(session, "submit") && (
-              <button type="button" disabled={busy} onClick={() => act("submit")}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const left = pick.check ? pick.check.total - pick.check.done : 0;
+                  if (left > 0) setUnchecked(left);
+                  else act("submit");
+                }}
+              >
                 Submit
               </button>
             )}
@@ -472,6 +490,7 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                       <th className="num">Pick Qty</th>
                       <th className="num">In Stock Unit</th>
                       <th>Status</th>
+                      <th>Verified</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -508,6 +527,15 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                           <td className="num">{r ? `${r.qty_unit} ${i.unit_name}` : ""}</td>
                           <td className="num">{r ? `${r.qty} ${i.stock_unit_name}` : ""}</td>
                           <td>{n === 0 ? status : ""}</td>
+                          <td>
+                            {r?.verified?.done ? (
+                              <span className="ok-note">✓ {r.verified.how}</span>
+                            ) : r?.verified ? (
+                              <span className="small">○{Number(r.verified.got) > 0 ? ` ${r.verified.got} of ${r.qty}` : ""}</span>
+                            ) : (
+                              ""
+                            )}
+                          </td>
                         </tr>
                       ));
                     })}
@@ -524,6 +552,19 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
           </Fold>
         </div>
         <DocSide type="pick_list" id={pick.id} onChange={() => setFiles((n) => n + 1)}>
+          {pick.check && pick.status !== "cancelled" && (
+            <SidePanel title="Picking Check" tag={`${pick.check.done} of ${pick.check.total}`}>
+              <SideRows
+                rows={[
+                  ["Scanned", String(pick.check.scanned)],
+                  ["By Item Barcode", String(pick.check.by_barcode)],
+                  ["By Hand", String(pick.check.by_hand)],
+                  ["Wrong Scans", String(pick.check.wrong)],
+                ]}
+              />
+              {isOpen && <p className="small">&quot;Scan to Pick&quot; checks each package as it is picked. Submit asks first when lines are not checked.</p>}
+            </SidePanel>
+          )}
           <SidePanel title="Details">
             <SideRows
               rows={[
@@ -540,6 +581,33 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
           </SidePanel>
         </DocSide>
       </div>
+      {unchecked > 0 && (
+        <div className="popup-back" role="presentation">
+          <div className="popup" role="dialog" aria-modal="true" aria-label="Lines not checked">
+            <h3>
+              {unchecked} {unchecked === 1 ? "line is" : "lines are"} not checked
+            </h3>
+            <p>Scan Picking has not checked every line of this list. Submit it as Picked anyway?</p>
+            <div className="popup-actions">
+              <button type="button" className="link" onClick={() => setUnchecked(0)}>
+                Go back
+              </button>
+              <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/scan-picking?list=${pick.id}`)}>
+                Scan to Pick
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUnchecked(0);
+                  act("submit");
+                }}
+              >
+                Submit anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

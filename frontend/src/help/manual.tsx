@@ -4428,7 +4428,9 @@ export const MANUAL: Chapter[] = [
         <h3>Submit, print and cancel</h3>
         <p>
           When the goods are picked, click "Submit": the list is "Picked" and
-          final. "Print ▾" holds "Pick list" and "Download PDF". The print is
+          final. When some lines were not checked by "Scan Picking", Submit
+          first asks "… lines are not checked" with "Go back", "Scan to Pick"
+          and "Submit anyway". "Print ▾" holds "Pick list" and "Download PDF". The print is
           an A4 sheet for the stores: the list's number with its barcode, the
           sales order, customer, Despatch From, delivery date and transporter,
           then the rows bin by bin so the picker walks rack by rack. Each bin
@@ -4445,6 +4447,75 @@ export const MANUAL: Chapter[] = [
           "Attachments". Who may see or change pick lists: people whose role
           may see or make sales or stock entries. Once a delivery note made
           from the list is submitted, the list is "Delivered".
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "scan-picking",
+    title: "Scan picking",
+    summary: "Check the goods as they are picked: scan the pick list, then each package, unit barcode or bin, on a phone or with a scanner.",
+    body: (
+      <>
+        <p>
+          Scan Picking checks that the stores take the right goods. The picker
+          scans the pick list, then each bag or box as it comes off the rack,
+          and the screen says at once whether it is right. It works on a
+          phone: a scanner gun types into the scan box, and on Android phones
+          "📷 Camera" reads barcodes and QR codes with the phone camera (on
+          other phones use a scanner or type the code). Each scan is saved at
+          once, so a refresh, or a second picker on another phone, carries on
+          from the same place. It moves no stock: the delivery note does.
+        </p>
+        <h3>Start</h3>
+        <p>
+          Click "Entry", point at "Sales" and click "Scan Picking". Scan the
+          barcode at the top right of the printed pick list into "Scan Pick
+          List" (or type its number and press Enter), or tap a list under
+          "Open Pick Lists", which shows how far each one has got. On an open
+          pick list, "Scan to Pick" opens the same screen.
+        </p>
+        <h3>Scan the goods</h3>
+        <p>
+          The lines are shown bin by bin, each with the item, batch, package
+          and quantity; "Verified" counts the lines done. Scan into "Scan
+          package, item or bin":
+        </p>
+        <ul>
+          <li>
+            A package label (PK-…): the line with that package turns green
+            ✓. Scanned twice, it says it was already checked.
+          </li>
+          <li>
+            A different bag of the same item and batch, not on another pick
+            list: it offers "Use PK-… instead", which puts that bag on the list
+            in place of the one listed; the line then shows "Swapped for PK-…".
+            "Put it back" leaves the list as it is.
+          </li>
+          <li>
+            An item's unit barcode (the barcode of a unit on the item, such as
+            its carton): counts that unit, for example one carton of 24
+            packets, against the item's lines that have no package.
+          </li>
+          <li>A bin label (LOC-…): jumps to that bin's lines.</li>
+          <li>
+            Anything else, another item or another batch, shows in red with a
+            beep and ticks nothing. It is counted under "Wrong Scans".
+          </li>
+        </ul>
+        <p>
+          For goods with no label to scan, click "Tick by Hand…" on the line,
+          give the quantity under "Picked By Hand" and click "Save"; the line
+          shows "By hand" and the person's name. "Show Done" hides the lines
+          already done. "Start Again" clears every tick on an open list.
+        </p>
+        <h3>Finish</h3>
+        <p>
+          When every line is checked, click "Submit as Picked": it is the same
+          as "Submit" on the pick list. The pick list screen shows each
+          line's check in its "Verified" column and the counts in the
+          "Picking Check" box. Only an open list can be scanned. Who may
+          scan: people whose role may make sales or stock entries.
         </p>
       </>
     ),

@@ -19,6 +19,7 @@ from core.models import (
     Company,
     CreditTerm,
     Item,
+    ItemUnit,
     Ledger,
     Package,
     SalesPerson,
@@ -264,6 +265,55 @@ class PickListLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item} {self.qty} from {self.location}"
+
+
+class PickScan(models.Model):
+    """One check while picking (Sidharth, 2026-11-25, preview mockups/scan-picking):
+    a package label scanned, a unit barcode scanned for loose goods, a line
+    ticked by hand, or a wrong scan. Kept against the row it checks by order
+    line, bin, batch and package (not the row's id), so editing an open list
+    keeps the ticks of rows that stay the same. Stock moves only with the
+    delivery note; these only say the goods in hand match the list."""
+
+    PACKAGE, UNIT, HAND, WRONG = "package", "unit", "hand", "wrong"
+    KINDS = [
+        (PACKAGE, "Scanned"),
+        (UNIT, "Item barcode"),
+        (HAND, "By hand"),
+        (WRONG, "Wrong scan"),
+    ]
+
+    pick_list = models.ForeignKey(PickList, on_delete=models.CASCADE, related_name="scans")
+    kind = models.CharField(max_length=8, choices=KINDS)
+    code = models.CharField(max_length=60, blank=True)
+    order_line = models.ForeignKey(
+        SalesOrderLine, null=True, blank=True, on_delete=models.CASCADE, related_name="+"
+    )
+    location = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    batch = models.ForeignKey(
+        Batch, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    package = models.ForeignKey(
+        Package, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    item_unit = models.ForeignKey(
+        ItemUnit, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # In the item's stock unit; zero for a wrong scan.
+    qty = models.DecimalField(**QTY, default=Decimal("0"))
+    # "PK-000242" when this package was taken in place of the listed one.
+    swapped_for = models.CharField(max_length=20, blank=True)
+    message = models.CharField(max_length=300, blank=True)
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"{self.pick_list} {self.kind} {self.code}"
 
 
 class DeliveryNote(models.Model):
