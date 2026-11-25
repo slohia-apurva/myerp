@@ -114,7 +114,7 @@ export function PartyDocuments(props: {
                     ) : (
                       d.files.map((f) => (
                         <div key={f.id}>
-                          <a href={`/api/v1/party-document-files/${f.id}/`} target="_blank" rel="noreferrer">
+                          <a href={`/api/v1/party-document-files/${f.id}/`} target="myerp-print" rel="noreferrer">
                             {f.filename}
                           </a>{" "}
                           <span className="small">{sizeText(f.size)}</span>
@@ -265,7 +265,7 @@ function DocumentForm(props: {
         <Section title="Attachments">
           {kept.map((f) => (
             <div key={f.id} className="row">
-              <a href={`/api/v1/party-document-files/${f.id}/`} target="_blank" rel="noreferrer">
+              <a href={`/api/v1/party-document-files/${f.id}/`} target="myerp-print" rel="noreferrer">
                 {f.filename}
               </a>
               <span className="small">{sizeText(f.size)}</span>

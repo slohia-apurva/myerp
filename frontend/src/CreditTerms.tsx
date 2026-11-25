@@ -10,6 +10,7 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Credit terms: how a party's bills are paid, split into parts. */
 export type TermPart = { percent: string; event: string; days: number };
@@ -58,7 +59,7 @@ export function CreditTermsPage({ session }: { session: SignedIn }) {
 
 function TermList(props: { session: SignedIn; canEdit: boolean; terms: CreditTerm[]; reload: () => void }) {
   const { terms, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("CreditTerms.selectedId", null);
   useCreated("credit_term_saved", (c) => {
     reload();
     setSelected(c.id);

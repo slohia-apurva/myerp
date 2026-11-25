@@ -7,6 +7,7 @@ import { useItemSearch } from "./ItemSearch";
 import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
 import { openTab } from "./Master";
+import { useKept } from "./Keep";
 
 /** Reports, read straight from the two ledgers (Sidharth, 2026-11-18, preview
  * mockups/reports/1-reports-preview.png). Stock: the Stock Summary (item ›
@@ -111,12 +112,12 @@ const matches = (text: string, typed: string) =>
  * field its own column with a search box under its heading (Sidharth, 2026-11-18, preview
  * mockups/reports/3-stock-summary-flat-preview.png). The totals add up the lines shown. */
 export function StockSummaryPage({ companyId }: { companyId: number }) {
-  const [asOn, setAsOn] = useState(today());
+  const [asOn, setAsOn] = useKept("Reports.114.asOn", today());
   // From the Items screen: one item only, until "Show all items".
-  const [item, setItem] = useState(hashParam("item"));
+  const [item, setItem] = useKept("Reports.116.item", hashParam("item"));
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState<unknown>("");
-  const [search, setSearch] = useState<string[]>([]);
+  const [search, setSearch] = useKept<string[]>("Reports.119.search", []);
   useEffect(() => {
     const params = new URLSearchParams({ as_on: asOn });
     if (item) params.set("item", item);
@@ -238,13 +239,13 @@ export function StockSummaryPage({ companyId }: { companyId: number }) {
 /** Reports › Stock Ledger: every move of one item in a period, with the balance after each. */
 export function StockLedgerPage({ companyId }: { companyId: number }) {
   const branches = useBranches(companyId);
-  const [item, setItem] = useState(hashParam("item"));
+  const [item, setItem] = useKept("Reports.241.item", hashParam("item"));
   const { items, onType } = useItems(item);
-  const [to, setTo] = useState(hashParam("to") || today());
-  const [from, setFrom] = useState(hashParam("from") || yearStart(hashParam("to") || today()));
-  const [branch, setBranch] = useState(hashParam("branch"));
-  const [batch, setBatch] = useState("");
-  const [place, setPlace] = useState("");
+  const [to, setTo] = useKept("Reports.243.to", hashParam("to") || today());
+  const [from, setFrom] = useKept("Reports.244.from", hashParam("from") || yearStart(hashParam("to") || today()));
+  const [branch, setBranch] = useKept("Reports.245.branch", hashParam("branch"));
+  const [batch, setBatch] = useKept("Reports.246.batch", "");
+  const [place, setPlace] = useKept("Reports.247.place", "");
   const [data, setData] = useState<StockLedger | null>(null);
   const [error, setError] = useState<unknown>("");
   useEffect(() => {

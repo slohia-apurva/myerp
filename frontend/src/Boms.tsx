@@ -15,6 +15,7 @@ import { useOnReturn, useReturns } from "./Refresh";
 import { dmy, rupees } from "./Reports";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { useUnits } from "./Units";
+import { useKept } from "./Keep";
 
 /** Bills of materials (Masters › BOMs; Sidharth, 2026-11-22, preview 14): what one batch
  * of an item needs. An item can have several versions; exactly one is its Default (★). */
@@ -121,7 +122,7 @@ export function BomsPage({ session }: { session: SignedIn }) {
 
 function BomList({ session, canEdit }: { session: SignedIn; canEdit: boolean }) {
   const { boms, reload } = useBoms();
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Boms.selectedId", null);
   useCreated("bom_saved", (c) => {
     reload();
     setSelected(c.id);

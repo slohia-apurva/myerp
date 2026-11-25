@@ -16,6 +16,7 @@ import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBil
 import { TdsBox, type TdsInfo } from "./Tds";
 import { BillTypePicker, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
 import { useReturns } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Entry > Purchase > Purchase Invoice (Sidharth, 2026-11-15, preview 67): the supplier's
  * bill, entered against goods receipts. Submit clears "Goods Received but Bills not
@@ -173,11 +174,11 @@ const COLUMNS: [key: string, label: string, text: (r: Invoice) => string, num?: 
 ];
 
 function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
-  const [view, setView] = useState("submitted");
+  const [view, setView] = useKept("PurchaseInvoices.view", "submitted");
   const [rows, setRows] = useState<Invoice[]>([]);
   const [unbilled, setUnbilled] = useState<Unbilled[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("PurchaseInvoices.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("PurchaseInvoices.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {
     if (view === "unbilled") api<Unbilled[]>(`v1/companies/${companyId}/purchase-invoices/unbilled/`).then(setUnbilled, setError);
@@ -366,7 +367,7 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
             </table>
           )}
           {view !== "unbilled" && shown.length > 0 && (
-            <p className="small no-print">Click an invoice to see it at the right (click it again to close the panel); double-click or press Enter to open it in a new tab.</p>
+            <p className="small no-print">Click an invoice to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>
           )}
         </div>
         {selected && (
@@ -559,7 +560,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
       }
       if (!draftId) {
         setDraftId(done.id);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
       }
       setSaved(done);
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
@@ -567,7 +568,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
       const kept = keptDraft(err);
       if (kept && !draftId) {
         setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });

@@ -136,7 +136,7 @@ export function Attachments(props: {
                 Added by {shown.added_by_name} · {when(shown.added_at)} · {sizeText(shown.size)}
               </span>
               <span className="attach-acts no-print">
-                <a className="button" href={fileUrl(shown)} target="_blank" rel="noreferrer">
+                <a className="button" href={fileUrl(shown)} target="myerp-print" rel="noreferrer">
                   Open in New Tab
                 </a>
                 {canChange && (

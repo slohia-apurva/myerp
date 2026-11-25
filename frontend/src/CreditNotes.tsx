@@ -12,6 +12,7 @@ import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedge
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { TotalsPanel } from "./PurchaseOrders";
 import { portalNumbers } from "./SalesInvoices";
+import { useKept } from "./Keep";
 
 /** Entry > Sales > Credit Note: a GST credit note against a submitted sales invoice (Sidharth,
  * 2026-11-21, previews 18a/18b/18c in mockups/sales), of one of three types, all with GST:
@@ -161,10 +162,10 @@ const COLUMNS: [key: string, label: string, text: (n: Note) => string, num?: boo
 ];
 
 function NoteList({ companyId }: { companyId: number }) {
-  const [view, setView] = useState("all");
+  const [view, setView] = useKept("CreditNotes.view", "all");
   const [rows, setRows] = useState<Note[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("CreditNotes.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("CreditNotes.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<Note[]>(`v1/companies/${companyId}/credit-notes/?view=${view}`)
@@ -266,7 +267,7 @@ function NoteList({ companyId }: { companyId: number }) {
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click a credit note to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click a credit note to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Credit note details">
@@ -476,7 +477,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
               {submitted && note.needs_einvoice && <span className="tag">{note.irn ? "e-Invoice made" : "e-Invoice pending"}</span>}
               <span className="tag">
                 Invoice{" "}
-                <a href={`#/companies/${companyId}/sales-invoices?view=${note.invoice}`} target="_blank" rel="noreferrer">
+                <a href={`#/companies/${companyId}/sales-invoices?view=${note.invoice}`}>
                   {note.invoice_number}
                 </a>
               </span>

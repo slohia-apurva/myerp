@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api";
 import { money } from "./Companies";
-import { Fold, openTab } from "./Master";
+import { Fold, openNewTab } from "./Master";
 
 type PostingRow = {
   ledger: number | null;
@@ -206,7 +206,7 @@ export function MissingLedgersPopup(props: {
                       type="button"
                       className="link"
                       onClick={() =>
-                        openTab(`#/item-groups?form=${g.group}&at=ledgers`)
+                        openNewTab(`#/item-groups?form=${g.group}&at=ledgers`)
                       }
                     >
                       Set ledgers

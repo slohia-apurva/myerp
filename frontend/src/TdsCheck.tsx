@@ -8,6 +8,7 @@ import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useReturns } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Entry › Accounts › TDS Check (Sidharth, 2026-11-19, previews 95a/95b): every supplier's TDS for the year worked
  * out again with today's masters, against what was deducted; a gap is put right by a TDS Adjustment
@@ -104,11 +105,11 @@ const COLUMNS: [key: string, label: string, text: (r: Summary) => string, num?: 
 ];
 
 function CheckList({ companyId, session }: { companyId: number; session: SignedIn }) {
-  const [year, setYear] = useState("");
-  const [show, setShow] = useState("gaps");
+  const [year, setYear] = useKept("TdsCheck.year", "");
+  const [show, setShow] = useKept("TdsCheck.show", "gaps");
   const [data, setData] = useState<Check | null>(null);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selected, setSelected] = useState<string | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("TdsCheck.search", {});
+  const [selected, setSelected] = useKept<string | null>("TdsCheck.selected", null);
   const [error, setError] = useState<unknown>("");
   const visits = useReturns();
   const reload = useCallback(() => {
@@ -228,7 +229,7 @@ function CheckList({ companyId, session }: { companyId: number; session: SignedI
               ))}
             </tbody>
           </table>
-          {rows.length > 0 && <p className="small no-print">Click a line to see it at the right; double-click or press Enter to open the supplier's bills in a new tab.</p>}
+          {rows.length > 0 && <p className="small no-print">Click a line to see it at the right; double-click or press Enter to open the supplier's bills.</p>}
         </div>
         <div className="side-col">
           {chosen ? (

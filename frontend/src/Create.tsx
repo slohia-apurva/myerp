@@ -89,9 +89,15 @@ export function announceSaved(kind: string, record: { id: number; name: string }
   }
 }
 
-/** Close this tab if the page opened it. A tab the person opened by hand cannot be
- * closed by script, so after a moment `stay` runs instead (show the list there). */
+/** "Close" / "Cancel" on a page: back to the screen it was opened from in this tab
+ * (Sidharth, 2026-11-25). A tab opened by the page itself ("Create …", print, Ctrl+click) is
+ * closed; a tab the person opened by hand cannot be closed by script, so after a moment `stay`
+ * runs instead (show the list there). */
 export function closeThisTab(stay: () => void) {
+  if (window.history.state?.myerpBack) {
+    window.history.back();
+    return;
+  }
   window.close();
   setTimeout(() => {
     if (!window.closed) stay();

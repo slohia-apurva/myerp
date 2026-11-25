@@ -9,6 +9,7 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Brands: one list for every company in the group; an item picks its brand on the General section. */
 export type Brand = { id: number; name: string; notes: string; is_active: boolean; item_count: number };
@@ -41,7 +42,7 @@ export function BrandsPage({ session }: { session: SignedIn }) {
 
 function BrandList(props: { session: SignedIn; canEdit: boolean; brands: Brand[]; reload: () => void }) {
   const { brands, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelected] = useKept<number | null>("Brands.selectedId", null);
   useCreated("brand_saved", (c) => {
     reload();
     setSelected(c.id);

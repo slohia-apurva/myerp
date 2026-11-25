@@ -11,6 +11,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
+import { useKept } from "./Keep";
 
 /** Entry > Sales > Pick List: where the stores take a sales order's goods from,
  * bin and batch per item (Sidharth, 2026-11-19, preview 6). Made by itself when
@@ -124,10 +125,10 @@ const COLUMNS: [key: string, label: string, text: (p: PickList) => string][] = [
 ];
 
 function PickListList({ companyId }: { companyId: number }) {
-  const [view, setView] = useState("open");
+  const [view, setView] = useKept("PickLists.view", "open");
   const [lists, setLists] = useState<PickList[]>([]);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useKept<Record<string, string>>("PickLists.search", {});
+  const [selectedId, setSelectedId] = useKept<number | null>("PickLists.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
     api<PickList[]>(`v1/companies/${companyId}/pick-lists/?view=${view}`)
@@ -231,7 +232,7 @@ function PickListList({ companyId }: { companyId: number }) {
               ))}
             </tbody>
           </table>
-          {shown.length > 0 && <p className="small no-print">Click a pick list to see it at the right; double-click or press Enter to open it in a new tab.</p>}
+          {shown.length > 0 && <p className="small no-print">Click a pick list to see it at the right; double-click or press Enter to open it; "Close" there brings you back here.</p>}
         </div>
         {selected && (
           <div className="side-col" aria-label="Pick list details">
@@ -421,7 +422,7 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
             <p className="item-sub">
               <b>
                 Made from Sales Order{" "}
-                <a href={`#/companies/${companyId}/sales-orders?view=${pick.order}`} target="_blank" rel="noreferrer">
+                <a href={`#/companies/${companyId}/sales-orders?view=${pick.order}`}>
                   {pick.order_number}
                 </a>{" "}
                 on {at(pick.created_at)}

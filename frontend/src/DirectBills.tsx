@@ -244,7 +244,7 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
       }
       if (!draftId) {
         setDraftId(done.id);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${done.id}`);
       }
       setSaved(done);
       setSavedAt(new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }));
@@ -252,7 +252,7 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
       const kept = keptDraft(err);
       if (kept && !draftId) {
         setDraftId(kept);
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });

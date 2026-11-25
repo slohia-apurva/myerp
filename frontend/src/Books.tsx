@@ -6,6 +6,7 @@ import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
 import { openTab } from "./Master";
 import { dmy, EntryLink, rupees } from "./Reports";
+import { useKept } from "./Keep";
 
 /** Accounts reports, read straight from the general ledger (Sidharth, 2026-11-18,
  * preview mockups/reports/1-reports-preview.png): the Trial Balance under the
@@ -71,8 +72,8 @@ function hashParam(key: string): string {
 
 /** Reports › Trial Balance: every ledger's opening, debits, credits and closing in a period. */
 export function TrialBalancePage({ companyId }: { companyId: number }) {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState(today());
+  const [from, setFrom] = useKept("Books.74.from", "");
+  const [to, setTo] = useKept("Books.75.to", today());
   const [data, setData] = useState<TrialBalance | null>(null);
   const [error, setError] = useState<unknown>("");
   const [folded, setFolded] = useState<Set<number>>(new Set());
@@ -212,9 +213,9 @@ type LedgerPick = { id: number; name: string; group_name?: string };
 /** Reports › Ledger Statement: every entry to one ledger, with the balance after each. */
 export function LedgerStatementPage({ companyId }: { companyId: number }) {
   const [ledgers, setLedgers] = useState<LedgerPick[]>([]);
-  const [ledger, setLedger] = useState(hashParam("ledger"));
-  const [from, setFrom] = useState(hashParam("from"));
-  const [to, setTo] = useState(hashParam("to") || today());
+  const [ledger, setLedger] = useKept("Books.215.ledger", hashParam("ledger"));
+  const [from, setFrom] = useKept("Books.216.from", hashParam("from"));
+  const [to, setTo] = useKept("Books.217.to", hashParam("to") || today());
   const [data, setData] = useState<Statement | null>(null);
   const [error, setError] = useState<unknown>("");
   useEffect(() => {

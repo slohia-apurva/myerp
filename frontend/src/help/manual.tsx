@@ -86,6 +86,25 @@ export const MANUAL: Chapter[] = [
           goes through all the usual checks, including "No duplicates" below.
         </Note>
 
+        <h3>Where screens open</h3>
+        <p>
+          Everything you open from a screen opens in the same browser tab:
+          "Open", "View", "Edit", "Duplicate", the "New …" and "Add …" buttons,
+          the documents under "Create ▾", the links to other entries (for example
+          from a sales order to its pick list) and the lines of a report. "Close"
+          or "Cancel" brings you back to the screen you came from, on the same
+          page of the list with the same searches and the same row picked. The
+          browser's Back button does the same.
+        </p>
+        <p>
+          A new tab opens only where you need to come back to a half-filled
+          form: 'Create "…"' in a list (above), "Set ledgers" in the box that
+          lists what is missing on Submit, and "Request Addition". Prints and
+          PDFs open in one print tab that is used again each time, and "Download
+          PDF" just saves the file. To see two entries side by side, hold Ctrl
+          (Cmd on a Mac) while you click "Open": that one opens in a new tab.
+        </p>
+
         <h3>Lists stay up to date</h3>
         <p>
           You can also add a missing record the long way: open its master
@@ -487,7 +506,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Credit terms".</li>
           <li>
-            Click "Add credit terms" (it opens in a new browser tab) and give
+            Click "Add credit terms" and give
             them a name, such as "30% advance, 70% in 15 days".
           </li>
           <li>
@@ -508,7 +527,7 @@ export const MANUAL: Chapter[] = [
         <p>
           The list shows each term in words and how many parties use it. Click
           a row to see its details and activity in the panels on the right;
-          "Edit" and "Duplicate" open in a new browser tab, and "Save" or
+          "Edit" and "Duplicate" open the form, and "Save" or
           "Cancel" closes it. Credit terms are never deleted: tick "Disabled"
           in the "Switches" panel and "Save" to stop offering them to new
           parties (untick it to bring them back). Parties that already have
@@ -537,7 +556,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Terms and conditions".</li>
           <li>
-            Click "Add terms" (it opens in a new browser tab). Give it a
+            Click "Add terms". Give it a
             "Name", such as "Purchase - tea", and a "Type".
           </li>
           <li>
@@ -585,7 +604,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Price lists".</li>
           <li>
-            Click "Add price list" (it opens in a new browser tab). Give it a
+            Click "Add price list". Give it a
             "Name", such as "Retail 2026", a "Type" ("Selling" or "Buying") and,
             if it is not rupees, the "Currency".
           </li>
@@ -649,7 +668,7 @@ export const MANUAL: Chapter[] = [
         <p>
           The list shows the type, currency, how many prices it has and how
           many customers and suppliers use it. Click a row to see its details and activity on
-          the right; "Edit" and "Duplicate" open in a new browser tab. A price
+          the right; "Edit" and "Duplicate" open the form. A price
           list is never deleted: tick "Disabled" in the "Switches" panel and
           "Save" to stop offering it. Once customers use a list, its "Type" and
           "Currency" cannot change. To add or change many prices at once, use
@@ -711,7 +730,7 @@ export const MANUAL: Chapter[] = [
           People whose role may see stock also get an "In Stock" column: the
           quantity of each item in stock today in the company picked at the top
           right, in its stock unit. Click the figure to open the "Stock Summary"
-          of that item in a new tab, with its batches and the bins they are in.
+          of that item, with its batches and the bins they are in.
           Under "Item Details" a "Stock" box shows the quantity and value in each
           warehouse, the batches with their expiry dates, and when the item was
           last received (click the entry number to open it). Its "Bins and
@@ -720,19 +739,19 @@ export const MANUAL: Chapter[] = [
         </p>
         <p>
           Double-click an item, press Enter, or click "View" under "Item Details" to see its own
-          page, which opens in a new browser tab so the list stays open. It has folding sections: "General", "Sales", "Purchase", "GST
+          page, which opens in the same tab; "Close" brings you back to the list. It has folding sections: "General", "Sales", "Purchase", "GST
           Rates", "Stock And Quality", "Units Of Measure", "Customer And Supplier
           Names" and "Connections". Click a section's title bar to open or close it; a closed section
           still shows a line of its main values. "Switches" and "Activity" are
           in the panels on the right. People who may change items also see
-          "Edit" and "Duplicate" in the green bar; "Close" shuts the tab.
+          "Edit" and "Duplicate" in the green bar; "Close" brings you back to the list.
         </p>
         <p>
-          "Add item", "Edit" and "Duplicate" also open the form in a new browser tab
-          with the whole width, so the list stays open in the first tab.
-          "Save" or "Cancel" closes the new tab and the list refreshes and
-          selects the item. If you opened the form link by hand, the tab cannot
-          close itself and shows the list instead.
+          "Add item", "Edit" and "Duplicate" also open the form in the same tab,
+          with the whole width.
+          "Save" or "Cancel" brings you back to the list, which refreshes and
+          selects the item. If you opened the form from a link typed by hand, it
+          shows the list instead.
         </p>
         <h3>Add an item</h3>
         <ol>
@@ -939,7 +958,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>
             Click "New BOM" (or "New BOM" in the "BOMs" box of an item set to
-            "Manufacture"). It opens in a new tab.
+            "Manufacture").
           </li>
           <li>
             Under "What It Makes" pick the "Item", give a "Version Name" (for
@@ -1400,7 +1419,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Batches".</li>
           <li>
-            Click "Add batch". The form opens in a new browser tab. Pick the
+            Click "Add batch". The form opens in the same tab. Pick the
             "Item" (only items that track batches are listed) and give the
             "Batch No". If you like, add the "Supplier's Batch No", "Mfg Date",
             "Expiry" and "Notes".
@@ -1419,7 +1438,7 @@ export const MANUAL: Chapter[] = [
           A goods receipt will also make a new batch from its line as goods are
           received. Pick an item in the box above the list to see only its
           batches. Click a batch to see its details and activity on the right;
-          "Edit" (or a double-click) and "Duplicate" open in a new tab. Once a
+          "Edit" (or a double-click) and "Duplicate" open the form. Once a
           batch is used in an entry its item can no longer change. Batches are
           never deleted: tick "Disabled" under "Switches" instead. To change
           many batches at once, use "Actions" (see "Import, export and print").
@@ -1443,7 +1462,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Brands".</li>
           <li>
-            Click "Add brand". The form opens in a new browser tab. Give the
+            Click "Add brand". The form opens in the same tab. Give the
             "Name" (for example Apurvam) and, if you like, "Notes".
           </li>
           <li>
@@ -1453,7 +1472,7 @@ export const MANUAL: Chapter[] = [
         <p>
           Click a brand in the list to see its details on the right, with its
           activity below. "Edit" (or a double-click on the row) and "Duplicate"
-          open in a new tab. Brand names must be different, whatever the
+          open the form. Brand names must be different, whatever the
           capital letters. The "Items" column shows how many items carry each
           brand. Brands are never deleted: on the form, tick "Disabled" under
           "Switches" to stop offering a brand, and untick it to bring it back;
@@ -1483,7 +1502,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "People".</li>
           <li>
-            Click "Add person". The form opens in a new browser tab. Give the
+            Click "Add person". The form opens in the same tab. Give the
             "Name", and if you like the "Mobile", "Email" and "Notes".
           </li>
           <li>
@@ -1549,7 +1568,7 @@ export const MANUAL: Chapter[] = [
           <li>Click "Masters" in the top menu, then "Item groups".</li>
           <li>
             Click "Add group" for a main group, or click "+ Sub-group" beside a
-            group to add one under it. The form opens in a new browser tab.
+            group to add one under it. The form opens in the same tab.
             Give the "Name" (for example Whole spices) and, if you like,
             "Notes".
           </li>
@@ -1566,7 +1585,7 @@ export const MANUAL: Chapter[] = [
           see those items in the Items list (the line under the "Items" title
           names the group; click "Show all items" to see every item). Click a group
           to see its details on the right, with its activity below. "Edit",
-          "Duplicate" and "+ Sub-group" each open in a new tab.
+          "Duplicate" and "+ Sub-group" each open the form.
         </p>
         <p>
           Once an item sits in a group, or in a group below it, that group
@@ -1629,7 +1648,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>Click "Masters" in the top menu, then "Units".</li>
           <li>
-            Click "Add unit". The form opens in a new browser tab. Give the
+            Click "Add unit". The form opens in the same tab. Give the
             "Name" (for example Drum) and a "Short name" (for example drm).
           </li>
           <li>
@@ -1650,7 +1669,7 @@ export const MANUAL: Chapter[] = [
         <p>
           Click a unit in the list to see its details on the right, with its
           activity below. "Edit" (or a double-click on the row) and "Duplicate"
-          open in a new tab.
+          open the form.
         </p>
         <p>
           Once an item uses a unit, its "GST unit code" and "Whole numbers only"
@@ -1875,7 +1894,7 @@ export const MANUAL: Chapter[] = [
             menu, then "Warehouses". Each warehouse has its own box.
           </li>
           <li>
-            Click "Add rack". The form opens in a new browser tab. Give the rack
+            Click "Add rack". The form opens in the same tab. Give the rack
             a name, for example R1, then click "Save"; the tab closes and the
             rack is selected in the list.
           </li>
@@ -1906,7 +1925,7 @@ export const MANUAL: Chapter[] = [
           one bin of each name, and a warehouse has one area of each name. Use
           the arrow beside a rack to fold or show its bins. Click a rack, bin or
           area to see its details on the right, with its activity below; "Edit"
-          (or a double-click) opens it in a new tab. Racks, bins and areas are
+          (or a double-click) opens it. Racks, bins and areas are
           never deleted: on the form, tick "Disabled" under "Switches", and
           untick it to bring one back. A rack can be disabled only after its
           bins are disabled. A branch that has racks,
@@ -2148,7 +2167,7 @@ export const MANUAL: Chapter[] = [
           <li>
             Click "Add ledger" at the top right, then choose the group in the
             form. Or click "+ Ledger" beside a group in the list, and the group
-            is filled in. Either way the form opens in a new browser tab, and
+            is filled in. Either way the form opens, and
             every group can be picked, including ones with no ledgers yet.
           </li>
           <li>Type the name and choose the group it goes under.</li>
@@ -2451,7 +2470,7 @@ export const MANUAL: Chapter[] = [
             menu, then "Transporters".
           </li>
           <li>
-            Click "Add transporter". The form opens in a new browser tab.
+            Click "Add transporter". The form opens in the same tab.
           </li>
           <li>
             Fill in the form (see below) and click "Save"; the tab closes and
@@ -2475,7 +2494,7 @@ export const MANUAL: Chapter[] = [
           Click a row in the list to see that transporter's details on the
           right, with its activity below. To change one, click "Edit" on its
           row (or double-click the row); "Duplicate" starts a new one as a copy.
-          Each opens in a new tab.
+          Each opens the form.
         </p>
         <Fields
           rows={[
@@ -2814,7 +2833,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Make one</h3>
         <ol>
-          <li>Click "New Transfer". It opens in a new tab.</li>
+          <li>Click "New Transfer".</li>
           <li>
             Pick the "From Branch" and, if the goods should come only from one
             area, the "From Area" ("Whole branch" otherwise). Pick the "To
@@ -2910,7 +2929,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Stock Receipt</h3>
         <ol>
-          <li>Click "New Stock Receipt". It opens in a new tab.</li>
+          <li>Click "New Stock Receipt".</li>
           <li>
             Pick the "Branch" and, if you like, the "Area"
             where the goods go ("Receiving area or default store" otherwise).
@@ -2994,7 +3013,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Make one</h3>
         <ol>
-          <li>Click "New Own Use". It opens in a new tab.</li>
+          <li>Click "New Own Use".</li>
           <li>
             Pick the "Branch" and, if the goods should come from one area only,
             the "Area" ("Whole branch" otherwise). Give the "Date", who "Issued
@@ -3060,7 +3079,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Make one</h3>
         <ol>
-          <li>Click "New Manufacturing Order". It opens in a new tab.</li>
+          <li>Click "New Manufacturing Order".</li>
           <li>
             Under "What to Make" pick the "Branch", the "Item" (only items
             with an active BOM are listed), the "Qty" and the "Unit". "BOM
@@ -3183,7 +3202,7 @@ export const MANUAL: Chapter[] = [
         <h3>Make a purchase order</h3>
         <ol>
           <li>
-            Click "New purchase order" (it opens in a new browser tab).
+            Click "New purchase order".
           </li>
           <li>
             Under "Supplier and Dates" pick the "Supplier". If it is not there yet,
@@ -3305,7 +3324,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Print and PDF</h3>
         <p>
-          Every entry screen has a "Print ▾" button with its other buttons; its list holds the print layouts ("Purchase order" for now; more layouts join this list). On the order, or on the entry form once the order is saved, "Print ▾" then "Purchase order" opens the order as the supplier gets it, in a new tab, with the print
+          Every entry screen has a "Print ▾" button with its other buttons; its list holds the print layouts ("Purchase order" for now; more layouts join this list). On the order, or on the entry form once the order is saved, "Print ▾" then "Purchase order" opens the order as the supplier gets it, in the print tab, with the print
           window: your letterhead, the "Supplier", "Bill To" and "Ship To" addresses, the dates, credit term and
           transporter, the items with their descriptions, the charges, a "Tax Summary" by HSN / SAC code, the totals, the
           amount in words, the terms and conditions and the signature. An import shows its shipment and payment terms,
@@ -3460,7 +3479,7 @@ export const MANUAL: Chapter[] = [
         <h3>Make a receipt</h3>
         <ol>
           <li>
-            Click "New goods receipt". The form opens in a new tab. Pick the
+            Click "New goods receipt". The form opens. Pick the
             "Supplier" (only suppliers with open orders are listed), the
             "Receipt Date" and the "Receiving Warehouse" (the branch the goods
             came into).
@@ -4018,13 +4037,13 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             Double-click a line (or click it, then "Open") to see that
-            supplier's bills one by one in a new tab: "Year So Far ₹", "Section
+            supplier's bills one by one: "Year So Far ₹", "Section
             On Bill", "TDS Due ₹", "Deducted ₹", the gap and "Why".
           </li>
           <li>
             "Put It Right" shows what can be put right. "Make TDS Adjustment"
             (or "Set Section", when only sections are missing) opens a new TDS
-            Adjustment for those bills in a new tab.
+            Adjustment for those bills.
           </li>
           <li>
             "TDS Returns" lists the year's four quarters. When a quarter's
@@ -4114,7 +4133,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Make a sales order</h3>
         <ol>
-          <li>Click "New sales order" (it opens in a new browser tab).</li>
+          <li>Click "New sales order".</li>
           <li>
             Under "Customer and Dates" pick the "Customer". The line under it
             shows its GSTIN, what it owes now ("Outstanding") and its credit
@@ -4175,7 +4194,7 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             Click "Save" to keep a draft (the page stays open) or "Submit" to
-            give the order its number. "Close" closes the tab.
+            give the order its number. "Close" brings you back to the list.
           </li>
         </ol>
         <h3>Credit limit</h3>
@@ -4342,7 +4361,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>
             On the submitted pick list, or on the sales order, click "Create ▾"
-            and "Delivery Note". The note opens in a new tab as a draft. Doing
+            and "Delivery Note". The note opens as a draft. Doing
             it again opens the same draft.
           </li>
           <li>
@@ -4454,7 +4473,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>
             On the submitted delivery note click "Create ▾" and "Sales
-            Invoice". The invoice opens in a new tab as a draft. Doing it
+            Invoice". The invoice opens as a draft. Doing it
             again opens the same draft.
           </li>
           <li>
@@ -4608,7 +4627,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>
             On the submitted sales invoice click "Create ▾" and "Credit Note".
-            The credit note opens in a new tab as a draft. While a draft is
+            The credit note opens as a draft. While a draft is
             open for that invoice, doing it again opens the same draft.
           </li>
           <li>
@@ -4734,7 +4753,7 @@ export const MANUAL: Chapter[] = [
             bill at another rate changes it from the bill's date.
           </li>
           <li>
-            Click an item number to open its Stock Ledger in a new tab. Opened
+            Click an item number to open its Stock Ledger. Opened
             from the Items screen, the list shows that one item; "Show all
             items" brings back the rest.
           </li>
@@ -4749,7 +4768,7 @@ export const MANUAL: Chapter[] = [
           <li>
             The first line is the "Opening" balance on the From date. Each line
             after it is one entry: its date, its number (click it to open the
-            entry in a new tab), the batch and bin, the quantity "In" or "Out",
+            entry), the batch and bin, the quantity "In" or "Out",
             and the "Balance" and "Value ₹" after it. The last line is the
             "Closing" balance.
           </li>
@@ -4802,15 +4821,15 @@ export const MANUAL: Chapter[] = [
             differ, a red line under the list says by how much: the opening
             balances entered on the ledgers do not add up.
           </li>
-          <li>Click a ledger to open its Ledger Statement in a new tab.</li>
+          <li>Click a ledger to open its Ledger Statement.</li>
         </ul>
         <h3>Ledger Statement</h3>
         <ul>
           <li>Pick the "Ledger", and the "From" and "To" dates.</li>
           <li>
             The first line is the "Opening" balance on From. Each line after it
-            is one entry: its date, its number (click it to open the entry in a
-            new tab), "Particulars" (the ledgers on the other side of that
+            is one entry: its date, its number (click it to open the entry),
+            "Particulars" (the ledgers on the other side of that
             entry), the debit or credit, and the "Balance ₹" after it. The last
             line is the "Closing" balance with the totals of the period.
           </li>
