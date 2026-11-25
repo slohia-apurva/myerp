@@ -411,6 +411,11 @@ def test_the_print_brings_the_letterhead_and_a_bin_shows_its_bags(store, grn, al
     printed = call(store, "get", f"goods-receipts/{done['id']}/?print=1").json()
     assert printed["letterhead"]["name"] and printed["supplier_place"]["name"]
     assert printed["packages"][0]["seq"] == 1 and printed["packages"][0]["location"] == grn["bin1"]
+    # Retention sample labels: "Company (Branch)" and each batch's record for the QR code.
+    co, branch = printed["letterhead"]["name"], printed["branch_name"]
+    assert printed["branch_title"] == f"{co} ({branch})"
+    put = printed["lines"][0]["putaways"][0]
+    assert put["batch"] and put["batch_number"] == "DTT-7"
 
     there = call(store, "get", f"bins/{grn['bin1']}/").json()
     assert there["code"] == f"LOC-{grn['bin1']:06d}" and there["name"] == "A-02"
