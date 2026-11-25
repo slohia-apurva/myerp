@@ -24,7 +24,6 @@ export function useItemSearch<T extends { id: number; name: string }>(
   const lastQ = useRef<string | null>(null); // the search last asked, so it is not asked twice
   const loading = useRef(false); // a fresh start is on its way with the lines' items
   const typedNow = useRef(""); // what is in the box this moment, for a reload mid-typing
-  const lastUrl = useRef<string | null>(null);
   const ids = [...new Set(lineIds.map((v) => String(v ?? "")).filter((v) => /^\d+$/.test(v)))].sort().join(",");
   const ask = (extra: string) => api<unknown>(`${url}${url?.includes("?") ? "&" : "?"}search=1${extra}`).then(select);
   const keep = (got: T[], fresh = false) =>
@@ -44,16 +43,15 @@ export function useItemSearch<T extends { id: number; name: string }>(
   useEffect(() => {
     if (!url) return setRows(new Map());
     let live = true;
-    // A new address starts afresh; coming back to the tab only adds what changed, so
-    // a search answered meanwhile is not wiped.
-    const fresh = lastUrl.current !== url;
-    lastUrl.current = url;
+    // A new address, or coming back to the tab, starts afresh: items the party may no
+    // longer be offered (its Products changed in another tab) must drop out, not stay
+    // (Sidharth 2026-11-25). The answer holds what is typed now and the lines' items.
     const now = typedNow.current.trim();
     lastQ.current = now;
     loading.current = true;
     ask(`&q=${encodeURIComponent(now)}&ids=${ids}`)
       .then(
-        (r) => live && keep(r, fresh),
+        (r) => live && keep(r, true),
         () => live && setRows(new Map()),
       )
       .finally(() => {
