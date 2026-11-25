@@ -1,5 +1,6 @@
 import { deliveryBase, makeDeliveryNote } from "./DeliveryNotes";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useTransporterSearch } from "./Shipments";
 import { api, type SignedIn } from "./api";
 import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -166,7 +167,6 @@ type Setup = {
   customers: Customer[];
   despatch: Despatch[];
   branches: BranchRow[];
-  transporters: Named[];
   terms_sets: (Named & { text: string })[];
   default_terms: number | null;
   charge_items: { id: number; name: string; sac: string; gst_rate: string | null }[];
@@ -531,6 +531,8 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
   const [delivery, setDelivery] = useState(order?.delivery_date ?? "");
   const [term, setTerm] = useState(from?.credit_term ? String(from.credit_term) : "");
   const [transporter, setTransporter] = useState(from?.transporter ? String(from.transporter) : "");
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [transporter]);
   const [salesman, setSalesman] = useState(from?.salesman ? String(from.salesman) : "");
   const [billFrom, setBillFrom] = useState(from?.bill_from ? String(from.bill_from) : "");
   const [billAddr, setBillAddr] = useState(from?.bill_address?.label ?? "");
@@ -905,7 +907,8 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
                   onChange={setTransporter}
                   empty="By Customer"
                   create={newTransporter}
-                  options={(setup?.transporters ?? [])
+                  onType={findTransporters}
+                  options={transporters
                     .filter((t) => t.is_active || String(t.id) === transporter)
                     .map((t) => ({ value: String(t.id), label: t.name }))}
                 />

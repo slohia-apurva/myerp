@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { TransitInsuranceView, type OrderInsurance } from "./Insurance";
+import { useTransporterSearch } from "./Shipments";
 import { api, type SignedIn } from "./api";
 import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -130,7 +131,6 @@ type Place = { id: number; branch: number; kind: string; name: string; is_defaul
 type Setup = {
   branches: { id: number; name: string }[];
   locations: Place[];
-  transporters: { id: number; name: string }[];
   /** Masters › People ticked "Stores": for Received By and QC By. */
   suppliers: { id: number; name: string }[];
   package_types: [string, string][];
@@ -507,6 +507,8 @@ function ReceiptForm(props: {
   const [challanNo, setChallanNo] = useState(r?.challan_no ?? "");
   const [challanDate, setChallanDate] = useState(r?.challan_date ?? "");
   const [transporter, setTransporter] = useState(r?.transporter ? String(r.transporter) : "");
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [transporter]);
   const [lr, setLr] = useState(r?.lr_no ?? "");
   const [vehicle, setVehicle] = useState(r?.vehicle_no ?? "");
   const [eway, setEway] = useState(r?.eway_bill_no ?? "");
@@ -833,7 +835,7 @@ function ReceiptForm(props: {
                   value={transporter}
                   onChange={setTransporter}
                   empty="By Supplier"
-                  options={(setup?.transporters ?? []).map((t) => ({ value: String(t.id), label: t.name }))}
+                  onType={findTransporters} options={transporters.filter((t) => t.is_active || String(t.id) === transporter).map((t) => ({ value: String(t.id), label: t.name }))}
                 />
               </label>
               <label>

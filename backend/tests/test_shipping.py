@@ -589,3 +589,26 @@ def test_the_transporters_list_comes_a_page_at_a_time(owner, company, b2b, alpha
     assert off["results"][-1]["name"] == "Carrier 01"
     by_name = call(owner, "get", f"{path}&sort=-name").json()
     assert by_name["results"][0]["name"] == "Delhivery B2B"
+
+
+def test_entry_form_pickers_search_transporters_on_the_server(owner, company, b2b, alpha):
+    """Sidharth 2026-11-25: an entry form's Transporter picker asks as the person
+    types (?search=1), and the forms' setups asked with ?search=1 leave them out."""
+    from shipping.models import CourierAccount
+
+    with use_tenant(alpha):
+        CourierAccount.objects.bulk_create(
+            CourierAccount(company_id=company, name=f"Road {n:02d}", is_active=n != 1)
+            for n in range(1, 61)
+        )
+        off = CourierAccount.objects.get(name="Road 01").pk
+    path = f"companies/{company}/courier-accounts/?search=1"
+    first = call(owner, "get", f"{path}&q=").json()
+    assert len(first) == 50 and first[0]["name"] == "Delhivery B2B"
+    assert [a["name"] for a in call(owner, "get", f"{path}&q=delhi").json()] == ["Delhivery B2B"]
+    assert [a["name"] for a in call(owner, "get", f"{path}&ids={off}").json()] == ["Road 01"]
+    for setup in ("purchase-orders", "sales-orders", "goods-receipts"):
+        lean = call(owner, "get", f"companies/{company}/{setup}/setup/?search=1").json()
+        assert lean["transporters"] == [], setup
+    full = call(owner, "get", f"companies/{company}/purchase-orders/setup/").json()
+    assert len(full["transporters"]) == 61

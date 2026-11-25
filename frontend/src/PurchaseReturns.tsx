@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useTransporterSearch } from "./Shipments";
 import { api, type SignedIn } from "./api";
 import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
@@ -340,11 +341,12 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
   const { companyId, ret } = props;
   const [from, setFrom] = useState<DraftFrom | null>(props.from);
   const [receipts, setReceipts] = useState<Returnable[]>([]);
-  const [transporters, setTransporters] = useState<{ id: number; name: string }[]>([]);
   const [receipt, setReceipt] = useState(String(ret?.receipt ?? props.from?.receipt ?? ""));
   const [returnDate, setReturnDate] = useState(ret?.return_date ?? today());
   const [reason, setReason] = useState(ret?.reason ?? "damaged");
   const [transporter, setTransporter] = useState(String(ret?.transporter ?? props.from?.transporter ?? ""));
+  // Transporters come from the server as the person types (useTransporterSearch), never all at once.
+  const { transporters, onType: findTransporters } = useTransporterSearch(companyId, [transporter]);
   const [lrNo, setLrNo] = useState(ret?.lr_no ?? "");
   const [vehicleNo, setVehicleNo] = useState(ret?.vehicle_no ?? props.from?.vehicle_no ?? "");
   const [ewayNo, setEwayNo] = useState(ret?.eway_bill_no ?? "");
@@ -359,10 +361,6 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Returnable[]>(`v1/companies/${companyId}/purchase-returns/returnable/`).then(setReceipts, () => setReceipts([]));
-    api<{ transporters: { id: number; name: string }[] }>(`v1/companies/${companyId}/goods-receipts/setup/`).then(
-      (s) => setTransporters(s.transporters),
-      () => setTransporters([]),
-    );
   }, [companyId, visits]);
 
   const pickReceipt = async (v: string) => {
@@ -500,7 +498,7 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
               </label>
               <label>
                 Transporter
-                <Combobox value={transporter} onChange={setTransporter} empty="By Supplier" options={transporters.map((t) => ({ value: String(t.id), label: t.name }))} />
+                <Combobox value={transporter} onChange={setTransporter} empty="By Supplier" onType={findTransporters} options={transporters.filter((t) => t.is_active || String(t.id) === transporter).map((t) => ({ value: String(t.id), label: t.name }))} />
               </label>
               <label>
                 Vehicle No

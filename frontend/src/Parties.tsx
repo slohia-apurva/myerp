@@ -6,9 +6,9 @@ import { PartyDocuments } from "./PartyDocuments";
 import { PartyProducts, type PartyProduct } from "./PartyProducts";
 import { Combobox } from "./Combobox";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
-import type { CourierAccount } from "./Shipments";
+import { useTransporterSearch } from "./Shipments";
 import { creatable } from "./Create";
 import { useCreditTerms } from "./CreditTerms";
 import { useTermsSets } from "./Terms";
@@ -298,20 +298,14 @@ export function PartyFields({
   // has Purchase): one of this company's own. A supplier with none sends the goods itself.
   const modules = companies.find((c) => c.id === companyId)?.modules ?? [];
   const hasTransport = modules.includes(supplier ? "purchase" : "sales");
-  const [transporters, setTransporters] = useState<CourierAccount[]>([]);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   // They come from the server as the person types (usePeopleSearch), never all at once.
   const { people, onType: findPeople } = usePeopleSearch(supplier ? "purchaser" : "salesman", [p.salesman], visits);
   // A person made with 'Create "…"' is fetched by id once picked.
   const newPerson = creatable("sales_person", "sales-people", () => Promise.resolve(), `as=${supplier ? "purchaser" : "salesman"}`);
-  const refreshTransporters = useCallback(
-    () => api<CourierAccount[]>(`v1/companies/${companyId}/courier-accounts/`).then(setTransporters),
-    [companyId],
-  );
-  useEffect(() => {
-    if (hasTransport) refreshTransporters();
-  }, [hasTransport, refreshTransporters, visits]);
-  const newTransporter = creatable("courier_account", `companies/${companyId}/couriers`, refreshTransporters);
+  // Those too come from the server as the person types (useTransporterSearch).
+  const { transporters, onType: findTransporters } = useTransporterSearch(hasTransport ? companyId : null, [p.preferred_transporter], visits);
+  const newTransporter = creatable("courier_account", `companies/${companyId}/couriers`, () => Promise.resolve());
   const set = (change: Partial<Party>) => onChange({ ...p, ...change });
   const ctx = { tab, fold };
   const overseas = p.gst_type === "overseas";
@@ -489,6 +483,7 @@ export function PartyFields({
                 .filter((t) => t.is_active || t.id === p.preferred_transporter)
                 .map((t) => ({ value: String(t.id), label: t.is_active ? t.name : `${t.name} (disabled)` }))}
               onChange={(v) => set({ preferred_transporter: v ? Number(v) : null })}
+              onType={findTransporters}
               create={newTransporter}
             />
           </label>

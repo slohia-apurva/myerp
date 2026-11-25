@@ -2465,7 +2465,11 @@ export const MANUAL: Chapter[] = [
           (click again for Z to A), and pick the columns you want with
           "Actions" › "Choose Columns…" ("City", "Phone", "Contact Person",
           "Email" and "Notes" can be added). Disabled transporters are hidden
-          until you tick "Show Inactive Transporters".
+          until you tick "Show Inactive Transporters". The "Transporter" boxes
+          on orders, receipts, delivery notes, invoices and stock entries, and
+          "Preferred Transporter" on a customer or supplier, look the
+          transporter up as you type: they show the first 50, so type part of
+          a name or GSTIN to find any other.
         </p>
         <p>
           Click a row in the list to see that transporter's details on the
