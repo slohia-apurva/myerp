@@ -968,6 +968,73 @@ def change_ledger(request, ledger: Ledger, data: dict) -> Ledger:
     return ledger
 
 
+LEDGER_PAGE = 25
+
+
+def _ledger_pages(ledgers, params) -> dict:
+    """The Ledgers screen's tree, a page at a time (Sidharth 2026-11-25, preview 13):
+    for each group, how many ledgers it holds directly and their opening total, and
+    one page of 25 of them (?pages=GROUP:N,GROUP:N picks a page; the first otherwise).
+    ?name= keeps the ledgers whose name, account number or customer or vendor number
+    holds every word typed. Disabled ledgers are left out unless ?inactive=1, and
+    then come last in their group."""
+    from django.db.models import Case, DecimalField, F, Sum, Value, When, Window
+    from django.db.models.functions import RowNumber
+
+    for word in params.get("name", "").split():
+        ledgers = ledgers.filter(
+            Q(name__icontains=word)
+            | Q(account_number__icontains=word)
+            | Q(party__customer_number__icontains=word)
+            | Q(party__vendor_number__icontains=word)
+        )
+    if params.get("inactive") != "1":
+        ledgers = ledgers.filter(is_active=True)
+    signed = Case(
+        When(opening_side="cr", then=-F("opening_amount")),
+        default=F("opening_amount"),
+        output_field=DecimalField(max_digits=18, decimal_places=2),
+    )
+    totals = {
+        r["group"]: r
+        for r in ledgers.order_by()
+        .values("group")
+        .annotate(n=Count("pk", distinct=True), net=Sum(signed, default=Value(0)))
+    }
+    wanted: dict[int, int] = {}
+    for part in params.get("pages", "").split(","):
+        g, _, n = part.partition(":")
+        if g.isdigit() and n.isdigit():
+            wanted[int(g)] = max(1, int(n))
+    pages = {g: min(wanted.get(g, 1), max(1, -(-r["n"] // LEDGER_PAGE))) for g, r in totals.items()}
+    numbered = ledgers.annotate(
+        at=Window(
+            RowNumber(),
+            partition_by=[F("group_id")],
+            order_by=[F("is_active").desc(), F("name").asc(), F("pk").asc()],
+        )
+    )
+    window = Q(pk__in=[])
+    for g, n in pages.items():
+        window |= Q(group_id=g, at__gt=(n - 1) * LEDGER_PAGE, at__lte=n * LEDGER_PAGE)
+    shown = numbered.filter(window).order_by("group_id", "at")
+    rows = LedgerSerializer(shown, many=True, context={"list": True}).data
+    out = {
+        str(g): {
+            "count": r["n"],
+            "net": str(r["net"]),
+            "page": pages[g],
+            "pages": max(1, -(-r["n"] // LEDGER_PAGE)),
+            "page_size": LEDGER_PAGE,
+            "results": [],
+        }
+        for g, r in totals.items()
+    }
+    for row in rows:
+        out[str(row["group"])]["results"].append(row)
+    return {"count": sum(r["n"] for r in totals.values()), "groups": out}
+
+
 class LedgerListView(APIView):
     """GET ?q=text&group=id (group includes the groups under it). Each ledger's
     "in use" lock is left out; ledgers/<id>/ has it."""
@@ -999,6 +1066,8 @@ class LedgerListView(APIView):
             if group is None:
                 raise NotFound("No such group.")
             ledgers = ledgers.filter(group_id__in={group.pk, *group.descendant_ids()})
+        if request.query_params.get("paged") == "1":
+            return Response(_ledger_pages(ledgers, request.query_params))
         return Response(LedgerSerializer(ledgers, many=True, context={"list": True}).data)
 
     @tenant_atomic()

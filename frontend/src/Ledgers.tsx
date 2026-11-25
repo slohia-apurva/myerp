@@ -13,6 +13,8 @@ import { Chevron, LevelPicker, PageHeader } from "./Brand";
 import { useExchange } from "./Exchange";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { useOnReturn } from "./Refresh";
+import { ColumnSearch } from "./ColumnSearch";
+import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 
 export type Ledger = {
   id: number;
@@ -110,10 +112,18 @@ export function LedgersPage(props: { companyId: number; groupId?: number; sessio
   return <LedgerList {...props} />;
 }
 
+/** One group's share of the paged list: how many ledgers it holds directly, their opening
+ * total, and the page of them shown. */
+type GroupPage = Paged<Ledger> & { net: string };
+type LedgerPages = { count: number; groups: Record<string, GroupPage> };
+
 function LedgerList(props: { companyId: number; groupId?: number; session: SignedIn }) {
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [ledgers, setLedgers] = useState<Ledger[]>([]);
-  const [query, setQuery] = useState("");
+  const [data, setData] = useState<LedgerPages | null>(null);
+  const [typed, setTyped] = useState("");
+  const [name, setName] = useState("");
+  const [pages, setPages] = useState<Record<number, number>>({});
+  const [inactive, setInactive] = useShowInactive();
   const [groupFilter, setGroupFilter] = useState(props.groupId ? String(props.groupId) : "");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -132,22 +142,48 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
     loadDetail();
   }, [loadDetail]);
 
-  const reload = useCallback(() => {
-    const params = new URLSearchParams();
-    if (query.trim()) params.set("q", query.trim());
-    if (groupFilter) params.set("group", groupFilter);
-    api<Ledger[]>(`v1/companies/${props.companyId}/ledgers/?${params}`)
-      .then(setLedgers)
-      .catch((err: Error) => setError(err.message));
-  }, [props.companyId, query, groupFilter]);
+  // The search box under the heading asks the server, a moment after typing stops.
   useEffect(() => {
-    const timer = window.setTimeout(reload, 200);
+    const timer = window.setTimeout(() => {
+      setName(typed.trim());
+      setPages({});
+    }, 250);
     return () => window.clearTimeout(timer);
+  }, [typed]);
+  const onSearch = useCallback((values: string[]) => setTyped(values[0] ?? ""), []);
+
+  const reload = useCallback(() => {
+    const params = new URLSearchParams({ paged: "1" });
+    if (name) params.set("name", name);
+    if (groupFilter) params.set("group", groupFilter);
+    if (inactive) params.set("inactive", "1");
+    const chosen = Object.entries(pages).filter(([, n]) => n > 1);
+    if (chosen.length) params.set("pages", chosen.map(([g, n]) => `${g}:${n}`).join(","));
+    return api<LedgerPages>(`v1/companies/${props.companyId}/ledgers/?${params}`)
+      .then((d) => {
+        setData(d);
+        setError("");
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [props.companyId, name, groupFilter, inactive, pages]);
+  useEffect(() => {
+    reload();
   }, [reload]);
+  useOnReturn(reload);
+  const ledgers = useMemo(() => Object.values(data?.groups ?? {}).flatMap((g) => g.results), [data]);
+
+  // The list leaves out each ledger's "in use" lock (a dozen queries a ledger, far too slow
+  // for thousands of customers); the selected one is read on its own, with it. That also shows
+  // a ledger that is not on the page in view (just saved, or opened by a link).
+  const [full, setFull] = useState<Ledger | null>(null);
+  const show = useCallback((id: number) => {
+    setSelectedId(id);
+    api<Ledger>(`v1/ledgers/${id}/`).then(setFull, () => undefined);
+  }, []);
   // A ledger saved in the tab that Add, Edit or Duplicate opened: refresh and select it.
   useCreated("ledger_saved", (c) => {
     reload();
-    setSelectedId(c.id);
+    show(c.id);
   });
   const io = useExchange({
     master: "ledgers",
@@ -159,31 +195,24 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (!openId) return;
-    if (ledgers.some((l) => l.id === openId)) {
-      setSelectedId(openId);
-      opened();
-    } else if (query || groupFilter) {
-      // Show the whole list so the ledger asked for is in it.
-      setQuery("");
-      setGroupFilter("");
-    }
-  }, [openId, ledgers, query, groupFilter, opened]);
+    show(openId);
+    opened();
+  }, [openId, opened, show]);
 
   // The list follows the group tree: each group with ledgers (directly or below it)
-  // gets a heading row, its own ledgers come next, then its sub-groups. With a group chosen
-  // in the filter, that group and the ones under it show even when empty, so a ledger can be added.
+  // gets a heading row, a page of its own ledgers comes next (page buttons under them when
+  // there are more than 25), then its sub-groups. With one group chosen, that group and
+  // the ones under it show even when empty, so a ledger can be added.
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
   const tree = useMemo(() => {
-    const own = new Map<number, Ledger[]>();
-    for (const l of ledgers) own.set(l.group, [...(own.get(l.group) ?? []), l]);
     const groups = detail?.ledger_groups ?? [];
+    const page = data?.groups ?? {};
     const count = new Map<number, number>();
     const net = new Map<number, number>();
-    const signed = (l: Ledger) => Number(l.opening_amount) * (l.opening_side === "dr" ? 1 : -1);
     const fill = (g: Group): [number, number] => {
-      let c = own.get(g.id)?.length ?? 0;
-      let n = (own.get(g.id) ?? []).reduce((t, l) => t + signed(l), 0);
+      let c = page[g.id]?.count ?? 0;
+      let n = Number(page[g.id]?.net ?? 0);
       for (const k of groups.filter((x) => x.parent === g.id)) {
         const [kc, kn] = fill(k);
         c += kc;
@@ -202,7 +231,11 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
       }
       return false;
     };
-    const rows: ({ kind: "group"; group: Group; depth: number } | { kind: "ledger"; ledger: Ledger; depth: number })[] = [];
+    type Row =
+      | { kind: "group"; group: Group; depth: number }
+      | { kind: "ledger"; ledger: Ledger; depth: number }
+      | { kind: "pager"; group: Group; page: GroupPage; depth: number };
+    const rows: Row[] = [];
     let hideBelow: number | null = null;
     for (const { group, depth } of ordered) {
       if (hideBelow !== null && depth > hideBelow) continue;
@@ -213,10 +246,12 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
         hideBelow = depth;
         continue;
       }
-      for (const l of own.get(group.id) ?? []) rows.push({ kind: "ledger", ledger: l, depth: depth + 1 });
+      const own = page[group.id];
+      for (const l of own?.results ?? []) rows.push({ kind: "ledger", ledger: l, depth: depth + 1 });
+      if (own && own.pages > 1) rows.push({ kind: "pager", group, page: own, depth: depth + 1 });
     }
     return { rows, count, net };
-  }, [ledgers, detail, ordered, folded, groupFilter]);
+  }, [data, detail, ordered, folded, groupFilter]);
   const visible = tree.rows.flatMap((r) => (r.kind === "ledger" ? [r.ledger] : []));
   const deepest = Math.max(0, ...ordered.map((o) => o.depth));
   const showLevels = (n: number) => {
@@ -233,18 +268,11 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
     });
 
   // Keep a ledger selected: the first in the list until the person picks one.
-  const selected = ledgers.find((l) => l.id === selectedId) ?? visible[0] ?? null;
-  // The list leaves out each ledger's "in use" lock (a dozen queries a ledger, far too slow
-  // for thousands of customers); the selected one is read on its own, with it.
-  const [full, setFull] = useState<Ledger | null>(null);
+  const listed = ledgers.find((l) => l.id === selectedId) ?? (selectedId === null ? visible[0] : undefined) ?? null;
   useEffect(() => {
-    if (!selected) return;
-    let live = true;
-    api<Ledger>(`v1/ledgers/${selected.id}/`).then((l) => live && setFull(l), () => undefined);
-    return () => {
-      live = false;
-    };
-  }, [selected]);
+    if (listed && full?.id !== listed.id) api<Ledger>(`v1/ledgers/${listed.id}/`).then(setFull, () => undefined);
+  }, [listed, full]);
+  const selected = full && full.id === (listed?.id ?? selectedId) ? full : listed;
   const pick = (l: Ledger) => setSelectedId(l.id);
   const onListKey = (e: KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -261,6 +289,8 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
     e.stopPropagation();
     fn();
   };
+  const total = data?.count ?? 0;
+  const filterName = ordered.find((o) => String(o.group.id) === groupFilter)?.group.name;
 
   if (!detail) return <section className="page">{error ? <p className="error">{error}</p> : <p>Loading…</p>}</section>;
   return (
@@ -271,7 +301,11 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
           { label: "Companies", href: "#/companies" },
           { label: detail.company.name, href: `#/companies/${props.companyId}` },
         ]}
-        sub={`${ledgers.length} ${ledgers.length === 1 ? "ledger" : "ledgers"}${query || groupFilter ? " match" : ""}`}
+        sub={
+          data === null
+            ? "Loading…"
+            : `${total.toLocaleString("en-IN")}${inactive ? "" : " active"} ${total === 1 ? "ledger" : "ledgers"}${name ? " match" : ""}`
+        }
         actions={
           <>
             {io.buttons}
@@ -283,28 +317,30 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
       {io.panel}
       <div className="side-layout">
         <div className="side-main">
-          <div className="row filters">
-            <input
-              type="search"
-              placeholder="Search by name, account number or customer or vendor number"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <GroupSelect groups={ordered} value={groupFilter} onChange={setGroupFilter} all="All groups" />
-          </div>
           <div className="list-tools">
             <LevelPicker levels={deepest + 1} value={level} onPick={showLevels} />
+            {filterName && (
+              <span className="small">
+                Only {filterName} and the groups under it ·{" "}
+                <button className="link" onClick={() => setGroupFilter("")}>
+                  Show all groups
+                </button>
+              </span>
+            )}
           </div>
           <table className="pick by-group">
             <thead>
               <tr>
-                <th>Group / ledger</th>
-                <th className="num">Opening</th>
+                <th>Group / Ledger</th>
+                <th className="num" data-no-search="">
+                  Opening
+                </th>
                 <th />
               </tr>
+              <ColumnSearch onSearch={onSearch} />
             </thead>
             <tbody onKeyDown={onListKey}>
-              {tree.rows.length === 0 && (
+              {data !== null && tree.rows.length === 0 && (
                 <tr>
                   <td colSpan={3} className="small">
                     No ledgers match.
@@ -312,7 +348,19 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
                 </tr>
               )}
               {tree.rows.map((r) =>
-                r.kind === "group" ? (
+                r.kind === "pager" ? (
+                  <tr key={`p${r.group.id}`} className="pager-row no-print">
+                    <td colSpan={3}>
+                      <div style={{ paddingLeft: r.depth * 18 + 26 }}>
+                        <Pager
+                          data={r.page}
+                          noun={`ledgers in ${r.group.name}`}
+                          onPage={(n) => setPages((p) => ({ ...p, [r.group.id]: n }))}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ) : r.kind === "group" ? (
                   <tr
                     key={`g${r.group.id}`}
                     className={`group-row depth-${Math.min(r.depth, 2)}`}
@@ -332,7 +380,7 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
                           <Chevron open={!folded.has(r.group.id)} />
                         </button>
                         {r.group.name}
-                        <span className="small">({tree.count.get(r.group.id)})</span>
+                        <span className="small">({(tree.count.get(r.group.id) ?? 0).toLocaleString("en-IN")})</span>
                       </span>
                     </td>
                     <td className="num">{dc(tree.net.get(r.group.id) ?? 0)}</td>
@@ -381,11 +429,23 @@ function LedgerList(props: { companyId: number; groupId?: number; session: Signe
               )}
             </tbody>
           </table>
+          <div className="pager no-print">
+            <span className="pager-left">
+              <ShowInactive
+                noun="Ledgers"
+                on={inactive}
+                onChange={(on) => {
+                  setInactive(on);
+                  setPages({});
+                }}
+              />
+            </span>
+          </div>
           {visible.length > 1 && <p className="small">Tip: click a ledger, then use ↑ and ↓ to move through the list.</p>}
         </div>
         <div className="side-col">
           {selected ? (
-            <LedgerPanels ledger={full?.id === selected.id ? full : selected} companyId={props.companyId} />
+            <LedgerPanels ledger={selected} companyId={props.companyId} />
           ) : (
             <SidePanel title="Ledger Details">
               <p className="small">Click a ledger to see its details here.</p>

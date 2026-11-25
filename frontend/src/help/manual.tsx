@@ -2089,12 +2089,20 @@ export const MANUAL: Chapter[] = [
           <li>
             <strong>The list on the left</strong> follows the group tree, with
             the number of ledgers and the net opening balance of each group.
-            Fold groups with the arrows or "Show levels". Type in the search box
-            to find a ledger by name or bank account number. Beside each group
-            is "+ Ledger", and beside each ledger "Edit" (or "View" if you may
-            only look) and "Duplicate"; each opens in a new browser tab. When
-            you choose a group in "All groups", that group and the ones under
-            it show even when empty, so you can add the first ledger to them.
+            Fold groups with the arrows or "Show levels". Each group shows 25
+            of its ledgers at a time; under them, "Showing 1–25 of 4,001
+            ledgers in Sundry Creditors" and the page buttons ("‹ Previous",
+            the page numbers, "Next ›") move through the rest. Type in the box
+            under "Group / Ledger" to find a ledger by name, bank account
+            number, or customer or vendor number (CUST-00012); every word typed
+            must appear. Disabled ledgers are hidden: tick "Show Inactive
+            Ledgers" under the list to see them, last in each group. Beside
+            each group is "+ Ledger", and beside each ledger "Edit" (or "View"
+            if you may only look) and "Duplicate"; each opens in a new browser
+            tab. When you open the ledgers of one group (from "Ledger groups"),
+            that group and the ones under it show even when empty, so you can
+            add the first ledger to them; "Show all groups" brings back the
+            rest.
           </li>
           <li>
             <strong>The panels on the right</strong> show the ledger you click:
