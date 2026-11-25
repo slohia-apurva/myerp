@@ -42,6 +42,7 @@ type Line = {
   position: number;
   item: number;
   item_name: string;
+  item_number?: string;
   hsn: string;
   unit: number;
   unit_name: string;
@@ -726,7 +727,7 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
                         <td>{l.position}</td>
                         <td>
                           <b>{l.item_name}</b>
-                          <div className="small">HSN {l.hsn}</div>
+                          <div className="small">{l.item_number && `${l.item_number} · `}HSN {l.hsn}</div>
                         </td>
                         <td className="num">{l.qty}</td>
                         <td>{l.unit_name}</td>

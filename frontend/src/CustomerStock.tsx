@@ -954,7 +954,7 @@ function EntryView({ companyId, id, session, kind }: { companyId: number; id: nu
                         <td>{l.position}</td>
                         <td>
                           <b>{l.item_name}</b>
-                          <div className="small">HSN {l.hsn}</div>
+                          <div className="small">{l.item_number && `${l.item_number} · `}HSN {l.hsn}</div>
                         </td>
                         <td className="num">{l.qty}</td>
                         <td>{l.unit_name}</td>

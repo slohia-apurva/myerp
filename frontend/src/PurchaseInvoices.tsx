@@ -32,6 +32,7 @@ type Line = {
   order_number: string;
   item: number;
   item_name: string;
+  item_number?: string;
   hsn: string;
   unit: number;
   unit_name: string;
@@ -720,7 +721,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
                           <td className="po-item">
                             <b>{l.item_name}</b>
                             <span className="small">
-                              HSN {l.hsn}
+                              {l.item_number && `${l.item_number} · `}HSN {l.hsn}
                               {differs && ` · bill rate differs by ₹${money(String(r2(num(l.rate) - num(l.receipt_rate))))} per ${l.unit_name}`}
                             </span>
                           </td>
@@ -1149,7 +1150,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                           <td className="po-item">
                             <b>{l.item_name}</b>
                             <span className="small">
-                              HSN {l.hsn}
+                              {l.item_number && `${l.item_number} · `}HSN {l.hsn}
                               {inv.status === "submitted" && (num(l.stock_difference) || num(l.price_difference))
                                 ? ` · rate difference: ${[
                                     num(l.stock_difference) ? `₹${money(l.stock_difference ?? "0")} to stock on hand` : "",

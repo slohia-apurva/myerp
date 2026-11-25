@@ -1591,7 +1591,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                         <td>{i + 1}</td>
                         <td>
                           <b>{l.item_name}</b>
-                          {l.customer_code && <span className="small"> · code {l.customer_code}</span>}
+                          <div className="small">{[l.item_number, l.customer_code && `code ${l.customer_code}`].filter(Boolean).join(" · ")}</div>
                           {l.description && <div className="line-desc">{l.description}</div>}
                         </td>
                         <td>{l.hsn}</td>

@@ -73,6 +73,7 @@ def draft_lines(inv: PurchaseInvoice) -> list[dict]:
                 "invoice_line": il.pk,
                 "item": il.item_id,
                 "item_name": il.item.name,
+                "item_number": il.item.item_number,
                 "hsn": il.item.hsn,
                 "unit_name": il.unit.short_name or il.unit.name,
                 "billed_qty": _plain(il.qty),
