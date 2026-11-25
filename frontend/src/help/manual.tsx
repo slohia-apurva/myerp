@@ -135,7 +135,10 @@ export const MANUAL: Chapter[] = [
           transfers, own use, customer stock receipts and deliveries, and the
           added materials on a manufacturing order) look up items as you type:
           type part of the item's name or its item no. The list shows the
-          first 50 that match, so type more to narrow it.
+          first 50 that match, so type more to narrow it. The "Supplier" and
+          "Buying Agent" pickers on purchase orders, purchase invoices and
+          bills, and the "Customer" picker on sales orders, work the same way:
+          type part of the name, the customer or vendor number, or the GSTIN.
         </p>
         <p>
           As you scroll down a long list, the search box, the column headings

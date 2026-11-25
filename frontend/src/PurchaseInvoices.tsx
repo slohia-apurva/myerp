@@ -5,6 +5,7 @@ import { DocSide, keptDraft } from "./Attachments";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
@@ -135,7 +136,7 @@ function useSetup(companyId: number) {
   const [terms, setTerms] = useState<{ id: number; name: string }[]>([]);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
-    api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/`).then(setSetup, () => setSetup(null));
+    api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/?search=1`).then(setSetup, () => setSetup(null));
     api<{ id: number; name: string }[]>("v1/credit-terms/").then(setTerms, () => setTerms([]));
   }, [companyId, visits]);
   return { setup, terms };
@@ -446,6 +447,13 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
   const { companyId, invoice: inv, from } = props;
   const { setup, terms } = useSetup(companyId);
   const [supplier, setSupplier] = useState(String(inv?.supplier ?? from?.supplier ?? ""));
+  // Suppliers come from the server as the person types (ItemSearch.ts), never all at once.
+  const { items: suppliers, onType: findSuppliers } = useItemSearch<Setup["suppliers"][number]>(
+    `v1/companies/${companyId}/purchase-orders/setup/`,
+    [supplier],
+    undefined,
+    (a) => (a as Setup).suppliers,
+  );
   const [branch, setBranch] = useState(String(inv?.branch ?? from?.branch ?? ""));
   const [billNo, setBillNo] = useState(inv?.bill_no ?? "");
   const [billDate, setBillDate] = useState(inv?.bill_date ?? "");
@@ -489,7 +497,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
     setSupplier(v);
     setLines([]);
     setCharges([]);
-    const s = setup?.suppliers.find((x) => String(x.id) === v);
+    const s = suppliers.find((x) => String(x.id) === v);
     if (s?.credit_term) setTerm(String(s.credit_term));
   };
   const changeLine = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, n) => (n === i ? { ...l, ...patch } : l)));
@@ -518,7 +526,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
   const ours = billTotal && Math.abs(num(billTotal) - exact) < 1 ? num(billTotal) : Math.round(exact);
   const matches = billTotal !== "" && Math.abs(num(billTotal) - ours) < 0.005;
 
-  const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
+  const sup = suppliers.find((s) => String(s.id) === supplier);
   const chargeItems = setup?.charge_items ?? [];
   const close = () =>
     closeThisTab(() => {
@@ -624,7 +632,8 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
                   required
                   value={supplier}
                   onChange={pickSupplier}
-                  options={[...(setup?.suppliers ?? []), ...(inv && !setup?.suppliers.some((s) => s.id === inv.supplier) ? [{ id: inv.supplier, name: inv.supplier_name }] : [])].map((s) => ({
+                  onType={findSuppliers}
+                  options={[...suppliers, ...(inv && !suppliers.some((s) => s.id === inv.supplier) ? [{ id: inv.supplier, name: inv.supplier_name }] : [])].map((s) => ({
                     value: String(s.id),
                     label: s.name,
                   }))}

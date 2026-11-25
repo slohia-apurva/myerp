@@ -596,6 +596,35 @@ def _save_products(party: Party, products: list[dict]) -> None:
     PartyProduct.objects.bulk_create([PartyProduct(party=party, item=i) for i in items])
 
 
+PICK_LIMIT = 50
+
+
+def picked_ledgers(rows, params):
+    """For a type-to-search customer or supplier picker on an entry form. With
+    ?search=1 only the first 50 party ledgers (by name) whose name, customer or
+    vendor number or GSTIN holds every word typed in q, plus the ledgers named in
+    ids (those the entry already has), so a form never loads thousands of parties
+    (Sidharth 2026-11-25). With no q at all, only the ids. Without search=1, every
+    row as before."""
+    from django.db.models import Q
+
+    if params.get("search") != "1":
+        return rows
+    ids = {int(x) for x in params.get("ids", "").split(",") if x.strip().isdigit()}
+    if "q" not in params:
+        return rows.filter(pk__in=ids)
+    found = rows
+    for word in params.get("q", "").split():
+        found = found.filter(
+            Q(name__icontains=word)
+            | Q(party__customer_number__icontains=word)
+            | Q(party__vendor_number__icontains=word)
+            | Q(party__gstin__icontains=word)
+        )
+    first = found.order_by("name", "pk").values_list("pk", flat=True)[:PICK_LIMIT]
+    return rows.filter(pk__in=set(first) | ids)
+
+
 def items_for_party(party: Party | None, side: str):
     """The items that may be sold to a customer (side "customer") or bought
     from a supplier ("supplier"): active items that allow sales or purchase;
