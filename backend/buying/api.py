@@ -44,7 +44,7 @@ from core.models import (
     SalesPerson,
     TermsSet,
 )
-from core.parties import items_for_party
+from core.parties import items_for_party, picked_ledgers
 from core.price_lists import find_rate
 from core.terms import terms_for
 from insurance import api as insurance
@@ -1081,7 +1081,10 @@ class OrderSetupView(APIView):
         _check(request, VIEW)
         company = _company(request, pk)
         suppliers = (
-            Ledger.objects.filter(company=company, party_side="supplier", party__isnull=False)
+            picked_ledgers(
+                Ledger.objects.filter(company=company, party_side="supplier", party__isnull=False),
+                request.query_params,
+            )
             .select_related("party__credit_term", "party__purchase_terms", "currency")
             .prefetch_related("party__contacts", "party__addresses")
             .order_by("name")

@@ -373,7 +373,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
   const mayEdit = draft && can(session, "create");
   useEffect(() => {
     if (!note || !mayEdit) return;
-    api<{ transporters: { id: number; name: string; is_active: boolean }[] }>(`v1/companies/${companyId}/sales-orders/setup/`).then(
+    api<{ transporters: { id: number; name: string; is_active: boolean }[] }>(`v1/companies/${companyId}/sales-orders/setup/?search=1`).then(
       (s) => setTransporters(s.transporters),
       () => undefined,
     );

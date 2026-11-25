@@ -210,7 +210,7 @@ const mailedFirst = (contacts: Contact[]) => contacts.filter((c) => c.email && (
 function useSetup(companyId: number) {
   const [setup, setSetup] = useState<Setup | null>(null);
   const refresh = useCallback(
-    () => api<Setup>(`v1/companies/${companyId}/sales-orders/setup/`).then(setSetup, () => setSetup(null)),
+    () => api<Setup>(`v1/companies/${companyId}/sales-orders/setup/?search=1`).then(setSetup, () => setSetup(null)),
     [companyId],
   );
   useEffect(() => {
@@ -565,7 +565,16 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
 
   const place = setup?.despatch.find((d) => d.value === despatch);
   const br = setup?.branches.find((b) => b.id === place?.branch);
-  const cust = setup?.customers.find((c) => String(c.id) === customer);
+  // Customers come from the server as the person types (ItemSearch.ts), never all at once:
+  // the setup is read without them, and the order's customer is always fetched.
+  const visits = useReturns();
+  const { items: customers, onType: findCustomers } = useItemSearch<Customer>(
+    `v1/companies/${companyId}/sales-orders/setup/`,
+    [customer],
+    visits,
+    (a) => (a as Setup).customers,
+  );
+  const cust = customers.find((c) => String(c.id) === customer);
 
   // The first branch that keeps stock is where goods go out from unless changed.
   useEffect(() => {
@@ -592,7 +601,6 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
     if (value) setFillTerms(true);
   };
 
-  const visits = useReturns();
   // Items come from the server as the person types (ItemSearch.ts), never all at once.
   const itemQuery =
     customer && place
@@ -607,13 +615,13 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
   // A customer just made with 'Create "…"' is filled in once the list has it.
   const [pending, setPending] = useState("");
   useEffect(() => {
-    if (pending && setup?.customers.some((x) => String(x.id) === pending)) {
+    if (pending && customers.some((x) => String(x.id) === pending)) {
       setPending("");
       takeCustomer(pending);
     }
   });
   const pickCustomer = (value: string) => {
-    if (value && !setup?.customers.some((x) => String(x.id) === value)) {
+    if (value && !customers.some((x) => String(x.id) === value)) {
       setCustomerId(value);
       setPending(value);
       return;
@@ -622,7 +630,7 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
   };
   const takeCustomer = (value: string) => {
     setCustomerId(value);
-    const c = setup?.customers.find((x) => String(x.id) === value);
+    const c = customers.find((x) => String(x.id) === value);
     if (!c) return;
     // The customer's credit term, transporter and salesman come with it; all can be changed here.
     setTerm(c.credit_term ? String(c.credit_term) : "");
@@ -829,9 +837,10 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
                   onChange={pickCustomer}
                   create={addCustomer}
                   placeholder="Type to search customers…"
-                  options={(setup?.customers ?? [])
+                  options={customers
                     .filter((c) => c.is_active || String(c.id) === customer)
                     .map((c) => ({ value: String(c.id), label: c.name, hint: c.customer_number }))}
+                  onType={findCustomers}
                 />
                 {cust && (
                   <span className="small">
