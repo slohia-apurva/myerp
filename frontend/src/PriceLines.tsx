@@ -4,6 +4,7 @@ import { Combobox } from "./Combobox";
 import { type Item } from "./Items";
 import { unitLabel, useUnits, type Unit } from "./Units";
 import { useReturns } from "./Refresh";
+import { useItemSearch } from "./ItemSearch";
 
 /** One rate: an item (or, on an item's own page, a customer) in one unit, from a
  * quantity, from a date. Shared by price lists, a customer's Item Prices and an
@@ -58,13 +59,11 @@ export const priceBody = (rows: PriceRow[]) =>
       from_date: r.from_date,
     }));
 
-export function useItemChoices() {
-  const [items, setItems] = useState<Item[]>([]);
+export function useItemChoices(chosen: (number | null)[] = []) {
+  // Asked from the server as the person types (ItemSearch.ts), plus the items
+  // already on the rows: the whole catalogue is 12,457 items on staging.
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
-  useEffect(() => {
-    api<Item[]>("v1/items/").then(setItems);
-  }, [visits]);
-  return items;
+  return useItemSearch<Item>("v1/items/", chosen, visits);
 }
 
 export function useCustomerChoices() {
@@ -86,7 +85,7 @@ export function PriceTable(props: {
   readOnly?: boolean;
 }) {
   const { rows, onChange, by, readOnly } = props;
-  const items = useItemChoices();
+  const { items, onType } = useItemChoices(rows.map((r) => r.item));
   const parties = useCustomerChoices();
   const { units } = useUnits();
   const unitById = useMemo(() => new Map(units.map((u) => [u.id, u])), [units]);
@@ -129,6 +128,7 @@ export function PriceTable(props: {
                   {by === "item" ? (
                     <Combobox
                       value={r.item ? String(r.item) : ""}
+                      onType={onType}
                       placeholder="Type to search items…"
                       ariaLabel="Item"
                       options={items

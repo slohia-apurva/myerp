@@ -1008,6 +1008,20 @@ class ItemListView(APIView):
         _check(request, VIEW)
         if "page" in request.query_params:
             return self._page(request)
+        # A picker on a masters screen (batches, BOMs, price lists, a party's
+        # products, the stock reports): the first 50 items that match what is
+        # typed, plus the ones already chosen (Sidharth, 2026-11-25). Without
+        # this the screen downloaded all 12,457 items, 16 MB of JSON.
+        if request.query_params.get("search") == "1":
+            rows = _queryset()
+            # The Batches screen picks among the items that keep batches.
+            if request.query_params.get("batch_tracked") == "1":
+                rows = rows.filter(batch_tracked=True)
+            # The stock reports pick among the items that keep stock.
+            if request.query_params.get("maintain_stock") == "1":
+                rows = rows.filter(maintain_stock=True)
+            rows = picked(rows, request.query_params).order_by("name")
+            return Response(ItemSerializer(rows, many=True, context={"list": True}).data)
         # Built LIST_CHUNK items at a time and kept only as JSON text: the whole
         # list at once (12,457 items after the ERPNext import, 2026-11-24) went
         # past the server's 1 GB of memory.
@@ -1086,6 +1100,22 @@ class PlanBranchesView(APIView):
                 }
                 for b in rows.order_by("company__name", "name")
             ]
+        )
+
+
+class ItemCountsView(APIView):
+    """What the Dashboard needs to count, as numbers. It used to read the whole
+    item list for this (16 MB of JSON on every sign-in, 2026-11-25)."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _check(request, VIEW)
+        return Response(
+            {
+                # Items from before the brand became required: shown until a brand is picked.
+                "without_brand": Item.objects.filter(is_active=True, brand__isnull=True).count()
+            }
         )
 
 

@@ -4,13 +4,14 @@ import { ChangeLog } from "./Audit";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { ColumnSearch } from "./ColumnSearch";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { announceCreated, announceSaved, closeThisTab, creatable, useCreated, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { ActionsMenu, useExchange } from "./Exchange";
 import { type Item } from "./Items";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { Fold, FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
-import { useOnReturn } from "./Refresh";
+import { useOnReturn, useReturns } from "./Refresh";
 import { dmy, rupees } from "./Reports";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { useUnits } from "./Units";
@@ -104,16 +105,6 @@ export function useBoms(item?: number) {
   useEffect(reload, [reload]);
   useOnReturn(reload);
   return { boms, reload, refresh };
-}
-
-function useItemList() {
-  const [items, setItems] = useState<Item[]>([]);
-  const refresh = useCallback(() => api<Item[]>("v1/items/").then(setItems), []);
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-  useOnReturn(refresh);
-  return { items, refresh };
 }
 
 const bomTitle = (b: { number: string; item_name: string; version: number }) => `${b.number} · ${b.item_name} · Version ${b.version}`;
@@ -551,7 +542,6 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
   const b = props.bom;
   const from = b ?? props.copyOf;
   const mayAddMasters = props.session.permissions.includes("masters.edit");
-  const { items, refresh: refreshItems } = useItemList();
   const { units } = useUnits();
   const startItem = hashParam("item");
   const startName = useNewName();
@@ -573,6 +563,16 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
   );
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
+  // The items are asked from the server as the person types (ItemSearch.ts), with
+  // the item made, the materials and the by-products: the whole catalogue is
+  // 12,457 items on staging. `again` asks afresh after 'Create "…"' adds one.
+  const [again, setAgain] = useState(0);
+  const visits = useReturns();
+  const { items, onType: findItems } = useItemSearch<Item>(
+    "v1/items/",
+    [item, ...lines.map((l) => l.item), ...byRows.map((x) => x.item)],
+    visits + again,
+  );
   const locked = (field: string) => isLocked(b?.lock, field);
   const materialsLocked = !!b?.lock?.in_use.length;
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
@@ -586,7 +586,7 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
   useEffect(() => {
     if (item && !makesUnit && items.length) setMakesUnit(stockUnit(item));
   }, [item, items]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newItem = mayAddMasters ? creatable("item", "items", refreshItems) : undefined;
+  const newItem = mayAddMasters ? creatable("item", "items", () => setAgain((n) => n + 1)) : undefined;
   const itemOptions = (keep: string) =>
     items.filter((x) => (x.is_active && x.maintain_stock) || String(x.id) === keep).map((x) => ({ value: String(x.id), label: `${x.name} (${x.item_number})` }));
 
@@ -665,6 +665,7 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
               <Combobox
                 value={item}
                 required
+                onType={findItems}
                 placeholder="Type to search items…"
                 onChange={(v) => {
                   setItem(v);
@@ -753,6 +754,7 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
                       <Combobox
                         value={l.item}
                         ariaLabel="Material"
+                        onType={findItems}
                         placeholder="Type to search items…"
                         onChange={(v) => setLine(i, { item: v, unit: stockUnit(v) })}
                         options={itemOptions(l.item).filter((o) => o.value !== item)}
@@ -814,7 +816,7 @@ function BomForm(props: { title: string; bom: BomDetail | null; copyOf: BomDetai
                   <tr key={i}>
                     <td>{i + 1}</td>
                     <td style={{ minWidth: "14rem" }}>
-                      <Combobox value={x.item} ariaLabel="By-product" placeholder="Type to search items…" onChange={(v) => setBy(i, { item: v, unit: stockUnit(v) })} options={itemOptions(x.item)} create={newItem} />
+                      <Combobox value={x.item} ariaLabel="By-product" onType={findItems} placeholder="Type to search items…" onChange={(v) => setBy(i, { item: v, unit: stockUnit(v) })} options={itemOptions(x.item)} create={newItem} />
                     </td>
                     <td>
                       <input className="num" inputMode="decimal" aria-label="Quantity" value={x.qty} onChange={(e) => setBy(i, { qty: e.target.value })} />

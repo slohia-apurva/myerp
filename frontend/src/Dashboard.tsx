@@ -45,9 +45,10 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
     api<PartyRenewal[]>("v1/party-documents/renewals/").then(setPartyRenewals, () => setPartyRenewals([]));
   }, [id]);
   useEffect(() => {
-    // Items from before the brand became required: counted until a brand is picked.
-    api<{ brand: number | null; is_active: boolean }[]>("v1/items/").then(
-      (rows) => setNoBrand(rows.filter((r) => r.is_active && r.brand === null).length),
+    // Items from before the brand became required: counted on the server, not by
+    // reading the whole item list (16 MB with 12,457 items, 2026-11-25).
+    api<{ without_brand: number }>("v1/items/counts/").then(
+      (counts) => setNoBrand(counts.without_brand),
       () => setNoBrand(0),
     );
   }, []);
