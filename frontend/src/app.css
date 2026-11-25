@@ -4536,6 +4536,193 @@ table.price-lines .price-open .row > label.wide {
   flex: 2 1 240px;
 }
 
+/* Phones (Sidharth, 2026-11-25: "the entire screen on the phone is too big").
+   Safari must not blow text up on its own, and below 768px everything steps down a
+   size: 13px text, a shorter top menu (logo, company and buttons on one line, the
+   menu under them), a slimmer page band, smaller key figures, tighter
+   boxes and tables. Inputs stay 13px: the viewport's maximum-scale stops iPhone
+   zooming in when a field is tapped (pinching still zooms). */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+@media (max-width: 768px) {
+  :root {
+    font-size: 13px;
+  }
+  body,
+  form.master-form > .side-main,
+  .doc-page,
+  .doc-page table.grid td {
+    font-size: 13px;
+  }
+
+  /* Top menu: row 1 logo, company, bell, Help, Sign out; then the menu, wrapping
+     onto a second short line as before (2026-11-18). */
+  .topbar {
+    min-height: 0;
+    padding: 6px 10px 0;
+    gap: 4px 8px;
+    align-items: center;
+  }
+  .topbar .wordmark,
+  .topbar .avatar {
+    display: none;
+  }
+  .topbar .home-link svg {
+    width: 24px;
+    height: 24px;
+  }
+  .who {
+    order: 1;
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+    font-size: 12px;
+    justify-content: flex-end;
+  }
+  .company-pick {
+    min-width: 0;
+    flex: 1;
+  }
+  .company-pick .combo {
+    width: 100%;
+  }
+  .company-pick .combo input {
+    font-size: 12px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .help-link {
+    padding: 2px 8px;
+  }
+  .who button.link {
+    height: 26px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  .who {
+    flex-basis: 0;
+    flex-wrap: nowrap;
+    padding: 0;
+  }
+  .who .company-pick {
+    flex-basis: auto;
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar nav {
+    order: 2;
+    flex: 1 0 100%;
+    font-size: 13px;
+  }
+  .topbar nav > a,
+  .topbar nav > .menu {
+    height: 32px;
+  }
+  .topbar nav > a,
+  .topbar nav > .menu > button {
+    padding: 0 8px;
+    font-size: 13px;
+    height: 32px;
+  }
+  .item-sub {
+    font-size: 12.5px;
+  }
+
+  /* Page band and the page's side margins */
+  .band-inner {
+    padding: 8px 10px;
+  }
+  .page {
+    gap: 10px;
+  }
+  .page > :not(.band) {
+    width: calc(100% - 20px);
+  }
+  .band-row {
+    gap: 8px;
+    align-items: center;
+  }
+  .band h1 {
+    font-size: 17px;
+  }
+  .crumbs,
+  .band-sub {
+    font-size: 11.5px;
+  }
+  .tabs {
+    margin-top: 8px;
+    font-size: 13px;
+  }
+  .tabs a {
+    padding: 7px 10px;
+  }
+
+  /* Buttons and fields */
+  button,
+  a.button {
+    font-size: 12.5px;
+    height: 30px;
+    padding: 0 10px;
+  }
+  td button,
+  .row-actions button {
+    height: 26px;
+    padding: 0 8px;
+  }
+  .buttons {
+    gap: 8px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+  label {
+    font-size: 12.5px;
+  }
+
+  /* Boxes, folding sections, key figures */
+  .card {
+    padding: 12px;
+    gap: 10px;
+  }
+  .panel-card > h4,
+  :is(#item-form, #ledger-form) .fold-head {
+    font-size: 14px;
+    padding: 7px 10px;
+  }
+  .item-title input {
+    font-size: 19px;
+  }
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .stat {
+    padding-left: 10px;
+  }
+  .stat-label,
+  .stat-note {
+    font-size: 11.5px;
+  }
+  .stat-value {
+    font-size: 19px;
+  }
+
+  /* Tables */
+  th,
+  td {
+    padding: 6px 8px;
+  }
+  th {
+    font-size: 11px;
+  }
+
 /* Scan Picking (Sidharth, 2026-11-25, mockups/scan-picking): one column made for a phone or a
    scanner gun; bins as titled boxes, the scan box always ready. Uses the usual buttons. */
 .scan-main {
