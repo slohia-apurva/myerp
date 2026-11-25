@@ -5,6 +5,15 @@ import { defineConfig } from "vite";
 // Host header, so the backend picks the tenant from the subdomain.
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // React in a file of its own: it does not change between deploys, so the
+        // browser keeps it while the app's own files are fetched afresh.
+        manualChunks: (id) => (/node_modules\/(react|react-dom|scheduler)\//.test(id) ? "react" : undefined),
+      },
+    },
+  },
   server: {
     host: true,
     allowedHosts: [".localhost"],
