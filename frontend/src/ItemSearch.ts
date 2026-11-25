@@ -24,6 +24,7 @@ export function useItemSearch<T extends { id: number; name: string }>(
   const lastQ = useRef<string | null>(null); // the search last asked, so it is not asked twice
   const loading = useRef(false); // a fresh start is on its way with the lines' items
   const typedNow = useRef(""); // what is in the box this moment, for a reload mid-typing
+  const asked = useRef<Set<string>>(new Set()); // line items already asked for since the last fresh start
   const ids = [...new Set(lineIds.map((v) => String(v ?? "")).filter((v) => /^\d+$/.test(v)))].sort().join(",");
   const ask = (extra: string) => api<unknown>(`${url}${url?.includes("?") ? "&" : "?"}search=1${extra}`).then(select);
   const keep = (got: T[], fresh = false) =>
@@ -49,6 +50,7 @@ export function useItemSearch<T extends { id: number; name: string }>(
     const now = typedNow.current.trim();
     lastQ.current = now;
     loading.current = true;
+    asked.current = new Set(ids ? ids.split(",") : []);
     ask(`&q=${encodeURIComponent(now)}&ids=${ids}`)
       .then(
         (r) => live && keep(r, true),
@@ -75,14 +77,19 @@ export function useItemSearch<T extends { id: number; name: string }>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  // Items on the lines that were not fetched yet (an opened draft, a copied order).
+  // Items on the lines that were not fetched yet (an opened draft, a copied order, or
+  // saved rows that arrived after the first answer was asked, as a party's Item Prices
+  // do: Sidharth 2026-11-25 saw a saved price with its item blank). Asked again once
+  // the fresh start has landed, and each id only once, so an item the server leaves
+  // out is not asked for over and over.
   useEffect(() => {
     if (!url || !ids || loading.current) return;
-    const missing = ids.split(",").filter((id) => !rows.has(Number(id)));
+    const missing = ids.split(",").filter((id) => !rows.has(Number(id)) && !asked.current.has(id));
     if (!missing.length) return;
+    for (const id of missing) asked.current.add(id);
     ask(`&ids=${missing.join(",")}`).then((r) => keep(r), () => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ids, url]);
+  }, [ids, url, rows]);
 
   const items = useMemo(() => [...rows.values()].sort((a, b) => a.name.localeCompare(b.name)), [rows]);
   const onType = (text: string) => {

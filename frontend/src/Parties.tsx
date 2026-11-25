@@ -215,7 +215,13 @@ function PartyItemPrices(props: { party: Party; onChange: (p: Party) => void; ca
         This {supplier ? "supplier's" : "customer's"} own rate for an item. Where it has any price for an item, only
         those are used for it; the price list covers the other items. Rates are before GST.
       </p>
-      <PriceTable rows={rows} onChange={(item_prices) => onChange({ ...party, item_prices })} by="item" readOnly={!props.canEdit} />
+      <PriceTable
+        rows={rows}
+        onChange={(item_prices) => onChange({ ...party, item_prices })}
+        by="item"
+        readOnly={!props.canEdit}
+        party={{ side: supplier ? "supplier" : "customer", products: (party.products ?? []).map((p) => p.item) }}
+      />
     </Section>
   );
 }

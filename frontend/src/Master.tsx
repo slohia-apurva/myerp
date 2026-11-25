@@ -159,7 +159,7 @@ export function FormPage(props: {
           </>
         }
       />
-      <form id={props.formId} className="side-layout" onSubmit={props.onSubmit}>
+      <form id={props.formId} className="side-layout master-form" onSubmit={props.onSubmit}>
         <div className="side-main">
           <fieldset className="plain" disabled={props.readOnly}>
             {props.children}

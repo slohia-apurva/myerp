@@ -642,6 +642,11 @@ export const MANUAL: Chapter[] = [
             on the ledger.
           </li>
           <li>
+            When the customer (or supplier) has items listed on its "Products"
+            section, the item picker here offers only those, plus items ticked
+            "Offer to all". To price another item, add it to "Products" first.
+          </li>
+          <li>
             Where a customer has any price of its own for an item, only those
             are used for that item, so add every slab that customer should get;
             for its other items the price list applies.
