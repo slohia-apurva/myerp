@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
@@ -10,8 +10,11 @@ import { useExchange } from "./Exchange";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ActionCells, ActionHeads } from "./RowActions";
-import { type Carrier, type CourierAccount, NoSales, SERVICES, useCarriers, useCompany, useCourierAccounts } from "./Shipments";
+import { type Carrier, type CourierAccount, NoSales, SERVICES, useCarriers, useCompany } from "./Shipments";
 import { ColumnSearch } from "./ColumnSearch";
+import { useColumns } from "./Columns";
+import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
+import { useOnReturn } from "./Refresh";
 
 type Account = CourierAccount & { lock?: LockInfo; preferred_by?: number };
 
@@ -34,8 +37,81 @@ export function TransportersPage({ companyId, session }: { companyId: number; se
 
 function AccountList(props: { companyId: number; canEdit: boolean; session: SignedIn; companyName: string }) {
   const { companyId, canEdit } = props;
-  const { accounts, reload } = useCourierAccounts(companyId);
+  // One page of 25 at a time, found on the server (Sidharth, 2026-11-24: large lists).
+  const [data, setData] = useState<Paged<Account> | null>(null);
+  const [page, setPage] = useState(1);
+  const [searches, setSearches] = useState<Record<string, string>>({});
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [inactive, setInactive] = useShowInactive();
   const [selectedId, setSelected] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (JSON.stringify(typed) === JSON.stringify(searches)) return;
+    const wait = setTimeout(() => {
+      setSearches(typed);
+      setPage(1);
+      setSelected(null);
+    }, 300);
+    return () => clearTimeout(wait);
+  }, [typed, searches]);
+  const turnPage = (p: number) => {
+    setPage(p);
+    setSelected(null);
+  };
+  const columns = useColumns<Account>("courier-accounts", [
+    {
+      key: "name",
+      label: "Transporter",
+      fixed: true,
+      search: "name",
+      cell: (a) => (
+        <>
+          {a.name}
+          {!a.is_active && <span className="pill">Disabled</span>}
+        </>
+      ),
+    },
+    { key: "gstin", label: "GSTIN", standard: true, search: "gstin", cell: (a) => a.gstin || <span className="small">Missing: needed for e-way bills</span> },
+    { key: "courier", label: "Courier in MyERP's list", standard: true, search: "courier", sort: false, cell: (a) => a.carrier_name },
+    { key: "service", label: "Service", standard: true, search: "service", cell: (a) => a.service_label },
+    { key: "code", label: "Account Code", standard: true, search: "code", cell: (a) => a.account_code },
+    { key: "city", label: "City", search: "city", cell: (a) => a.city },
+    { key: "phone", label: "Phone", search: "phone", cell: (a) => a.phone },
+    { key: "contact", label: "Contact Person", search: "contact", cell: (a) => a.contact_person },
+    { key: "email", label: "Email", search: "email", cell: (a) => a.email },
+    { key: "notes", label: "Notes", search: "notes", cell: (a) => a.notes },
+  ]);
+  const sortKey = columns.sort;
+  const reload = useCallback(() => {
+    const q = new URLSearchParams({ page: String(page) });
+    Object.entries(searches).forEach(([k, v]) => {
+      if (v.trim()) q.set(k, v.trim());
+    });
+    if (inactive) q.set("inactive", "1");
+    if (sortKey) q.set("sort", sortKey);
+    return api<Paged<Account>>(`v1/companies/${companyId}/courier-accounts/?${q}`)
+      .then((d) => {
+        setData(d);
+        setError("");
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [companyId, page, searches, inactive, sortKey]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  useOnReturn(reload);
+  const shown = columns.shown;
+  const onSearch = useCallback(
+    (values: string[]) => {
+      const next: Record<string, string> = {};
+      shown.forEach((c, i) => {
+        if (c.search && values[i]?.trim()) next[c.search] = values[i];
+      });
+      setTyped((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+    },
+    [shown],
+  );
+  const accounts = useMemo(() => data?.results ?? [], [data]);
   useCreated("courier_account_saved", (c) => {
     reload();
     setSelected(c.id);
@@ -47,40 +123,48 @@ function AccountList(props: { companyId: number; canEdit: boolean; session: Sign
   }, [startName, canEdit, companyId]);
   const [openId, opened] = useOpenParam();
   useEffect(() => {
-    // Opened from a link (for example a duplicate-name refusal): select that row.
-    if (openId && accounts.some((a) => a.id === openId)) {
+    // Opened from a link (for example a duplicate-name refusal): show that one, on this page or not.
+    if (openId) {
       setSelected(openId);
       opened();
     }
-  }, [openId, accounts, opened]);
+  }, [openId, opened]);
   const io = useExchange({
     master: "courier-accounts",
     noun: "transporters",
     session: props.session,
     company: companyId,
-    onImported: reload,
+    onImported: () => void reload(),
+    printScreen: { title: "Transporters", scope: props.companyName },
+    extra: [columns.item],
   });
   // The list's rows leave out the "in use" checks and the "Preferred By" count
   // (a dozen queries a row), so the clicked row is asked for on its own.
+  const current = selectedId ?? accounts[0]?.id ?? null;
   const [full, setFull] = useState<Account | null>(null);
   useEffect(() => {
-    if (selectedId === null) return setFull(null);
-    setFull(null);
-    api<Account>(`v1/courier-accounts/${selectedId}/`).then(
-      (one) => setFull(one),
-      () => setFull(null),
+    if (current === null) return setFull(null);
+    let live = true;
+    api<Account>(`v1/courier-accounts/${current}/`).then(
+      (one) => live && setFull(one),
+      () => live && setFull(null),
     );
-  }, [selectedId, accounts]);
-  const row = (accounts as Account[]).find((a) => a.id === selectedId) ?? null;
+    return () => {
+      live = false;
+    };
+  }, [current, data]);
+  const row = accounts.find((a) => a.id === current) ?? null;
   // The row's own fields show at once; "Preferred By" and "In Use" join them.
-  const selected = full?.id === selectedId ? full : row;
+  const selected = full?.id === current ? full : row;
   const edit = (id: number | string) => openTab(pageHash(companyId, `?form=${id}`));
+  const filtered = Object.values(searches).some((v) => v.trim());
+  const count = data?.count ?? 0;
   return (
     <section className="page">
       <PageHeader
         title="Transporters"
         crumbs={[{ label: "Shipments", href: `#/companies/${companyId}/shipments` }]}
-        sub={`${props.companyName}: the couriers and transporters you send goods with, such as a B2C and a B2B account with the same courier.`}
+        sub={`${data === null ? "" : `${count.toLocaleString("en-IN")}${inactive ? "" : " active"} ${count === 1 ? "transporter" : "transporters"}${filtered ? " match" : ""} · `}${props.companyName}: the couriers and transporters you send goods with, such as a B2C and a B2B account with the same courier.`}
         actions={
           <>
             {io.buttons}
@@ -88,45 +172,63 @@ function AccountList(props: { companyId: number; canEdit: boolean; session: Sign
           </>
         }
       />
+      {error && <p className="error">{error}</p>}
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
-          {accounts.length === 0 ? (
+          {data !== null && count === 0 && !filtered && !inactive ? (
             <p className="small">No transporters yet. Add one for each you ship with, for example "Delhivery B2C".</p>
           ) : (
-            <table className="pick">
-              <thead>
-                <tr>
-                  <th>Transporter</th>
-                  <th>GSTIN</th>
-                  <th>Courier in MyERP's list</th>
-                  <th>Service</th>
-                  <th>Account code</th>
-                  <ActionHeads />
-                </tr>
-                <ColumnSearch />
-              </thead>
-              <tbody>
-                {accounts.map((a) => (
-                  <tr
-                    key={a.id}
-                    className={`${a.is_active ? "" : "off"}${selectedId === a.id ? " selected" : ""}`}
-                    onClick={() => setSelected(a.id)}
-                    onDoubleClick={() => edit(a.id)}
-                  >
-                    <td>
-                      {a.name}
-                      {!a.is_active && <span className="pill">Disabled</span>}
-                    </td>
-                    <td>{a.gstin || <span className="small">Missing: needed for e-way bills</span>}</td>
-                    <td>{a.carrier_name}</td>
-                    <td>{a.service_label}</td>
-                    <td>{a.account_code}</td>
-                    <ActionCells canEdit={canEdit} onOpen={() => edit(a.id)} onDuplicate={() => edit(`copy-${a.id}`)} />
+            <>
+              <table className="pick">
+                <thead>
+                  <tr>
+                    {shown.map((c) => (
+                      <th key={c.key} className={c.num ? "num" : undefined} data-no-search={c.search ? undefined : ""}>
+                        {columns.heading(c)}
+                      </th>
+                    ))}
+                    <ActionHeads />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  <ColumnSearch key={shown.map((c) => c.key).join(",")} onSearch={onSearch} />
+                </thead>
+                <tbody>
+                  {accounts.map((a) => (
+                    <tr
+                      key={a.id}
+                      className={`${a.is_active ? "" : "off"}${current === a.id ? " selected" : ""}`}
+                      onClick={() => setSelected(a.id)}
+                      onDoubleClick={() => edit(a.id)}
+                    >
+                      {shown.map((c) => (
+                        <td key={c.key} className={c.num ? "num" : undefined}>
+                          {c.cell(a)}
+                        </td>
+                      ))}
+                      <ActionCells canEdit={canEdit} onOpen={() => edit(a.id)} onDuplicate={() => edit(`copy-${a.id}`)} />
+                    </tr>
+                  ))}
+                  {data !== null && accounts.length === 0 && (
+                    <tr>
+                      <td colSpan={shown.length + 2} className="small">
+                        No transporters match.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <Pager data={data} noun="transporters" onPage={turnPage}>
+                <ShowInactive
+                  noun="Transporters"
+                  on={inactive}
+                  onChange={(v) => {
+                    setInactive(v);
+                    turnPage(1);
+                  }}
+                />
+              </Pager>
+            </>
           )}
         </div>
         <div className="side-col">
@@ -153,7 +255,7 @@ function AccountList(props: { companyId: number; canEdit: boolean; session: Sign
             )}
           </SidePanel>
           <SidePanel title="Activity">
-            <ChangeLog type="courier_account" id={selected?.id} stamp={JSON.stringify(selected ?? accounts.length)} />
+            <ChangeLog type="courier_account" id={selected?.id} stamp={JSON.stringify(selected ?? count)} />
           </SidePanel>
         </div>
       </div>

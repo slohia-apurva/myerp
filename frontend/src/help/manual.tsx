@@ -2456,6 +2456,15 @@ export const MANUAL: Chapter[] = [
           </li>
         </ol>
         <p>
+          The list shows 25 transporters a page; "Showing 1–25 of …" and the
+          page buttons under it move through the rest. Type in the boxes under
+          the headings to search a column, click a heading to sort by it
+          (click again for Z to A), and pick the columns you want with
+          "Actions" › "Choose Columns…" ("City", "Phone", "Contact Person",
+          "Email" and "Notes" can be added). Disabled transporters are hidden
+          until you tick "Show Inactive Transporters".
+        </p>
+        <p>
           Click a row in the list to see that transporter's details on the
           right, with its activity below. To change one, click "Edit" on its
           row (or double-click the row); "Duplicate" starts a new one as a copy.
