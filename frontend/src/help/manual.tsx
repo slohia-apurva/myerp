@@ -1491,6 +1491,15 @@ export const MANUAL: Chapter[] = [
           and pick 'Create "…"'.
         </p>
         <p>
+          The list shows 25 people a page; "Showing 1–25 of …" and the page
+          buttons under it move through the rest. Type in the boxes under the
+          headings to search a column (in "Works As", "sales", "purch" or
+          "store"), click a heading to sort by it (click again for Z to A),
+          and pick the columns you want with "Actions" › "Choose Columns…"
+          ("Email" and "Notes" can be added). Disabled people are hidden until
+          you tick "Show Inactive People".
+        </p>
+        <p>
           Click a person in the list to see their details on the right, with
           their activity below. The "Parties" column counts the customers and
           suppliers that have picked them. Names must be different, whatever

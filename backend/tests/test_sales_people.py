@@ -94,3 +94,36 @@ def test_a_stores_person_needs_no_other_tick(accountant):  # noqa: F811
     made = call(accountant, "post", "sales-people/", {"name": "Ramesh", "is_stores": True})
     assert made.status_code == 201, made.json()
     assert made.json()["is_stores"] is True
+
+
+def test_the_people_list_comes_a_page_at_a_time(accountant, alpha):  # noqa: F811
+    """Large lists (Sidharth 2026-11-24): 25 a page, column searches and sorting on
+    the server, disabled people only with "Show Inactive People"."""
+    from core.models import SalesPerson
+
+    with use_tenant(alpha):
+        SalesPerson.objects.bulk_create(
+            SalesPerson(
+                name=f"Person {n:02d}",
+                is_salesman=n % 2 == 0,
+                is_purchaser=n % 2 == 1,
+                is_stores=n % 10 == 0,
+                mobile=f"98300{n:05d}",
+                is_active=n != 1,
+            )
+            for n in range(1, 31)
+        )
+        thirty = SalesPerson.objects.get(name="Person 30").pk
+    first = call(accountant, "get", "sales-people/?page=1").json()
+    assert (first["count"], first["pages"], len(first["results"])) == (29, 2, 25)
+    assert first["results"][0]["name"] == "Person 02"
+    last = call(accountant, "get", "sales-people/?page=2&inactive=1").json()
+    assert last["results"][-1]["name"] == "Person 01"  # disabled: last
+
+    stores = call(accountant, "get", "sales-people/?page=1&works=store").json()
+    assert [p["name"] for p in stores["results"]] == ["Person 10", "Person 20", "Person 30"]
+    by_mobile = call(accountant, "get", "sales-people/?page=1&sort=-mobile").json()
+    assert by_mobile["results"][0]["name"] == "Person 30"
+    assert call(accountant, "get", f"sales-people/{thirty}/").json()["name"] == "Person 30"
+    # The pickers still get everyone.
+    assert len(call(accountant, "get", "sales-people/").json()) == 30

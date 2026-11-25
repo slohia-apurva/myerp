@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
-from core import duplicates, exchange
+from core import duplicates, exchange, paging
 from core.api import EDIT, VIEW, Signed, _check
 from core.locks import refuse_key_changes
 from core.models import SalesPerson
@@ -194,11 +194,59 @@ def _people():
     )
 
 
+# The People screen's column searches and sorts (Sidharth 2026-11-24, large lists).
+SEARCHES = {
+    "name": ["name"],
+    "mobile": ["mobile"],
+    "email": ["email"],
+    "user": ["user__full_name", "user__email"],
+    "notes": ["notes"],
+}
+SORTS = {
+    "name": "name",
+    "works": "is_salesman",
+    "mobile": "mobile",
+    "email": "email",
+    "user": "user__full_name",
+    "parties": "party_count",
+    "notes": "notes",
+}
+
+
+def _works_as(word: str) -> Q:
+    """ "Works As" holds Salesman, Purchaser and Stores: a word matches the ticks
+    whose name holds it ("sales", "purch", "store")."""
+    match = Q(pk__in=[])
+    for label, field in (
+        ("salesman", "is_salesman"),
+        ("purchaser", "is_purchaser"),
+        ("stores", "is_stores"),
+    ):
+        if word.lower() in label:
+            match |= Q(**{field: True})
+    return match
+
+
 class SalesPersonListView(APIView):
     permission_classes = [Signed]
 
     def get(self, request):
+        """?page=N: one page of 25 for the People screen (paging.one_page), with its
+        column searches. Otherwise everyone, for the pickers."""
         _check(request, VIEW)
+        if "page" in request.query_params:
+            params = request.query_params
+            rows = paging.search(_people(), params, SEARCHES)
+            for word in paging.words(params.get("works", "")):
+                rows = rows.filter(_works_as(word))
+            return Response(
+                paging.one_page(
+                    rows,
+                    params,
+                    lambda shown: SalesPersonSerializer(shown, many=True).data,
+                    sorts=SORTS,
+                )
+            )
         return Response(SalesPersonSerializer(_people(), many=True).data)
 
     @tenant_atomic()
@@ -218,6 +266,13 @@ class SalesPersonDetailView(APIView):
     """Edit only: people are never deleted, only disabled."""
 
     permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        person = _people().filter(pk=pk).first()
+        if person is None:
+            raise NotFound("No such person.")
+        return Response(SalesPersonSerializer(person).data)
 
     @tenant_atomic()
     def patch(self, request, pk: int):

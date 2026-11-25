@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName } from "./Create";
 import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
@@ -10,6 +10,8 @@ import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
 import { useOnReturn } from "./Refresh";
+import { useColumns } from "./Columns";
+import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 
 /** People (Sidharth, 2026-11-16, preview 83; "Stores" added 2026-11-17, preview 88): the
  * people who sell to customers, buy from suppliers or receive goods in the stores, with or
@@ -50,18 +52,92 @@ const formParam = () => hashParam("form");
 /** Masters > People. Add, Edit and Duplicate open in a new tab. */
 export function SalesPeoplePage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
-  const { people, reload } = useSalesPeople();
   const form = formParam();
   if (form) return <PersonFormTab form={form} canEdit={canEdit} />;
-  return <PeopleList session={session} canEdit={canEdit} people={people} reload={reload} />;
+  return <PeopleList session={session} canEdit={canEdit} />;
 }
 
-function PeopleList(props: { session: SignedIn; canEdit: boolean; people: SalesPerson[]; reload: () => void }) {
-  const { people, canEdit, reload } = props;
-  const [selectedId, setSelected] = useState<number | null>(null);
+function PeopleList(props: { session: SignedIn; canEdit: boolean }) {
+  const { canEdit } = props;
+  // One page of 25 at a time, found on the server (Sidharth, 2026-11-24: large lists).
+  const [data, setData] = useState<Paged<SalesPerson> | null>(null);
+  const [page, setPage] = useState(1);
+  const [searches, setSearches] = useState<Record<string, string>>({});
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [inactive, setInactive] = useShowInactive();
+  const [selected, setSelected] = useState<SalesPerson | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (JSON.stringify(typed) === JSON.stringify(searches)) return;
+    const wait = setTimeout(() => {
+      setSearches(typed);
+      setPage(1);
+      setSelected(null);
+    }, 300);
+    return () => clearTimeout(wait);
+  }, [typed, searches]);
+  const turnPage = (p: number) => {
+    setPage(p);
+    setSelected(null);
+  };
+  const columns = useColumns<SalesPerson>("sales-people", [
+    {
+      key: "name",
+      label: "Name",
+      fixed: true,
+      search: "name",
+      cell: (p) => (
+        <>
+          {p.name}
+          {!p.is_active && <span className="pill">Disabled</span>}
+        </>
+      ),
+    },
+    { key: "works", label: "Works As", standard: true, search: "works", cell: worksAs },
+    { key: "mobile", label: "Mobile", standard: true, search: "mobile", cell: (p) => p.mobile },
+    { key: "user", label: "MyERP User", standard: true, search: "user", cell: (p) => p.user_name },
+    { key: "parties", label: "Parties", standard: true, num: true, cell: (p) => (p.party_count > 0 ? p.party_count : <span className="small">—</span>) },
+    { key: "email", label: "Email", search: "email", cell: (p) => p.email },
+    { key: "notes", label: "Notes", search: "notes", cell: (p) => p.notes },
+  ]);
+  const sortKey = columns.sort;
+  const reload = useCallback(() => {
+    const q = new URLSearchParams({ page: String(page) });
+    Object.entries(searches).forEach(([k, v]) => {
+      if (v.trim()) q.set(k, v.trim());
+    });
+    if (inactive) q.set("inactive", "1");
+    if (sortKey) q.set("sort", sortKey);
+    return api<Paged<SalesPerson>>(`v1/sales-people/?${q}`)
+      .then((d) => {
+        setData(d);
+        setError("");
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [page, searches, inactive, sortKey]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  useOnReturn(reload);
+  const shown = columns.shown;
+  const onSearch = useCallback(
+    (values: string[]) => {
+      const next: Record<string, string> = {};
+      shown.forEach((c, i) => {
+        if (c.search && values[i]?.trim()) next[c.search] = values[i];
+      });
+      setTyped((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+    },
+    [shown],
+  );
+  const people = useMemo(() => data?.results ?? [], [data]);
+  // Show one person at the right, even when not on this page (just saved, or opened by link).
+  const show = useCallback((id: number) => {
+    api<SalesPerson>(`v1/sales-people/${id}/`).then(setSelected, () => undefined);
+  }, []);
   useCreated("sales_person_saved", (c) => {
     reload();
-    setSelected(c.id);
+    show(c.id);
   });
   const startName = useNewName();
   const startAs = hashParam("as");
@@ -69,21 +145,30 @@ function PeopleList(props: { session: SignedIn; canEdit: boolean; people: SalesP
     // Opened by "Create …" in a dropdown: go straight to the Add page.
     if (startName && canEdit) window.location.hash = `#/sales-people?form=new&new=${encodeURIComponent(startName)}${startAs ? `&as=${startAs}` : ""}`;
   }, [startName, startAs, canEdit]);
-  const io = useExchange({ master: "sales-people", noun: "people", session: props.session, onImported: reload });
+  const io = useExchange({
+    master: "sales-people",
+    noun: "people",
+    session: props.session,
+    onImported: () => void reload(),
+    printScreen: { title: "People" },
+    extra: [columns.item],
+  });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
-    if (openId && people.some((p) => p.id === openId)) {
-      setSelected(openId);
+    if (openId) {
+      show(openId);
       opened();
     }
-  }, [openId, people, opened]);
-  const selected = people.find((p) => p.id === selectedId) ?? null;
+  }, [openId, opened, show]);
+  const current = selected ?? people[0] ?? null;
   const edit = (what: number | string) => openTab(`#/sales-people?form=${what}`);
+  const filtered = Object.values(searches).some((v) => v.trim());
+  const count = data?.count ?? 0;
   return (
     <section className="page">
       <PageHeader
         title="People"
-        sub="The people who sell to customers, buy from suppliers or receive goods in the stores, with or without a MyERP sign-in. One list for every company in the group."
+        sub={`${data === null ? "Loading…" : `${count.toLocaleString("en-IN")}${inactive ? "" : " active"} ${count === 1 ? "person" : "people"}${filtered ? " match" : ""} · `}the people who sell to customers, buy from suppliers or receive goods in the stores, with or without a MyERP sign-in. One list for every company in the group.`}
         actions={
           <>
             {io.buttons}
@@ -91,63 +176,72 @@ function PeopleList(props: { session: SignedIn; canEdit: boolean; people: SalesP
           </>
         }
       />
+      {error && <p className="error">{error}</p>}
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Works As</th>
-                <th>Mobile</th>
-                <th>MyERP User</th>
-                <th className="num">Parties</th>
+                {shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined} data-no-search={c.search ? undefined : ""}>
+                    {columns.heading(c)}
+                  </th>
+                ))}
                 <ActionHeads />
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={shown.map((c) => c.key).join(",")} onSearch={onSearch} />
             </thead>
             <tbody>
               {people.map((p) => (
                 <tr
                   key={p.id}
-                  className={`${p.is_active ? "" : "off"}${selectedId === p.id ? " selected" : ""}`}
-                  onClick={() => setSelected(p.id)}
+                  className={`${p.is_active ? "" : "off"}${current?.id === p.id ? " selected" : ""}`}
+                  onClick={() => setSelected(p)}
                   onDoubleClick={() => edit(p.id)}
                 >
-                  <td>
-                    {p.name}
-                    {!p.is_active && <span className="pill">Disabled</span>}
-                  </td>
-                  <td>{worksAs(p)}</td>
-                  <td>{p.mobile}</td>
-                  <td>{p.user_name}</td>
-                  <td className="num">{p.party_count > 0 ? p.party_count : <span className="small">—</span>}</td>
+                  {shown.map((c) => (
+                    <td key={c.key} className={c.num ? "num" : undefined}>
+                      {c.cell(p)}
+                    </td>
+                  ))}
                   <ActionCells canEdit={canEdit} onOpen={() => edit(p.id)} onDuplicate={() => edit(`copy-${p.id}`)} />
                 </tr>
               ))}
-              {people.length === 0 && (
+              {data !== null && people.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="small">
-                    No one yet. Click "Add person".
+                  <td colSpan={shown.length + 2} className="small">
+                    {filtered ? "No one matches." : 'No one yet. Click "Add person".'}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+          <Pager data={data} noun="people" onPage={turnPage}>
+            <ShowInactive
+              noun="People"
+              on={inactive}
+              onChange={(v) => {
+                setInactive(v);
+                turnPage(1);
+              }}
+            />
+          </Pager>
         </div>
         <div className="side-col">
           <SidePanel title="Person Details">
-            {selected ? (
+            {current ? (
               <SideRows
                 rows={[
-                  ["Name", selected.name],
-                  ["Works As", worksAs(selected)],
-                  ["Mobile", selected.mobile],
-                  ["Email", selected.email],
-                  ["MyERP User", selected.user_name || "None (no sign-in)"],
-                  ["Parties", String(selected.party_count)],
-                  ["Disabled", selected.is_active ? "No" : "Yes"],
-                  ["Notes", selected.notes],
+                  ["Name", current.name],
+                  ["Works As", worksAs(current)],
+                  ["Mobile", current.mobile],
+                  ["Email", current.email],
+                  ["MyERP User", current.user_name || "None (no sign-in)"],
+                  ["Parties", String(current.party_count)],
+                  ["Disabled", current.is_active ? "No" : "Yes"],
+                  ["Notes", current.notes],
                 ]}
               />
             ) : (
@@ -155,7 +249,7 @@ function PeopleList(props: { session: SignedIn; canEdit: boolean; people: SalesP
             )}
           </SidePanel>
           <SidePanel title="Activity">
-            <ChangeLog type="sales_person" id={selected?.id} stamp={JSON.stringify(selected ?? people.length)} />
+            <ChangeLog type="sales_person" id={current?.id} stamp={JSON.stringify(current ?? people.length)} />
           </SidePanel>
         </div>
       </div>
@@ -168,16 +262,14 @@ function PersonFormTab(props: { form: string; canEdit: boolean }) {
   const copy = props.form.startsWith("copy-");
   const key = Number(props.form.replace("copy-", ""));
   const [loaded, setLoaded] = useState(props.form === "new");
-  const [people, setPeople] = useState<SalesPerson[]>([]);
+  const [target, setTarget] = useState<SalesPerson | null>(null);
   useEffect(() => {
     if (props.form === "new") return;
-    api<SalesPerson[]>("v1/sales-people/").then((rows) => {
-      setPeople(rows);
-      setLoaded(true);
-    });
-  }, [props.form]);
+    api<SalesPerson>(`v1/sales-people/${key}/`)
+      .then(setTarget, () => setTarget(null))
+      .finally(() => setLoaded(true));
+  }, [props.form, key]);
   const startName = useNewName();
-  const target = props.form === "new" ? null : (people.find((p) => p.id === key) ?? null);
   const toList = () => {
     window.location.hash = "#/sales-people";
   };
