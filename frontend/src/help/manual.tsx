@@ -3518,9 +3518,12 @@ export const MANUAL: Chapter[] = [
           <li>
             "Batch No" lists the item's batches. For a new batch, type its
             number and pick 'New batch "…"', then give its "Mfg Date" and
-            "Expiry" (leave Expiry blank to have it worked out from the item's
+            "Expiry", one under the other in the "Mfg Date / Expiry" column
+            (leave Expiry blank to have it worked out from the item's
             best-before). New batches are added to the Batches master on
             Submit. Batch numbers only need to be different within one item.
+            The bins open inside their line, so the items table keeps its
+            width; on a narrow screen only the bins box scrolls sideways.
           </li>
           <li>
             "Save" keeps a draft to finish later. "Submit" gives the receipt

@@ -24,8 +24,9 @@ export function SideRows({ rows }: { rows: [string, string][] }) {
     <>
       {rows
         .filter(([, v]) => v)
-        .map(([k, v]) => (
-          <div key={k} className="side-row">
+        .map(([k, v], n) => (
+          // By place: an entry may list the same item on several lines.
+          <div key={n} className="side-row">
             <span>{k}</span>
             <span>{v}</span>
           </div>

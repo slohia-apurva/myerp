@@ -3241,18 +3241,34 @@ td.nowrap {
   border-radius: 6px;
   padding: 8px 10px;
 }
+/* The put-away box takes the width of its line and never widens the lines table:
+ * opening "Edit bins" must not shift the columns or scroll the table sideways. If its
+ * own columns do not fit, only the bins table inside it scrolls. */
+.grn-put {
+  width: 0;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+.grn-put-scroll {
+  overflow-x: auto;
+}
 .grn-put table.grid {
   width: 100%;
   margin: 6px 0;
 }
-.grn-put .grn-bin {
-  min-width: 200px;
-}
+.grn-put .grn-bin,
 .grn-put .grn-batch {
-  min-width: 200px;
+  min-width: 150px;
+}
+.grn-put .grn-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
 }
 .grn-put td.num input {
-  min-width: 80px;
+  width: 88px;
+  min-width: 0;
   text-align: right;
 }
 .grn-put-foot {
