@@ -23,6 +23,8 @@ export function useItemSearch<T extends { id: number; name: string }>(
   const [q, setQ] = useState("");
   const lastQ = useRef<string | null>(null); // the search last asked, so it is not asked twice
   const loading = useRef(false); // a fresh start is on its way with the lines' items
+  const typedNow = useRef(""); // what is in the box this moment, for a reload mid-typing
+  const lastUrl = useRef<string | null>(null);
   const ids = [...new Set(lineIds.map((v) => String(v ?? "")).filter((v) => /^\d+$/.test(v)))].sort().join(",");
   const ask = (extra: string) => api<unknown>(`${url}${url?.includes("?") ? "&" : "?"}search=1${extra}`).then(select);
   const keep = (got: T[], fresh = false) =>
@@ -42,11 +44,16 @@ export function useItemSearch<T extends { id: number; name: string }>(
   useEffect(() => {
     if (!url) return setRows(new Map());
     let live = true;
-    lastQ.current = q;
+    // A new address starts afresh; coming back to the tab only adds what changed, so
+    // a search answered meanwhile is not wiped.
+    const fresh = lastUrl.current !== url;
+    lastUrl.current = url;
+    const now = typedNow.current.trim();
+    lastQ.current = now;
     loading.current = true;
-    ask(`&q=${encodeURIComponent(q)}&ids=${ids}`)
+    ask(`&q=${encodeURIComponent(now)}&ids=${ids}`)
       .then(
-        (r) => live && keep(r, true),
+        (r) => live && keep(r, fresh),
         () => live && setRows(new Map()),
       )
       .finally(() => {
@@ -80,5 +87,9 @@ export function useItemSearch<T extends { id: number; name: string }>(
   }, [ids, url]);
 
   const items = useMemo(() => [...rows.values()].sort((a, b) => a.name.localeCompare(b.name)), [rows]);
-  return { items, onType: setTyped };
+  const onType = (text: string) => {
+    typedNow.current = text;
+    setTyped(text);
+  };
+  return { items, onType };
 }

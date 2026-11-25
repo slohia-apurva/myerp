@@ -3,6 +3,7 @@ import { api } from "./api";
 import { DocSide, keptDraft } from "./Attachments";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
+import { useItemSearch } from "./ItemSearch";
 import { Locked } from "./Lock";
 import { money } from "./Companies";
 import { announceSaved, closeThisTab } from "./Create";
@@ -109,11 +110,18 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
   const [terms, setTerms] = useState<{ id: number; name: string }[]>([]);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
-    api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/`).then(setSetup, () => setSetup(null));
+    api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/?search=1`).then(setSetup, () => setSetup(null));
     api<Lists>(`v1/companies/${companyId}/direct-bills/setup/`).then(setLists, () => setLists(null));
     api<{ id: number; name: string }[]>("v1/credit-terms/").then(setTerms, () => setTerms([]));
   }, [companyId, visits]);
   const [supplier, setSupplier] = useState(String(bill?.supplier ?? ""));
+  // Suppliers come from the server as the person types (ItemSearch.ts), never all at once.
+  const { items: suppliers, onType: findSuppliers } = useItemSearch<Setup["suppliers"][number]>(
+    `v1/companies/${companyId}/purchase-orders/setup/`,
+    [supplier],
+    visits,
+    (a) => (a as Setup).suppliers,
+  );
   const [branch, setBranch] = useState(String(bill?.branch ?? ""));
   const [billNo, setBillNo] = useState(bill?.bill_no ?? "");
   const [billDate, setBillDate] = useState(bill?.bill_date ?? "");
@@ -146,7 +154,7 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
     // One branch: pick it.
     if (!branch && setup?.branches.length === 1) setBranch(String(setup.branches[0].id));
   }, [setup, branch]);
-  const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
+  const sup = suppliers.find((s) => String(s.id) === supplier);
   const br = setup?.branches.find((b) => String(b.id) === branch);
   const interstate = sup && br ? !!sup.state_code && sup.state_code !== br.state_code : (bill?.interstate ?? false);
   const changeBillDate = (v: string) => {
@@ -155,7 +163,7 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
   };
   const pickSupplier = (v: string) => {
     setSupplier(v);
-    const s = setup?.suppliers.find((x) => String(x.id) === v);
+    const s = suppliers.find((x) => String(x.id) === v);
     if (s?.credit_term) setTerm(String(s.credit_term));
   };
   const change = (key: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -302,9 +310,10 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
                   required
                   value={supplier}
                   onChange={pickSupplier}
+                  onType={findSuppliers}
                   options={[
-                    ...(setup?.suppliers ?? []).filter((s) => s.is_active || String(s.id) === supplier),
-                    ...(bill && !setup?.suppliers.some((s) => s.id === bill.supplier) ? [{ id: bill.supplier, name: bill.supplier_name }] : []),
+                    ...suppliers.filter((s) => s.is_active || String(s.id) === supplier),
+                    ...(bill && !suppliers.some((s) => s.id === bill.supplier) ? [{ id: bill.supplier, name: bill.supplier_name }] : []),
                   ].map((s) => ({ value: String(s.id), label: s.name }))}
                 />
               </label>

@@ -60,7 +60,20 @@ function AccountList(props: { companyId: number; canEdit: boolean; session: Sign
     company: companyId,
     onImported: reload,
   });
-  const selected = (accounts as Account[]).find((a) => a.id === selectedId) ?? null;
+  // The list's rows leave out the "in use" checks and the "Preferred By" count
+  // (a dozen queries a row), so the clicked row is asked for on its own.
+  const [full, setFull] = useState<Account | null>(null);
+  useEffect(() => {
+    if (selectedId === null) return setFull(null);
+    setFull(null);
+    api<Account>(`v1/courier-accounts/${selectedId}/`).then(
+      (one) => setFull(one),
+      () => setFull(null),
+    );
+  }, [selectedId, accounts]);
+  const row = (accounts as Account[]).find((a) => a.id === selectedId) ?? null;
+  // The row's own fields show at once; "Preferred By" and "In Use" join them.
+  const selected = full?.id === selectedId ? full : row;
   const edit = (id: number | string) => openTab(pageHash(companyId, `?form=${id}`));
   return (
     <section className="page">
@@ -154,16 +167,19 @@ function AccountFormTab(props: { companyId: number; form: string; canEdit: boole
   const key = Number(props.form.replace("copy-", ""));
   const carriers = useCarriers();
   const [loaded, setLoaded] = useState(props.form === "new");
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  // One transporter, not the whole list: the form needs its "in use" checks.
+  const [target, setTarget] = useState<Account | null>(null);
   useEffect(() => {
     if (props.form === "new") return;
-    api<Account[]>(`v1/companies/${props.companyId}/courier-accounts/`).then((rows) => {
-      setAccounts(rows);
-      setLoaded(true);
-    });
-  }, [props.form, props.companyId]);
+    api<Account>(`v1/courier-accounts/${key}/`).then(
+      (one) => {
+        setTarget(one);
+        setLoaded(true);
+      },
+      () => setLoaded(true),
+    );
+  }, [props.form, key]);
   const startName = useNewName();
-  const target = props.form === "new" ? null : (accounts.find((a) => a.id === key) ?? null);
   const toList = () => {
     window.location.hash = pageHash(props.companyId);
   };

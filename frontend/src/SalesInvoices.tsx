@@ -452,7 +452,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
   const mayEdit = draft && can(session, "create");
   useEffect(() => {
     if (!inv || !can(session, "create") || inv.status === "cancelled") return;
-    api<Setup>(`v1/companies/${companyId}/sales-orders/setup/`).then(setSetup, () => undefined);
+    api<Setup>(`v1/companies/${companyId}/sales-orders/setup/?search=1`).then(setSetup, () => undefined);
     // Once per invoice: the lists do not change while the page is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inv?.id]);

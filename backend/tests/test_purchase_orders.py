@@ -703,3 +703,21 @@ def test_branch_title_names_the_company_once():
     for named in ("Apurvam Organics LLP (Sankrail-2)", "apurvam  organics llp - Head Office"):
         assert branch_title(co, named) == named
     assert branch_title(co, "") == co
+
+
+def test_the_supplier_picker_searches_the_server(buyer, world):
+    # With search=1 the setup sends only the suppliers matching what is typed (q)
+    # and the order's own (ids), not thousands (Sidharth 2026-11-25).
+    url = f"companies/{world['company']}/purchase-orders/setup/?search=1"
+
+    def names(q):
+        return sorted(s["name"] for s in call(buyer, "get", f"{url}&{q}").json()["suppliers"])
+
+    assert names("") == []
+    assert names("q=darjeeling") == ["Darjeeling Tea Traders"]
+    assert names("q=assam+leaf") == ["Assam Leaf Estates"]
+    assert names(f"ids={world['local']}") == [
+        next(s for s in call(buyer, "get", url.replace("?search=1", "")).json()["suppliers"]
+             if s["id"] == world["local"])["name"]
+    ]  # fmt: skip
+    assert len(names("q=")) == 3

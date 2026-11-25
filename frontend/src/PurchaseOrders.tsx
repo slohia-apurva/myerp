@@ -241,7 +241,7 @@ function useSetup(companyId: number) {
   const [setup, setSetup] = useState<Setup | null>(null);
   // refresh returns the request, so "Create …" can wait for the new supplier.
   const refresh = useCallback(
-    () => api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/`).then(setSetup, () => setSetup(null)),
+    () => api<Setup>(`v1/companies/${companyId}/purchase-orders/setup/?search=1`).then(setSetup, () => setSetup(null)),
     [companyId],
   );
   useEffect(() => {
@@ -648,9 +648,17 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     setTermsEdited(false);
     if (value) setFillTerms(true);
   };
-  const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
-  const br = setup?.branches.find((b) => String(b.id) === branch);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
+  // Suppliers come from the server as the person types (ItemSearch.ts), never all at once:
+  // the setup is read without them, and the order's supplier and agent are always fetched.
+  const { items: suppliers, onType: findSuppliers } = useItemSearch<Supplier>(
+    `v1/companies/${companyId}/purchase-orders/setup/`,
+    [supplier, agent.startsWith("l") ? agent.slice(1) : ""],
+    visits,
+    (a) => (a as Setup).suppliers,
+  );
+  const sup = suppliers.find((s) => String(s.id) === supplier);
+  const br = setup?.branches.find((b) => String(b.id) === branch);
   // Items come from the server as the person types (ItemSearch.ts), never all at once.
   const { items, onType: findItems } = useItemSearch<BuyItem>(
     supplier ? `v1/companies/${companyId}/purchase-orders/items/?supplier=${supplier}&date=${orderDate}` : null,
@@ -661,13 +669,13 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   // credit term and contacts are filled in once it is there.
   const [pending, setPending] = useState("");
   useEffect(() => {
-    if (pending && setup?.suppliers.some((x) => String(x.id) === pending)) {
+    if (pending && suppliers.some((x) => String(x.id) === pending)) {
       setPending("");
       takeSupplier(pending);
     }
   });
   const pickSupplier = (value: string) => {
-    if (value && !setup?.suppliers.some((x) => String(x.id) === value)) {
+    if (value && !suppliers.some((x) => String(x.id) === value)) {
       setSupplierId(value);
       setPending(value);
       return;
@@ -676,7 +684,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   };
   const takeSupplier = (value: string) => {
     setSupplierId(value);
-    const s = setup?.suppliers.find((x) => String(x.id) === value);
+    const s = suppliers.find((x) => String(x.id) === value);
     // An import starts with the supplier's last order's details, else the usual documents.
     if (s?.overseas)
       setImp(Object.keys(s.last_import).length ? importDraft(s.last_import) : { ...importDraft(undefined), documents: [...(setup?.default_documents ?? [])] });
@@ -694,11 +702,11 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       else setTermsText("");
     }
     // The new supplier's purchase contacts replace the old one's; the agent's stay.
-    const agentIds = setup?.suppliers.find((x) => `l${x.id}` === agent)?.contacts.map((c) => c.id) ?? [];
+    const agentIds = suppliers.find((x) => `l${x.id}` === agent)?.contacts.map((c) => c.id) ?? [];
     setMailTo((m) => [...(s ? mailedFirst(s.contacts) : []), ...m.filter((id) => agentIds.includes(id))]);
     setWaTo((w) => w.filter((id) => agentIds.includes(id)));
     // The supplier's own Purchaser becomes the agent, unless a broker firm or another person was picked.
-    const before = setup?.suppliers.find((x) => String(x.id) === supplier);
+    const before = suppliers.find((x) => String(x.id) === supplier);
     const usual = before?.purchaser ? `p${before.purchaser}` : "";
     if (`l${value}` === agent || agent === "" || agent === usual) {
       const next = s?.purchaser ? `p${s.purchaser}` : "";
@@ -708,13 +716,13 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
     setLines((ls) => ls.map((l) => (l.rateTyped ? l : { ...l, rate: "", source: "" })));
   };
 
-  const ag = setup?.suppliers.find((s) => `l${s.id}` === agent);
+  const ag = suppliers.find((s) => `l${s.id}` === agent);
   const agUser = setup?.purchasers.find((u) => `p${u.id}` === agent);
   const pickAgent = (picked: string) => {
     // A purchaser made with "Create …" comes back as its bare id.
     const value = /^\d+$/.test(picked) ? `p${picked}` : picked;
     const old = ag?.contacts.map((c) => c.id) ?? [];
-    const next = setup?.suppliers.find((s) => `l${s.id}` === value);
+    const next = suppliers.find((s) => `l${s.id}` === value);
     setAgentId(value);
     setMailAgentUser(false);
     setMailTo((m) => [...m.filter((id) => !old.includes(id)), ...(next ? mailedFirst(next.contacts) : [])]);
@@ -936,9 +944,10 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                   onChange={pickSupplier}
                   create={addSupplier}
                   placeholder="Type to search suppliers…"
-                  options={(setup?.suppliers ?? [])
+                  options={suppliers
                     .filter((s) => s.is_active || String(s.id) === supplier)
                     .map((s) => ({ value: String(s.id), label: s.name, hint: s.vendor_number }))}
+                  onType={findSuppliers}
                 />
                 {sup && <span className="small">{[sup.gstin ? `GSTIN ${sup.gstin}` : sup.gst_type_label, !sup.charges_gst && "no GST on its bills"].filter(Boolean).join(" · ")}</span>}
               </label>
@@ -1050,11 +1059,12 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                 <Combobox
                   value={agent}
                   onChange={pickAgent}
+                  onType={findSuppliers}
                   empty="None"
                   create={newPurchaser}
                   placeholder="Type to search…"
                   options={[
-                    ...(setup?.suppliers ?? [])
+                    ...suppliers
                       .filter((s) => (s.is_active && String(s.id) !== supplier) || `l${s.id}` === agent)
                       .map((s) => ({ value: `l${s.id}`, label: s.name, hint: "Supplier" })),
                     ...(setup?.purchasers ?? [])
