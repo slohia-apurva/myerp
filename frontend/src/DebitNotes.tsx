@@ -85,11 +85,16 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pill");
 const today = () => new Date().toISOString().slice(0, 10);
 const invoiceLabel = (i: { number: string; bill_no: string; bill_date: string | null }) => `${i.number} · Bill ${i.bill_no}${i.bill_date ? ` of ${showDate(i.bill_date)}` : ""}`;
-/** "Print ▾": the debit note as this page prints, and a PDF through the browser's own "Save as PDF". */
-const printItems = [
-  { label: "Debit Note", onClick: () => window.print() },
-  { label: "Download PDF", onClick: () => window.print() },
-];
+/** "Print ▾": the debit note as a PDF made on the server (buying/purchase_prints.py), in the
+ * one print tab or downloaded; a new entry prints once it is saved. */
+const pdf = (id: number, download = false) => openTab(`/api/v1/debit-notes/${id}/pdf/${download ? "?download=1" : ""}`);
+const printItems = (id: number | null) => {
+  const why = id ? undefined : "Save it first";
+  return [
+    { label: "Debit Note", onClick: () => id && pdf(id), disabled: !id, title: why },
+    { label: "Download PDF", onClick: () => id && pdf(id, true), disabled: !id, title: why },
+  ];
+};
 
 export function DebitNotesPage({ companyId, session }: { companyId: number; session: SignedIn }) {
   const can = (p: string) => session.permissions.includes(`purchase.${p}`);
@@ -270,7 +275,7 @@ function NoteList({ companyId, canCreate }: { companyId: number; canCreate: bool
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
+                <button type="button" className="link" onClick={() => pdf(selected.id)}>
                   Print
                 </button>
               </div>
@@ -470,7 +475,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
             <button type="button" className="link" onClick={close}>
               Close
             </button>
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(draftId)} />
             <button type="submit" form="dn-form" className={props.canSubmit ? "secondary" : undefined} disabled={busy}>
               Save
             </button>
@@ -702,7 +707,7 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
                 Cancel debit note
               </button>
             )}
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(id)} />
             {draft && can("create") && (
               <button type="button" onClick={() => openTab(`${base(companyId)}?form=${note.id}`)}>
                 Open to Submit

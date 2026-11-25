@@ -3967,8 +3967,12 @@ export const MANUAL: Chapter[] = [
             and other papers, on the draft and after Submit.
           </li>
           <li>
-            "Print ▾" › "Return Challan" prints the page to go with the goods, or
-            saves it as a PDF.
+            "Print ▾" › "Return Challan" gives the challan to go with the goods:
+            "Return To" (the supplier) and "Sent From" (our branch), the reason,
+            the goods receipt, the supplier's challan, the purchase order and the
+            transport, and the goods valued at our receipt cost with no GST, as a
+            return is not a sale. "Download PDF" saves it. In the list, "Print"
+            beside "Open" prints the selected return.
           </li>
         </ul>
         <Note>
@@ -4046,7 +4050,12 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             The "Attachments" box keeps the supplier's credit note and other
-            papers. "Print ▾" prints the page or saves it as a PDF.
+            papers. "Print ▾" › "Debit Note" gives the note to send to the
+            supplier: the "Supplier" and "Issued By" boxes, the reason, their bill,
+            our purchase invoice and return, the lines (a rate note shows the old
+            and new rate under the item), the tax summary and the total. It has
+            no ledger posting, which is ours. "Download PDF" saves it; in the
+            list, "Print" beside "Open" prints the selected note.
           </li>
         </ul>
         <Note>
@@ -4152,8 +4161,10 @@ export const MANUAL: Chapter[] = [
             cancelled until the adjustment is.
           </li>
           <li>
-            The "Attachments" box keeps working papers. "Print ▾" prints the page
-            or saves it as a PDF.
+            The "Attachments" box keeps working papers. "Print ▾" › "TDS
+            Adjustment" gives the adjustment as a report: its details, the bills
+            with their TDS due, deducted, adjustment and interest, and the
+            "Ledger Posting". "Download PDF" saves it.
           </li>
         </ul>
         <Note>

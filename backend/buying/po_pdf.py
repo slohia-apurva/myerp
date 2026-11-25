@@ -388,13 +388,17 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
             card(b2, lh["name"], ab.get("bill_to"), k_bill, iec=lh.get("iec") or ""),
             "",
             card(
-                b3,
+                b3 or "",
                 (ab.get("ship_to") or {}).get("name") or lh["name"],
                 ab.get("ship_to"),
                 k_ship,
                 label=True,
             ),
         ]
+    # A return challan has two boxes only: its third title is None.
+    two = not sale and (o.get("box_titles") or ("", "", ""))[2] is None
+    if two:
+        boxes[4] = ""
     cards = Table(
         [boxes],
         colWidths=[cw, gap, cw, gap, cw],
@@ -404,7 +408,7 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
             [
                 ("BACKGROUND", (0, 0), (0, 0), c(CARD)),
                 ("BACKGROUND", (2, 0), (2, 0), c(CARD)),
-                ("BACKGROUND", (4, 0), (4, 0), c(CARD)),
+                *([] if two else [("BACKGROUND", (4, 0), (4, 0), c(CARD))]),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 7),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 7),
@@ -696,9 +700,9 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
             tot_rows.append(
                 (f"SGST{half}" if one is not None else "SGST", money(o["sgst_total"]), False)
             )
-    if inr:
+    if inr and not o.get("hide_round_off"):
         tot_rows.append(("Round Off", money(o["round_off"]), False))
-    grand = f"Total{'' if inr else ' (' + o['currency'] + ')'}"
+    grand = o.get("total_label") or f"Total{'' if inr else ' (' + o['currency'] + ')'}"
     tdata = [
         [Paragraph(t(k), bold_s if b else body), Paragraph(t(v), bold_r if b else body_r)]
         for k, v, b in tot_rows

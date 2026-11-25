@@ -7,6 +7,7 @@ from buying import (
     invoice_pdf,
     invoices,
     planning,
+    purchase_prints,
     receipts,
     returns,
     supplementary,
@@ -152,6 +153,11 @@ urlpatterns = [
     ),
     path("purchase-returns/<int:pk>/", returns.ReturnDetailView.as_view(), name="purchase-return"),
     path(
+        "purchase-returns/<int:pk>/pdf/",
+        purchase_prints.ReturnPdfView.as_view(),
+        name="purchase-return-pdf",
+    ),
+    path(
         "purchase-returns/<int:pk>/cancel/",
         returns.ReturnCancelView.as_view(),
         name="purchase-return-cancel",
@@ -190,6 +196,11 @@ urlpatterns = [
     ),
     path("debit-notes/<int:pk>/", debit_notes.NoteDetailView.as_view(), name="debit-note"),
     path(
+        "debit-notes/<int:pk>/pdf/",
+        purchase_prints.DebitNotePdfView.as_view(),
+        name="debit-note-pdf",
+    ),
+    path(
         "debit-notes/<int:pk>/cancel/",
         debit_notes.NoteCancelView.as_view(),
         name="debit-note-cancel",
@@ -220,6 +231,11 @@ urlpatterns = [
         "companies/<int:pk>/tds-adjustments/preview/",
         tds_check.AdjustmentPreviewView.as_view(),
         name="tds-adjustment-preview",
+    ),
+    path(
+        "tds-adjustments/<int:pk>/pdf/",
+        purchase_prints.TdsAdjustmentPdfView.as_view(),
+        name="tds-adjustment-pdf",
     ),
     path(
         "tds-adjustments/<int:pk>/",

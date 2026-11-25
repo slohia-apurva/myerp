@@ -43,12 +43,29 @@ def _supplier_box(inv: PurchaseInvoice, orders: list[PurchaseOrder]) -> dict:
         a = next((x for x in rows if x.is_billing), rows[0] if rows else None)
         kept = _party_address(a) if a else {}
     kept = kept or {}
+    people = list(party.contacts.all()) if party is not None else []
+    people = (
+        [c for c in people if "purchase" in (c.kinds or [])]
+        or [c for c in people if c.is_primary]
+        or people[:1]
+    )
     return {
         "name": inv.supplier.name,
         **kept,
         "gstin": kept.get("gstin") or (party.gstin if party else ""),
         "fssai": _party_fssai(party, kept.get("label", "")),
+        # The supplier's purchase contact (else its main one), as on the order.
+        "contact": next((c.name for c in people if c.name), ""),
+        "phone": next((c.phone for c in people if c.phone), ""),
+        "email": ", ".join(c.email for c in people if c.email),
     }
+
+
+def order_description(receipt_line) -> str:
+    """The line's description on the purchase order (the item's purchase
+    description unless changed there)."""
+    ol = receipt_line.order_line if receipt_line else None
+    return (ol.description or "").strip() if ol else ""
 
 
 def _lines(data: dict, inv: PurchaseInvoice) -> list[dict]:
@@ -77,14 +94,25 @@ def _lines(data: dict, inv: PurchaseInvoice) -> list[dict]:
             }
             for x in data.get("expense_lines") or []
         ]
+    described = {
+        ln.pk: order_description(ln.receipt_line)
+        for ln in inv.lines.select_related("receipt_line__order_line")
+    }
     return [
         {
             **x,
-            "description": " · ".join(
+            "description": "\n".join(
                 y
                 for y in [
-                    x["receipt_number"] and f"GRN {x['receipt_number']}",
-                    x["order_number"] and f"PO {x['order_number']}",
+                    described.get(x["id"], ""),
+                    " · ".join(
+                        z
+                        for z in [
+                            x["receipt_number"] and f"GRN {x['receipt_number']}",
+                            x["order_number"] and f"PO {x['order_number']}",
+                        ]
+                        if z
+                    ),
                 ]
                 if y
             ),

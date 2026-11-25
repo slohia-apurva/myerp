@@ -102,11 +102,16 @@ const today = () => new Date().toISOString().slice(0, 10);
 const placeKey = (l: { receipt_line: number; location: number; batch: number | null }) => `${l.receipt_line}-${l.location}-${l.batch ?? ""}`;
 const receiptLabel = (r: { number: string; receipt_date: string; challan_no: string }) =>
   [r.number, showDate(r.receipt_date), r.challan_no ? `Challan ${r.challan_no}` : ""].filter(Boolean).join(" · ");
-/** "Print ▾": the return challan as this page prints, and a PDF through the browser's own "Save as PDF". */
-const printItems = [
-  { label: "Return Challan", onClick: () => window.print() },
-  { label: "Download PDF", onClick: () => window.print() },
-];
+/** "Print ▾": the return challan as a PDF made on the server (buying/purchase_prints.py), in the
+ * one print tab or downloaded; a new entry prints once it is saved. */
+const pdf = (id: number, download = false) => openTab(`/api/v1/purchase-returns/${id}/pdf/${download ? "?download=1" : ""}`);
+const printItems = (id: number | null) => {
+  const why = id ? undefined : "Save it first";
+  return [
+    { label: "Return Challan", onClick: () => id && pdf(id), disabled: !id, title: why },
+    { label: "Download PDF", onClick: () => id && pdf(id, true), disabled: !id, title: why },
+  ];
+};
 
 export function PurchaseReturnsPage({ companyId, session }: { companyId: number; session: SignedIn }) {
   // Goods go back through the stores or purchase: either role's right will do (as for receipts).
@@ -287,7 +292,7 @@ function ReturnList({ companyId, canCreate }: { companyId: number; canCreate: bo
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
+                <button type="button" className="link" onClick={() => pdf(selected.id)}>
                   Print
                 </button>
               </div>
@@ -453,7 +458,7 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
             <button type="button" className="link" onClick={close}>
               Close
             </button>
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(draftId)} />
             <button type="submit" form="pret-form" className={props.canSubmit ? "secondary" : undefined} disabled={busy}>
               Save
             </button>
@@ -655,7 +660,7 @@ function ReturnView({ companyId, id, can, canDebit }: { companyId: number; id: n
                 Cancel return
               </button>
             )}
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(id)} />
             {draft && can("create") && (
               <button type="button" onClick={() => openTab(`${base(companyId)}?form=${ret.id}`)}>
                 Open to Submit
