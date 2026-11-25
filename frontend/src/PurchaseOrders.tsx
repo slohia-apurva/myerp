@@ -1115,7 +1115,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                   {lines.map((l, i) => {
                     const it = items.find((x) => String(x.id) === l.item);
                     const w = work(l, gstOf(l));
-                    const theirs = [it?.supplier_name && `Supplier calls it "${it.supplier_name}"`, it?.supplier_code && `code ${it.supplier_code}`, it?.hsn && `HSN ${it.hsn}`]
+                    const theirs = [it?.item_number, it?.supplier_name && `Supplier calls it "${it.supplier_name}"`, it?.supplier_code && `code ${it.supplier_code}`, it?.hsn && `HSN ${it.hsn}`]
                       .filter(Boolean)
                       .join(" · ");
                     return (
