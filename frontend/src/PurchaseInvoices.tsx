@@ -14,7 +14,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { RateLinesTable, type RateLine } from "./RateLines";
 import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBills";
 import { TdsBox, type TdsInfo } from "./Tds";
-import { BillTypePicker, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
+import { BillTypePicker, billPdf, billPrintItems, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
 import { useReturns } from "./Refresh";
 import { useKept } from "./Keep";
 
@@ -127,11 +127,6 @@ const num = (v: string | undefined) => Number(v) || 0;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pill");
 const today = () => new Date().toISOString().slice(0, 10);
-/** "Print ▾": the invoice as this page prints, and a PDF through the browser's own "Save as PDF". */
-const printItems = [
-  { label: "Purchase Invoice", onClick: () => window.print() },
-  { label: "Download PDF", onClick: () => window.print() },
-];
 
 function useSetup(companyId: number) {
   const [setup, setSetup] = useState<Setup | null>(null);
@@ -390,7 +385,7 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
+                <button type="button" className="link" onClick={() => billPdf(selected.id)}>
                   Print
                 </button>
               </div>
@@ -595,7 +590,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
             <button type="button" className="link" disabled title="Comes in a later piece of work">
               Scan e-invoice QR
             </button>
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={billPrintItems(draftId)} />
             <button type="submit" form="pinv-form" className={props.canSubmit ? "secondary" : undefined} disabled={busy}>
               Save
             </button>
@@ -986,7 +981,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                 Cancel invoice
               </button>
             )}
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={billPrintItems(inv.id, inv.kind === "supplementary" ? "Supplementary Bill" : "Purchase Invoice")} />
             {draft && can("create") && (
               <button type="button" onClick={() => openTab(`${base(companyId)}?form=${inv.id}`)}>
                 Open to Submit

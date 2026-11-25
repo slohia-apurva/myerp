@@ -4,6 +4,7 @@ from buying import (
     api,
     debit_notes,
     direct_bills,
+    invoice_pdf,
     invoices,
     planning,
     receipts,
@@ -120,6 +121,11 @@ urlpatterns = [
     ),
     path(
         "purchase-invoices/<int:pk>/", invoices.InvoiceDetailView.as_view(), name="purchase-invoice"
+    ),
+    path(
+        "purchase-invoices/<int:pk>/pdf/",
+        invoice_pdf.InvoicePdfView.as_view(),
+        name="purchase-invoice-pdf",
     ),
     path(
         "purchase-invoices/<int:pk>/tds/", tds.InvoiceTdsView.as_view(), name="purchase-invoice-tds"

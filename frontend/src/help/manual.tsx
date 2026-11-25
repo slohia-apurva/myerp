@@ -3891,9 +3891,17 @@ export const MANUAL: Chapter[] = [
             come in later pieces of work.
           </li>
           <li>
-            "Print ▾" prints the page or saves it as a PDF. "Scan e-invoice QR",
-            bills before the goods come and imports' bills come in later pieces
-            of work.
+            "Print ▾" holds "Purchase Invoice" (or "Supplementary Bill") and
+            "Download PDF", once the bill is saved. The print has the company's
+            heading (and its image on the first page when "Printing" is ticked on
+            the company), the "Supplier", "Bill To" and "Received At" boxes, the
+            supplier's bill number and date, the posting date, the goods receipts
+            and purchase orders, each line with its GRN and PO under the item,
+            the charges, the tax summary, the totals with "Less TDS" and "Net
+            Payable", the "Ledger Posting", the "Due Dates" and the signature. A
+            draft prints with "DRAFT" across it. In the list, "Print" beside
+            "Open" prints the selected bill. "Scan e-invoice QR", bills before the
+            goods come and imports' bills come in later pieces of work.
           </li>
         </ul>
         <Note>
