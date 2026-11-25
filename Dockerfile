@@ -25,4 +25,8 @@ COPY --from=frontend /frontend/dist ./frontend_dist
 RUN useradd --create-home --uid 1000 app && chown -R app /app
 USER app
 EXPOSE 8000
-CMD ["sh", "-c", "exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers 2 --threads 4 --timeout 60"]
+# --preload imports Django in the master before the workers fork, so a new
+# instance does that work while Cloud Run is still starting it (with the startup
+# CPU boost) instead of inside the first person's request: locally the first
+# request drops from 0.61 s to 0.20 s (2026-11-25).
+CMD ["sh", "-c", "exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers 2 --threads 4 --timeout 60 --preload"]
