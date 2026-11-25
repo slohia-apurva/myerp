@@ -3248,7 +3248,9 @@ export const MANUAL: Chapter[] = [
             Under "Items" pick an item in the empty row. Only items that may be
             bought from this supplier are offered (see the supplier's Products
             list). Type part of the item's name or its item no. to find it: the
-            list shows the first 50 that match, so type more to narrow it. The box
+            list shows the first 50 that match, so type more to narrow it. Under
+            the item name the line shows its item no. and HSN, for example
+            "IT-005579 · HSN 481910". The box
             under the item fills in with the item's "Purchase
             description"; change it for this order if you like (plain text,
             printed under the item name). The unit starts as the item's
@@ -4151,7 +4153,8 @@ export const MANUAL: Chapter[] = [
             Under "Items" pick each item. Only items the customer may buy are
             offered (as set on the customer's "Products" tab). Type part of the
             item's name or its item no. to find it: the list shows the first 50
-            that match, so type more to narrow it. The "Unit"
+            that match, so type more to narrow it. Under the item name the line
+            shows its item no. and HSN. The "Unit"
             starts as the item's sales unit; you can pick any other unit of the
             item, and no other. The "Rate" fills in by itself, with where it
             came from under it: first the customer's own price, then its price

@@ -998,7 +998,7 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
                     const u = it?.units.find((x) => String(x.unit) === l.unit);
                     const have = it && it.in_stock !== null && u ? Number(it.in_stock) / (Number(u.factor) || 1) : null;
                     const short = have !== null && Number(l.qty) > have;
-                    const theirs = [it?.customer_name && `Customer calls it "${it.customer_name}"`, it?.customer_code && `code ${it.customer_code}`, it?.hsn && `HSN ${it.hsn}`]
+                    const theirs = [it?.item_number, it?.customer_name && `Customer calls it "${it.customer_name}"`, it?.customer_code && `code ${it.customer_code}`, it?.hsn && `HSN ${it.hsn}`]
                       .filter(Boolean)
                       .join(" · ");
                     return (
