@@ -21,6 +21,7 @@ from core.models import (
     Ledger,
     PartyAddress,
     PartyItemPrice,
+    PartyProduct,
     PriceList,
     PriceListLine,
     SalesPerson,
@@ -217,6 +218,31 @@ def test_only_the_items_own_units_and_sales_items(seller, world):
     assert "Line 1: Pick one of the units of Green Tea 100 g." in errors
     assert any("whole numbers" in e for e in errors)
     assert any("not sold to this customer" in e for e in errors)
+
+
+def test_the_item_picker_offers_only_the_customers_products(seller, world):
+    # The type-to-search picker (search=1) keeps the customer's Products tab: with
+    # products listed, only those and items ticked "Offer to all" (Sidharth 2026-11-25).
+    items = (
+        f"{url(world)}items/?customer={world['local']}&date={TODAY}"
+        f"&branch={world['branch']}&search=1"
+    )
+
+    def names(q):
+        return sorted(i["name"] for i in call(seller, "get", f"{items}&{q}").json())
+
+    assert names("q=") == ["Freight", "Green Tea 100 g", "Loose Leaf"]
+    with use_tenant(world["tenant"]):
+        party = Ledger.objects.get(pk=world["local"]).party
+        PartyProduct.objects.create(party=party, item_id=world["tea"])
+    assert names("q=") == ["Green Tea 100 g"]
+    assert names("q=loose") == []
+    with use_tenant(world["tenant"]):
+        Item.objects.filter(pk=world["freight"]).update(offer_to_all=True)
+    assert names("q=") == ["Freight", "Green Tea 100 g"]
+    # Another customer with no products still sees every item.
+    other = items.replace(f"customer={world['local']}", f"customer={world['far']}")
+    assert len(call(seller, "get", f"{other}&q=").json()) == 3
 
 
 def test_the_rate_comes_from_own_price_then_price_list_then_mrp(seller, world):
