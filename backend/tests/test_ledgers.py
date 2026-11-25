@@ -183,3 +183,41 @@ def test_group_from_another_company_is_refused(as_user, company, alpha):
         owner, "post", f"companies/{company}/ledgers/", {"name": "X", "group": other_group}
     )
     assert response.status_code == 400
+
+
+def test_the_ledgers_list_comes_a_page_at_a_time(as_user, company, alpha):
+    """Preview 13 (Sidharth 2026-11-25): 25 ledgers per group a page, counts and
+    opening totals per group, column search on the server, disabled ones hidden
+    unless asked for and then last."""
+    from core.models import Ledger, LedgerGroup
+
+    with use_tenant(alpha):
+        expenses = LedgerGroup.objects.get(company_id=company, name="Indirect Expenses")
+        Ledger.objects.bulk_create(
+            Ledger(
+                company_id=company,
+                group=expenses,
+                name=f"Expense {n:02d}",
+                opening_amount=10,
+                opening_side="dr" if n % 2 else "cr",
+            )
+            for n in range(1, 31)
+        )
+        Ledger.objects.filter(name="Expense 01").update(is_active=False)
+    accountant = as_user("accountant")
+    path = f"companies/{company}/ledgers/?paged=1"
+    g = call(accountant, "get", path).json()["groups"][str(expenses.pk)]
+    assert (g["count"], g["pages"], g["page"], len(g["results"])) == (29, 2, 1, 25)
+    assert g["net"] == "-10.00"  # 14 Dr and 15 Cr of 10 each
+    assert g["results"][0]["name"] == "Expense 02"
+
+    second = call(accountant, "get", f"{path}&pages={expenses.pk}:2").json()
+    assert [x["name"] for x in second["groups"][str(expenses.pk)]["results"]] == [
+        f"Expense {n}" for n in range(27, 31)
+    ]
+    with_off = call(accountant, "get", f"{path}&inactive=1&pages={expenses.pk}:9").json()
+    last = with_off["groups"][str(expenses.pk)]
+    assert last["page"] == 2 and last["results"][-1]["name"] == "Expense 01"
+
+    found = call(accountant, "get", f"{path}&name=expense%201").json()
+    assert found["count"] == 11  # Expense 10 to 19 and 21 (01 is disabled)
