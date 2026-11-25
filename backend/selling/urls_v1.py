@@ -1,6 +1,6 @@
 from django.urls import path
 
-from selling import api, credit_notes, customer_mail, delivery, invoices, pick_lists
+from selling import api, credit_notes, customer_mail, delivery, hold, invoices, pick_lists
 
 urlpatterns = [
     path("companies/<int:pk>/sales-orders/", api.OrderListView.as_view(), name="sales-orders"),
@@ -27,6 +27,11 @@ urlpatterns = [
     path("sales-orders/<int:pk>/", api.OrderDetailView.as_view(), name="sales-order"),
     path("sales-orders/<int:pk>/submit/", api.OrderSubmitView.as_view(), name="sales-order-submit"),
     path("sales-orders/<int:pk>/plan/", api.OrderPlanView.as_view(), name="sales-order-plan"),
+    path(
+        "sales-orders/<int:pk>/release/",
+        hold.OrderReleaseView.as_view(),
+        name="sales-order-release",
+    ),
     path("sales-orders/<int:pk>/cancel/", api.OrderCancelView.as_view(), name="sales-order-cancel"),
     path(
         "sales-orders/<int:pk>/lines/<int:line>/close/",

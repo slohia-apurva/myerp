@@ -1522,6 +1522,10 @@ export function TotalsPanel(p: {
   total: number;
   note: string;
   symbol?: string;
+  /** Rows after the total: [label, value, "error" to show the value in red]. */
+  more?: [string, string, string][];
+  /** A warning under the totals. */
+  warning?: string;
 }) {
   return (
     <SidePanel title="Totals">
@@ -1541,7 +1545,18 @@ export function TotalsPanel(p: {
           ["Total", `${p.symbol ?? "₹"}${money(p.total)}`],
         ]}
       />
+      {p.more && (
+        <div className="totals-more">
+          {p.more.map(([label, value, tone]) => (
+            <div key={label} className="side-row">
+              <span>{label}</span>
+              <span className={tone || undefined}>{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {p.note && <p className="small">{p.note}</p>}
+      {p.warning && <p className="use-note">{p.warning}</p>}
     </SidePanel>
   );
 }

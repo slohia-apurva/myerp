@@ -66,6 +66,7 @@ LABELS = {
     "opening_rate": "Opening rate",
     "full_name": "Full name",
     "credit_limit": "Credit limit (₹)",
+    "min_order_value": "Minimum order value (₹)",
     "short_name": "Short name",
     "description": "Description",
     "gst_code": "GST unit code",

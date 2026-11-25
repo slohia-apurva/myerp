@@ -116,6 +116,9 @@ type SalesOrder = {
   mail_contacts?: Contact[];
   addresses?: { bill_from: Place | null; customer: Place & { name: string }; ship_to: (Place & { name: string }) | null };
   credit_warning?: string;
+  /** Why Submit put it On Hold, below the customer's Minimum Order Value (Sidharth, 2026-11-25). */
+  hold?: Hold | null;
+  min_order_value?: string;
   /** Made on Submit (Sidharth, 2026-11-19): the newest is the one that counts. */
   pick_lists?: PickBrief[];
   delivery_notes?: { id: number; number: string; status: string; status_label: string }[];
@@ -154,6 +157,8 @@ type Customer = {
   transporter: number | null;
   salesman: number | null;
   credit_limit: string;
+  /** Before GST; "0.00" = no minimum. Below it, Submit puts the order On Hold. */
+  min_order_value: string;
   outstanding: string;
   terms_set: number | null;
   charges_gst: boolean;
@@ -190,9 +195,23 @@ type SellItem = {
   customer_code: string;
 };
 
+/** What Submit found below the customer's minimum, and whether it was mailed. */
+type Hold = {
+  value: string;
+  minimum: string;
+  at: string;
+  by: string;
+  mailed_to: string[];
+  mail_error: string;
+  ended?: string;
+  ended_by?: string;
+  ended_at?: string;
+};
+
 const VIEWS: [string, string][] = [
-  ["open", "Open (drafts and ordered)"],
+  ["open", "Open (drafts, on hold and ordered)"],
   ["draft", "Drafts"],
+  ["hold", "On Hold"],
   ["done", "Delivered or closed"],
   ["cancelled", "Cancelled"],
   ["all", "All"],
@@ -200,7 +219,10 @@ const VIEWS: [string, string][] = [
 const today = () => new Date().toISOString().slice(0, 10);
 const showDate = (iso: string | null) => (iso ? longDate(iso) : "");
 const shortDate = (iso: string | null) => (iso ? iso.split("-").reverse().join("-") : "");
-const pillClass = (status: string) => (status === "ordered" || status === "part_delivered" ? "pill on" : "pill");
+const pillClass = (status: string) =>
+  status === "ordered" || status === "part_delivered" ? "pill on" : status === "on_hold" ? "pill warn" : "pill";
+/** A draft, or an order On Hold below the customer's minimum, can still be changed. */
+const changeable = (status: string) => status === "draft" || status === "on_hold";
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const plainQty = (n: number) => String(Number(n.toFixed(3)));
 const base = (companyId: number) => `#/companies/${companyId}/sales-orders`;
@@ -332,8 +354,8 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
               <button
                 type="button"
                 className="secondary"
-                disabled={selected?.status !== "draft"}
-                title={selected ? (selected.status === "draft" ? "" : "Only a draft can be changed") : "Click a draft order first"}
+                disabled={!selected || !changeable(selected.status)}
+                title={selected ? (changeable(selected.status) ? "" : "Only a draft or an order on hold can be changed") : "Click a draft order first"}
                 onClick={() => selected && openTab(`${base(companyId)}?form=${selected.id}`)}
               >
                 Edit
@@ -508,7 +530,7 @@ function OrderFormTab({ companyId, form, session }: { companyId: number; form: s
   );
   if (error) return shell(error);
   if (form !== "new" && !order) return shell();
-  if (order && !copy && order.status !== "draft") return shell("A submitted order cannot be changed. Cancel it and make a new one (Duplicate).");
+  if (order && !copy && !changeable(order.status)) return shell("A submitted order cannot be changed. Cancel it and make a new one (Duplicate).");
   return <OrderForm companyId={companyId} title={title} order={copy ? null : order} copyOf={copy ? order : null} session={session} />;
 }
 
@@ -853,6 +875,7 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
                       cust.gstin ? `GSTIN ${cust.gstin}` : cust.gst_type_label,
                       `Outstanding ₹${money(owing)}`,
                       Number(cust.credit_limit) ? `limit ₹${money(cust.credit_limit)}` : "no credit limit",
+                      ...(Number(cust.min_order_value) ? [`minimum order ₹${money(cust.min_order_value)} before GST`] : []),
                     ].join(" · ")}
                   </span>
                 )}
@@ -1216,6 +1239,16 @@ function OrderForm(props: { companyId: number; title: string; order: SalesOrder 
             roundOff={rounded - exact}
             total={rounded}
             note={!cust ? "" : !withGst ? "No GST: an export." : interstate ? "Customer in another state, so IGST." : "Same state as the customer, so CGST + SGST."}
+            more={
+              cust && Number(cust.min_order_value)
+                ? [["Minimum Order", `₹${money(cust.min_order_value)}`, itemsValue < Number(cust.min_order_value) ? "error" : ""]]
+                : undefined
+            }
+            warning={
+              cust && Number(cust.min_order_value) && itemsValue < Number(cust.min_order_value)
+                ? `Items come to ₹${money(itemsValue)} before GST, below the customer's minimum. Submit will put the order On Hold and mail the customer and the salesman.`
+                : ""
+            }
           />
           <PaymentPanel term={chosenTerm} on="sales invoice" />
           {order && (
@@ -1273,6 +1306,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
       </section>
     );
   const draft = order.status === "draft";
+  const held = order.status === "on_hold";
   const open = order.status === "ordered" || order.status === "part_delivered";
   const picks = order.pick_lists ?? [];
   // The list still holding stock for the order (open or picked); a delivered one is done.
@@ -1309,7 +1343,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
       setError(err);
     }
   };
-  const canCancel = can("cancel") && (draft || order.status === "ordered");
+  const canCancel = can("cancel") && (draft || held || order.status === "ordered");
   const sumOf = (rows: { taxable?: string; amount: string }[] | undefined, key: "taxable" | "amount") =>
     round2((rows ?? []).reduce((s, r) => s + Number(r[key] ?? 0), 0));
   const facts: [string, string][] = [
@@ -1355,12 +1389,22 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Cancel order
               </button>
             )}
-            {can("submit") && open && !mailing && (
+            {can("submit") && (open || held) && !mailing && (
               <button type="button" className="link" onClick={() => setMailing(true)}>
                 Email Customer
               </button>
             )}
             <ActionsMenu label="Print" items={printMenu(order.id)} />
+            {held && can("create") && (
+              <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?form=${order.id}`)}>
+                Edit Order
+              </button>
+            )}
+            {held && can("cancel") && (
+              <button type="button" onClick={() => act("release")} title="Accept the order as it is, below the minimum">
+                Release Hold
+              </button>
+            )}
             {draft && can("submit") && (
               <button type="button" onClick={() => act("submit")}>
                 Submit
@@ -1398,6 +1442,13 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             </div>
           )}
           <ErrorNote error={error} />
+          {held && order.hold && <HoldNote order={order} hold={order.hold} />}
+          {!held && order.hold?.ended && (
+            <p className="use-note">
+              Was on hold below the minimum order value of ₹{money(order.hold.minimum)}. {order.hold.ended}
+              {order.hold.ended_at ? ` on ${showDate(order.hold.ended_at.slice(0, 10))}.` : "."}
+            </p>
+          )}
           {livePick && (
             <div className={livePick.all_in ? "use-note pick-note all-in" : "use-note pick-note"}>
               <span>
@@ -1716,6 +1767,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             roundOff={Number(order.round_off)}
             total={Number(order.total)}
             note=""
+            more={
+              held && order.hold
+                ? [["Minimum Order", `₹${money(order.hold.minimum)}`, "error"]]
+                : undefined
+            }
           />
           <PaymentPanel term={terms.find((t) => t.id === order.credit_term)} on="sales invoice" />
           <SidePanel title="Activity">
@@ -1724,6 +1780,29 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
         </DocSide>
       </div>
     </section>
+  );
+}
+
+/** Why the order is On Hold, who was mailed, and how the hold ends (Sidharth,
+ * 2026-11-25, preview mockups/sales/20b). */
+function HoldNote({ order, hold }: { order: SalesOrder; hold: Hold }) {
+  const short = Number(hold.minimum) - Number(hold.value);
+  return (
+    <div className="use-note hold-note">
+      <p>
+        <b>On Hold: below the minimum order value.</b> The order value before GST is ₹{money(hold.value)}; {order.customer_name}'s minimum is ₹
+        {money(hold.minimum)} (short by ₹{money(short)}).
+      </p>
+      {hold.mailed_to.length ? (
+        <p>Mailed on Submit to {hold.mailed_to.join(", ")}, with this order's PDF.</p>
+      ) : (
+        <p className="error">Not mailed: {hold.mail_error} Use "Email Customer" to send the hold mail by hand.</p>
+      )}
+      <p>
+        No pick list or purchase orders are made, and the order is left out of the Stock Check, until the hold ends: change the order with "Edit Order" and
+        submit again once it reaches ₹{money(hold.minimum)}, or "Release Hold" to accept it as it is.
+      </p>
+    </div>
   );
 }
 

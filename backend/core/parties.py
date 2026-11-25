@@ -11,6 +11,8 @@ another company already has; `also_in` adds the party's ledger to more
 companies.
 """
 
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -110,6 +112,14 @@ class PartySerializer(serializers.ModelSerializer):
     credit_limit = serializers.DecimalField(
         max_digits=18, decimal_places=2, min_value=0, required=False, write_only=True
     )
+    min_order_value = serializers.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        min_value=0,
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
     companies = serializers.SerializerMethodField()
     gstin = serializers.CharField(max_length=15, allow_blank=True, required=False)
     pan = serializers.CharField(max_length=10, allow_blank=True, required=False)
@@ -180,6 +190,7 @@ class PartySerializer(serializers.ModelSerializer):
             "state_code",
             "country",
             "credit_limit",
+            "min_order_value",
             "credit_term",
             "credit_term_name",
             "price_list",
@@ -230,6 +241,7 @@ _NOT_PARTY_FIELDS = (
     "name",
     "companies",
     "credit_limit",
+    "min_order_value",
     "salesman",
     "preferred_transporter",
     "credit_term_name",
@@ -282,6 +294,9 @@ def save_party(
     if "credit_limit" in data:
         ledger.credit_limit = data.pop("credit_limit") or 0
         own.append("credit_limit")
+    if "min_order_value" in data:
+        ledger.min_order_value = data.pop("min_order_value") or Decimal("0.00")
+        own.append("min_order_value")
     if "salesman" in data:
         from core.sales_people import check_pick
 

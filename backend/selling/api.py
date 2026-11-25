@@ -213,6 +213,9 @@ def _order_out(o: SalesOrder, lines: bool = True) -> dict:
         "number": o.number,
         "status": o.status,
         "status_label": o.get_status_display(),
+        # Why Submit held it, below the customer's Minimum Order Value (selling/hold.py).
+        "hold": o.hold or None,
+        "min_order_value": str(o.customer.min_order_value),
         "customer": o.customer_id,
         "customer_name": o.customer.name,
         "customer_gstin": party.gstin if party else "",
@@ -286,7 +289,7 @@ def _order_out(o: SalesOrder, lines: bool = True) -> dict:
         data["purchase_orders"], data["shortages"], data["stock_transfers"] = planned
         data["credit_warning"] = (
             credit_note(o.customer, o.total)
-            if o.status in (SalesOrder.DRAFT, *SalesOrder.OPEN)
+            if o.status in (SalesOrder.DRAFT, SalesOrder.ON_HOLD, *SalesOrder.OPEN)
             else ""
         )
     return data
@@ -715,11 +718,27 @@ def _submit(o: SalesOrder, user) -> None:
     if not o.delivery_date:
         raise ValidationError({"delivery_date": ["Give the date the customer wants the goods by."]})
     fiscal.assert_open(o.company, o.order_date)
-    o.number = numbering.next_document_number(o.company, "sales_order", o.order_date, o.branch)
-    o.status = SalesOrder.ORDERED
+    was_held = o.status == SalesOrder.ON_HOLD
+    if not o.number:  # a held order keeps the number it was given
+        o.number = numbering.next_document_number(o.company, "sales_order", o.order_date, o.branch)
     o.submitted_at = timezone.now()
     o.submitted_by = user
-    o.save()
+    # Below the customer's Minimum Order Value: On Hold (Sidharth, 2026-11-25).
+    from selling import hold
+
+    if hold.below_minimum(o):
+        hold.put_on_hold(o, user)
+        return
+    if was_held:
+        hold.end_hold(o, user, "Submitted again at or above the minimum")
+    else:
+        o.status = SalesOrder.ORDERED
+        o.save()
+    go_ahead(o, user)
+
+
+def go_ahead(o: SalesOrder, user) -> None:
+    """What an order sets going once it is Ordered."""
     # The stores' pick list, with bins and batches chosen (Sidharth, 2026-11-19).
     from selling import picking
 
@@ -764,7 +783,7 @@ def order_status(o: SalesOrder) -> None:
     o.save(update_fields=["status"])
 
 
-VIEWS = {"open", "draft", "done", "cancelled", "all"}
+VIEWS = {"open", "draft", "hold", "done", "cancelled", "all"}
 
 
 class OrderListView(APIView):
@@ -779,7 +798,9 @@ class OrderListView(APIView):
         rows = _orders(company)
         view = request.query_params.get("view", "open")
         if view == "open":
-            rows = rows.filter(status__in=[SalesOrder.DRAFT, *SalesOrder.OPEN])
+            rows = rows.filter(status__in=[SalesOrder.DRAFT, SalesOrder.ON_HOLD, *SalesOrder.OPEN])
+        elif view == "hold":
+            rows = rows.filter(status=SalesOrder.ON_HOLD)
         elif view == "draft":
             rows = rows.filter(status=SalesOrder.DRAFT)
         elif view == "done":
@@ -805,7 +826,8 @@ class OrderListView(APIView):
 
 
 class OrderDetailView(APIView):
-    """GET one order; PATCH a draft (with "submit": true, also submit it)."""
+    """GET one order; PATCH a draft or an order On Hold (with "submit": true,
+    also submit it)."""
 
     permission_classes = [Signed]
 
@@ -817,7 +839,7 @@ class OrderDetailView(APIView):
     def patch(self, request, pk: int):
         _check(request, CREATE)
         o = _order(request, pk, lock=True)
-        if o.status != SalesOrder.DRAFT:
+        if o.status not in (SalesOrder.DRAFT, SalesOrder.ON_HOLD):
             raise ValidationError(
                 {"detail": "A submitted order cannot be changed. Cancel it and make a new one."}
             )
@@ -839,7 +861,7 @@ class OrderSubmitView(APIView):
     def post(self, request, pk: int):
         _check(request, SUBMIT)
         o = _order(request, pk, lock=True)
-        if o.status != SalesOrder.DRAFT:
+        if o.status not in (SalesOrder.DRAFT, SalesOrder.ON_HOLD):
             raise ValidationError({"detail": "This order is already submitted."})
         if refused := attachments.refuse_submit(o, "sales_order"):
             return refused
@@ -877,7 +899,7 @@ class OrderCancelView(APIView):
         o = _order(request, pk, lock=True)
         if o.status == SalesOrder.CANCELLED:
             raise ValidationError({"detail": "This order is already cancelled."})
-        if o.status not in (SalesOrder.DRAFT, SalesOrder.ORDERED):
+        if o.status not in (SalesOrder.DRAFT, SalesOrder.ON_HOLD, SalesOrder.ORDERED):
             raise ValidationError(
                 {"detail": "Goods have gone out against this order; it cannot be cancelled."}
             )
@@ -1033,6 +1055,7 @@ class OrderSetupView(APIView):
                         "transporter": c.preferred_transporter_id,
                         "salesman": c.salesman_id,
                         "credit_limit": str(c.credit_limit),
+                        "min_order_value": str(c.min_order_value),
                         "outstanding": str(_money(owing.get(c.pk, ZERO))),
                         "terms_set": c.party.sales_terms_id
                         if c.party.sales_terms and c.party.sales_terms.is_active
