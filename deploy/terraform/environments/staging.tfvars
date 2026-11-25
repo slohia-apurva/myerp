@@ -9,3 +9,5 @@ fallback_tenant         = "apurvam"
 google_client_id = "255819525378-jv4ptq7n0cdr95rpvqtroauk1m57f4rk.apps.googleusercontent.com"
 # Read-only service account for Claude sessions to check entries (main.tf).
 claude_reader = true
+# Admin > Reset data and Trial Data (Sidharth, 2026-11-25). Never on prod.
+allow_data_reset = true
