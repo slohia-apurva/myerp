@@ -3898,7 +3898,9 @@ export const MANUAL: Chapter[] = [
             heading (and its image on the first page when "Printing" is ticked on
             the company), the "Supplier", "Bill To" and "Received At" boxes, the
             supplier's bill number and date, the posting date, the goods receipts
-            and purchase orders, each line with its GRN and PO under the item,
+            and purchase orders, each line with its description, GRN and PO under
+            the item and its quantity in the stock unit with the next unit up
+            under it ("30 pkt" over "3 ctn"),
             the charges, the tax summary, the totals with "Less TDS" and "Net
             Payable", the "Ledger Posting", the "Due Dates" and the signature. A
             draft prints with "DRAFT" across it. In the list, "Print" beside
@@ -4054,7 +4056,9 @@ export const MANUAL: Chapter[] = [
             supplier: the "Supplier" and "Issued By" boxes, the reason, their bill,
             our purchase invoice and return, the lines (a rate note shows the old
             and new rate under the item), the tax summary and the total. It has
-            no ledger posting, which is ours. "Download PDF" saves it; in the
+            no ledger posting, which is ours. When the company has a "Bank
+            Account for Payment" or UPI ID, the note ends with our "Payment
+            Details" and a QR code for the supplier to pay us back. "Download PDF" saves it; in the
             list, "Print" beside "Open" prints the selected note.
           </li>
         </ul>

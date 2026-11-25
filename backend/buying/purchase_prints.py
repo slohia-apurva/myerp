@@ -11,7 +11,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 
 from buying.models import DebitNote, PurchaseOrder, PurchaseReturn, TdsAdjustment
-from core import printout, words
+from core import payment, printout, words
 from core.api import Signed
 
 ZERO = Decimal("0")
@@ -42,7 +42,7 @@ def debit_note_data(note: DebitNote) -> dict:
     """The note as the supplier gets it: no ledger posting, which is ours."""
     from buying.api import _branch_address, _letterhead
     from buying.debit_notes import _fresh
-    from buying.invoice_pdf import _money, _supplier_box, order_description
+    from buying.invoice_pdf import _money, _supplier_box, in_stock_units, order_description
 
     inv = note.invoice
     data = _fresh(note)
@@ -104,6 +104,11 @@ def debit_note_data(note: DebitNote) -> dict:
             ("Net Debit", f"₹{_money(note.total - note.tds_total)}", True),
         ]
     data["after_total"] = after
+    data["lines"] = in_stock_units(data["lines"], note.lines.select_related("item__stock_unit"))
+    # The supplier pays us back: our bank account and a UPI QR for the net amount.
+    data["payment"] = payment.details(
+        note.company, Decimal(str(note.total)) - note.tds_total, note.number or ""
+    )
     data["amount_words"] = words.amount(note.total, "INR", "Indian Rupee")
     data["submitted_by_signature"] = _signature(note)
     data["terms"] = f"Notes:\n{note.notes}" if note.notes.strip() else ""
@@ -117,7 +122,7 @@ def return_data(r: PurchaseReturn) -> dict:
     """The challan that goes with the goods: valued at our receipt cost, no GST
     (a return is not a sale; the debit note carries the GST)."""
     from buying.api import _branch_address, _letterhead
-    from buying.invoice_pdf import _supplier_box, order_description
+    from buying.invoice_pdf import _supplier_box, in_stock_units, order_description
     from buying.returns import _fresh
 
     data = _fresh(r)
@@ -155,6 +160,7 @@ def return_data(r: PurchaseReturn) -> dict:
         }
         for x in data["lines"]
     ]
+    data["lines"] = in_stock_units(data["lines"], r.lines.select_related("item__stock_unit"))
     data["charges"] = []
     value = data["value"]
     data.update(
