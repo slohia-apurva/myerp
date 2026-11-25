@@ -559,3 +559,33 @@ def _secrets_key(settings):
     from cryptography.fernet import Fernet
 
     settings.MYERP_SECRETS_KEY = Fernet.generate_key().decode()
+
+
+def test_the_transporters_list_comes_a_page_at_a_time(owner, company, b2b, alpha):
+    """Large lists (Sidharth 2026-11-24): 25 a page, column searches and sorting on
+    the server, disabled ones only with "Show Inactive Transporters". The rows stay
+    lean: no "in use" checks or "Preferred By" count."""
+    from shipping.models import CourierAccount
+
+    with use_tenant(alpha):
+        CourierAccount.objects.bulk_create(
+            CourierAccount(
+                company_id=company, name=f"Carrier {n:02d}", city="Pune" if n < 5 else "Surat"
+            )
+            for n in range(1, 30)
+        )
+        CourierAccount.objects.filter(name="Carrier 01").update(is_active=False)
+    path = f"companies/{company}/courier-accounts/?page=1"
+    first = call(owner, "get", path).json()
+    assert (first["count"], first["pages"], len(first["results"])) == (29, 2, 25)
+    assert first["results"][0]["name"] == "Carrier 02"
+    assert first["results"][0]["lock"] is None and "preferred_by" not in first["results"][0]
+    assert call(owner, "get", f"{path}&city=pune").json()["count"] == 3
+    assert [a["name"] for a in call(owner, "get", f"{path}&courier=delhi").json()["results"]] == [
+        "Delhivery B2B"
+    ]
+    assert call(owner, "get", f"{path}&service=freight").json()["count"] == 1
+    off = call(owner, "get", f"companies/{company}/courier-accounts/?page=2&inactive=1").json()
+    assert off["results"][-1]["name"] == "Carrier 01"
+    by_name = call(owner, "get", f"{path}&sort=-name").json()
+    assert by_name["results"][0]["name"] == "Delhivery B2B"

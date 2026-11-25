@@ -19,7 +19,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import duplicates, exchange, secrets
+from core import duplicates, exchange, paging, secrets
 from core.api import CONTACT_FIELDS, EDIT, VIEW, Signed, _check
 from core.api import _company as _visible_company
 from core.companies import visible_companies
@@ -293,6 +293,51 @@ exchange.register(
 )
 
 
+# The Transporters screen's column searches and sorts (Sidharth 2026-11-24, large lists).
+ACCOUNT_SEARCHES = {
+    "name": ["name"],
+    "gstin": ["gstin"],
+    "code": ["account_code"],
+    "city": ["city"],
+    "phone": ["phone"],
+    "contact": ["contact_person"],
+    "email": ["email"],
+    "notes": ["notes"],
+}
+ACCOUNT_SORTS = {
+    "name": "name",
+    "gstin": "gstin",
+    "service": "service",
+    "code": "account_code",
+    "city": "city",
+    "phone": "phone",
+    "contact": "contact_person",
+    "email": "email",
+    "notes": "notes",
+}
+
+
+def _account_page(rows, params, carriers: dict[int, Carrier]) -> dict:
+    """?page=N: one page of 25 for the Transporters screen (core/paging.py). The
+    courier and service boxes match their shown names: couriers live in MyERP's
+    central list, so the names are matched there first."""
+    rows = paging.search(rows, params, ACCOUNT_SEARCHES)
+    for word in paging.words(params.get("courier", "")):
+        rows = rows.filter(
+            carrier_id__in=[pk for pk, c in carriers.items() if word.lower() in c.name.lower()]
+        )
+    for word in paging.words(params.get("service", "")):
+        rows = rows.filter(
+            service__in=[k for k, label in CourierAccount.SERVICES if word.lower() in label.lower()]
+        )
+    return paging.one_page(
+        rows,
+        params,
+        lambda shown: [_account_out(a, carriers, lean=True) for a in shown],
+        sorts=ACCOUNT_SORTS,
+    )
+
+
 class CourierAccountListView(APIView):
     permission_classes = [Signed]
 
@@ -301,10 +346,11 @@ class CourierAccountListView(APIView):
             raise PermissionDenied("Your role does not allow this.")
         company = _company(request, pk)
         carriers = _carriers()
+        rows = company.courier_accounts.all()
+        if "page" in request.query_params:
+            return Response(_account_page(rows, request.query_params, carriers))
         # Lean rows: the list shows name, GSTIN, courier, service and code only.
-        return Response(
-            [_account_out(a, carriers, lean=True) for a in company.courier_accounts.all()]
-        )
+        return Response([_account_out(a, carriers, lean=True) for a in rows])
 
     @tenant_atomic()
     def post(self, request, pk: int):
