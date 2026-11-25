@@ -85,7 +85,12 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
 
     Copies (an invoice's Original, Duplicate, Triplicate): `copy_label` prints
     under the title; `story_only` returns the pages' contents for `prefix` of
-    the next copy, which builds the one file."""
+    the next copy, which builds the one file.
+
+    A purchase invoice (buying.invoice_pdf) also gives "box_titles" for the
+    three address boxes, "after_total" rows under the grand total (TDS, Net
+    Payable), and "dues" and "posting" tables after the totals.
+    """
     sale = "customer_name" in o
     doc_title = o.get("doc_title") or ("SALES ORDER" if sale else "PURCHASE ORDER")
     party_name = o["customer_name"] if sale else o["supplier_name"]
@@ -376,13 +381,14 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
             card("Ship To", party_name, ab.get("ship_to"), ["gstin"]),
         ]
     else:
+        b1, b2, b3 = o.get("box_titles") or ("Supplier", "Bill To", "Ship To")
         boxes = [
-            card("Supplier", o["supplier_name"], ab.get("supplier"), k_sup),
+            card(b1, o["supplier_name"], ab.get("supplier"), k_sup),
             "",
-            card("Bill To", lh["name"], ab.get("bill_to"), k_bill, iec=lh.get("iec") or ""),
+            card(b2, lh["name"], ab.get("bill_to"), k_bill, iec=lh.get("iec") or ""),
             "",
             card(
-                "Ship To",
+                b3,
                 (ab.get("ship_to") or {}).get("name") or lh["name"],
                 ab.get("ship_to"),
                 k_ship,
@@ -500,7 +506,8 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
     data = [[Paragraph(t(h), head_r if i in right_cols else head) for i, h in enumerate(heads)]]
     styles = []
     for i, x in enumerate(lines):
-        text = f"<b>{t(x['item_name'])} · {t(x['item_number'])}</b>"
+        number = f" · {t(x['item_number'])}" if x.get("item_number") else ""
+        text = f"<b>{t(x['item_name'])}{number}</b>"
         if code := x.get("supplier_code") or x.get("customer_code"):
             text += f"<br/><font size=7 color='#3E4C59'>Your code {t(code)}</font>"
         if x.get("description"):
@@ -545,6 +552,8 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
         ]
 
         def basis(x) -> str:
+            if x.get("basis_label"):
+                return x["basis_label"]
             if x["basis"] == "fixed":
                 return "Fixed"
             if x["basis"] == "percent":
@@ -701,12 +710,25 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
             Paragraph(t(f"{sym}{money(o['total'])}"), style("gr", 10.5, 13, bold, DEEP, "right")),
         ]
     )
+    after = len(tdata)
+    for k, v, b in o.get("after_total") or []:
+        tdata.append(
+            [
+                Paragraph(t(k), style("ak", 9, 12, bold) if b else body),
+                Paragraph(t(v), style("av", 9, 12, bold, DEEP, "right") if b else body_r),
+            ]
+        )
     totals = Table(tdata, colWidths=[86, 94])
     totals.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, -1), c(CARD)),
                 ("LINEABOVE", (0, gi), (-1, gi), 1.5, c(LEAF)),
+                *(
+                    [("LINEABOVE", (0, after), (-1, after), 0.6, c(CARD_LINE))]
+                    if len(tdata) > after
+                    else []
+                ),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                 ("TOPPADDING", (0, 0), (-1, -1), 3),
@@ -731,6 +753,74 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
 
     # --- import documents, terms and signature ---------------------------------
     story_tail = [KeepTogether(sums)]
+    dues_parts: list = []
+    if o.get("dues"):
+        dh = style("dh", 7.5, colour=MUTED)
+        dhr = style("dhr", 7.5, colour=MUTED, align="right")
+        ddata = [[Paragraph("Due Date", dh), Paragraph(f"Amount {sym}", dhr)]]
+        ddata += [
+            [Paragraph(t(_dmy(d["due_date"])), body), Paragraph(money(d["amount"]), body_r)]
+            for d in o["dues"]
+        ]
+        dt = Table(ddata, colWidths=[70, 80], hAlign="LEFT")
+        dt.setStyle(
+            TableStyle(
+                [
+                    ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
+        )
+        dues_parts = [Paragraph("DUE DATES", lab), dt, Spacer(1, 8)]
+    if o.get("posting"):
+        ph = style("ph", 7.5, colour=MUTED)
+        phr = style("phr", 7.5, colour=MUTED, align="right")
+        pdata = [
+            [
+                Paragraph("Ledger", ph),
+                Paragraph("For", ph),
+                Paragraph(f"Debit {sym}", phr),
+                Paragraph(f"Credit {sym}", phr),
+            ]
+        ]
+        dr = cr = Decimal(0)
+        for e in o["posting"]:
+            d, k = Decimal(e["debit"] or 0), Decimal(e["credit"] or 0)
+            dr, cr = dr + d, cr + k
+            pdata.append(
+                [
+                    Paragraph(t(e["ledger"]), body),
+                    Paragraph(t(e["why"]), style("why", 7, 9.5, colour=MUTED)),
+                    Paragraph(money(d) if d else "", body_r),
+                    Paragraph(money(k) if k else "", body_r),
+                ]
+            )
+        n = len(pdata)
+        pdata.append(
+            [
+                "",
+                Paragraph("Total", bold_s),
+                Paragraph(money(dr), bold_r),
+                Paragraph(money(cr), bold_r),
+            ]
+        )
+        pt = Table(pdata, colWidths=[width * 0.3, None, 76, 76], hAlign="LEFT")
+        pt.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.6, c(CARD_LINE)),
+                    ("LINEABOVE", (1, n), (-1, n), 0.8, c(DEEP)),
+                ]
+            )
+        )
+        story_tail += [Spacer(1, 14), KeepTogether([Paragraph("LEDGER POSTING", lab), pt])]
     docs = imp.get("documents_labels") or []
     if is_import and (docs or imp.get("packing")):
         dl = []
@@ -812,7 +902,7 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
         )
     )
     sign.append(line)
-    end = Table([[terms_parts or "", sign]], colWidths=[width - 216, 216])
+    end = Table([[[*dues_parts, *terms_parts] or "", sign]], colWidths=[width - 216, 216])
     end.setStyle(
         TableStyle(
             [
