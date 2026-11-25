@@ -33,8 +33,9 @@ QTY = {"max_digits": 18, "decimal_places": 6}
 
 
 class SalesOrder(models.Model):
-    DRAFT, ORDERED, PART_DELIVERED, DELIVERED, CLOSED, CANCELLED = (
+    DRAFT, ON_HOLD, ORDERED, PART_DELIVERED, DELIVERED, CLOSED, CANCELLED = (
         "draft",
+        "on_hold",
         "ordered",
         "part_delivered",
         "delivered",
@@ -43,6 +44,7 @@ class SalesOrder(models.Model):
     )
     STATUSES = [
         (DRAFT, "Draft"),
+        (ON_HOLD, "On Hold"),
         (ORDERED, "Ordered"),
         (PART_DELIVERED, "Part delivered"),
         (DELIVERED, "Delivered"),
@@ -113,6 +115,11 @@ class SalesOrder(models.Model):
     # {item, item_name, expected, short, unit_name, action: ok|po|make|transfer|
     # no_supplier|failed, order, message} (buying/planning.py).
     shortages = models.JSONField(default=list, blank=True)
+    # Why Submit put the order On Hold, below the customer's Minimum Order Value
+    # (Sidharth, 2026-11-25, previews mockups/sales/20a-20c): {value, minimum,
+    # at, mailed_to: [addresses], mail_error, released_by, released_at, reason}.
+    # Kept after the hold ends, for the record. Empty: never held.
+    hold = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-order_date", "-id"]

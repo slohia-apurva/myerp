@@ -730,7 +730,7 @@ function LedgerForm(props: {
       currency: foreign ? currency : null,
       ...(isParty
         ? {
-            party: { ...party, item_prices: undefined, credit_limit: party.credit_limit || "0" },
+            party: { ...party, item_prices: undefined, credit_limit: party.credit_limit || "0", min_order_value: party.min_order_value || "0" },
             also_in: alsoIn,
             ...(partyId ? { party_id: partyId } : {}),
           }
@@ -1049,7 +1049,7 @@ function LedgerForm(props: {
                     // Its ledger on the other side here already has the plain name.
                     const here = picked.companies?.some((c) => c.id === props.companyId);
                     setName(here ? `${picked.name} (${side === "supplier" ? "Supplier" : "Customer"})` : (picked.name ?? ""));
-                    setParty({ ...picked, credit_limit: "", salesman: null, preferred_transporter: null });
+                    setParty({ ...picked, credit_limit: "", min_order_value: "", salesman: null, preferred_transporter: null });
                   } else setParty(blankParty(props.companyState));
                 }}
               />

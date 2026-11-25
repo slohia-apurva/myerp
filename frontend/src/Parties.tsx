@@ -66,6 +66,8 @@ export type Party = {
   state_code: string;
   country: string;
   credit_limit: string;
+  /** A customer's minimum order before GST, per company; a sales order below it is put On Hold. */
+  min_order_value?: string;
   credit_term: number | null;
   credit_term_name?: string;
   /** A customer's Selling price list; its own item prices (below) win over it. */
@@ -118,6 +120,7 @@ export const blankParty = (stateCode: string): Party => ({
   state_code: stateCode,
   country: "India",
   credit_limit: "",
+  min_order_value: "",
   credit_term: null,
   salesman: null,
   preferred_transporter: null,
@@ -417,6 +420,18 @@ export function PartyFields({
             onChange={(e) => set({ credit_limit: e.target.value })}
           />
         </label>
+        {!supplier && (
+          <label>
+            Minimum Order Value (₹, before GST)
+            <input
+              className="num"
+              inputMode="decimal"
+              value={Number(p.min_order_value) ? p.min_order_value : ""}
+              onChange={(e) => set({ min_order_value: e.target.value })}
+            />
+            <span className="small">Blank = no minimum. A Sales Order below it is put On Hold.</span>
+          </label>
+        )}
         <label>
           Credit terms
           <Combobox
@@ -870,6 +885,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
   ];
   const creditRows: [string, string][] = [
     ["Credit Limit", Number(p.credit_limit) ? `₹ ${money(p.credit_limit)}` : "No limit"],
+    ...(supplier ? [] : ([["Minimum Order Value", Number(p.min_order_value) ? `₹ ${money(p.min_order_value ?? 0)}` : "No minimum"]] as [string, string][])),
     ["Credit Terms", p.credit_term_name ?? ""],
     ["Price List", (supplier ? p.buying_price_list_name : p.price_list_name) ?? ""],
     ["Terms and Conditions", (supplier ? p.purchase_terms_name : p.sales_terms_name) || "Company default"],

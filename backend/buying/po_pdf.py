@@ -236,6 +236,9 @@ def order_pdf(o: dict, copy_label: str = "", prefix: list | None = None, story_o
     ]
     if copy_label:
         title_cell.append(Paragraph(t(copy_label), style("cp", 8, 11, bold, LEAF, "right")))
+    if sale and o.get("status") == "on_hold":
+        # Below the customer's Minimum Order Value (Sidharth, 2026-11-25).
+        title_cell.insert(1, Paragraph("ON HOLD", style("hold", 12, 15, bold, "#B42318", "right")))
     if o.get("signed_qr"):
         from reportlab.graphics.barcode.qr import QrCodeWidget
         from reportlab.graphics.shapes import Drawing

@@ -86,13 +86,16 @@ class OrderMailView(APIView):
             raise ValidationError({"detail": "Submit the order before mailing it."})
         contacts = _contacts(o)
         acct = mail.account_of(o.company)
+        held = o.status == SalesOrder.ON_HOLD
+        if held:  # the hold mail, to send by hand (selling/hold.py)
+            from selling import hold
         return Response(
             {
                 "order_number": o.number,
                 "party_name": o.customer.name,
                 "mail_ready": bool(acct and acct.password),
                 "from": acct.address if acct else "",
-                "to": _to(o),
+                "to": hold.recipients(o) if held else _to(o),
                 "to_options": [
                     {"name": c.name, "email": c.email, "of": "Customer"} for c in contacts
                 ],
@@ -103,8 +106,8 @@ class OrderMailView(APIView):
                     {"name": u.display_name, "email": u.email, "of": "Our team"} for u in _people(o)
                 ]
                 + [{"name": c.name, "email": c.email, "of": "Customer"} for c in contacts],
-                "subject": f"Order Confirmation No : {o.number}",
-                "message": _message(o),
+                "subject": hold.subject(o) if held else f"Order Confirmation No : {o.number}",
+                "message": hold.message(o) if held else _message(o),
                 "signature": _signature(request.user, o),
                 "attachment": order_file(o)[0],
             }

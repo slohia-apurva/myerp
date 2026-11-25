@@ -293,6 +293,7 @@ class LedgerSerializer(serializers.ModelSerializer):
         data = super().to_representation(ledger)
         if data.get("party") is not None:
             data["party"]["credit_limit"] = str(ledger.credit_limit)
+            data["party"]["min_order_value"] = str(ledger.min_order_value)
             # Each company's own salesman or purchaser.
             data["party"]["salesman"] = ledger.salesman_id
             data["party"]["salesman_name"] = ledger.salesman.name if ledger.salesman_id else ""

@@ -2302,6 +2302,10 @@ export const MANUAL: Chapter[] = [
               "This company's limit for the party. Leave blank for no limit.",
             ],
             [
+              "Minimum Order Value",
+              'Customers only: this company\'s smallest order for the customer, in rupees before GST (freight and other charges do not count). Leave blank for no minimum. A sales order below it is put "On Hold" on Submit; see "Sales orders".',
+            ],
+            [
               "Credit terms",
               'When payment is due, picked from the "Credit terms" list shared by the group, such as 30 days or 50% advance and 50% on delivery. The words under the box spell out the parts.',
             ],
@@ -4244,6 +4248,37 @@ export const MANUAL: Chapter[] = [
           When what the customer owes plus this order is more than its credit
           limit, a note says so at the top of the form and of the order. It is
           a warning only: the order can still be saved and submitted.
+        </p>
+        <h3>Minimum order value and "On Hold"</h3>
+        <p>
+          A customer may have a "Minimum Order Value" (in its "GST And Credit"
+          section, per company). The words under the Customer box show it, and
+          while the items come to less, before GST, the "Totals" panel shows
+          "Minimum Order" in red with a note. Freight and other charges do not
+          count towards it.
+        </p>
+        <p>
+          On "Submit" such an order still gets its number, but its status is
+          "On Hold": no pick list or purchase orders are made, and the Stock
+          Check leaves it out. At once a mail goes, from the company's mailbox,
+          to the contacts ticked to get the order by mail (else the customer's
+          main contact) and to the salesman (the email in "People"), with a
+          copy to you and the order's PDF (printed "ON HOLD"), saying the
+          order is below the minimum and asking to increase it. The salesman
+          and the Sales people get a bell notice. If the mailbox is not set up,
+          the order says "Not mailed" and why; "Email Customer" then opens the
+          same mail to send by hand.
+        </p>
+        <p>
+          The yellow note on the order says what was short and who was mailed.
+          The list shows such orders under "Open" and "On Hold". The hold ends
+          in one of two ways: "Edit Order" to add to the order and "Submit"
+          again (once the items reach the minimum it goes ahead as usual, keeping
+          its number; still short, it stays on hold and is mailed again), or
+          "Release Hold", for people whose role may cancel sales orders, which
+          accepts the order as it is. Either way the pick list and purchase
+          orders are then made, and the Activity keeps a note. "Cancel order"
+          also works on an order on hold.
         </p>
         <h3>After Submit</h3>
         <p>

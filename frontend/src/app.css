@@ -4499,3 +4499,24 @@ th .sort-head:focus-visible {
 form.master-form > .side-main {
   font-size: 14px;
 }
+
+/* Totals: rows after the total, such as the customer's Minimum Order (Sidharth, 2026-11-25). */
+.totals-more {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.side-row span.error:last-child {
+  color: var(--red);
+}
+/* A sales order On Hold below the customer's minimum: one paragraph per fact. */
+.hold-note p {
+  margin: 0 0 6px;
+}
+.hold-note p:last-child {
+  margin-bottom: 0;
+}

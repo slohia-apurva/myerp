@@ -559,6 +559,11 @@ class Ledger(models.Model):
     credit_limit = models.DecimalField(
         max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
     )  # 0 = no limit
+    # A customer's Minimum Order Value, before GST (Sidharth, 2026-11-25): a sales
+    # order whose items come to less is put On Hold on Submit. 0 = no minimum.
+    min_order_value = models.DecimalField(
+        max_digits=18, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(0)]
+    )
     # Each company has its own salesman (customers) or purchaser (suppliers),
     # from the Salesmen and Purchasers list.
     salesman = models.ForeignKey(
