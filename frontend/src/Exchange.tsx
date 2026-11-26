@@ -373,9 +373,7 @@ function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
-/** The import box: pick a file, "Check file", then "Import". Migration Tools
- * passes `source` (another program's export, read as it is) and its own `help`. */
-export function ImportForm(props: {
+type ImportProps = {
   master: string;
   noun: string;
   company?: number;
@@ -385,7 +383,300 @@ export function ImportForm(props: {
   help?: ReactNode;
   onImported: () => void;
   onClose: () => void;
-}) {
+};
+
+/** The import box: pick a file, "Check file", then "Import". A file from
+ * MyERP goes in steps with a progress bar (SteppedImport); Migration Tools
+ * passes `source` (another program's export, read as it is) and its own `help`. */
+export function ImportForm(props: ImportProps) {
+  return props.source ? <OneGoImport {...props} /> : <SteppedImport {...props} />;
+}
+
+type Progress = {
+  job: number;
+  rows: number;
+  compared: number;
+  new: number;
+  changed: number;
+  same: number;
+  results: RowResult[];
+  total: number;
+  done: number;
+  saved_new: number;
+  saved_changed: number;
+  errors: Outcome["errors"];
+};
+
+type Started = { job: number | null; errors: Outcome["errors"]; sheets: { title: string; rows: number }[] };
+
+/** "about 2 min left" from how long the done part took. */
+function timeLeft(started: number, done: number, total: number): string {
+  if (done === 0 || done >= total) return "";
+  const left = ((Date.now() - started) / done) * (total - done) / 1000;
+  if (left < 60) return `about ${Math.max(5, Math.round(left / 5) * 5)} s left`;
+  return `about ${Math.round(left / 60)} min left`;
+}
+
+function took(started: number): string {
+  const s = Math.round((Date.now() - started) / 1000);
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+function Bar(props: { done: number; total: number; label: string; started: number }) {
+  const share = props.total ? Math.min(100, (100 * props.done) / props.total) : 0;
+  return (
+    <>
+      <div className="progress" role="progressbar" aria-valuenow={Math.round(share)} aria-valuemin={0} aria-valuemax={100}>
+        <i style={{ width: `${share}%` }} />
+      </div>
+      <div className="progress-text">
+        <span>{props.label}</span>
+        <span>{timeLeft(props.started, props.done, props.total)}</span>
+      </div>
+    </>
+  );
+}
+
+function ProblemTable({ errors }: { errors: Outcome["errors"] }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Sheet</th>
+          <th>Row</th>
+          <th>Problem</th>
+        </tr>
+      </thead>
+      <tbody>
+        {errors.map((e) => (
+          <tr key={`${e.sheet}-${e.row}`}>
+            <td>{e.sheet}</td>
+            <td>{e.row.toLocaleString("en-IN")}</td>
+            <td>
+              {e.messages.map((m) => (
+                <div key={m}>{m}</div>
+              ))}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** Sidharth, 2026-11-26 (preview 2-import-check-structure): "Check file" reads the
+ * file, checks only its layout and compares it with MyERP (what changes); "Import"
+ * checks each changed row the way the form does and saves it, a step at a time,
+ * with a progress bar. A problem stops the import; the steps before stay saved. */
+function SteppedImport(props: ImportProps) {
+  const n = (x: number) => x.toLocaleString("en-IN");
+  const [file, setFile] = useState<File | null>(null);
+  const [stage, setStage] = useState<"pick" | "reading" | "comparing" | "ready" | "saving" | "stopped" | "done">("pick");
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [sheets, setSheets] = useState<Started["sheets"]>([]);
+  const [errors, setErrors] = useState<Outcome["errors"]>([]);
+  const [error, setError] = useState("");
+  const [started, setStarted] = useState(0);
+  const stop = useRef(false);
+  const query = props.company ? `?company=${props.company}` : "";
+  const base = `v1/exchange/${props.master}/import`;
+
+  const check = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!file) return;
+    stop.current = false;
+    setError("");
+    setErrors([]);
+    setProgress(null);
+    setStage("reading");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      if (props.company) form.append("company", String(props.company));
+      const begun = await upload<Started>(`${base}/start/${query}`, form);
+      setSheets(begun.sheets ?? []);
+      if (!begun.job) {
+        setErrors(begun.errors);
+        setStage("pick");
+        return;
+      }
+      setStage("comparing");
+      setStarted(Date.now());
+      let p: Progress;
+      do {
+        if (stop.current) {
+          setStage("pick");
+          return;
+        }
+        p = await api<Progress>(`${base}/${begun.job}/compare/${query}`, {});
+        setProgress(p);
+      } while (p.compared < p.rows);
+      setStage("ready");
+    } catch (err) {
+      setError((err as Error).message);
+      setStage("pick");
+    }
+  };
+
+  const save = async () => {
+    if (!progress) return;
+    stop.current = false;
+    setError("");
+    setErrors([]);
+    setStage("saving");
+    setStarted(Date.now());
+    try {
+      let p = progress;
+      while (p.done < p.total) {
+        if (stop.current) {
+          setStage("stopped");
+          return;
+        }
+        p = await api<Progress>(`${base}/${p.job}/save/${query}`, {});
+        setProgress(p);
+        if (p.errors.length) {
+          setErrors(p.errors);
+          setStage("stopped");
+          if (p.done) props.onImported();
+          return;
+        }
+      }
+      setStage("done");
+      props.onImported();
+    } catch (err) {
+      setError((err as Error).message);
+      setStage("stopped");
+    }
+  };
+
+  const busy = stage === "reading" || stage === "comparing" || stage === "saving";
+  const more = progress ? progress.total - progress.results.length : 0;
+  return (
+    <form className="card" onSubmit={check}>
+      <h4>{props.title ?? `Import ${props.noun} from a file`}</h4>
+      <Section title="File">
+        {props.help ? (
+          <p className="small">{props.help}</p>
+        ) : (
+          <p className="small">
+            Start from "Export to Excel", change what you need in Excel, and import the same file. MyERP finds each
+            row's record by its ID (or, for items, customers, suppliers and BOMs, by its code when the ID is empty)
+            and changes it; a row with neither is a new one, as in the{" "}
+            <a href={props.template} download>
+              blank template
+            </a>
+            . Records not in the file are left as they are, and so are rows you did not change. Excel (.xlsx) or
+            CSV. "Check file" checks the layout and shows what will change; "Import" checks each changed row the
+            way the form does and saves it, with a progress bar.
+          </p>
+        )}
+        <label>
+          File to import
+          <input
+            type="file"
+            required
+            disabled={busy}
+            accept=".xlsx,.csv"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setProgress(null);
+              setErrors([]);
+              setStage("pick");
+            }}
+          />
+        </label>
+      </Section>
+      {stage === "reading" && (
+        <Section title="Checking the file">
+          <p>Reading the file…</p>
+        </Section>
+      )}
+      {stage === "comparing" && progress === null && (
+        <Section title="Checking the file">
+          <p>✓ Sheets and columns are right. Comparing with MyERP…</p>
+        </Section>
+      )}
+      {stage === "comparing" && progress && (
+        <Section title="Checking the file">
+          <p>✓ Sheets and columns are right: {sheets.map((s) => `${n(s.rows)} ${s.title.toLowerCase()}`).join(", ")}</p>
+          <Bar done={progress.compared} total={progress.rows} started={started} label={`Comparing with MyERP: ${n(progress.compared)} of ${n(progress.rows)} rows`} />
+          <p className="small">Keep this tab open. Other tabs can be used meanwhile.</p>
+        </Section>
+      )}
+      {stage === "pick" && errors.length > 0 && (
+        <Section title="Fix these rows, then check again">
+          <ProblemTable errors={errors} />
+        </Section>
+      )}
+      {stage === "ready" && progress && (
+        <Section title={progress.total ? "Ready to import" : "Nothing to import"}>
+          <p>✓ Sheets and columns are right: {sheets.map((s) => `${n(s.rows)} ${s.title.toLowerCase()}`).join(", ")}</p>
+          <p>
+            {n(progress.rows)} rows: {n(progress.new)} new, {n(progress.changed)} changed, {n(progress.same)} with no change.
+          </p>
+          <WhatChanges results={progress.results} />
+          {more > 0 && <p className="small">… {n(more)} more</p>}
+          <p className="small">
+            {progress.total
+              ? 'Nothing is saved yet. Each row is checked the way the form does when you press "Import".'
+              : "Every row is as it is in MyERP."}
+          </p>
+        </Section>
+      )}
+      {stage === "saving" && progress && (
+        <Section title="Importing">
+          <Bar done={progress.done} total={progress.total} started={started} label={`${n(progress.done)} of ${n(progress.total)} ${props.noun} checked and saved · 0 problems`} />
+          <p className="small">Keep this tab open. Other tabs can be used meanwhile.</p>
+        </Section>
+      )}
+      {stage === "stopped" && progress && (
+        <Section title={errors.length ? "Stopped at a problem" : "Stopped"}>
+          <p>
+            {n(progress.done)} {props.noun} saved.{" "}
+            {errors.length
+              ? "The step with these rows has problems and was not saved; the rows after it were not tried."
+              : "The rest were not tried."}
+          </p>
+          {errors.length > 0 && <ProblemTable errors={errors} />}
+          <p className="small">
+            Fix the rows in your file and import the same file again: the {props.noun} already saved now match MyERP and
+            are passed over.
+          </p>
+        </Section>
+      )}
+      {stage === "done" && progress && (
+        <Section title="Imported">
+          <p>
+            ✓ {n(progress.saved_new)} new, {n(progress.saved_changed)} changed · {n(progress.same)} with no change · took {took(started)}
+          </p>
+        </Section>
+      )}
+      {error && <p className="error">{error}</p>}
+      <div className="buttons">
+        {stage === "ready" && progress && progress.total > 0 && (
+          <button type="button" onClick={save}>
+            Import
+          </button>
+        )}
+        {(stage === "pick" || stage === "reading") && (
+          <button disabled={busy || !file}>Check file</button>
+        )}
+        {(stage === "comparing" || stage === "saving") && (
+          <button type="button" className="link" onClick={() => (stop.current = true)}>
+            Stop
+          </button>
+        )}
+        {!busy && (
+          <button type="button" className="link" onClick={props.onClose}>
+            {stage === "done" ? "Close" : "Cancel"}
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function OneGoImport(props: ImportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState(false);

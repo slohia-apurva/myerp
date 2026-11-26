@@ -157,6 +157,21 @@ urlpatterns = [
     path("exchange/<str:key>/", exchange.ExportView.as_view(), name="exchange-export"),
     path("exchange/<str:key>/import/", exchange.ImportView.as_view(), name="exchange-import"),
     path(
+        "exchange/<str:key>/import/start/",
+        exchange.ImportStartView.as_view(),
+        name="exchange-import-start",
+    ),
+    path(
+        "exchange/<str:key>/import/<int:job_id>/<str:step>/",
+        exchange.ImportStepView.as_view(),
+        name="exchange-import-step",
+    ),
+    path(
+        "exchange/<str:key>/import/<int:job_id>/",
+        exchange.ImportStepView.as_view(),
+        name="exchange-import-job",
+    ),
+    path(
         "companies/<int:pk>/fiscal-years/",
         fiscal.FiscalYearListView.as_view(),
         name="fiscal-years",

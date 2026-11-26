@@ -1752,3 +1752,31 @@ class MailAccount(models.Model):
 
     def __str__(self) -> str:
         return self.address
+
+
+class ImportJob(models.Model):
+    """A file being imported in steps (Sidharth, 2026-11-26: big files with a
+    progress bar). "Check file" reads it once and keeps its sheets here; the
+    screen then asks for one step at a time: compare a slice of rows with
+    MyERP, then check and save the rows that change, a few at a time, so no
+    request runs long however big the file. One per person at a time."""
+
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="+")
+    master = models.CharField(max_length=40)
+    company = models.ForeignKey(
+        Company, null=True, blank=True, on_delete=models.CASCADE, related_name="+"
+    )
+    file_name = models.CharField(max_length=200, blank=True)
+    # The file's sheets as read, gzip-compressed JSON: [[title, rows], ...].
+    tables = models.BinaryField()
+    rows = models.PositiveIntegerField(default=0)  # rows on the main sheet
+    compared = models.PositiveIntegerField(default=0)  # rows compared so far
+    # Row numbers (as Excel shows them) that add or change a record, in order.
+    todo = models.JSONField(default=list)
+    done = models.PositiveIntegerField(default=0)  # how many of `todo` are saved
+    # new / changed / same counts and the first changes, for the screen.
+    summary = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.master} import {self.pk}"

@@ -24,7 +24,9 @@ from __future__ import annotations
 
 import csv
 import datetime
+import gzip
 import io
+import json
 import re
 from collections.abc import Callable, Iterable
 from contextvars import ContextVar
@@ -478,15 +480,18 @@ class Table:
     rows: list[list[str]]
 
 
-def _tables_out(master: Master, ctx: Context, blank: bool) -> list[Table]:
+def _tables_out(master: Master, ctx: Context, blank: bool, only: Q | None = None) -> list[Table]:
     """Every sheet of the master as rows of text: the main sheet starts with
-    the ID, child sheets with the record they belong to."""
+    the ID, child sheets with the record they belong to. `only` keeps just
+    those records (an import comparing its rows with them)."""
     _names.clear()
     _running.set(ctx)
     sheets = master.sheets()
     data = []
     if not blank:
         records = master.queryset(ctx)
+        if only is not None:
+            records = records.filter(only)
         # "list": the serializers skip their per-record "in use" checks, which an
         # export never shows (12,000 items took over 300 s, 2026-11-24).
         data = master.serializer(
@@ -526,35 +531,53 @@ def _tables_out(master: Master, ctx: Context, blank: bool) -> list[Table]:
 
 def _xlsx(master: Master, tables: list[Table]) -> bytes:
     from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
     from openpyxl.styles import Font, PatternFill
     from openpyxl.utils import get_column_letter
 
-    wb = Workbook()
+    # Written row by row ("write only"): about twice as fast for 12,000 items.
+    wb = Workbook(write_only=True)
     bold, fill = Font(bold=True), PatternFill("solid", fgColor="E3F2E8")
-    for n, table in enumerate(tables):
-        ws = wb.active if n == 0 else wb.create_sheet()
-        ws.title = table.sheet.title[:31]
-        ws.append(table.headers)
-        for cell in ws[1]:
+
+    def heading(ws, cells):
+        out = []
+        for text in cells:
+            cell = WriteOnlyCell(ws, value=text)
             cell.font, cell.fill = bold, fill
-        for row in table.rows:
-            pairs = zip(table.kinds, row, strict=True)
-            ws.append([_number_cell(v) if k == "number" else v for k, v in pairs])
+            out.append(cell)
+        return out
+
+    for table in tables:
+        ws = wb.create_sheet(table.sheet.title[:31])
+        texts = []
         for i, header in enumerate(table.headers, start=1):
             width = max([len(header)] + [len(r[i - 1]) for r in table.rows[:500]]) + 2
             letter = get_column_letter(i)
             ws.column_dimensions[letter].width = min(max(width, 8), 50)
             # Keep codes such as HSN 0401 or PIN 011001 as text, not numbers.
-            if table.kinds[i - 1] != "number":
+            text = table.kinds[i - 1] != "number"
+            if text:
                 ws.column_dimensions[letter].number_format = "@"
-                for cell in ws[letter][1:]:
-                    cell.number_format = "@"
+            texts.append(text)
         ws.freeze_panes = "B2"
+        ws.append(heading(ws, table.headers))
+        for row in table.rows:
+            cells = []
+            for text, value in zip(texts, row, strict=True):
+                if not text:
+                    cells.append(_number_cell(value))
+                elif value:
+                    cell = WriteOnlyCell(ws, value=value)
+                    cell.number_format = "@"
+                    cells.append(cell)
+                else:
+                    cells.append(None)
+            ws.append(cells)
 
     help_ws = wb.create_sheet(HELP_SHEET)
-    help_ws.append(["Sheet", "Column", "Must fill", "What to write"])
-    for cell in help_ws[1]:
-        cell.font, cell.fill = bold, fill
+    for letter, width in zip("ABCD", (22, 28, 10, 90), strict=True):
+        help_ws.column_dimensions[letter].width = width
+    help_ws.append(heading(help_ws, ["Sheet", "Column", "Must fill", "What to write"]))
     main = tables[0].sheet
     help_ws.append(
         [
@@ -583,8 +606,6 @@ def _xlsx(master: Master, tables: list[Table]) -> bytes:
             help_ws.append(
                 [sheet.title, c.label, "Yes" if c.required else "No", _hint(c, master, sheet)]
             )
-    for letter, width in zip("ABCD", (22, 28, 10, 90), strict=True):
-        help_ws.column_dimensions[letter].width = width
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
@@ -751,14 +772,23 @@ def _body(rows: list[list[str]]) -> tuple[list[str], list[tuple[int, list[str]]]
     return rows[start], body
 
 
-def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bool = True) -> dict:
+def run_import(
+    master: Master,
+    ctx: Context,
+    table,
+    commit: bool,
+    keep_codes: bool = True,
+    only_rows: set[int] | None = None,
+) -> dict:
     """Check (and, when `commit`, save) every row. Nothing is saved unless all
     rows pass. `table` is the first sheet's rows, or every sheet as given by
     `read_tables`. A row changes the record with its ID or, when the ID is
     empty, with its code (the master's `codes`); a row with neither adds one.
     With `keep_codes` (always, except for another program's file, which
     gives codes on purpose) a row may not change a record's code. Returns a
-    summary with the problems row by row, and what each row changes."""
+    summary with the problems row by row, and what each row changes.
+    `only_rows`: one step of a stepped import, just those rows of the main
+    sheet (the file's layout was checked when it was read)."""
     _names.clear()
     _running.set(ctx)
     tables = table if table and isinstance(table[0], tuple) else [("", table)]
@@ -772,9 +802,15 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
         raise ParseError("The first row must hold the column names, as in the exported file.")
     if len(body) > MAX_FILE_ROWS:
         raise ParseError(f"Import at most {MAX_FILE_ROWS} rows at a time.")
+    if only_rows is not None:
+        body = [(n, row) for n, row in body if n in only_rows]
     code_at = _code_columns(master, main, header)
     # Rows exactly as MyERP would export them now: nothing to check or save.
-    same = _unchanged(master, ctx, tables, header, body, id_at, at, code_at) if keep_codes else {}
+    same, known = (
+        _unchanged(master, ctx, tables, header, body, id_at, at, code_at)
+        if keep_codes
+        else ({}, {})
+    )
     if len(body) - len(same) > MAX_ROWS:
         raise ParseError(
             f"Add or change at most {MAX_ROWS} {master.noun}s at a time; this file adds or "
@@ -788,7 +824,10 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
 
     # Rows of the child sheets, by the record they belong to.
     by_title = {title.strip().lower(): rows for title, rows in tables[1:]}
-    children: list[tuple[Sheet, dict[str, list[tuple[int, dict]]]]] = []
+    # Lines are read into values only for the records that are saved: the lines
+    # of rows left as exported are never needed (and reading each unit or rate
+    # name takes a query).
+    children: list[tuple[Sheet, dict[str, list[tuple[int, list[str]]]], dict]] = []
     for sheet in sheets[1:]:
         rows = by_title.get(sheet.title.lower())
         if rows is None:
@@ -799,18 +838,20 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
             raise ParseError(
                 f"The {sheet.title} sheet must start with a {sheet.link_label} column."
             )
-        grouped: dict[str, list[tuple[int, dict]]] = {}
+        grouped: dict[str, list[tuple[int, list[str]]]] = {}
         for n, row in child_body:
             owner = row[link_at].strip().lower() if link_at < len(row) else ""
-            data, bad, _ = _cells(sheet.columns, child_at, row)
             if not owner:
-                bad.insert(0, f"{sheet.link_label}: say which {master.noun} this row belongs to")
-            if bad:
-                problem(sheet, n, bad)
+                if only_rows is None:
+                    problem(
+                        sheet,
+                        n,
+                        [f"{sheet.link_label}: say which {master.noun} this row belongs to"],
+                    )
                 continue
-            grouped.setdefault(owner, []).append((n, data))
-        children.append((sheet, grouped))
-    unclaimed = {(s.field, k) for s, g in children for k in g}
+            grouped.setdefault(owner, []).append((n, row))
+        children.append((sheet, grouped, child_at))
+    unclaimed = {(s.field, k) for s, g, _ in children for k in g}
 
     labels = {c.field: c.label for c in main.columns}
     groups = {c.group for c in main.columns} - {""}
@@ -820,7 +861,7 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
         for n, row in body:
             if n in same:
                 counts["same"] += 1
-                unclaimed -= {(sheet.field, k) for sheet, _ in children for k in same[n]}
+                unclaimed -= {(sheet.field, k) for sheet, _, _ in children for k in same[n]}
                 continue
             data, bad, filled = _cells(main.columns, at, row)
             instance = None
@@ -843,9 +884,14 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
             if own:
                 keys.add(str(own).strip().lower())
             lines: dict[str, list[int]] = {}
-            for sheet, grouped in children:
-                found = [x for k in keys for x in grouped.get(k, [])]
-                found.sort(key=lambda x: x[0])
+            for sheet, grouped, child_at in children:
+                found = []
+                for m, line in sorted(x for k in keys for x in grouped.get(k, [])):
+                    line_data, line_bad, _ = _cells(sheet.columns, child_at, line)
+                    if line_bad:
+                        problem(sheet, m, line_bad)
+                    else:
+                        found.append((m, line_data))
                 unclaimed -= {(sheet.field, k) for k in keys}
                 group = sheet.field.rpartition(".")[0]
                 if found:
@@ -866,7 +912,9 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
                 continue
             try:
                 with tenant_atomic():
-                    action, name, changes = _save_row(master, ctx, instance, data, sheets)
+                    action, name, changes = _save_row(
+                        master, ctx, instance, data, sheets, known.get(n)
+                    )
             except ValidationError as exc:
                 _report(exc.detail, main, sheets, n, lines, labels, problem)
                 continue
@@ -878,7 +926,7 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
             results.append(
                 {"row": n, "action": action, "name": name, "code": code, "changes": changes}
             )
-        for sheet, grouped in children:
+        for sheet, grouped, _ in children if only_rows is None else []:
             for key in sorted(k for f, k in unclaimed if f == sheet.field):
                 for m, _ in grouped[key]:
                     problem(
@@ -920,12 +968,30 @@ def _same_text(kind: str, a: str, b: str) -> bool:
     return False
 
 
-def _unchanged(master, ctx, tables, header, body, id_at, at, code_at) -> dict[int, set[str]]:
-    """The rows of the file that would change nothing: each found by its ID (or
-    code) and holding, in every column the file has, the text an export gives
-    now, with the same lines on every list sheet the file has. Row number ->
-    the keys its list-sheet lines are filed under."""
-    current = _tables_out(master, ctx, blank=False)
+def _unchanged(
+    master, ctx, tables, header, body, id_at, at, code_at
+) -> tuple[dict[int, set[str]], dict[int, list[dict]]]:
+    """Each row of the file that names a record (by its ID or code) against the
+    text an export gives for it now. Rows that would change nothing (the same
+    text in every column the file has, the same lines on every list sheet the
+    file has): row number -> the keys its list-sheet lines are filed under.
+    The other rows: row number -> what they change, as {field, old, new}."""
+    # Only the records the file names: a part of a big list must not read
+    # the whole list (12,000 items took 26 s on staging, 2026-11-26).
+    ids = {
+        int(row[id_at].strip())
+        for _, row in body
+        if id_at is not None and id_at < len(row) and row[id_at].strip().isdigit()
+    }
+    only = Q(pk__in=ids)
+    for _, row in body:
+        if id_at is not None and id_at < len(row) and row[id_at].strip():
+            continue
+        for path, i in code_at.items():
+            text = row[i].strip() if i < len(row) else ""
+            if text:
+                only |= master.codes[path].find(text)
+    current = _tables_out(master, ctx, blank=False, only=only)
     main = current[0]
     col_at = {c.field: i + 1 for i, c in enumerate(main.sheet.columns)}
     kinds = {c.field: c.kind for c in main.sheet.columns}
@@ -948,7 +1014,7 @@ def _unchanged(master, ctx, tables, header, body, id_at, at, code_at) -> dict[in
         child_header, child_body = _body(rows)
         link_at, child_at = _headers(table.sheet, child_header, table.sheet.link_label)
         if link_at is None:
-            return {}  # the import itself says what is wrong
+            return {}, {}  # the import itself says what is wrong
         fields = list(child_at)
         positions = {c.field: i + 1 for i, c in enumerate(table.sheet.columns)}
         child_kinds = {c.field: c.kind for c in table.sheet.columns}
@@ -964,7 +1030,9 @@ def _unchanged(master, ctx, tables, header, body, id_at, at, code_at) -> dict[in
         kinds_in_order = [child_kinds[f] for f in fields]
         lists.append((table.sheet, given, now, kinds_in_order))
 
-    out: dict[int, set[str]] = {}
+    labels = {c.field: c.label for c in main.sheet.columns}
+    same: dict[int, set[str]] = {}
+    known: dict[int, list[dict]] = {}
     for n, row in body:
 
         def cell(i, row=row) -> str:
@@ -980,26 +1048,186 @@ def _unchanged(master, ctx, tables, header, body, id_at, at, code_at) -> dict[in
                 record = by_code.get((path, code))
         if record is None:
             continue
-        if any(not _same_text(kinds[f], cell(i), record[col_at[f]]) for f, i in at.items()):
-            continue
+        changes = [
+            {"field": labels[f], "old": record[col_at[f]], "new": cell(i)}
+            for f, i in at.items()
+            if not _same_text(kinds[f], cell(i), record[col_at[f]])
+            # a code found the record whatever its capitals, and never changes
+            and not (f in code_at and cell(i).lower() == record[col_at[f]].strip().lower())
+        ]
         keys = {ref.lower()} if ref else set()
         if link_col is not None:
             keys.add(record[link_col].strip().lower())
         owner = record[link_col].strip().lower() if link_col is not None else record[0]
-        alike = True
-        for _, given, now, child_kinds in lists:
+        for sheet, given, now, child_kinds in lists:
             mine = [line for k in keys for line in given.get(k, [])]
             theirs = now.get(owner, [])
-            if len(mine) != len(theirs) or any(
-                not _same_text(k, a, b)
-                for x, y in zip(mine, theirs, strict=True)
-                for k, a, b in zip(child_kinds, x, y, strict=True)
-            ):
-                alike = False
-                break
-        if alike:
-            out[n] = keys
-    return out
+            if len(mine) != len(theirs):
+                text = f"{len(theirs)} lines before, {len(mine)} now"
+            else:
+                n_changed = sum(
+                    any(not _same_text(k, a, b) for k, a, b in zip(child_kinds, x, y, strict=True))
+                    for x, y in zip(mine, theirs, strict=True)
+                )
+                if not n_changed:
+                    continue
+                text = f"{n_changed} line{'s' if n_changed != 1 else ''} changed"
+            changes.append({"field": sheet.title, "old": "", "new": text})
+        if changes:
+            known[n] = changes
+        else:
+            same[n] = keys
+    return same, known
+
+
+# --- Import in steps (Sidharth, 2026-11-26: a big file with a progress bar) ---
+
+COMPARE_STEP = 1000  # rows compared with MyERP per request
+SAVE_STEP = 100  # rows checked and saved per request: well inside a request's time
+SAMPLE = 10  # changes shown before "Import" (Sidharth 2026-11-26: the first 10)
+
+
+def _job_tables(job) -> list[tuple[str, list[list[str]]]]:
+    return [tuple(t) for t in json.loads(gzip.decompress(bytes(job.tables)))]
+
+
+def start_import(master: Master, ctx: Context, user, name: str, content: bytes) -> dict:
+    """Read the file and check only its layout: the sheets and columns are the
+    master's, and every line of a list sheet names a record of the main sheet.
+    Keeps the file as an ImportJob for the steps that follow."""
+    from core.models import ImportJob
+
+    tables = read_tables(name, content)
+    sheets = master.sheets()
+    main = sheets[0]
+    header, body = _body(tables[0][1])
+    if not header:
+        raise ParseError("The file is empty.")
+    id_at, at = _headers(main, header, ID_LABEL)
+    if not at:
+        raise ParseError("The first row must hold the column names, as in the exported file.")
+    if len(body) > MAX_FILE_ROWS:
+        raise ParseError(f"Import at most {MAX_FILE_ROWS} rows at a time.")
+    errors: list[dict] = []
+    link_at = at.get(master.link)
+    keys = set()
+    for _, row in body:
+        if id_at is not None and id_at < len(row) and row[id_at].strip():
+            keys.add(row[id_at].strip().lower())
+        if link_at is not None and link_at < len(row) and row[link_at].strip():
+            keys.add(row[link_at].strip().lower())
+    by_title = {title.strip().lower(): rows for title, rows in tables[1:]}
+    counted = [{"title": main.title, "rows": len(body)}]
+    for sheet in sheets[1:]:
+        rows = by_title.get(sheet.title.lower())
+        if rows is None:
+            continue
+        child_header, child_body = _body(rows)
+        first, _ = _headers(sheet, child_header, sheet.link_label)
+        if first is None:
+            raise ParseError(
+                f"The {sheet.title} sheet must start with a {sheet.link_label} column."
+            )
+        counted.append({"title": sheet.title, "rows": len(child_body)})
+        for n, row in child_body:
+            owner = row[first].strip() if first < len(row) else ""
+            if not owner:
+                why = f"{sheet.link_label}: say which {master.noun} this row belongs to"
+            elif link_at is not None and owner.lower() not in keys:
+                why = (
+                    f"{sheet.link_label}: {owner.lower()!r} is not in the {main.title} sheet. "
+                    f"Add the {master.noun} there too."
+                )
+            else:
+                continue
+            errors.append({"sheet": sheet.title, "row": n, "messages": [why]})
+    if errors:
+        return {"job": None, "errors": errors[:500], "sheets": counted}
+    ImportJob.objects.filter(user=ctx.request.user).delete()  # one at a time
+    job = ImportJob.objects.create(
+        user=ctx.request.user,
+        master=master.key,
+        company=ctx.company,
+        file_name=name[:200],
+        tables=gzip.compress(json.dumps(tables).encode(), compresslevel=5),
+        rows=len(body),
+        summary={"new": 0, "changed": 0, "same": 0, "results": []},
+    )
+    return {"job": job.pk, "errors": [], "sheets": counted, "rows": len(body)}
+
+
+def compare_step(master: Master, ctx: Context, job) -> dict:
+    """Compare the next rows with MyERP: which add a record, which change one
+    (and what), which change nothing. Nothing is checked or saved."""
+    _names.clear()
+    _running.set(ctx)
+    tables = _job_tables(job)
+    main = master.sheets()[0]
+    header, body = _body(tables[0][1])
+    id_at, at = _headers(main, header, ID_LABEL)
+    code_at = _code_columns(master, main, header)
+    part = body[job.compared : job.compared + COMPARE_STEP]
+    same, known = _unchanged(master, ctx, tables, header, part, id_at, at, code_at)
+    summary = job.summary
+    name_at = at.get(master.link)
+    for n, row in part:
+        if n in same:
+            summary["same"] += 1
+            continue
+        ref = row[id_at].strip() if id_at is not None and id_at < len(row) else ""
+        action = "changed" if n in known or ref else "new"
+        summary[action] += 1
+        job.todo.append(n)
+        if len(summary["results"]) < SAMPLE:
+
+            def cell(i, row=row) -> str:
+                return row[i].strip() if i is not None and i < len(row) else ""
+
+            summary["results"].append(
+                {
+                    "row": n,
+                    "action": action,
+                    "name": cell(name_at),
+                    "code": next((cell(i) for i in code_at.values() if cell(i)), ""),
+                    "changes": known.get(n, []),
+                }
+            )
+    job.compared += len(part)
+    job.save(update_fields=["compared", "todo", "summary"])
+    return _progress(job)
+
+
+def save_step(master: Master, ctx: Context, job) -> dict:
+    """Check and save the next rows that add or change a record, the form's way.
+    A problem in any of them saves none of this step and stops the import; the
+    steps before stay saved (importing the same file again passes them over)."""
+    step = job.todo[job.done : job.done + SAVE_STEP]
+    out = run_import(master, ctx, _job_tables(job), True, only_rows=set(step))
+    if out["errors"]:
+        return {**_progress(job), "errors": out["errors"]}
+    job.done += len(step)
+    job.summary["saved_new"] = job.summary.get("saved_new", 0) + out["new"]
+    job.summary["saved_changed"] = job.summary.get("saved_changed", 0) + out["changed"]
+    job.save(update_fields=["done", "summary"])
+    return _progress(job)
+
+
+def _progress(job) -> dict:
+    summary = job.summary
+    return {
+        "job": job.pk,
+        "rows": job.rows,
+        "compared": job.compared,
+        "new": summary["new"],
+        "changed": summary["changed"],
+        "same": summary["same"],
+        "results": summary["results"],
+        "total": len(job.todo),
+        "done": job.done,
+        "saved_new": summary.get("saved_new", 0),
+        "saved_changed": summary.get("saved_changed", 0),
+        "errors": [],
+    }
 
 
 def _report(detail, main: Sheet, sheets: list[Sheet], n: int, lines, labels, problem) -> None:
@@ -1046,10 +1274,24 @@ def _report(detail, main: Sheet, sheets: list[Sheet], n: int, lines, labels, pro
 
 
 def _save_row(
-    master: Master, ctx: Context, instance, data: dict, sheets: list[Sheet]
+    master: Master,
+    ctx: Context,
+    instance,
+    data: dict,
+    sheets: list[Sheet],
+    known: list[dict] | None = None,
 ) -> tuple[str, str, list[dict]]:
     """Save one row the screen's way: ("new" | "changed" | "same", the
-    record's name, what changed as [{field, old, new}])."""
+    record's name, what changed as [{field, old, new}]). `known`: what the row
+    changes, found by comparing it with an export (then the record is not read
+    again before and after, which took a third of the time)."""
+    if known is not None and instance is not None:
+        serializer = master.serializer(
+            instance, data=data, partial=True, context={"request": ctx.request}
+        )
+        serializer.is_valid(raise_exception=True)
+        record = master.save(ctx, instance, dict(serializer.validated_data))
+        return "changed", str(record), known
     context = {"request": ctx.request}
     # Before and after as an export shows them: without the per-record "in use"
     # checks, a dozen queries an item that no column holds (the save still
@@ -1276,3 +1518,68 @@ class ImportView(APIView):
             master, ctx, tables, request.data.get("commit") == "1", keep_codes=not source
         )
         return Response({**out, "notes": notes, **extra})
+
+
+class ImportStartView(APIView):
+    """POST a file (multipart "file"): its layout is checked and it is kept
+    for the steps of a stepped import. Returns the job, or the layout's problems."""
+
+    permission_classes = [Signed]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, key: str):
+        master, ctx = _import_allowed(request, key)
+        upload = request.FILES.get("file")
+        if upload is None:
+            raise ParseError("Choose a file to import.")
+        if upload.size > MAX_BYTES:
+            raise ParseError(
+                f"The file is too big; import at most {MAX_BYTES // 1024 // 1024} MB at a time."
+            )
+        with tenant_atomic():
+            return Response(start_import(master, ctx, request.user, upload.name, upload.read()))
+
+
+class ImportStepView(APIView):
+    """POST .../import/<job>/compare/ or .../save/: the next step. DELETE
+    .../import/<job>/ drops the kept file."""
+
+    permission_classes = [Signed]
+
+    def _job(self, request, key: str, job_id: int):
+        from core.models import ImportJob
+
+        master, ctx = _import_allowed(request, key)
+        job = (
+            ImportJob.objects.select_for_update()
+            .filter(pk=job_id, user=request.user, master=key, company=ctx.company)
+            .first()
+        )
+        if job is None:
+            raise NotFound("This import has ended. Choose the file and check it again.")
+        return master, ctx, job
+
+    def post(self, request, key: str, job_id: int, step: str):
+        with tenant_atomic():
+            master, ctx, job = self._job(request, key, job_id)
+            if step == "compare":
+                return Response(compare_step(master, ctx, job))
+            if step == "save":
+                if job.compared < job.rows:
+                    raise ParseError("Check the whole file before importing it.")
+                return Response(save_step(master, ctx, job))
+        raise NotFound()
+
+    def delete(self, request, key: str, job_id: int):
+        with tenant_atomic():
+            _, _, job = self._job(request, key, job_id)
+            job.delete()
+        return Response(status=204)
+
+
+def _import_allowed(request, key: str) -> tuple[Master, Context]:
+    _check(request, EDIT)
+    if not request.user.can(IMPORT):
+        raise PermissionDenied("Your role does not allow importing from a file.")
+    master = _master(key)
+    return master, _context(request, master)

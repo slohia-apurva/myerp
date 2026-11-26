@@ -1904,22 +1904,35 @@ export const MANUAL: Chapter[] = [
           <li>Save the file as Excel (.xlsx) or CSV.</li>
           <li>
             Click "Actions" and "Import from Excel…", pick the file under "File
-            to import" and click "Check file". MyERP checks every row the way
-            the form would, and saves nothing yet.
+            to import" and click "Check file". MyERP reads the file, checks
+            that its sheets and columns are right and that every line of a list
+            sheet (such as "Units of measure") names a record of the first
+            sheet, then compares each row with MyERP, with a progress bar.
+            Nothing is saved yet.
           </li>
           <li>
-            If any row has a problem, a table shows the sheet, the row number
-            (as in Excel) and what is wrong, for example 'Name: There is already
-            a unit with the name "Carton".' Fix those rows and click "Check
-            file" again.
-          </li>
-          <li>
-            When every row is right, it shows how many rows are new, changed or
-            with no change, and a "What Changes" table: each new or changed row
+            It then shows how many rows are new, changed or with no change, and
+            a "What Changes" table of the first 10: each new or changed row
             with its code and name, and for a changed row every field that
             changes, the old value struck through and the new one after it (a
             list such as "Units of measure" says how many lines change). Rows
-            with no change are not listed. Click "Import" to save them.
+            with no change are passed over.
+          </li>
+          <li>
+            Click "Import". MyERP checks each new or changed row the way the
+            form does and saves it, a hundred at a time, with a progress bar
+            and the time left. Keep that browser tab open until it says
+            "Imported"; other tabs can be used meanwhile. "Stop" stops after
+            the rows being saved.
+          </li>
+          <li>
+            If a row has a problem, the import stops: a table shows the sheet,
+            the row number (as in Excel) and what is wrong, for example 'TDS
+            section: 194Z is not in the TDS sections list.' The hundred rows
+            with the problem are not saved, the rows after them are not tried,
+            and the rows before them stay saved. Fix the row in your file and
+            import the same file again: the rows already saved now match MyERP
+            and are passed over.
           </li>
         </ol>
         <h3>Records with a code</h3>
@@ -1938,16 +1951,16 @@ export const MANUAL: Chapter[] = [
           only.
         </p>
         <Note>
-          An import saves every row or none. If even one row is wrong, nothing
-          is saved, so the list is never left half changed. Each saved record
+          An import saves the rows before a problem and stops there (see
+          above); importing the same file again, once fixed, finishes it. Each saved record
           shows in "Activity" like a change made on the form, under your name.
           Rules that protect masters in use apply to imports too: once a record
           is in use, the fields that are locked on its form (for example a
           unit's "GST unit code" once items use it, or an item's "Stock unit"
           once it has stock entries) cannot be changed by an import either. Such
           a row is refused with the reason, for example 'GST unit code: Cannot
-          change the GST unit code: this is in use (1 item).', and nothing is
-          saved; the fields that stay open (names, notes, "Active") can still
+          change the GST unit code: this is in use (1 item).', and the import
+          stops there; the fields that stay open (names, notes, "Active") can still
           be changed. Lists that come from Central (GST rates, HSN codes, GST
           unit codes, countries, PIN codes, couriers) are never changed by an
           import: a file can only pick an entry that is in them.
@@ -1960,8 +1973,8 @@ export const MANUAL: Chapter[] = [
           roles" screen for any other role that should import. A file may hold
           up to 50,000 rows and 20 MB, so a whole exported list (all your
           items, say) can come back: rows you left as exported are passed over
-          and shown as "with no change", and up to 1,000 rows at a time may add
-          or change records (more than that, split the file into parts).
+          and shown as "with no change". "Migration Tools" imports work as
+          before (see that chapter).
         </p>
       </>
     ),
