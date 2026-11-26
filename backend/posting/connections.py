@@ -450,9 +450,196 @@ def connections(user, company, kind: str, pk: int) -> dict:
     }
 
 
+# --- Masters: parties and items (preview mockups/connections/3) ------------
+# Counts only for a party, for the company being worked in, with "All n" opening
+# that list already searched for the party (`col`, `q`) and showing every
+# status. An item's entries cannot be searched for in the lists, so the latest
+# few are named instead.
+
+LATEST = 5
+LABELS.update({"stock_receipt": "Stock Receipt", "stock_delivery": "Stock Delivery"})
+LABELS.update({"bom": "BOM", "bom_material": "BOM (as Material)", "batch": "Batch"})
+SEE.update({"stock_receipt": ("stock.view",), "stock_delivery": ("stock.view",)})
+SEE.update(
+    {"bom": ("masters.view",), "bom_material": ("masters.view",), "batch": ("masters.view",)}
+)
+SHORT.update({"stock_receipt": "Stock Receipt", "stock_delivery": "Stock Delivery"})
+SHORT.update({"bom": "BOM", "bom_material": "BOM Material", "batch": "Batch"})
+
+
+def _party_groups(company, party):
+    from buying.models import (
+        DebitNote,
+        GoodsReceipt,
+        PurchaseInvoice,
+        PurchaseOrder,
+        PurchaseReturn,
+        TdsAdjustment,
+    )
+    from core.models import Ledger
+    from manufacturing.models import ManufacturingOrder
+    from selling.models import CreditNote, DeliveryNote, SalesInvoice, SalesOrder
+    from stock.models import CustomerStock
+
+    ledgers = list(Ledger.objects.filter(company=company, party=party))
+    name = ledgers[0].name if ledgers else party.name
+    c = {"company": company}
+
+    def by(model, field):
+        return model.objects.filter(**c, **{f"{field}__in": ledgers})
+
+    stock = CustomerStock.objects.filter(**c, customer__in=ledgers)
+    return name, [
+        (
+            "Sales",
+            [
+                ("sales_order", by(SalesOrder, "customer"), "customer"),
+                ("delivery_note", by(DeliveryNote, "customer"), "customer"),
+                ("sales_invoice", by(SalesInvoice, "customer"), "customer"),
+                ("credit_note", by(CreditNote, "customer"), "customer"),
+            ],
+        ),
+        (
+            "Purchase",
+            [
+                ("purchase_order", by(PurchaseOrder, "supplier"), "supplier"),
+                ("goods_receipt", by(GoodsReceipt, "supplier"), "supplier"),
+                ("purchase_invoice", by(PurchaseInvoice, "supplier"), "supplier"),
+                ("purchase_return", by(PurchaseReturn, "supplier"), "supplier"),
+                ("debit_note", by(DebitNote, "supplier"), "supplier"),
+            ],
+        ),
+        (
+            "Other",
+            [
+                ("stock_receipt", stock.filter(kind=CustomerStock.RECEIPT), "customer"),
+                ("stock_delivery", stock.filter(kind=CustomerStock.DELIVERY), "customer"),
+                (
+                    "manufacturing_order",
+                    ManufacturingOrder.objects.filter(**c, customer=party),
+                    None,
+                ),
+                ("tds_adjustment", by(TdsAdjustment, "supplier"), "supplier"),
+                ("later", "Payment / Receipt", "not built yet"),
+            ],
+        ),
+    ]
+
+
+def _item_groups(company, item):
+    from buying.models import GoodsReceipt, PurchaseInvoice, PurchaseOrder, PurchaseReturn
+    from core.models import Batch
+    from manufacturing.models import Bom, ManufacturingOrder
+    from selling.models import CreditNote, DeliveryNote, SalesInvoice, SalesOrder
+
+    c = {"company": company}
+
+    def by(model):
+        return model.objects.filter(**c, lines__item=item).distinct()
+
+    return item.name, [
+        (
+            "Sales",
+            [
+                ("sales_order", by(SalesOrder), None),
+                ("delivery_note", by(DeliveryNote), None),
+                ("sales_invoice", by(SalesInvoice), None),
+                ("credit_note", by(CreditNote), None),
+            ],
+        ),
+        (
+            "Purchase",
+            [
+                ("purchase_order", by(PurchaseOrder), None),
+                ("goods_receipt", by(GoodsReceipt), None),
+                ("purchase_invoice", by(PurchaseInvoice), None),
+                ("purchase_return", by(PurchaseReturn), None),
+            ],
+        ),
+        (
+            "Production and Stock",
+            [
+                ("bom", Bom.objects.filter(item=item), None),
+                ("bom_material", Bom.objects.filter(lines__item=item).distinct(), None),
+                ("manufacturing_order", ManufacturingOrder.objects.filter(**c, item=item), None),
+                ("batch", Batch.objects.filter(item=item), None),
+            ],
+        ),
+    ]
+
+
+def _latest(rows) -> list:
+    newest = sorted(rows, key=lambda r: (str(_date(r) or ""), r.pk), reverse=True)
+    return newest[:LATEST]
+
+
+def _master_doc(what: str, obj) -> dict:
+    """An entry as `_doc` gives it; a BOM or a batch (not a company's) carries its own link."""
+    doc = _doc(what, obj)
+    if what in ("bom", "bom_material"):
+        doc["href"] = f"#/boms?view={obj.pk}"
+        doc["note"] = f"{obj.item.name} · version {obj.version}"
+    elif what == "batch":
+        doc["href"] = f"#/batches/{obj.pk}/trace"
+        doc["note"] = "Batch Trace"
+    return doc
+
+
+def master_connections(user, company, kind: str, pk: int) -> dict:
+    from core.models import Item, Party
+
+    if not user.can("masters.view"):
+        raise NotFound("No such record.")
+    if kind == "party":
+        obj = Party.objects.filter(pk=pk).first()
+        groups = _party_groups if obj else None
+    elif kind == "item":
+        obj = Item.objects.filter(pk=pk).first()
+        groups = _item_groups if obj else None
+    else:
+        obj = groups = None
+    if obj is None:
+        raise NotFound("No such record.")
+    name, layout = groups(company, obj)
+    out, summary = [], []
+    for title, kinds in layout:
+        shown = []
+        for k in kinds:
+            if k[0] == "later":
+                shown.append({"type": "later", "name": k[1], "later": k[2]})
+                continue
+            what, rows, col = k
+            if not _may(user, what):
+                continue
+            count = rows.count()
+            entry = {
+                "type": what,
+                "name": LABELS.get(what, what),
+                "page": PAGE.get(what, ""),
+                "count": count,
+            }
+            if kind == "party":
+                entry["all"] = {"col": col, "q": name} if col and count else None
+            else:
+                entry["docs"] = [_master_doc(what, r) for r in _latest(rows)] if count else []
+            if count:
+                summary.append(f"{SHORT.get(what, LABELS.get(what, what))} {count}")
+            shown.append(entry)
+        if shown:
+            out.append({"title": title, "kinds": shown})
+    return {
+        "type": kind,
+        "chain": [],
+        "groups": out,
+        "summary": " · ".join(summary) or "Nothing yet",
+    }
+
+
 class ConnectionsView(APIView):
     permission_classes = [Signed]
 
     def get(self, request, pk: int, kind: str, entry: int):
         company = _company(request, pk)
+        if kind in ("party", "item"):
+            return Response(master_connections(request.user, company, kind, entry))
         return Response(connections(request.user, company, kind, entry))

@@ -5142,6 +5142,11 @@ button.scan-pick {
 .conn-name {
   font-weight: 600;
 }
+.conn-all {
+  font-size: 13px;
+  color: var(--green);
+  white-space: nowrap;
+}
 .conn-count {
   margin-right: auto;
   background: var(--green);

@@ -16,6 +16,7 @@ import { useOnReturn } from "./Refresh";
 import { ColumnSearch } from "./ColumnSearch";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 export type Ledger = {
   id: number;
@@ -567,6 +568,7 @@ function LedgerPanels(props: { ledger: Ledger; companyId: number }) {
         />
       </SidePanel>
       {l.party && <PartySummary party={l.party} states={states} supplier={l.nature === "liability"} />}
+      {l.party?.id && <Connections companyId={props.companyId} kind="party" id={l.party.id} />}
       {l.bill_wise && l.opening_bills.length > 0 && (
         <SidePanel title="Opening Bills">
           <table>

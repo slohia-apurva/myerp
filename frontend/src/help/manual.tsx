@@ -794,8 +794,8 @@ export const MANUAL: Chapter[] = [
             "Cancel" and "Save" in the green bar. Below the item name are
             folding sections: "General", "Sales", "Purchase", "GST Rates",
             "Stock and quality", "Units of measure", "Customer and supplier names" and
-            "Connections" (empty for now: it will list the documents that use
-            the item). Click a
+            "Connections" (the entries that use the item show when you open it
+            from the list; see the chapter "Connections"). Click a
             section's title bar to open it; one section is open at a time and a
             closed one still shows a line of its main values.
           </li>
@@ -1562,7 +1562,7 @@ export const MANUAL: Chapter[] = [
     id: "connections",
     title: "Connections",
     summary:
-      "At the bottom of every entry: the entries it came from, the ones made from it, and the returns and notes against it.",
+      "At the bottom of every entry, and on customers, suppliers and items: the linked entries, with counts and links.",
     body: (
       <>
         <p>
@@ -1614,6 +1614,29 @@ export const MANUAL: Chapter[] = [
           Kinds your role may not see are left out: a "Storekeeper", for
           example, does not see TDS Adjustments. Only entries of the company
           you are working in are shown.
+        </p>
+        <h3>On a customer or supplier</h3>
+        <p>
+          In "Masters" › "Ledgers", click a customer's or supplier's ledger:
+          the panels on the right end with "Connections", listing only the
+          kinds it has in this company (Sales Order, Delivery Note, Sales
+          Invoice, Credit Note, Purchase Order, Goods Receipt, Purchase
+          Invoice, Purchase Return, Debit Note, Stock Receipt, Stock Delivery,
+          Manufacturing Order, TDS Adjustment) with the count. "All n →" opens
+          that list showing "All" (drafts and cancelled too) with its column
+          search already filled with the party's name; clear it with "Clear
+          searches".
+        </p>
+        <h3>On an item</h3>
+        <p>
+          Open an item from "Masters" › "Items" ("View"): "Connections" near
+          the bottom shows, for the company picked at the top right, how many
+          sales orders, delivery notes, sales invoices, credit notes, purchase
+          orders, goods receipts, purchase invoices and purchase returns name
+          the item, the BOMs that make it and those that use it as a material,
+          its Manufacturing Orders and its batches. The latest five of each are
+          listed, newest first; click a number to open it. A batch opens its
+          "Batch Trace".
         </p>
       </>
     ),
@@ -2347,8 +2370,9 @@ export const MANUAL: Chapter[] = [
             "Ledger Details" (group, nature, opening balance with the foreign
             currency amount and rate if it has one, currency, "Bill-Wise", bank
             details, whether it is in use and disabled, notes), for a customer
-            or supplier "GST And Credit", "Addresses" and "Contacts", and
-            "Opening Bills". After clicking a ledger, the ↑ and ↓ keys move
+            or supplier "GST And Credit", "Addresses", "Contacts" and
+            "Connections" (how many orders, receipts, invoices and notes it has
+            in this company, each with "All n →"), and "Opening Bills". After clicking a ledger, the ↑ and ↓ keys move
             through the list. The panels stay in view while the list scrolls.
           </li>
           <li>

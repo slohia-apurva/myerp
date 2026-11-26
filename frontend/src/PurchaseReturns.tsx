@@ -9,7 +9,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { EntriesBox, type Entry } from "./PurchaseInvoices";
 import { useReturns } from "./Refresh";
 import { useKept } from "./Keep";
@@ -151,9 +151,9 @@ const COLUMNS: [key: string, label: string, text: (r: Return) => string, num?: b
 ];
 
 function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; canCreate: boolean; canDebit: boolean }) {
-  const [view, setView] = useKept("PurchaseReturns.view", "submitted");
+  const [view, setView] = useKept("PurchaseReturns.view", () => listStart("submitted").view);
   const [rows, setRows] = useState<Return[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("PurchaseReturns.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("PurchaseReturns.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("PurchaseReturns.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {

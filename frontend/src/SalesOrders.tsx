@@ -14,7 +14,7 @@ import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } fr
 import { useCreditTerms } from "./CreditTerms";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { AddressBlock, ContactTicks, PaymentPanel, TotalsPanel, type Contact, type Place } from "./PurchaseOrders";
 import { OrderMail } from "./SupplierMail";
 import { type PickBrief } from "./PickLists";
@@ -312,9 +312,9 @@ const COLUMNS: [key: string, label: string, text: (o: SalesOrder) => string, num
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
   const canCreate = session.permissions.includes("sales.create");
   const { setup } = useSetup(companyId);
-  const [view, setView] = useKept("SalesOrders.view", "open");
+  const [view, setView] = useKept("SalesOrders.view", () => listStart("open").view);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("SalesOrders.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("SalesOrders.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("SalesOrders.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {

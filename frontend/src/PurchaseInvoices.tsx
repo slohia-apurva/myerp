@@ -10,7 +10,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { RateLinesTable, type RateLine } from "./RateLines";
 import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBills";
 import { TdsBox, type TdsInfo } from "./Tds";
@@ -171,10 +171,10 @@ const COLUMNS: [key: string, label: string, text: (r: Invoice) => string, num?: 
 ];
 
 function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
-  const [view, setView] = useKept("PurchaseInvoices.view", "submitted");
+  const [view, setView] = useKept("PurchaseInvoices.view", () => listStart("submitted").view);
   const [rows, setRows] = useState<Invoice[]>([]);
   const [unbilled, setUnbilled] = useState<Unbilled[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("PurchaseInvoices.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("PurchaseInvoices.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("PurchaseInvoices.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {

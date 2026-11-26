@@ -25,6 +25,7 @@ import { useColumns } from "./Columns";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 import { useKept } from "./Keep";
 import { useItemSearch } from "./ItemSearch";
+import { Connections } from "./Connections";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -256,7 +257,7 @@ export function ItemsPage({ session, company }: { session: SignedIn; company?: C
   const form = formParam();
   const view = viewParam();
   if (form && session.permissions.includes("masters.edit")) return <ItemFormTab form={form} />;
-  if (view) return <ItemViewPage id={view} session={session} />;
+  if (view) return <ItemViewPage id={view} session={session} company={company} />;
   return <ItemList session={session} company={session.permissions.includes("stock.view") ? company : undefined} />;
 }
 
@@ -659,7 +660,7 @@ function AccountsView({ itemId }: { itemId: number }) {
   );
 }
 
-function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
+function ItemViewPage({ id, session, company }: { id: number; session: SignedIn; company?: Company }) {
   const canEdit = session.permissions.includes("masters.edit");
   const { units } = useUnits();
   const unit = (id: number | null, name: string | null) => labelFor(units, id, name);
@@ -916,7 +917,11 @@ function ItemViewPage({ id, session }: { id: number; session: SignedIn }) {
             <AccountsView itemId={i.id} />
             <PricesView item={i} side="customer" />
             <PricesView item={i} side="supplier" />
-            <Fold title="Connections" summary="No documents yet" />
+            {company ? (
+              <Connections companyId={company.id} kind="item" id={i.id} />
+            ) : (
+              <Fold title="Connections" summary="Pick a company at the top right" />
+            )}
           </div>
           <div className="side-col">
             <SidePanel title="Switches">
@@ -1284,7 +1289,7 @@ function ItemForm(props: {
     ["prices", "Customer Prices", `${(custPrices ?? []).length} ${(custPrices ?? []).length === 1 ? "price" : "prices"}`],
     ["supplier-prices", "Supplier Prices", `${(suppPrices ?? []).length} ${(suppPrices ?? []).length === 1 ? "price" : "prices"}`],
     ["accounts", "Accounts", accountsSummary(accounts)],
-    ["connections", "Connections", "No documents yet"],
+    ["connections", "Connections", "Shown on the item's page"],
     ["planning", "Stock Planning", [requestType && `Main fulfilment ${requestLabel(requestType)}`, `${plans.length} ${plans.length === 1 ? "branch" : "branches"}`].filter(Boolean).join(" · ")],
   ] as const;
   return (
@@ -2088,8 +2093,8 @@ function ItemForm(props: {
         {true && (
           <Section>
             <p className="small">
-              The documents that use this item, with a count for each, will be listed here once purchase, sales and stock
-              entries are built.
+              The entries that use this item (orders, receipts, invoices, BOMs, batches) are listed under "Connections" when the
+              item is opened from the list, not in this form.
             </p>
           </Section>
         )}
