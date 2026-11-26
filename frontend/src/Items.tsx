@@ -2025,7 +2025,7 @@ function ItemForm(props: {
                     item, only those are used for it; its price list covers the other items. The same lines show under that
                     customer's "Item Prices". Rates are before GST.
                   </p>
-                  <PriceTable rows={custPrices} onChange={setCustPrices} by="customer" item={it} />
+                  <PriceTable rows={custPrices} onChange={setCustPrices} by="customer" item={it} asLines resetKey={it.id} />
                 </>
               )}
             </Section>
@@ -2052,7 +2052,7 @@ function ItemForm(props: {
                     item, only those are used for it; its price list covers the other items. The same lines show under that
                     supplier's "Item Prices". Rates are before GST.
                   </p>
-                  <PriceTable rows={suppPrices} onChange={setSuppPrices} by="supplier" item={it} />
+                  <PriceTable rows={suppPrices} onChange={setSuppPrices} by="supplier" item={it} asLines resetKey={it.id} />
                 </>
               )}
             </Section>

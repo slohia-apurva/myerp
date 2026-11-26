@@ -238,8 +238,11 @@ function PriceGrid(props: Parameters<typeof PriceTable>[0]) {
 /** A party's own Item Prices as lines: "IT-003442 · Green Tea", then unit, from qty and
  * date under it, the rate at the right, and "Edit". Fits a phone. */
 function PriceLines(props: Parameters<typeof PriceTable>[0]) {
-  const { rows, onChange, readOnly } = props;
-  const { items, onType } = useItemChoices(rows.map((r) => r.item), props.party);
+  const { rows, onChange, readOnly, by } = props;
+  const byParty = by !== "item";
+  const { items, onType } = useItemChoices(byParty ? [] : rows.map((r) => r.item), props.party);
+  const { items: parties, onType: findParties } = usePartyChoices(byParty ? by : null, rows.map((r) => r.party));
+  const partyById = useMemo(() => new Map(parties.map((x) => [x.id, x])), [parties]);
   const { units } = useUnits();
   const unitById = useMemo(() => new Map(units.map((u) => [u.id, u])), [units]);
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
@@ -248,11 +251,13 @@ function PriceLines(props: Parameters<typeof PriceTable>[0]) {
   useEffect(() => setOpen(new Set()), [props.resetKey]);
   const set = (i: number, change: Partial<PriceRow>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const unitsOf = (itemId: number | null): Unit[] => {
-    const item = itemId ? itemById.get(itemId) : null;
+    const item = (itemId && itemById.get(itemId)) || (props.item && props.item.id === itemId ? props.item : null);
     if (!item) return [];
     return item.units.map((u) => unitById.get(u.unit)).filter((u): u is Unit => !!u);
   };
+  const partyText = (r: PriceRow) => (r.party ? (partyById.get(r.party)?.name ?? r.party_name ?? "") : "");
   const itemText = (r: PriceRow) => {
+    if (byParty) return partyText(r);
     const it = r.item ? itemById.get(r.item) : null;
     return it ? `${it.item_number} · ${it.name}` : (r.item_name ?? "");
   };
@@ -268,7 +273,7 @@ function PriceLines(props: Parameters<typeof PriceTable>[0]) {
     const empty = button.closest(".price-open")?.querySelector<HTMLInputElement>(":invalid");
     if (empty) return empty.reportValidity();
     const r = rows[i];
-    if (!r.item || !r.unit) return;
+    if (!r.item || !r.unit || (byParty && !r.party)) return;
     setOpen((o) => {
       const n = new Set(o);
       n.delete(i);
@@ -282,7 +287,7 @@ function PriceLines(props: Parameters<typeof PriceTable>[0]) {
         <table className="row-list price-lines">
           <thead>
             <tr>
-              <th>Item</th>
+              <th>{by === "item" ? "Item" : by === "supplier" ? "Supplier" : "Customer"}</th>
               <th className="num">Rate</th>
               {!readOnly && <th />}
             </tr>
@@ -313,23 +318,37 @@ function PriceLines(props: Parameters<typeof PriceTable>[0]) {
                   <td colSpan={3} className="row-open">
                     <div className="address-card price-open">
                       <div className="row">
-                        <label className="wide">
-                          Item
-                          <Combobox
-                            value={r.item ? String(r.item) : ""}
-                            onType={onType}
-                            placeholder="Type to search items…"
-                            ariaLabel="Item"
-                            options={items
-                              .filter((x) => x.is_active || x.id === r.item)
-                              .map((x) => ({ value: String(x.id), label: `${x.item_number} · ${x.name}` }))}
-                            onChange={(v) => {
-                              const id = Number(v) || null;
-                              const it = id ? itemById.get(id) : null;
-                              set(i, { item: id, unit: it ? it.stock_unit : null });
-                            }}
-                          />
-                        </label>
+                        {byParty ? (
+                          <label className="wide">
+                            {by === "supplier" ? "Supplier" : "Customer"}
+                            <Combobox
+                              value={r.party ? String(r.party) : ""}
+                              onType={findParties}
+                              placeholder={`Type to search ${by === "supplier" ? "suppliers" : "customers"}…`}
+                              ariaLabel={by === "supplier" ? "Supplier" : "Customer"}
+                              options={parties.map((x) => ({ value: String(x.id), label: x.name }))}
+                              onChange={(v) => set(i, { party: Number(v) || null })}
+                            />
+                          </label>
+                        ) : (
+                          <label className="wide">
+                            Item
+                            <Combobox
+                              value={r.item ? String(r.item) : ""}
+                              onType={onType}
+                              placeholder="Type to search items…"
+                              ariaLabel="Item"
+                              options={items
+                                .filter((x) => x.is_active || x.id === r.item)
+                                .map((x) => ({ value: String(x.id), label: `${x.item_number} · ${x.name}` }))}
+                              onChange={(v) => {
+                                const id = Number(v) || null;
+                                const it = id ? itemById.get(id) : null;
+                                set(i, { item: id, unit: it ? it.stock_unit : null });
+                              }}
+                            />
+                          </label>
+                        )}
                         <label>
                           Unit
                           <Combobox
@@ -377,7 +396,7 @@ function PriceLines(props: Parameters<typeof PriceTable>[0]) {
             className="link"
             onClick={() => {
               setOpen((o) => new Set(o).add(rows.length));
-              onChange([...rows, blankRow(null, null)]);
+              onChange([...rows, blankRow(props.item?.id ?? null, props.item?.stock_unit ?? null)]);
             }}
           >
             Add price

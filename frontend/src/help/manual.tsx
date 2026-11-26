@@ -664,7 +664,10 @@ export const MANUAL: Chapter[] = [
           <li>
             The same lines show on the item, under "Customer Prices", where
             they can also be added, changed and removed: it is one set of data
-            seen from both sides.
+            seen from both sides. Each saved price shows as one line (the
+            customer, then unit, from qty and date under it, the rate at the
+            right); "Edit" opens it, "Done" folds it. "Supplier Prices" on the
+            item work the same way.
           </li>
         </ul>
         <h3>Suppliers' prices</h3>
