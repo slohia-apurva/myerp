@@ -224,6 +224,8 @@ function PartyItemPrices(props: { party: Party; onChange: (p: Party) => void; ca
         by="item"
         readOnly={!props.canEdit}
         party={{ side: supplier ? "supplier" : "customer", products: (party.products ?? []).map((p) => p.item) }}
+        asLines
+        resetKey={party.id}
       />
     </Section>
   );

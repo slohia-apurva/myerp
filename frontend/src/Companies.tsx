@@ -138,6 +138,11 @@ export type Company = Contact & {
   deduct_194q?: boolean;
   print_image: string;
   print_image_own: boolean;
+  /** The bank ledger whose account prints under "Payment Details" on sales orders. */
+  payment_ledger: number | null;
+  payment_ledger_name: string;
+  /** For the "Scan to pay" UPI QR code on sales orders. */
+  upi_id: string;
   /** Entry types that cannot be submitted without an attachment. */
   attachments_required: string[];
   /** The entry types that can be ticked, as [code, label]. */
@@ -627,6 +632,21 @@ function CompanyForm(props: {
     from?.multi_currency ?? false,
   );
   const [printGanesha, setPrintGanesha] = useState(from?.print_ganesha ?? false);
+  const [payLedger, setPayLedger] = useState(c?.payment_ledger ? String(c.payment_ledger) : "");
+  const [upiId, setUpiId] = useState(c?.upi_id ?? "");
+  const [banks, setBanks] = useState<{ value: string; label: string }[]>([]);
+  const loadBanks = useCallback(
+    () =>
+      c
+        ? api<{ id: number; name: string; account_number: string }[]>(`v1/companies/${c.id}/ledgers/?bank=1`).then((rows) =>
+            setBanks(rows.map((l) => ({ value: String(l.id), label: l.name, hint: l.account_number }))),
+          )
+        : Promise.resolve(),
+    [c],
+  );
+  useEffect(() => {
+    loadBanks().catch(setError);
+  }, [loadBanks]);
   const [deduct194q, setDeduct194q] = useState(from?.deduct_194q ?? false);
   const [needFile, setNeedFile] = useState<string[]>(from?.attachments_required ?? []);
   const mailbox = useMailAccount(c?.id);
@@ -663,7 +683,7 @@ function CompanyForm(props: {
       multi_currency: multiCurrency,
       print_ganesha: printGanesha,
       deduct_194q: deduct194q,
-      ...(c ? { attachments_required: needFile } : {}),
+      ...(c ? { attachments_required: needFile, payment_ledger: payLedger ? Number(payLedger) : null, upi_id: upiId } : {}),
       ...(!c && modules ? { modules } : {}),
       ...(c ? {} : abbr ? { abbr } : {}),
     };
@@ -827,6 +847,29 @@ function CompanyForm(props: {
           Print a small Lord Ganesha image at the top centre of the first page
           of every printout (purchase orders, reports and all other prints)
         </label>
+        {c && (
+          <>
+            <label>
+              <span className="fact-label">Bank Account for Payment</span>
+              <Combobox
+                options={banks}
+                value={payLedger}
+                onChange={setPayLedger}
+                empty="(none)"
+                ariaLabel="Bank Account for Payment"
+                create={creatable("ledger", `companies/${c.id}/ledgers`, loadBanks)}
+              />
+            </label>
+            <label>
+              <span className="fact-label">UPI ID</span>
+              <input value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="e.g. apurvam@hdfcbank" />
+            </label>
+            <p className="small">
+              Sales orders print this bank account (bank, account number, IFSC) under "Payment Details",
+              with a "Scan to pay" QR code for the UPI ID that fills in the order total.
+            </p>
+          </>
+        )}
         {c ? (
           <PrintImage company={c} onError={setError} />
         ) : (
@@ -1212,6 +1255,12 @@ function Overview({ detail }: { detail: Detail }) {
                 {c.print_ganesha
                   ? `Printed on page 1 (${c.print_image_own ? "own image" : "standard image"})`
                   : "Not printed"}
+              </dd>
+            </div>
+            <div>
+              <dt>Payment Details</dt>
+              <dd>
+                {[c.payment_ledger_name, c.upi_id && `UPI ${c.upi_id}`].filter(Boolean).join(" · ") || "Not printed"}
               </dd>
             </div>
             <div>

@@ -61,11 +61,16 @@ const today = () => new Date().toISOString().slice(0, 10);
 const signed = (v: string) => (Number(v) < 0 ? `(${money(-Number(v))})` : money(v));
 const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pill");
 const kindOf = (total: number) => (total > 0 ? "Deduct short TDS" : total < 0 ? "Give back excess TDS" : "Set section only");
-/** "Print ▾": the adjustment as this page prints, and a PDF through the browser's own "Save as PDF". */
-const printItems = [
-  { label: "TDS Adjustment", onClick: () => window.print() },
-  { label: "Download PDF", onClick: () => window.print() },
-];
+/** "Print ▾": the adjustment as a PDF made on the server (buying/purchase_prints.py), in the
+ * one print tab or downloaded; a new entry prints once it is saved. */
+const pdf = (id: number, download = false) => openTab(`/api/v1/tds-adjustments/${id}/pdf/${download ? "?download=1" : ""}`);
+const printItems = (id: number | null) => {
+  const why = id ? undefined : "Save it first";
+  return [
+    { label: "TDS Adjustment", onClick: () => id && pdf(id), disabled: !id, title: why },
+    { label: "Download PDF", onClick: () => id && pdf(id, true), disabled: !id, title: why },
+  ];
+};
 
 export function TdsAdjustmentsPage({ companyId, session }: { companyId: number; session: SignedIn }) {
   const can = (p: string) => session.user.is_owner || session.permissions.includes(`accounts.${p}`);
@@ -217,7 +222,7 @@ function AdjustmentList({ companyId }: { companyId: number }) {
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
+                <button type="button" className="link" onClick={() => pdf(selected.id)}>
                   Print
                 </button>
               </div>
@@ -408,7 +413,7 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
             <button type="button" className="link" onClick={close}>
               Close
             </button>
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(draftId)} />
             <button type="submit" form="tdsa-form" className={props.canSubmit ? "secondary" : undefined} disabled={busy || picked.size === 0}>
               Save
             </button>
@@ -537,7 +542,7 @@ function AdjustmentView({ companyId, id, can }: { companyId: number; id: number;
                 Cancel adjustment
               </button>
             )}
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(id)} />
             {draft && can("create") && (
               <button type="button" onClick={() => openTab(`${base(companyId)}?form=${adj.id}`)}>
                 Open to Submit

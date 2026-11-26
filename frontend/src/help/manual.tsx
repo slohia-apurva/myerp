@@ -181,8 +181,11 @@ export const MANUAL: Chapter[] = [
             ledgers open for the company you are working in. Owners also see "Admin", which
             holds "Company", "Users", "User roles" and "Reset data". "Help"
             opens this manual at the page for the screen you are on. On a
-            phone the menu runs onto two lines, with the company on its own
-            line under it and then the bell, "Help" and "Sign out".
+            phone the M logo, the company, the bell, "Help" and "Sign out" sit
+            on one line, with the menu under them (on two short lines). Phone
+            screens use smaller text, buttons and headings so more fits on the
+            screen; tapping a field does not zoom in, but you can still pinch to
+            zoom.
           </li>
           <li>
             <strong>Company</strong> (top right, beside "Help"): the company you
@@ -353,7 +356,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Printing",
-              'Tick "Print a small Lord Ganesha image…" to print a small image at the top centre of the first page of every printout: purchase orders, reports and all other prints. "Use our own image…" puts your own PNG or JPG (up to 300 KB) in its place; "Use the standard image" brings the standard one back. The image is saved as soon as it is chosen.',
+              'Tick "Print a small Lord Ganesha image…" to print a small image at the top centre of the first page of every printout: purchase orders, reports and all other prints. "Use our own image…" puts your own PNG or JPG (up to 300 KB) in its place; "Use the standard image" brings the standard one back. The image is saved as soon as it is chosen. When editing a saved company, "Bank Account for Payment" picks one of the company\'s bank ledgers and "UPI ID" takes an ID like apurvam@hdfcbank: sales orders then print a "Payment Details" box with the bank, account number and IFSC, and a "Scan to pay" QR code that opens the customer\'s UPI app with the order total filled in.',
             ],
             [
               "Attachments",
@@ -638,8 +641,10 @@ export const MANUAL: Chapter[] = [
           </li>
           <li>
             Open the "Item Prices" section of the same ledger and click "Add
-            price": item, unit, "From Qty", "Rate" and "From Date". Click "Save"
-            on the ledger.
+            price": item, unit, "From Qty", "Rate" and "From Date", then "Done".
+            Click "Save" on the ledger. Each saved price shows as one line (item,
+            then unit, from qty and date under it, the rate at the right); click
+            "Edit" on a line to change it, or "Remove" inside it to drop it.
           </li>
           <li>
             When the customer (or supplier) has items listed on its "Products"
@@ -3970,9 +3975,19 @@ export const MANUAL: Chapter[] = [
             come in later pieces of work.
           </li>
           <li>
-            "Print ▾" prints the page or saves it as a PDF. "Scan e-invoice QR",
-            bills before the goods come and imports' bills come in later pieces
-            of work.
+            "Print ▾" holds "Purchase Invoice" (or "Supplementary Bill") and
+            "Download PDF", once the bill is saved. The print has the company's
+            heading (and its image on the first page when "Printing" is ticked on
+            the company), the "Supplier", "Bill To" and "Received At" boxes, the
+            supplier's bill number and date, the posting date, the goods receipts
+            and purchase orders, each line with its description, GRN and PO under
+            the item and its quantity in the stock unit with the next unit up
+            under it ("30 pkt" over "3 ctn"),
+            the charges, the tax summary, the totals with "Less TDS" and "Net
+            Payable", the "Ledger Posting", the "Due Dates" and the signature. A
+            draft prints with "DRAFT" across it. In the list, "Print" beside
+            "Open" prints the selected bill. "Scan e-invoice QR", bills before the
+            goods come and imports' bills come in later pieces of work.
           </li>
         </ul>
         <Note>
@@ -4036,8 +4051,12 @@ export const MANUAL: Chapter[] = [
             and other papers, on the draft and after Submit.
           </li>
           <li>
-            "Print ▾" › "Return Challan" prints the page to go with the goods, or
-            saves it as a PDF.
+            "Print ▾" › "Return Challan" gives the challan to go with the goods:
+            "Return To" (the supplier) and "Sent From" (our branch), the reason,
+            the goods receipt, the supplier's challan, the purchase order and the
+            transport, and the goods valued at our receipt cost with no GST, as a
+            return is not a sale. "Download PDF" saves it. In the list, "Print"
+            beside "Open" prints the selected return.
           </li>
         </ul>
         <Note>
@@ -4114,8 +4133,25 @@ export const MANUAL: Chapter[] = [
             goods show as not debited again.
           </li>
           <li>
+            "Charges": a note for goods sent back fills in each charge on the
+            bill with its share for those goods. Freight the goods receipt added
+            to the stock cost takes the share the receipt gave those goods, so it
+            clears with them and nothing goes to "Purchase Price Difference";
+            other charges are shared by value. Change an amount, "Remove" a line,
+            or "Add charge" (for example return freight we paid, which is
+            credited back to that charge's expense ledger). GST is worked out on
+            the charges too. A "Rate charged higher" note has no charges.
+          </li>
+          <li>
             The "Attachments" box keeps the supplier's credit note and other
-            papers. "Print ▾" prints the page or saves it as a PDF.
+            papers. "Print ▾" › "Debit Note" gives the note to send to the
+            supplier: the "Supplier" and "Issued By" boxes, the reason, their bill,
+            our purchase invoice and return, the lines (a rate note shows the old
+            and new rate under the item), the tax summary and the total. It has
+            no ledger posting, which is ours. When the company has a "Bank
+            Account for Payment" or UPI ID, the note ends with our "Payment
+            Details" and a QR code for the supplier to pay us back. "Download PDF" saves it; in the
+            list, "Print" beside "Open" prints the selected note.
           </li>
         </ul>
         <Note>
@@ -4221,8 +4257,10 @@ export const MANUAL: Chapter[] = [
             cancelled until the adjustment is.
           </li>
           <li>
-            The "Attachments" box keeps working papers. "Print ▾" prints the page
-            or saves it as a PDF.
+            The "Attachments" box keeps working papers. "Print ▾" › "TDS
+            Adjustment" gives the adjustment as a report: its details, the bills
+            with their TDS due, deducted, adjustment and interest, and the
+            "Ledger Posting". "Download PDF" saves it.
           </li>
         </ul>
         <Note>
@@ -4364,7 +4402,13 @@ export const MANUAL: Chapter[] = [
           The order's page says "Submitted as …" with the date and time.
           "Email Customer" mails the order confirmation, with the order as a
           PDF, to the ticked contacts; a copy goes in the order's Activity.
-          "Print ▾" holds "Sales order" and "Download PDF". Submit also makes
+          "Print ▾" holds "Sales order" and "Download PDF". The print shows
+          each quantity in the item's stock unit ("240 Nos") with, under it,
+          the quantity in the unit just above ("10 Case"); the rate is always
+          per stock unit. Goods go to the billing address when the order has
+          no other "Ship To". The company's bank account and UPI QR code print
+          under "Payment Details" once they are set under Company › "Printing".
+          Submit also makes
           the order's pick list (see "Pick lists"): a note at the top says
           whether every item was found in stock, with "Open Pick List", and
           the boxes under it count the pick lists, delivery notes and

@@ -26,6 +26,24 @@ type Line = RateLine & {
   item?: number;
 };
 type Due = { due_date: string; bill: string; less: string; now_due: string };
+/** A charge debited back (preview 106): the bill's charge's share, or one added by hand. */
+type Charge = {
+  item: number;
+  item_name?: string;
+  sac?: string;
+  bill_charge: number | null;
+  bill_amount?: string | null;
+  amount: string;
+  gst_rate: string;
+  in_stock_cost: boolean;
+  cgst?: string;
+  sgst?: string;
+  igst?: string;
+};
+type ChargeItem = { id: number; name: string; sac: string; add_to_stock: string; gst_rate: string | null };
+type ChargeDraft = { key: number; item: string; bill_charge: number | null; bill_amount: string | null; amount: string; gst_rate: string; in_stock_cost: boolean };
+let nextKey = 1;
+const draftOf = (c: Charge): ChargeDraft => ({ key: nextKey++, item: String(c.item), bill_charge: c.bill_charge, bill_amount: c.bill_amount ?? null, amount: String(c.amount), gst_rate: c.gst_rate, in_stock_cost: c.in_stock_cost });
 type Note = {
   id: number;
   number: string;
@@ -59,6 +77,8 @@ type Note = {
   returns?: string[];
   dues_after?: Due[];
   entries?: Entry[];
+  charges?: Charge[];
+  charge_items?: ChargeItem[];
 };
 type DraftFrom = {
   invoice: number;
@@ -69,6 +89,8 @@ type DraftFrom = {
   interstate: boolean;
   reason?: string;
   lines: Line[];
+  charges?: Charge[];
+  charge_items?: ChargeItem[];
 };
 type InvoiceRow = { id: number; number: string; bill_no: string; bill_date: string | null; supplier_name: string };
 
@@ -85,11 +107,16 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pill");
 const today = () => new Date().toISOString().slice(0, 10);
 const invoiceLabel = (i: { number: string; bill_no: string; bill_date: string | null }) => `${i.number} · Bill ${i.bill_no}${i.bill_date ? ` of ${showDate(i.bill_date)}` : ""}`;
-/** "Print ▾": the debit note as this page prints, and a PDF through the browser's own "Save as PDF". */
-const printItems = [
-  { label: "Debit Note", onClick: () => window.print() },
-  { label: "Download PDF", onClick: () => window.print() },
-];
+/** "Print ▾": the debit note as a PDF made on the server (buying/purchase_prints.py), in the
+ * one print tab or downloaded; a new entry prints once it is saved. */
+const pdf = (id: number, download = false) => openTab(`/api/v1/debit-notes/${id}/pdf/${download ? "?download=1" : ""}`);
+const printItems = (id: number | null) => {
+  const why = id ? undefined : "Save it first";
+  return [
+    { label: "Debit Note", onClick: () => id && pdf(id), disabled: !id, title: why },
+    { label: "Download PDF", onClick: () => id && pdf(id, true), disabled: !id, title: why },
+  ];
+};
 
 export function DebitNotesPage({ companyId, session }: { companyId: number; session: SignedIn }) {
   const can = (p: string) => session.permissions.includes(`purchase.${p}`);
@@ -270,7 +297,7 @@ function NoteList({ companyId, canCreate }: { companyId: number; canCreate: bool
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
+                <button type="button" className="link" onClick={() => pdf(selected.id)}>
                   Print
                 </button>
               </div>
@@ -328,6 +355,9 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
   const [supDate, setSupDate] = useState(note?.supplier_note_date ?? "");
   const [notes, setNotes] = useState(note?.notes ?? "");
   const [lines, setLines] = useState<Line[]>(note?.lines ?? props.from?.lines ?? []);
+  const [charges, setCharges] = useState<ChargeDraft[]>(() => (note?.charges ?? props.from?.charges ?? []).map(draftOf));
+  const chargeItems = from?.charge_items ?? note?.charge_items ?? [];
+  const changeCharge = (key: number, patch: Partial<ChargeDraft>) => setCharges((cs) => cs.map((c) => (c.key === key ? { ...c, ...patch } : c)));
   const [saved, setSaved] = useState<Note | null>(note);
   const [draftId, setDraftId] = useState<number | null>(note?.id ?? null);
   const [error, setError] = useState<unknown>("");
@@ -350,6 +380,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
     setInvoice(v);
     setError("");
     setLines([]);
+    setCharges([]);
     if (!v) {
       setFrom(null);
       return;
@@ -358,6 +389,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
       const got = await api<DraftFrom>(`v1/companies/${companyId}/debit-notes/draft-from/?invoice=${v}${why === "rate" ? "&reason=rate" : ""}`);
       setFrom(got);
       setLines(got.lines);
+      setCharges((got.charges ?? []).map(draftOf));
     } catch (err) {
       setError(err);
     }
@@ -378,11 +410,17 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
     const g = head.interstate ? { c: 0, s: 0, i: t } : { c: r2(t / 2), s: r2(t - r2(t / 2)), i: 0 };
     return { taxable, ...g, amount: r2(taxable + t) };
   });
+  const ccalc = (isRate ? [] : charges).map((c) => {
+    const taxable = r2(num(c.amount));
+    const t = r2((taxable * num(c.gst_rate)) / 100);
+    return head.interstate ? { taxable, c: 0, s: 0, i: t } : { taxable, c: r2(t / 2), s: r2(t - r2(t / 2)), i: 0 };
+  });
+  const both = [...calc, ...ccalc];
   const rated = rateCalc(lines, "down", head.interstate);
-  const taxable = isRate ? rated.taxable : r2(calc.reduce((s, x) => s + x.taxable, 0));
-  const cgst = isRate ? rated.cgst : r2(calc.reduce((s, x) => s + x.c, 0));
-  const sgst = isRate ? rated.sgst : r2(calc.reduce((s, x) => s + x.s, 0));
-  const igst = isRate ? rated.igst : r2(calc.reduce((s, x) => s + x.i, 0));
+  const taxable = isRate ? rated.taxable : r2(both.reduce((s, x) => s + x.taxable, 0));
+  const cgst = isRate ? rated.cgst : r2(both.reduce((s, x) => s + x.c, 0));
+  const sgst = isRate ? rated.sgst : r2(both.reduce((s, x) => s + x.s, 0));
+  const igst = isRate ? rated.igst : r2(both.reduce((s, x) => s + x.i, 0));
   const exact = r2(taxable + cgst + sgst + igst);
   const total = Math.round(exact);
   const returns = [...new Set(lines.map((l) => l.return_number).filter(Boolean))];
@@ -416,6 +454,11 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
               return_line: l.return_line,
               qty: l.qty,
             })),
+      charges: isRate
+        ? []
+        : charges
+            .filter((c) => c.item && num(c.amount) > 0)
+            .map((c) => ({ item: Number(c.item), bill_charge: c.bill_charge, amount: c.amount, gst_rate: c.gst_rate || "0", in_stock_cost: c.in_stock_cost })),
       submit,
     };
     try {
@@ -470,7 +513,7 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
             <button type="button" className="link" onClick={close}>
               Close
             </button>
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(draftId)} />
             <button type="submit" form="dn-form" className={props.canSubmit ? "secondary" : undefined} disabled={busy}>
               Save
             </button>
@@ -591,6 +634,70 @@ function NoteForm(props: { companyId: number; title: string; note: Note | null; 
               </>
             )}
           </Fold>
+          {!isRate && (
+            <Fold title="Charges" open summary={charges.length ? `${charges.length}` : "None"}>
+              <p className="small">
+                Filled in from the bill: each charge's share for the goods sent back. Change an amount, remove a line, or add a charge (for example return freight we
+                paid).
+              </p>
+              {charges.length > 0 && (
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>Charge</th>
+                      <th>From the Bill</th>
+                      <th className="num">Taxable ₹</th>
+                      <th className="num">GST %</th>
+                      <th>In Stock Cost</th>
+                      <th className="no-print" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {charges.map((c) => (
+                      <tr key={c.key}>
+                        <td>
+                          <Combobox
+                            value={c.item}
+                            onChange={(v) => {
+                              const it = chargeItems.find((x) => String(x.id) === v);
+                              changeCharge(c.key, { item: v, gst_rate: it?.gst_rate ?? c.gst_rate, in_stock_cost: c.bill_charge ? c.in_stock_cost : false });
+                            }}
+                            options={chargeItems.map((x) => ({ value: String(x.id), label: x.name }))}
+                            ariaLabel="Charge"
+                          />
+                        </td>
+                        <td className="small">{c.bill_charge ? `₹${money(c.bill_amount ?? "0")} on the bill · share for the goods sent back` : "Added by hand"}</td>
+                        <td className="num">
+                          <input className="num-in" inputMode="decimal" value={c.amount} onChange={(e) => changeCharge(c.key, { amount: e.target.value })} aria-label="Charge amount" />
+                        </td>
+                        <td className="num">
+                          <input className="num-in small-in" inputMode="decimal" value={c.gst_rate} onChange={(e) => changeCharge(c.key, { gst_rate: e.target.value })} aria-label="Charge GST %" />
+                        </td>
+                        <td>
+                          <label className="tick">
+                            <input type="checkbox" checked={c.in_stock_cost} onChange={(e) => changeCharge(c.key, { in_stock_cost: e.target.checked })} />
+                            <span className="small">{c.in_stock_cost ? "Added to the goods by the receipt" : "Booked to the charge's expense"}</span>
+                          </label>
+                        </td>
+                        <td className="no-print">
+                          <button type="button" className="link danger" onClick={() => setCharges(charges.filter((x) => x.key !== c.key))}>
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <button
+                type="button"
+                className="link"
+                onClick={() => setCharges([...charges, { key: nextKey++, item: "", bill_charge: null, bill_amount: null, amount: "", gst_rate: "", in_stock_cost: false }])}
+              >
+                Add charge
+              </button>
+            </Fold>
+          )}
           <Fold title="Totals" open summary={`₹${money(String(total))}`}>
             <Totals taxable={taxable} cgst={cgst} sgst={sgst} igst={igst} roundOff={r2(total - exact)} total={total} />
           </Fold>
@@ -702,7 +809,7 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
                 Cancel debit note
               </button>
             )}
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={printItems(id)} />
             {draft && can("create") && (
               <button type="button" onClick={() => openTab(`${base(companyId)}?form=${note.id}`)}>
                 Open to Submit
@@ -811,6 +918,34 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
               </div>
             )}
           </Fold>
+          {(note.charges ?? []).length > 0 && (
+            <Fold title="Charges" open>
+              <table className="grid">
+                <thead>
+                  <tr>
+                    <th>Charge</th>
+                    <th>SAC</th>
+                    <th>From the Bill</th>
+                    <th className="num">Taxable ₹</th>
+                    <th className="num">GST %</th>
+                    <th>In Stock Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(note.charges ?? []).map((c, i) => (
+                    <tr key={i}>
+                      <td>{c.item_name}</td>
+                      <td>{c.sac}</td>
+                      <td className="small">{c.bill_charge ? `Share of ₹${money(c.bill_amount ?? "0")} on the bill` : "Added by hand"}</td>
+                      <td className="num">{money(c.amount)}</td>
+                      <td className="num">{c.gst_rate}</td>
+                      <td>{c.in_stock_cost ? "Yes" : "No"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Fold>
+          )}
           <Fold title="Totals" open summary={`₹${money(note.total)}`}>
             <Totals taxable={note.taxable_total} cgst={note.cgst_total} sgst={note.sgst_total} igst={note.igst_total} roundOff={note.round_off} total={note.total} />
           </Fold>

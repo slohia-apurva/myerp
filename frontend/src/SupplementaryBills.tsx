@@ -7,6 +7,7 @@ import { announceSaved, closeThisTab } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu } from "./Exchange";
 import { Fold } from "./Master";
+import { billPrintItems } from "./DirectBills";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { TdsBox, type TdsInfo } from "./Tds";
 import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
@@ -50,10 +51,6 @@ type DraftFrom = {
 const base = (companyId: number) => `#/companies/${companyId}/purchase-invoices`;
 const num = (v: string | null | undefined) => Number(v) || 0;
 const r2 = (n: number) => Math.round(n * 100) / 100;
-const printItems = [
-  { label: "Supplementary Bill", onClick: () => window.print() },
-  { label: "Download PDF", onClick: () => window.print() },
-];
 
 /** A new bill from ?form=new&supplementary=<original>, or a draft to finish. */
 export function SupplementaryFormTab(props: { companyId: number; original?: number; bill?: SupplementaryBill; canSubmit: boolean }) {
@@ -191,7 +188,7 @@ function SupplementaryForm(props: { companyId: number; from: DraftFrom; bill?: S
             <button type="button" className="link" onClick={close}>
               Close
             </button>
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={billPrintItems(draftId, "Supplementary Bill")} />
             <button type="submit" form="supp-form" className={props.canSubmit ? "secondary" : undefined} disabled={busy}>
               Save
             </button>

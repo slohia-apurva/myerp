@@ -33,9 +33,11 @@ from buying.api import CANCEL, CREATE, SUBMIT, VIEW, _check, _company, _plain
 from buying.invoices import _gst, _side, _text, grni_value, system_ledger
 from buying.models import (
     DebitNote,
+    DebitNoteCharge,
     DebitNoteLine,
     GoodsReceiptLine,
     PurchaseInvoice,
+    PurchaseInvoiceCharge,
     PurchaseInvoiceLine,
     PurchaseReturn,
     PurchaseReturnLine,
@@ -43,6 +45,7 @@ from buying.models import (
 from core import attachments, numbering
 from core.api import Signed
 from core.companies import visible_companies
+from core.models import Item
 from posting import accounts, service
 from posting.models import GLEntry
 from posting.service import GLLine, Voucher, money
@@ -124,6 +127,85 @@ def _line_out(ln: DebitNoteLine, note: DebitNote) -> dict:
     }
 
 
+def _charge_out(c: DebitNoteCharge) -> dict:
+    return {
+        "id": c.pk,
+        "item": c.item_id,
+        "item_name": c.item.name,
+        "sac": c.item.hsn,
+        "bill_charge": c.bill_charge_id,
+        "bill_amount": c.bill_charge.amount if c.bill_charge_id else None,
+        "amount": c.amount,
+        "gst_rate": _plain(c.gst_rate),
+        "cgst": c.cgst,
+        "sgst": c.sgst,
+        "igst": c.igst,
+        "in_stock_cost": c.in_stock_cost,
+    }
+
+
+def charge_items() -> list[dict]:
+    """Service items ticked "Use as Purchase Charge", for the Charges picker."""
+    from core.items import gst_rate_on
+
+    today = timezone.localdate()
+    return [
+        {
+            "id": i.pk,
+            "name": i.name,
+            "sac": i.hsn,
+            "add_to_stock": i.add_to_stock,
+            "gst_rate": _plain(r) if (r := gst_rate_on(i, today)) is not None else None,
+        }
+        for i in Item.objects.filter(
+            purchase_charge=True, item_type=Item.SERVICE, is_active=True
+        ).order_by("name")
+    ]
+
+
+def bill_shares(inv: PurchaseInvoice, lines: list[tuple]) -> list[dict]:
+    """Each of the bill's charges, its share for the goods sent back (Sidharth,
+    2026-11-25, preview 106). `lines` are (invoice line, qty) pairs. A charge
+    the receipt added to the goods' cost takes what the receipt spread on those
+    goods (so nothing is left in "Purchase Price Difference"), split between the
+    bill's stock-cost charges by their amounts; any other charge goes by value."""
+    charges = list(inv.charges.select_related("item"))
+    if not charges or not lines:
+        return []
+    spread = sum(
+        (
+            money(il.receipt_line.charges_value * qty / il.receipt_line.accepted_qty)
+            for il, qty in lines
+            if il.receipt_line.accepted_qty
+        ),
+        ZERO,
+    )
+    goods = sum((money(qty * il.rate) for il, qty in lines), ZERO)
+    billed = sum((ln.taxable for ln in inv.lines.all()), ZERO)
+    stock_total = sum((c.amount for c in charges if c.in_stock_cost), ZERO)
+    out = []
+    for c in charges:
+        if c.in_stock_cost:
+            share = money(spread * c.amount / stock_total) if stock_total else ZERO
+        else:
+            share = money(c.amount * goods / billed) if billed else ZERO
+        if share <= 0:
+            continue
+        out.append(
+            {
+                "item": c.item_id,
+                "item_name": c.item.name,
+                "sac": c.item.hsn,
+                "bill_charge": c.pk,
+                "bill_amount": c.amount,
+                "amount": share,
+                "gst_rate": _plain(c.gst_rate),
+                "in_stock_cost": c.in_stock_cost,
+            }
+        )
+    return out
+
+
 def _dues_after(note: DebitNote) -> list[dict]:
     """The bill's due dates less its debit notes (this one included), taken
     off the latest due first."""
@@ -189,6 +271,10 @@ def _note_out(note: DebitNote, lines: bool = True) -> dict:
             "item", "unit", "invoice_line__receipt_line", "return_line__ret"
         )
         data["lines"] = [_line_out(ln, note) for ln in rows]
+        data["charges"] = [
+            _charge_out(c) for c in note.charges.select_related("item", "bill_charge")
+        ]
+        data["charge_items"] = charge_items()
         data["returns"] = sorted({x["return_number"] for x in data["lines"]} - {""})
         data["dues_after"] = _dues_after(note)
         data["entries"] = _entries(note)
@@ -234,6 +320,16 @@ class LineSerializer(serializers.Serializer):
     qty = serializers.DecimalField(max_digits=18, decimal_places=6, min_value=Decimal("0"))
 
 
+class ChargeSerializer(serializers.Serializer):
+    item = serializers.IntegerField()
+    bill_charge = serializers.IntegerField(required=False, allow_null=True)
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, min_value=Decimal("0"))
+    gst_rate = serializers.DecimalField(
+        max_digits=5, decimal_places=2, min_value=Decimal("0"), max_value=Decimal("100")
+    )
+    in_stock_cost = serializers.BooleanField(default=False)
+
+
 class NoteSerializer(serializers.Serializer):
     invoice = serializers.IntegerField()
     note_date = serializers.DateField()
@@ -244,7 +340,39 @@ class NoteSerializer(serializers.Serializer):
     supplier_note_date = serializers.DateField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, default="")
     lines = LineSerializer(many=True, required=False, default=list)
+    charges = ChargeSerializer(many=True, required=False, default=list)
     submit = serializers.BooleanField(required=False, default=False)
+
+
+def _charges(inv: PurchaseInvoice, data: dict) -> list[DebitNoteCharge]:
+    given = [c for c in data.get("charges") or [] if c["amount"]]
+    if given and data.get("reason") == RATE:
+        raise ValidationError({"charges": ["A rate note takes no charges."]})
+    out = []
+    for n, c in enumerate(given, start=1):
+        item = Item.objects.filter(pk=c["item"], purchase_charge=True).first()
+        if item is None:
+            raise ValidationError({"charges": [f"Charge {n}: pick a charge from the list."]})
+        bill_charge = None
+        if c.get("bill_charge"):
+            bill_charge = PurchaseInvoiceCharge.objects.filter(
+                pk=c["bill_charge"], invoice=inv
+            ).first()
+        cgst, sgst, igst = _gst(c["amount"], c["gst_rate"], inv.interstate)
+        out.append(
+            DebitNoteCharge(
+                position=n,
+                item=item,
+                bill_charge=bill_charge,
+                amount=c["amount"],
+                gst_rate=c["gst_rate"],
+                cgst=cgst,
+                sgst=sgst,
+                igst=igst,
+                in_stock_cost=c["in_stock_cost"],
+            )
+        )
+    return out
 
 
 def _save(note: DebitNote, data: dict) -> None:
@@ -276,7 +404,7 @@ def _save(note: DebitNote, data: dict) -> None:
             )
             for n, r in enumerate(rates.checked_lines(inv, data.get("lines") or [], rates.DOWN), 1)
         ]
-        _fill(note, inv, data, rows)
+        _fill(note, inv, data, rows, _charges(inv, data))
         return
     rows, errors = [], []
     for n, line in enumerate(data.get("lines") or [], start=1):
@@ -330,10 +458,16 @@ def _save(note: DebitNote, data: dict) -> None:
         )
     if errors:
         raise ValidationError({"lines": errors})
-    _fill(note, inv, data, rows)
+    _fill(note, inv, data, rows, _charges(inv, data))
 
 
-def _fill(note: DebitNote, inv: PurchaseInvoice, data: dict, rows: list[DebitNoteLine]) -> None:
+def _fill(
+    note: DebitNote,
+    inv: PurchaseInvoice,
+    data: dict,
+    rows: list[DebitNoteLine],
+    charges: list[DebitNoteCharge] = (),
+) -> None:
     note.invoice, note.supplier, note.branch = inv, inv.supplier, inv.branch
     note.interstate = inv.interstate
     note.note_date = data["note_date"]
@@ -341,10 +475,13 @@ def _fill(note: DebitNote, inv: PurchaseInvoice, data: dict, rows: list[DebitNot
     note.supplier_note_no = data.get("supplier_note_no", "").strip()
     note.supplier_note_date = data.get("supplier_note_date")
     note.notes = data.get("notes", "").strip()
-    note.taxable_total = sum((r.taxable for r in rows), ZERO)
-    note.cgst_total = sum((r.cgst for r in rows), ZERO)
-    note.sgst_total = sum((r.sgst for r in rows), ZERO)
-    note.igst_total = sum((r.igst for r in rows), ZERO)
+    both = [*rows, *charges]
+    note.taxable_total = sum((r.taxable for r in rows), ZERO) + sum(
+        (c.amount for c in charges), ZERO
+    )
+    note.cgst_total = sum((r.cgst for r in both), ZERO)
+    note.sgst_total = sum((r.sgst for r in both), ZERO)
+    note.igst_total = sum((r.igst for r in both), ZERO)
     exact = note.taxable_total + note.cgst_total + note.sgst_total + note.igst_total
     note.total = exact.quantize(RUPEE, rounding=ROUND_HALF_UP)
     note.round_off = note.total - exact
@@ -353,6 +490,10 @@ def _fill(note: DebitNote, inv: PurchaseInvoice, data: dict, rows: list[DebitNot
     for r in rows:
         r.note = note
     DebitNoteLine.objects.bulk_create(rows)
+    note.charges.all().delete()
+    for c in charges:
+        c.note = note
+    DebitNoteCharge.objects.bulk_create(charges)
 
 
 # Posting ---------------------------------------------------------------------
@@ -408,11 +549,24 @@ def _plan(note: DebitNote, preview: bool = False, work=None):
     ):
         if value:
             gl.append(GLLine(ledger(code), credit=value, remarks="Input GST reversed"))
-    if grni != note.taxable_total:
+    # Charges in the goods' stock cost clear with the goods; any other charge
+    # goes back to its own expense ledger.
+    charges = list(note.charges.select_related("item"))
+    for c in charges:
+        if not c.in_stock_cost:
+            gl.append(
+                GLLine(
+                    accounts.cogs_ledger(company, c.item),
+                    credit=c.amount,
+                    remarks=f"{c.item.name} claimed from the supplier",
+                )
+            )
+    cleared = note.taxable_total - sum((c.amount for c in charges if not c.in_stock_cost), ZERO)
+    if grni != cleared:
         gl.append(
             _side(
                 ledger(accounts.PRICE_DIFFERENCE),
-                grni - note.taxable_total,
+                grni - cleared,
                 "Bill value differs from the receipt value",
             )
         )
@@ -595,6 +749,8 @@ def _submitted_return_lines(**where):
 
 
 def _draft_for(inv: PurchaseInvoice, lines: list[dict]) -> dict:
+    ils = {il.pk: il for il in inv.lines.select_related("receipt_line")}
+    pairs = [(ils[x["invoice_line"]], Decimal(x["qty"])) for x in lines if x["invoice_line"] in ils]
     if not lines:
         raise ValidationError(
             {
@@ -613,6 +769,8 @@ def _draft_for(inv: PurchaseInvoice, lines: list[dict]) -> dict:
             "branch": inv.branch_id,
             "interstate": inv.interstate,
             "lines": lines,
+            "charges": bill_shares(inv, pairs) if lines else [],
+            "charge_items": charge_items(),
         }
     )
 

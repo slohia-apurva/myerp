@@ -9,7 +9,7 @@ import { money } from "./Companies";
 import { announceSaved, closeThisTab } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu } from "./Exchange";
-import { Fold } from "./Master";
+import { Fold, openTab } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { TdsBox, type TdsInfo } from "./Tds";
 import { useReturns } from "./Refresh";
@@ -74,10 +74,16 @@ const num = (v: string | null | undefined) => Number(v) || 0;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 let nextKey = 1;
 const blank = (): Row => ({ key: nextKey++, pick: "", description: "", hsn: "", unit: "", qty: "1", rate: "", gst_rate: "" });
-const printItems = [
-  { label: "Purchase Invoice", onClick: () => window.print() },
-  { label: "Download PDF", onClick: () => window.print() },
-];
+/** "Print ▾" on every kind of purchase bill: the server's PDF (buying/invoice_pdf.py) in the
+ * one print tab, or downloaded. A new bill prints once it is saved. */
+export const billPdf = (id: number, download = false) => openTab(`/api/v1/purchase-invoices/${id}/pdf/${download ? "?download=1" : ""}`);
+export const billPrintItems = (id: number | null, label = "Purchase Invoice") => {
+  const why = id ? undefined : "Save the bill first";
+  return [
+    { label, onClick: () => id && billPdf(id), disabled: !id, title: why },
+    { label: "Download PDF", onClick: () => id && billPdf(id, true), disabled: !id, title: why },
+  ];
+};
 
 /** The "Bill Type" picker at the top of a new purchase invoice: switching opens the other form. */
 export function BillTypePicker(props: { companyId: number; direct: boolean; locked: boolean }) {
@@ -275,7 +281,7 @@ export function DirectFormTab(props: { companyId: number; bill?: DirectBill; can
             <button type="button" className="link" onClick={close}>
               Close
             </button>
-            <ActionsMenu label="Print" items={printItems} />
+            <ActionsMenu label="Print" items={billPrintItems(draftId)} />
             <button type="submit" form="direct-form" className={props.canSubmit ? "secondary" : undefined} disabled={busy}>
               Save
             </button>

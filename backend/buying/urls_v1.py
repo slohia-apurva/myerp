@@ -4,8 +4,10 @@ from buying import (
     api,
     debit_notes,
     direct_bills,
+    invoice_pdf,
     invoices,
     planning,
+    purchase_prints,
     receipts,
     returns,
     supplementary,
@@ -122,6 +124,11 @@ urlpatterns = [
         "purchase-invoices/<int:pk>/", invoices.InvoiceDetailView.as_view(), name="purchase-invoice"
     ),
     path(
+        "purchase-invoices/<int:pk>/pdf/",
+        invoice_pdf.InvoicePdfView.as_view(),
+        name="purchase-invoice-pdf",
+    ),
+    path(
         "purchase-invoices/<int:pk>/tds/", tds.InvoiceTdsView.as_view(), name="purchase-invoice-tds"
     ),
     path(
@@ -145,6 +152,11 @@ urlpatterns = [
         name="purchase-return-returnable",
     ),
     path("purchase-returns/<int:pk>/", returns.ReturnDetailView.as_view(), name="purchase-return"),
+    path(
+        "purchase-returns/<int:pk>/pdf/",
+        purchase_prints.ReturnPdfView.as_view(),
+        name="purchase-return-pdf",
+    ),
     path(
         "purchase-returns/<int:pk>/cancel/",
         returns.ReturnCancelView.as_view(),
@@ -184,6 +196,11 @@ urlpatterns = [
     ),
     path("debit-notes/<int:pk>/", debit_notes.NoteDetailView.as_view(), name="debit-note"),
     path(
+        "debit-notes/<int:pk>/pdf/",
+        purchase_prints.DebitNotePdfView.as_view(),
+        name="debit-note-pdf",
+    ),
+    path(
         "debit-notes/<int:pk>/cancel/",
         debit_notes.NoteCancelView.as_view(),
         name="debit-note-cancel",
@@ -214,6 +231,11 @@ urlpatterns = [
         "companies/<int:pk>/tds-adjustments/preview/",
         tds_check.AdjustmentPreviewView.as_view(),
         name="tds-adjustment-preview",
+    ),
+    path(
+        "tds-adjustments/<int:pk>/pdf/",
+        purchase_prints.TdsAdjustmentPdfView.as_view(),
+        name="tds-adjustment-pdf",
     ),
     path(
         "tds-adjustments/<int:pk>/",
