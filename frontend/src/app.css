@@ -4521,6 +4521,14 @@ form.master-form > .side-main {
   margin-bottom: 0;
 }
 
+/* Batch Trace (2026-11-25): a cell's note goes under its name or number. */
+.trace-table td .small {
+  display: block;
+  margin-top: 2px;
+}
+.trace-table td:first-child {
+  white-space: nowrap;
+}
 /* A party's Item Prices as lines (PriceLines.tsx): item with its unit, qty and date under it,
    the rate at the right; fits a phone (Sidharth, 2026-11-25). */
 table.price-lines {

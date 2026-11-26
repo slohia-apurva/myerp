@@ -73,6 +73,9 @@ export function BatchesPage({ session }: { session: SignedIn }) {
 
 function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[]; reload: () => void }) {
   const { batches, canEdit, reload } = props;
+  // Batch Trace (2026-11-25) shows stock, so it needs the right to see stock.
+  const canTrace = props.session.permissions.includes("stock.view");
+  const trace = (id: number) => openTab(`#/batches/${id}/trace`);
   const [selectedId, setSelected] = useKept<number | null>("Batches.selectedId", null);
   const [itemFilter, setItemFilter] = useState("");
   useCreated("batch_saved", (c) => {
@@ -127,6 +130,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
                 <th>Expiry</th>
                 <th>Status</th>
                 <ActionHeads />
+                {canTrace && <th />}
               </tr>
               <ColumnSearch />
             </thead>
@@ -148,11 +152,18 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
                   <td>{showDate(b.expiry_date)}</td>
                   <td>{b.status_label}</td>
                   <ActionCells canEdit={canEdit} onOpen={() => edit(b.id)} onDuplicate={() => edit(`copy-${b.id}`)} />
+                  {canTrace && (
+                    <td className="act">
+                      <button className="link" onClick={() => trace(b.id)}>
+                        Trace
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="small">
+                  <td colSpan={canTrace ? 9 : 8} className="small">
                     No batches yet. Click "Add batch", or receive goods of a batch-tracked item.
                   </td>
                 </tr>
@@ -178,6 +189,13 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
               />
             ) : (
               <p className="small">Click a row to see its details here.</p>
+            )}
+            {selected && canTrace && (
+              <div className="buttons">
+                <button type="button" className="link" onClick={() => trace(selected.id)}>
+                  Trace
+                </button>
+              </div>
             )}
           </SidePanel>
           <SidePanel title="Activity">

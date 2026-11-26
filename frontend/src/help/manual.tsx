@@ -1452,6 +1452,85 @@ export const MANUAL: Chapter[] = [
           batch is used in an entry its item can no longer change. Batches are
           never deleted: tick "Disabled" under "Switches" instead. To change
           many batches at once, use "Actions" (see "Import, export and print").
+          "Trace" on a batch's row, or under "Batch Details", opens its Batch
+          Trace (see "Batch Trace").
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "batch-trace",
+    title: "Batch Trace",
+    summary:
+      "Where one batch came from, where it is now and where it went: the page for a recall or an audit.",
+    body: (
+      <>
+        <p>
+          Batch Trace shows the whole story of one batch, read from the stock
+          entries, across every company of the group you may see. It needs the
+          right to see stock.
+        </p>
+        <h3>Open it</h3>
+        <ul>
+          <li>Scan the QR code on a retention sample label.</li>
+          <li>
+            Or click "Masters" in the top menu, then "Batches", and click
+            "Trace" on the batch's row (or under "Batch Details" on the right).
+          </li>
+        </ul>
+        <p>
+          It opens in the same tab; "Close" goes back, and "Open Batch" shows
+          the batch in the Batches list. Every entry number is a link that
+          opens that entry, and a bin opens what is in it now.
+        </p>
+        <h3>What it shows</h3>
+        <ul>
+          <li>
+            "Batch": the item, batch number, the supplier's batch number, mfg
+            date, expiry and quality status.
+          </li>
+          <li>
+            "Where It Came From": each entry that brought the batch in, with the
+            date, the supplier (with their number and main contact), the
+            purchase order, the purchase invoice with the supplier's bill number,
+            the branch and the quantity. A customer's own goods (Stock Receipt)
+            show the customer.
+          </li>
+          <li>
+            "Where It Is Now": each bin or area that holds it, with the branch,
+            the bag numbers still there, the quantity, and under "Held For" any
+            pick list or Manufacturing Order that has picked it but not taken it
+            yet.
+          </li>
+          <li>
+            "Where It Went": delivery notes (with the customer, sales order,
+            pick list and sales invoice), own use, purchase returns to the
+            supplier and stock deliveries of a customer's own goods under "Out";
+            sales returns (credit notes) under "Back". A stock transfer between
+            our branches says "Moved …, still ours" and counts as neither.
+          </li>
+          <li>
+            "Every Move" (folded): each stock entry line with its bin and the
+            running balance, cancelled entries too.
+          </li>
+          <li>
+            On the right, "Balance" (received, sent out, came back, moved
+            between branches, in stock now and held) and "Customers Who Got It":
+            the recall list, each customer with their number, main contact and
+            the quantity they got less what came back.
+          </li>
+        </ul>
+        <p>
+          A cancelled entry is left out of the three lists, as it moved nothing.
+          When the Material Issue and Production Entry screens are in use, a
+          batch we make will show the batches it was made from, and a batch
+          issued to production the batches made from it.
+        </p>
+        <h3>Print or keep a copy</h3>
+        <p>
+          "Actions ▾" at the top right has "Print" and "Download PDF": the whole
+          trace on A4 with the batch, the balance, each list and the customers,
+          with the column headings on every page and "Page n of m".
         </p>
       </>
     ),

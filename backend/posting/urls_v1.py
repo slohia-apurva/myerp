@@ -1,10 +1,11 @@
 from django.urls import path
 
-from posting import api, books, reports
+from posting import api, books, reports, trace
 
 urlpatterns = [
     path("postings/", api.PostingsView.as_view(), name="postings"),
     path("companies/<int:pk>/ask-ledgers/", api.AskLedgersView.as_view(), name="ask-ledgers"),
+    path("batches/<int:pk>/trace/", trace.BatchTraceView.as_view(), name="batch-trace"),
     path("bins/<int:pk>/", api.BinContentsView.as_view(), name="bin-contents"),
     path(
         "companies/<int:pk>/stock-summary/",

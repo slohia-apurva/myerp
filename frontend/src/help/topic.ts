@@ -4,6 +4,7 @@
 /** The manual chapter for the screen at this hash, for the Help link. */
 export function helpTopicFor(hash: string): string {
   const [page, id, sub] = hash.replace(/^#\/?/, "").split("?")[0].split("/");
+  if (page === "batches" && sub === "trace") return "batch-trace";
   if (page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "items" || page === "boms" || page === "hsn" || page === "reset" || page === "migration" || page === "central")
     return page;
   if (page === "request-addition") return "hsn";

@@ -54,6 +54,7 @@ const PickListsPage = lazy(() => import("./PickLists").then((m) => ({ default: m
 const DeliveryNotesPage = lazy(() => import("./DeliveryNotes").then((m) => ({ default: m.DeliveryNotesPage })));
 const SalesInvoicesPage = lazy(() => import("./SalesInvoices").then((m) => ({ default: m.SalesInvoicesPage })));
 const CreditNotesPage = lazy(() => import("./CreditNotes").then((m) => ({ default: m.CreditNotesPage })));
+const BatchTracePage = lazy(() => import("./BatchTrace").then((m) => ({ default: m.BatchTracePage })));
 const BinContentsPage = lazy(() => import("./BinContents").then((m) => ({ default: m.BinContentsPage })));
 const GoodsReceiptsPage = lazy(() => import("./GoodsReceipts").then((m) => ({ default: m.GoodsReceiptsPage })));
 const PurchaseInvoicesPage = lazy(() => import("./PurchaseInvoices").then((m) => ({ default: m.PurchaseInvoicesPage })));
@@ -74,6 +75,8 @@ function routeFromHash(): Route {
     return { page, id: id ? Number(id) : undefined, sub, subId: subId ? Number(subId) : undefined };
   if (page === "help") return { page, topic: id };
   if (page === "bins") return { page, id: Number(id) || undefined };
+  // The retention sample label QR opens #/batches/<id>/trace: keep that address.
+  if (page === "batches" && sub === "trace") return { page: "batches", id: Number(id) || undefined, sub };
   return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "boms" || page === "reset" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
 }
 
@@ -213,6 +216,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
         <Opening>
           {page === "help" ? (
             <HelpPage topic={topic} />
+          ) : page === "batches" && sub === "trace" && id && canSeeStock ? (
+            <BatchTracePage key={id} id={id} />
           ) : page === "bins" && id && canSeeMasters ? (
             <BinContentsPage key={id} id={id} />
           ) : page === "companies" && id && sub === "stock-summary" && canSeeStock ? (
