@@ -3,12 +3,11 @@ import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { Chevron, LevelPicker, PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
-import type { Company, Detail } from "./Companies";
+import type { Company } from "./Companies";
 import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName } from "./Create";
 import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
 import { InUseNote, type LockInfo } from "./Lock";
-import type { Ledger } from "./Ledgers";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
@@ -42,6 +41,8 @@ export type AccountRow = {
 };
 
 type Picks = { stock: string; cogs: string; sales: string };
+/** The ledgers each Accounts picker offers in one company (item-groups/ledgers/). */
+type PickLedgers = Record<keyof Picks, { id: number; name: string; is_active: boolean }[]>;
 
 export function useItemGroups(full = false) {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
@@ -74,14 +75,14 @@ const formParam = () => hashParam("form");
  * Add, Edit, Sub-group and Duplicate each open in a new tab. */
 export function ItemGroupsPage({ session }: { session: SignedIn }) {
   const canEdit = session.permissions.includes("masters.edit");
-  const { groups, reload } = useItemGroups(true);
   const form = formParam();
   if (form) return <GroupFormTab form={form} canEdit={canEdit} />;
-  return <GroupList session={session} canEdit={canEdit} groups={groups} reload={reload} />;
+  return <GroupList session={session} canEdit={canEdit} />;
 }
 
-function GroupList(props: { session: SignedIn; canEdit: boolean; groups: ItemGroup[]; reload: () => void }) {
-  const { groups, canEdit, reload } = props;
+function GroupList(props: { session: SignedIn; canEdit: boolean }) {
+  const { canEdit } = props;
+  const { groups, reload } = useItemGroups(true);
   const [selectedId, setSelected] = useKept<number | null>("ItemGroups.selectedId", null);
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
@@ -286,12 +287,16 @@ function GroupFormTab(props: { form: string; canEdit: boolean }) {
   const copy = props.form.startsWith("copy-");
   const sub = props.form.startsWith("sub-");
   const key = Number(props.form.replace(/^(copy|sub)-/, ""));
+  // The tree for the "Under" picker (lean), and the one group being changed or copied with its
+  // "in use" checks and accounts: the screen opens without checking every group (2026-11-26).
   const [groups, setGroups] = useState<ItemGroup[] | null>(null);
+  const [target, setTarget] = useState<ItemGroup | null | undefined>(props.form === "new" ? null : undefined);
   useEffect(() => {
-    api<ItemGroup[]>("v1/item-groups/?full=1").then(setGroups);
-  }, []);
+    api<ItemGroup[]>("v1/item-groups/").then(setGroups);
+    if (props.form !== "new")
+      api<ItemGroup>(`v1/item-groups/${key}/`).then(setTarget, () => setTarget(null));
+  }, [props.form, key]);
   const startName = useNewName();
-  const target = props.form === "new" ? null : (groups?.find((g) => g.id === key) ?? null);
   const toList = () => {
     window.location.hash = "#/item-groups";
   };
@@ -302,7 +307,7 @@ function GroupFormTab(props: { form: string; canEdit: boolean }) {
   const editing = props.form !== "new" && !copy && !sub;
   const readOnly = !props.canEdit;
   const title = editing ? (readOnly ? "View item group" : "Edit item group") : sub ? "Add sub-group" : copy ? "Duplicate item group" : "Add item group";
-  if (groups === null)
+  if (groups === null || target === undefined)
     return (
       <section className="page">
         <PageHeader title={title} />
@@ -479,10 +484,7 @@ function GroupForm(props: {
             readOnly={props.readOnly}
           />
         ) : (
-          <InheritedAccounts
-            main={props.groups.find((x) => x.id === rootOf(Number(parent)))}
-            sourceName={paths.get(rootOf(Number(parent))) ?? ""}
-          />
+          <InheritedAccounts mainId={rootOf(Number(parent))} sourceName={paths.get(rootOf(Number(parent))) ?? ""} />
         )}
       </Section>
     </FormPage>
@@ -490,22 +492,29 @@ function GroupForm(props: {
 }
 
 /** Sub-groups show their main group's accounts, read only. */
-function InheritedAccounts(props: { main?: ItemGroup; sourceName: string }) {
-  const rows = props.main?.accounts ?? [];
+function InheritedAccounts(props: { mainId: number; sourceName: string }) {
+  const [main, setMain] = useState<ItemGroup | undefined>();
+  useEffect(() => {
+    setMain(undefined);
+    api<ItemGroup>(`v1/item-groups/${props.mainId}/`).then(setMain);
+  }, [props.mainId]);
+  const rows = main?.accounts ?? [];
   return (
     <>
       <p className="small">
         From the main group <b>{props.sourceName}</b>. Change them there; every group under it uses the same accounts.
-        {props.main && (
+        {main && (
           <>
             {" "}
-            <button type="button" className="link" onClick={() => openTab(`#/item-groups?form=${props.main!.id}`)}>
+            <button type="button" className="link" onClick={() => openTab(`#/item-groups?form=${main.id}`)}>
               Open {props.sourceName}
             </button>
           </>
         )}
       </p>
-      {rows.length === 0 ? (
+      {!main ? (
+        <p className="small">Loading accounts…</p>
+      ) : rows.length === 0 ? (
         <p className="small">No accounts are set on {props.sourceName} yet.</p>
       ) : (
         <table className="grid">
@@ -542,24 +551,16 @@ function AccountGrid(props: {
   readOnly?: boolean;
 }) {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [ledgers, setLedgers] = useState<Record<number, { ledgers: Ledger[]; stockGroups: Set<number> }>>({});
+  const [ledgers, setLedgers] = useState<Record<number, PickLedgers>>({});
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     api<Company[]>("v1/companies/").then((list) => {
       setCompanies(list);
+      // Only the ledgers these pickers offer (stock, expense, income), never the thousands of
+      // customer and supplier ledgers: the whole list took 10 s on staging (2026-11-26).
       list.forEach((c) =>
-        Promise.all([api<Ledger[]>(`v1/companies/${c.id}/ledgers/`), api<Detail>(`v1/companies/${c.id}/`)]).then(
-          ([ls, detail]) => {
-            // The groups at and under Stock-in-Hand.
-            const stock = new Set<number>();
-            const root = detail.ledger_groups.find((x) => x.code === "stock_in_hand");
-            const walk = (id: number) => {
-              stock.add(id);
-              detail.ledger_groups.filter((x) => x.parent === id).forEach((x) => walk(x.id));
-            };
-            if (root) walk(root.id);
-            setLedgers((all) => ({ ...all, [c.id]: { ledgers: ls, stockGroups: stock } }));
-          },
+        api<PickLedgers>(`v1/item-groups/ledgers/?company=${c.id}`).then((got) =>
+          setLedgers((all) => ({ ...all, [c.id]: got })),
         ),
       );
     });
@@ -587,9 +588,9 @@ function AccountGrid(props: {
             const locked = row?.locked ?? [];
             const picks = props.picks[c.id] ?? empty;
             const data = ledgers[c.id];
-            const pick = (key: keyof Picks, kind: "stock" | "expense" | "income") => {
-              const options = (data?.ledgers ?? [])
-                .filter((l) => (l.is_active || String(l.id) === picks[key]) && (kind === "stock" ? data!.stockGroups.has(l.group) : l.nature === kind))
+            const pick = (key: keyof Picks) => {
+              const options = (data?.[key] ?? [])
+                .filter((l) => l.is_active || String(l.id) === picks[key])
                 .map((l) => ({ value: String(l.id), label: l.name }));
               return (
                 <Combobox
@@ -616,9 +617,9 @@ function AccountGrid(props: {
                     </>
                   )}
                 </td>
-                <td>{wrap(pick("stock", "stock"))}</td>
-                <td>{wrap(pick("cogs", "expense"))}</td>
-                <td>{salesOff ? <span className="locked-field" {...({ inert: "" } as object)}>{pick("sales", "income")}</span> : pick("sales", "income")}</td>
+                <td>{wrap(pick("stock"))}</td>
+                <td>{wrap(pick("cogs"))}</td>
+                <td>{salesOff ? <span className="locked-field" {...({ inert: "" } as object)}>{pick("sales")}</span> : pick("sales")}</td>
               </tr>
             );
           })}
