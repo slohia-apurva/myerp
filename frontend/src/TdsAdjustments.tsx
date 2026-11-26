@@ -9,7 +9,7 @@ import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting } from "./LedgerPosting";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { useKept } from "./Keep";
 import { Connections } from "./Connections";
 
@@ -101,9 +101,9 @@ const COLUMNS: [key: string, label: string, text: (r: Adjustment) => string, num
 ];
 
 function AdjustmentList({ companyId }: { companyId: number }) {
-  const [view, setView] = useKept("TdsAdjustments.view", "submitted");
+  const [view, setView] = useKept("TdsAdjustments.view", () => listStart("submitted").view);
   const [rows, setRows] = useState<Adjustment[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("TdsAdjustments.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("TdsAdjustments.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("TdsAdjustments.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {

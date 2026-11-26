@@ -33,7 +33,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from buying import tds
+from buying import bill_check, tds
 from buying.api import CANCEL, CREATE, SUBMIT, VIEW, _check, _company, _plain, orders_insurance
 from buying.models import (
     GoodsReceipt,
@@ -373,6 +373,8 @@ class InvoiceSerializer(serializers.Serializer):
     lines = LineSerializer(many=True, required=False, default=list)
     charges = ChargeSerializer(many=True, required=False, default=list)
     submit = serializers.BooleanField(required=False, default=False)
+    # Why Submit goes ahead though the supplier's bill differs (buying/bill_check.py).
+    bill_check_reason = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 def _save(inv: PurchaseInvoice, data: dict) -> None:
@@ -975,6 +977,10 @@ class InvoiceListView(APIView):
             _check(request, SUBMIT)
             if refused := attachments.refuse_submit(inv, "purchase_invoice"):
                 return refused
+            if refused := bill_check.refuse_submit(
+                inv, request.user, data.get("bill_check_reason", "")
+            ):
+                return refused
             _submit(inv, request.user)
         return Response(_fresh(inv), status=status.HTTP_201_CREATED)
 
@@ -1005,6 +1011,10 @@ class InvoiceDetailView(APIView):
         if data.get("submit"):
             _check(request, SUBMIT)
             if refused := attachments.refuse_submit(inv, "purchase_invoice"):
+                return refused
+            if refused := bill_check.refuse_submit(
+                inv, request.user, data.get("bill_check_reason", "")
+            ):
                 return refused
             _submit(inv, request.user)
         return Response(_fresh(inv))

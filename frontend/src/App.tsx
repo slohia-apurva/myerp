@@ -20,6 +20,7 @@ const Dashboard = lazy(() => import("./Dashboard").then((m) => ({ default: m.Das
 const BomsPage = lazy(() => import("./Boms").then((m) => ({ default: m.BomsPage })));
 const ItemsPage = lazy(() => import("./Items").then((m) => ({ default: m.ItemsPage })));
 const LedgersPage = lazy(() => import("./Ledgers").then((m) => ({ default: m.LedgersPage })));
+const BillReadingPage = lazy(() => import("./BillReading").then((m) => ({ default: m.BillReadingPage })));
 const DataResetPage = lazy(() => import("./DataReset").then((m) => ({ default: m.DataResetPage })));
 const MigrationToolsPage = lazy(() => import("./MigrationTools").then((m) => ({ default: m.MigrationToolsPage })));
 const HsnPage = lazy(() => import("./Hsn").then((m) => ({ default: m.HsnPage })));
@@ -64,7 +65,7 @@ const TdsAdjustmentsPage = lazy(() => import("./TdsAdjustments").then((m) => ({ 
 const TdsCheckPage = lazy(() => import("./TdsCheck").then((m) => ({ default: m.TdsCheckPage })));
 const SupplierReplyPage = lazy(() => import("./SupplierReply").then((m) => ({ default: m.SupplierReplyPage })));
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "boms" | "hsn" | "reset" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "boms" | "hsn" | "reset" | "bill-reading" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 /** The screens under "Reports" in the top menu. */
 const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement"];
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -77,7 +78,7 @@ function routeFromHash(): Route {
   if (page === "bins") return { page, id: Number(id) || undefined };
   // The retention sample label QR opens #/batches/<id>/trace: keep that address.
   if (page === "batches" && sub === "trace") return { page: "batches", id: Number(id) || undefined, sub };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "boms" || page === "reset" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "boms" || page === "reset" || page === "bill-reading" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
 }
 
 /** While a screen's own file is on its way: the page's empty band, so nothing jumps. */
@@ -184,7 +185,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           )}
           {(session.user.is_owner || canMigrate) && (
             <AdminMenu
-              active={page === "users" || page === "roles" || page === "reset" || page === "migration" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "scan-picking", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", "stock-check", "stock-transfers", "stock-receipts", "stock-deliveries", "own-use", "manufacturing-orders", ...REPORTS].includes(sub ?? ""))}
+              active={page === "users" || page === "roles" || page === "reset" || page === "bill-reading" || page === "migration" || (page === "companies" && !["ledgers", "groups", "couriers", "insurance", "warehouses", "shipments", "sales-orders", "pick-lists", "scan-picking", "delivery-notes", "sales-invoices", "credit-notes", "purchase-orders", "goods-receipts", "purchase-invoices", "purchase-returns", "debit-notes", "tds-adjustments", "tds-check", "stock-check", "stock-transfers", "stock-receipts", "stock-deliveries", "own-use", "manufacturing-orders", ...REPORTS].includes(sub ?? ""))}
               canSeeMasters={canSeeMasters}
               canManageUsers={canManageUsers}
               canMigrate={canMigrate}
@@ -296,6 +297,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             <BomsPage session={session} />
           ) : page === "reset" && session.user.is_owner ? (
             <DataResetPage session={session} />
+          ) : page === "bill-reading" && session.user.is_owner ? (
+            <BillReadingPage />
           ) : page === "migration" && canMigrate ? (
             <MigrationToolsPage session={session} />
           ) : page === "central" && session.user.is_platform_admin ? (

@@ -179,7 +179,7 @@ export const MANUAL: Chapter[] = [
             Click "Masters" to open its list: "Ledger groups", "Ledgers",
             "Credit terms", "Items", "Price lists" and "Units". Ledger groups and
             ledgers open for the company you are working in. Owners also see "Admin", which
-            holds "Company", "Users", "User roles" and "Reset data". "Help"
+            holds "Company", "Users", "User roles", "Bill Reading" and "Reset data". "Help"
             opens this manual at the page for the screen you are on. On a
             phone the M logo, the company, the bell, "Help" and "Sign out" sit
             on one line, with the menu under them (on two short lines). Phone
@@ -796,8 +796,8 @@ export const MANUAL: Chapter[] = [
             "Cancel" and "Save" in the green bar. Below the item name are
             folding sections: "General", "Sales", "Purchase", "GST Rates",
             "Stock and quality", "Units of measure", "Customer and supplier names" and
-            "Connections" (empty for now: it will list the documents that use
-            the item). Click a
+            "Connections" (the entries that use the item show when you open it
+            from the list; see the chapter "Connections"). Click a
             section's title bar to open it; one section is open at a time and a
             closed one still shows a line of its main values.
           </li>
@@ -1371,6 +1371,40 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "bill-reading",
+    title: "Bill Reading",
+    summary:
+      "For Owners: how supplier bills are read for the Bill Check on purchase invoices, and what Submit does when a bill differs.",
+    body: (
+      <>
+        <p>
+          Only an Owner sees it: click "Admin" in the top menu, then "Bill
+          Reading". The setting is for the whole group, all companies.
+        </p>
+        <ul>
+          <li>
+            <b>Free Reading (on This Server).</b> "Read the e-invoice QR code" is
+            always on. Tick "Read the page with OCR…" to also read bills without a
+            QR code, and the item lines, from scans and photos.
+          </li>
+          <li>
+            <b>Claude AI Reading (Later).</b> Shown for later; not available yet.
+            When it is switched on, each bill read costs a few rupees and the
+            pages are sent to Anthropic to be read.
+          </li>
+          <li>
+            <b>When the Bill Differs from the Entry on Submit.</b> "Warn, and ask
+            for a reason" (the reason is kept in the entry's Activity), or "Refuse
+            Submit" (the entry must be corrected; only an Owner may still submit
+            it, with a reason). A bill from a different supplier GSTIN, or
+            addressed to another company's GSTIN, is always refused.
+          </li>
+        </ul>
+        <p>Click "Save" to keep the change.</p>
+      </>
+    ),
+  },
+  {
     id: "reset",
     title: "Reset data",
     summary:
@@ -1499,8 +1533,10 @@ export const MANUAL: Chapter[] = [
         <ul>
           <li>Scan the QR code on a retention sample label.</li>
           <li>
-            Or click "Masters" in the top menu, then "Batches", and click
-            "Trace" on the batch's row (or under "Batch Details" on the right).
+            Or click "Reports" in the top menu, then "Batch Traceability" (or
+            "Masters", then "Batches"). The Batches list opens: find the batch
+            with the search boxes under the headings and click "Trace" on its
+            row (or under "Batch Details" on the right).
           </li>
         </ul>
         <p>
@@ -1564,7 +1600,7 @@ export const MANUAL: Chapter[] = [
     id: "connections",
     title: "Connections",
     summary:
-      "At the bottom of every entry: the entries it came from, the ones made from it, and the returns and notes against it.",
+      "At the bottom of every entry, and on customers, suppliers and items: the linked entries, with counts and links.",
     body: (
       <>
         <p>
@@ -1616,6 +1652,29 @@ export const MANUAL: Chapter[] = [
           Kinds your role may not see are left out: a "Storekeeper", for
           example, does not see TDS Adjustments. Only entries of the company
           you are working in are shown.
+        </p>
+        <h3>On a customer or supplier</h3>
+        <p>
+          In "Masters" › "Ledgers", click a customer's or supplier's ledger:
+          the panels on the right end with "Connections", listing only the
+          kinds it has in this company (Sales Order, Delivery Note, Sales
+          Invoice, Credit Note, Purchase Order, Goods Receipt, Purchase
+          Invoice, Purchase Return, Debit Note, Stock Receipt, Stock Delivery,
+          Manufacturing Order, TDS Adjustment) with the count. "All n →" opens
+          that list showing "All" (drafts and cancelled too) with its column
+          search already filled with the party's name; clear it with "Clear
+          searches".
+        </p>
+        <h3>On an item</h3>
+        <p>
+          Open an item from "Masters" › "Items" ("View"): "Connections" near
+          the bottom shows, for the company picked at the top right, how many
+          sales orders, delivery notes, sales invoices, credit notes, purchase
+          orders, goods receipts, purchase invoices and purchase returns name
+          the item, the BOMs that make it and those that use it as a material,
+          its Manufacturing Orders and its batches. The latest five of each are
+          listed, newest first; click a number to open it. A batch opens its
+          "Batch Trace".
         </p>
       </>
     ),
@@ -2349,8 +2408,9 @@ export const MANUAL: Chapter[] = [
             "Ledger Details" (group, nature, opening balance with the foreign
             currency amount and rate if it has one, currency, "Bill-Wise", bank
             details, whether it is in use and disabled, notes), for a customer
-            or supplier "GST And Credit", "Addresses" and "Contacts", and
-            "Opening Bills". After clicking a ledger, the ↑ and ↓ keys move
+            or supplier "GST And Credit", "Addresses", "Contacts" and
+            "Connections" (how many orders, receipts, invoices and notes it has
+            in this company, each with "All n →"), and "Opening Bills". After clicking a ledger, the ↑ and ↓ keys move
             through the list. The panels stay in view while the list scrolls.
           </li>
           <li>
@@ -4074,6 +4134,35 @@ export const MANUAL: Chapter[] = [
             If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
           </li>
           <li>
+            <b>Bill Check.</b> Once the supplier's bill is in "Attachments" (a
+            PDF or photo, type "Supplier's invoice" or "Other"), the "Bill Check"
+            box at the top of the invoice reads it and compares it with the entry:
+            "Supplier GSTIN", "Our GSTIN", "Supplier Invoice No", "Supplier Invoice
+            Date", and for each line the "HSN", "Quantity", "Rate" and "Taxable",
+            then GST and the "Bill Total". It reads the e-invoice QR code first
+            (exact, and it also shows the "IRN"); without one, it reads the page
+            itself (a computer-made PDF from its own text, a scan or photo by
+            OCR). This is free and runs on MyERP's own server. Each row shows
+            "✓ Same", the difference in red (for example "5 Pcs more on bill"),
+            "Written differently" when the invoice number is the same but written
+            another way (GST returns match on the exact number, so correct it), or
+            "Not read" when that part could not be read clearly; "Not read" is
+            never counted as a difference. When the supplier billed more than this
+            entry has (a short receipt), a red line at the top says so.
+            "Check Again" reads the bill afresh (after a better scan is added, for
+            example); "Mark as Seen…" keeps a reason when the differences are
+            known and accepted.
+          </li>
+          <li>
+            On "Submit", a bill that differs opens "The supplier's bill does not
+            match this entry" with the differences. Correct the entry, or type why
+            it is right and click "Submit with Reason"; the reason is kept in
+            Activity. If the Owner chose "Refuse Submit" under Admin › "Bill
+            Reading", only an Owner can submit it as it is. A bill from another
+            supplier's GSTIN, or addressed to another company's GSTIN, is always
+            refused: check the supplier, the company or the file.
+          </li>
+          <li>
             <b>TDS.</b> Every purchase bill (against goods receipts, without goods
             receipt, and supplementary bills) has a "TDS" box once it is saved.
             Each line gets a TDS section: from the "TDS Section" on its item or
@@ -5139,7 +5228,9 @@ export const MANUAL: Chapter[] = [
           at the top right and read straight from the stock ledger, so they
           always agree with the submitted entries. Anyone whose role may see
           stock can open them. Each has the "Actions ▾" button with "Print" and
-          "Download PDF".
+          "Download PDF". "Batch Traceability" in the same menu opens the
+          Batches list, where "Trace" on a batch shows where it came from, where
+          it is and where it went (see "Batch Trace").
         </p>
         <h3>Stock Summary</h3>
         <ul>

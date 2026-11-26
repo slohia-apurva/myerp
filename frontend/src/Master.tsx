@@ -54,6 +54,15 @@ export function hashParam(name: string): string | null {
   return new URLSearchParams(query).get(name);
 }
 
+/** How a list starts when opened from a party's "Connections" ("All n →"): with the
+ * view in `?show=` (such as "all") and one column search, `?col=supplier&q=<name>`.
+ * Opened from the menu, it starts as before. */
+export function listStart(view: string): { view: string; search: Record<string, string> } {
+  const col = hashParam("col");
+  const q = hashParam("q");
+  return { view: hashParam("show") ?? view, search: col && q ? { [col]: q } : {} };
+}
+
 /** Screens open in the same tab (Sidharth, 2026-11-25: too many tabs; was a new tab for
  * everything since 2026-11-13). Takes a page address ("#/…") or a server path ("/api/…", a PDF):
  * - a page opens here, and its "Close" or "Cancel" comes back (see `closeThisTab`);

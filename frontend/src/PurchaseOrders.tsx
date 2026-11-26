@@ -14,7 +14,7 @@ import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } fr
 import { useCreditTerms, type CreditTerm } from "./CreditTerms";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { STOCK_COST } from "./Items";
 import { defaultPolicy, TransitInsuranceFold, TransitInsuranceView, type OrderInsurance, type PolicyPick } from "./Insurance";
 import { PoPrint } from "./PoPrint";
@@ -298,9 +298,9 @@ const replyClass = (s: string) => (s === "accepted" ? "pill on" : s === "issue" 
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
   const canCreate = session.permissions.includes("purchase.create");
   const { setup } = useSetup(companyId);
-  const [view, setView] = useKept("PurchaseOrders.view", "open");
+  const [view, setView] = useKept("PurchaseOrders.view", () => listStart("open").view);
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("PurchaseOrders.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("PurchaseOrders.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("PurchaseOrders.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {

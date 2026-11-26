@@ -105,3 +105,38 @@ def test_an_entry_of_another_company_or_kind_is_not_found(owner, received):
         ).status_code
         == 404
     )
+
+
+def _kind(c, name):
+    return next(k for g in c["groups"] for k in g["kinds"] if k["type"] == name)
+
+
+def test_a_supplier_shows_counts_and_opens_each_list_searched_for_it(buyer, owner, received, alpha):
+    """Masters (preview mockups/connections/3): counts for the company, and "All n"."""
+    from core.models import Ledger
+    from tenancy.context import use_tenant
+
+    g = received
+    inv = _bill(buyer, g)
+    with use_tenant(alpha):
+        ledger = Ledger.objects.get(pk=g["local"])
+        party, name = ledger.party_id, ledger.name
+    c = _conn(owner, g["company"], "party", party)
+    po, bill = _kind(c, "purchase_order"), _kind(c, "purchase_invoice")
+    assert po["count"] == 1 and po["all"] == {"col": "supplier", "q": name}
+    assert bill["count"] == 1 and bill["page"] == "purchase-invoices"
+    assert _kind(c, "sales_order")["count"] == 0 and _kind(c, "sales_order")["all"] is None
+    assert c["summary"].startswith("PO 1 · GRN 1 · Bill 1")
+    assert inv["number"]
+
+
+def test_an_item_names_its_latest_entries_batches_and_boms(owner, received):
+    g = received
+    c = _conn(owner, g["company"], "item", g["tea"])
+    assert _kind(c, "purchase_order")["docs"][0]["number"] == g["po_number"]
+    assert [d["number"] for d in _kind(c, "goods_receipt")["docs"]] == [g["receipt_number"]]
+    [batch] = _kind(c, "batch")["docs"]
+    assert batch["number"] == "DTT-26-118" and batch["href"] == f"#/batches/{batch['id']}/trace"
+    assert (
+        call(owner, "get", f"companies/{g['company']}/connections/item/999999/").status_code == 404
+    )

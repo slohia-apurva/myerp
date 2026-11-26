@@ -12,7 +12,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import type { PackageRow } from "./GoodsReceipts";
 import { BagLabelPrint } from "./GrnPrint";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { useKept } from "./Keep";
 
 /** Entry > Stock > Stock Receipt and Stock Delivery: a customer's own goods coming in (their tea for
@@ -194,9 +194,9 @@ function columns(kind: Kind): [key: string, label: string, text: (e: Entry) => s
 function EntryList({ companyId, session, kind }: { companyId: number; session: SignedIn; kind: Kind }) {
   const text = TEXT[kind];
   const cols = useMemo(() => columns(kind), [kind]);
-  const [view, setView] = useKept("CustomerStock.view", hashParam("status") ?? "all");
+  const [view, setView] = useKept("CustomerStock.view", () => listStart("all").view);
   const [rows, setRows] = useState<Entry[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("CustomerStock.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("CustomerStock.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("CustomerStock.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {

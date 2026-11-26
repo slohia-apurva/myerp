@@ -8,10 +8,15 @@ import { openTab } from "./Master";
  * its number, date and status. A number opens that entry here (same tab; "Close"
  * comes back). "+" makes a new linked entry as "Create ▾" does: the screen passes
  * `create` with the kinds it may make now. Read from
- * v1/companies/<company>/connections/<kind>/<id>/ (posting/connections.py). */
+ * v1/companies/<company>/connections/<kind>/<id>/ (posting/connections.py).
+ *
+ * On a party or an item (kind "party" / "item", preview mockups/connections/3) the
+ * counts are for the company being worked in; a party's "All n →" opens that list
+ * already searched for the party (`listStart` in Master.tsx), and an item names its
+ * latest few entries, as the lists cannot be searched for an item. */
 
-type Doc = { id: number; number: string; date: string | null; status: string; status_label: string; note: string };
-type Kind = { type: string; name: string; page?: string; count?: number; docs?: Doc[]; later?: string };
+type Doc = { id: number; number: string; date: string | null; status: string; status_label: string; note: string; href?: string };
+type Kind = { type: string; name: string; page?: string; count?: number; docs?: Doc[]; later?: string; all?: { col: string; q: string } | null };
 type Data = {
   type: string;
   chain: { type: string; name: string; me: boolean }[];
@@ -50,7 +55,14 @@ export function Connections(props: {
   }, [companyId, kind, id, stamp]);
 
   if (failed) return null;
-  const open = (page: string, doc: number) => openTab(`#/companies/${companyId}/${page}?view=${doc}`);
+  const hrefOf = (page: string, d: Doc) => d.href ?? `#/companies/${companyId}/${page}?view=${d.id}`;
+  const allHref = (k: Kind) =>
+    k.all ? `#/companies/${companyId}/${k.page}?${new URLSearchParams({ show: "all", col: k.all.col, q: k.all.q })}` : "";
+  const master = kind === "party" || kind === "item";
+  // A party's box sits in the narrow column beside the ledger list: only what it has.
+  const groups = (data?.groups ?? [])
+    .map((g) => ({ ...g, kinds: kind === "party" ? g.kinds.filter((k) => k.type === "later" || k.count) : g.kinds }))
+    .filter((g) => g.kinds.some((k) => k.type !== "later"));
   return (
     <details className="fold connections" open>
       <summary>
@@ -70,7 +82,7 @@ export function Connections(props: {
             </div>
           )}
           <div className="conn-grid">
-            {data.groups.map((g) => (
+            {groups.map((g) => (
               <div key={g.title} className="conn-group">
                 <h3>{g.title}</h3>
                 {g.kinds.map((k) =>
@@ -83,6 +95,19 @@ export function Connections(props: {
                       <div className="conn-head">
                         <span className="conn-name">{k.name}</span>
                         <span className="conn-count">{k.count ?? 0}</span>
+                        {k.all && (
+                          <a
+                            className="conn-all"
+                            href={allHref(k)}
+                            onClick={(e) => {
+                              if (e.ctrlKey || e.metaKey) return;
+                              e.preventDefault();
+                              openTab(allHref(k));
+                            }}
+                          >
+                            All {k.count} →
+                          </a>
+                        )}
                         {create?.[k.type] && (
                           <button type="button" className="link conn-plus" title={`New ${k.name}`} onClick={create[k.type]}>
                             +
@@ -95,11 +120,11 @@ export function Connections(props: {
                             <div key={d.id} className="conn-doc">
                               <span>
                                 <a
-                                  href={`#/companies/${companyId}/${k.page}?view=${d.id}`}
+                                  href={hrefOf(k.page ?? "", d)}
                                   onClick={(e) => {
                                     if (e.ctrlKey || e.metaKey) return;
                                     e.preventDefault();
-                                    open(k.page ?? "", d.id);
+                                    openTab(hrefOf(k.page ?? "", d));
                                   }}
                                 >
                                   {d.number || `Draft ${d.id}`}
@@ -117,8 +142,13 @@ export function Connections(props: {
               </div>
             ))}
           </div>
+          {groups.length === 0 && <p className="small">Nothing yet in this company.</p>}
           <p className="small">
-            Click a number to open that entry; "Close" there comes back here. "+" makes a new one from this entry, as "Create ▾" does.
+            {master
+              ? kind === "party"
+                ? 'For the company you are working in. "All n →" opens that list searched for this party.'
+                : "For the company you are working in: the latest five of each, newest first. Click a number to open it."
+              : 'Click a number to open that entry; "Close" there comes back here. "+" makes a new one from this entry, as "Create ▾" does.'}
           </p>
         </div>
       )}
