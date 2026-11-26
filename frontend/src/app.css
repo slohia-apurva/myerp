@@ -4908,6 +4908,27 @@ button.scan-pick {
   border-radius: 8px;
 }
 
+/* Import progress (Sidharth, 2026-11-26): a plain green bar and its counts. */
+.progress {
+  height: 14px;
+  background: var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.progress > i {
+  display: block;
+  height: 100%;
+  background: var(--leaf);
+  border-radius: 7px;
+  transition: width 0.4s;
+}
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  color: var(--slate);
+  font-size: 13px;
+
 /* Tables as cards on phones (Sidharth, 2026-11-26: "quite a few screens still do not fit on
    the iPhone"). Below 768px a list (table.pick) shows each row as a card: the first column in
    bold on its own line, the rest after it with their headings in small letters; the column

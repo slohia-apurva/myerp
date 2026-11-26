@@ -628,6 +628,86 @@ def test_a_whole_export_comes_back_and_only_changed_rows_count(owner, alpha, mon
         assert carton.contains_qty == 12
 
 
+def _stepped(client, key, sheets):
+    """The Import box's steps: start, compare until done, then the job's progress."""
+    out = client.post(
+        f"/api/v1/exchange/{key}/import/start/",
+        {"file": SimpleUploadedFile("f.xlsx", book(sheets))},
+        HTTP_HOST=HOST,
+    ).json()
+    if not out.get("job"):
+        return out, None
+    job = out["job"]
+    while True:
+        res = client.post(f"/api/v1/exchange/{key}/import/{job}/compare/", HTTP_HOST=HOST)
+        progress = res.json()
+        if progress["compared"] == progress["rows"]:
+            return progress, job
+
+
+def test_a_big_file_is_checked_for_layout_then_saved_in_steps(owner, alpha, monkeypatch):
+    """Sidharth 2026-11-26 (preview 2-import-check-structure): "Check file" reads
+    only the layout and what changes; "Import" checks and saves in steps with a
+    progress bar, stops at a problem and keeps the steps before it."""
+    for path, body in (("item-groups", '{"name": "Dairy"}'), ("brands", '{"name": "Apurvam"}')):
+        owner.post(f"/api/v1/{path}/", data=body, content_type="application/json", HTTP_HOST=HOST)
+    names = [f"Item {i}" for i in range(7)]
+    sheets = {"Items": [ITEMS] + [[n, "Goods", "Dairy", "pkt", "0405", "Apurvam"] for n in names]}
+    assert send(owner, "items", sheets, commit=True).json()["saved"] is True
+    got = sheets_of(owner, "items")
+    got.pop("How to fill")
+    text = {t: [["" if v is None else str(v) for v in r] for r in rows] for t, rows in got.items()}
+    head = text["Items"][0]
+    tds, name = head.index("TDS section"), head.index("Name")
+    for row in text["Items"][1:6]:
+        row[tds] = "194Q"
+    text["Items"][4][tds] = "194Z"  # the third changed row is wrong
+    text["Items"].append(["", "", "Item new", "Goods", "pkt", "0405"] + [""] * (len(head) - 6))
+    text["Items"][-1][head.index("Item group")] = "Dairy"
+    text["Items"][-1][head.index("Brand")] = "Apurvam"
+    text["Items"][-1][head.index("Default unit (stock unit)")] = "pkt"
+    text["Items"][-1][head.index("HSN")] = "0405"
+    text["Items"][-1][head.index("Type")] = "Goods"
+
+    monkeypatch.setattr(exchange, "COMPARE_STEP", 3)
+    monkeypatch.setattr(exchange, "SAVE_STEP", 2)
+    progress, job = _stepped(owner, "items", text)
+    assert (progress["new"], progress["changed"], progress["same"]) == (1, 5, 2), progress
+    assert progress["total"] == 6 and progress["done"] == 0
+    first = progress["results"][0]
+    assert first["changes"] == [{"field": "TDS section", "old": "", "new": "194Q"}]
+    with use_tenant(alpha):
+        from core.models import Item
+
+        assert not Item.objects.filter(tds_section="194Q").exists()  # nothing saved yet
+
+    url = f"/api/v1/exchange/items/import/{job}/save/"
+    step = owner.post(url, HTTP_HOST=HOST).json()
+    assert (step["done"], step["errors"]) == (2, []), step
+    step = owner.post(url, HTTP_HOST=HOST).json()  # rows with the 194Z
+    assert step["done"] == 2 and "194Z is not in the TDS sections list" in str(step["errors"])
+    with use_tenant(alpha):
+        assert Item.objects.filter(tds_section="194Q").count() == 2  # the first step stays
+
+    # Fixed and imported again: the saved rows are passed over.
+    text["Items"][4][tds] = "194Q"
+    progress, job = _stepped(owner, "items", text)
+    assert (progress["new"], progress["changed"], progress["same"]) == (1, 3, 4), progress
+    url = f"/api/v1/exchange/items/import/{job}/save/"
+    while (step := owner.post(url, HTTP_HOST=HOST).json())["done"] < step["total"]:
+        assert step["errors"] == []
+    assert (step["saved_new"], step["saved_changed"]) == (1, 3), step
+    with use_tenant(alpha):
+        assert Item.objects.filter(tds_section="194Q").count() == 5
+        assert Item.objects.filter(name="Item new").exists()
+    assert names and name
+
+    # A line of a list sheet for an item not in the file is a layout problem.
+    bad = {"Items": text["Items"][:2], "GST rates": [RATES, ["Nobody", "01-04-2026", "5"]]}
+    out, job = _stepped(owner, "items", bad)
+    assert job is None and "'nobody' is not in the Items sheet" in str(out["errors"]), out
+
+
 def test_reimport_finds_customers_by_customer_number(owner, company, alpha):
     sheets = {
         "Ledgers": [
