@@ -4250,7 +4250,8 @@ export const MANUAL: Chapter[] = [
           Untick a bill to leave it out. For TDS missed, "Months Late" and
           "Interest ₹" show the interest for deducting late (a month or part of
           one, from the bill's date), to pay with the TDS challan; it is not
-          posted.
+          posted. An adjustment dated on the bill's own date (entered
+          backdated) deducts on time, so it has no interest.
         </p>
         <ul>
           <li>

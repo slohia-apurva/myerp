@@ -89,7 +89,8 @@ def test_a_bill_billed_before_its_item_had_a_section_is_short_and_put_right(
     assert res.status_code == 201, res.json()
     adj = res.json()
     assert adj["total"] == "800.00" and adj["kind_label"] == "Deduct short TDS"
-    assert adj["lines"][0]["months"] == 1 and adj["lines"][0]["interest"] == "8.00"
+    # Dated on the bill's own date: deducted on time, so no interest (Sidharth, 2026-11-26).
+    assert adj["lines"][0]["months"] == 0 and adj["lines"][0]["interest"] == "0.00"
     posting = call(accounts, "get", f"tds-adjustments/{adj['id']}/ledger-posting/").json()
     rows = {r["ledger_name"]: (r["debit"], r["credit"]) for r in posting["rows"]}
     assert rows == {
@@ -249,3 +250,10 @@ def test_a_missing_section_is_set_by_an_adjustment_with_nothing_posted(
     res = call(accounts, "post", f"tds-adjustments/{adj['id']}/cancel/", {"reason": "Wrong"})
     assert res.status_code == 200 and res.json()["status"] == "cancelled"
     assert _row(_check(accounts, o), o, "194Q")["result"] == "missing"
+
+
+def test_no_interest_when_the_adjustment_is_dated_on_the_bills_date():
+    # Sidharth, 2026-11-26: a backdated adjustment, on the bill's own date, has no interest.
+    late = tds_check.months_late
+    assert late(datetime.date(2026, 9, 4), datetime.date(2026, 9, 4)) == 0
+    assert late(datetime.date(2026, 9, 4), datetime.date(2026, 9, 5)) == 1

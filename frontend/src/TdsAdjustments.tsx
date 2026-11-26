@@ -444,7 +444,7 @@ function AdjustmentForm(props: { companyId: number; title: string; adj: Adjustme
               <label>
                 <span className="req">Date</span>
                 <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-                <span className="small">The day the TDS is deducted (or given back)</span>
+                <span className="small">The day the TDS is deducted (or given back). Dated on the bill's date: no interest.</span>
               </label>
               <label>
                 <span className="req">Supplier</span>

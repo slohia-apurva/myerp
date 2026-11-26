@@ -106,8 +106,10 @@ def refuse_if_filed(company: Company, day: datetime.date, what: str, key: str = 
 
 def months_late(due: datetime.date, paid: datetime.date) -> int:
     """Months or part of one, counting the month TDS was due and the month it
-    is deducted: 4 September to 19 November is 3."""
-    if paid < due:
+    is deducted: 4 September to 19 November is 3. An adjustment dated on the
+    bill's own date (entered backdated) deducts on time: no interest (Sidharth,
+    2026-11-26)."""
+    if paid <= due:
         return 0
     return (paid.year - due.year) * 12 + paid.month - due.month + 1
 
