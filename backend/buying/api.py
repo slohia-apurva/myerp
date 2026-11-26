@@ -429,7 +429,7 @@ def _order_out(o: PurchaseOrder, lines: bool = True) -> dict:
         "created_by_phone": o.created_by.phone if o.created_by else "",
         "line_count": len(o.lines.all()),
         "supplier_status": o.supplier_status,
-        "supplier_status_label": o.get_supplier_status_display(),
+        "supplier_status_label": o.supplier_status_label(),
     }
     if lines:
         data["lines"] = [_line_out(ln) for ln in o.lines.all()]

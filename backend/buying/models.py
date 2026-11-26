@@ -172,6 +172,18 @@ class PurchaseOrder(models.Model):
     def __str__(self) -> str:
         return self.number or f"Draft purchase order {self.pk}"
 
+    def supplier_status_label(self) -> str:
+        """The orders list's "Supplier Reply": an order never mailed whose
+        goods have already come (in part or in full) or that is closed needs
+        no reply, so it reads "Not required" rather than "Not sent"."""
+        if not self.supplier_status and self.status in (
+            self.PART_RECEIVED,
+            self.RECEIVED,
+            self.CLOSED,
+        ):
+            return "Not required"
+        return self.get_supplier_status_display()
+
 
 class PurchaseOrderLine(models.Model):
     order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="lines")

@@ -107,3 +107,19 @@ def test_a_complete_order_takes_only_comments(mailed, alpha):  # noqa: F811
     assert _public("post", token, {"kind": "accepted", "name": "Anil"}).status_code == 400
     res = _public("post", token, {"kind": "comment", "name": "Anil", "comment": "Thanks"})
     assert res.status_code == 200 and res.json()["supplier_status"] == "opened"
+
+
+def test_an_order_never_mailed_whose_goods_came_needs_no_reply(buyer, short, alpha):  # noqa: F811
+    # Goods came against an order nobody mailed: "Not required", not "Not sent".
+    listed = call(buyer, "get", f"companies/{short['company']}/purchase-orders/?view=all").json()
+    row = next(o for o in listed if o["id"] == short["po"])
+    assert row["status"] == "part_received" and row["supplier_status"] == ""
+    assert row["supplier_status_label"] == "Not required"
+    # Still open and unmailed: "Not sent".
+    with use_tenant(alpha):
+        po = PurchaseOrder.objects.get(pk=short["po"])
+        po.status = PurchaseOrder.ORDERED
+        assert po.supplier_status_label() == "Not sent"
+        po.supplier_status = "sent"
+        po.status = PurchaseOrder.RECEIVED
+        assert po.supplier_status_label() == "Sent"

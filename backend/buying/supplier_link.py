@@ -84,7 +84,7 @@ def response_box(o: PurchaseOrder) -> dict:
     accepted = [r for r in rows if r["kind"] == SupplierResponse.ACCEPTED]
     return {
         "status": o.supplier_status,
-        "status_label": o.get_supplier_status_display(),
+        "status_label": o.supplier_status_label(),
         "dispatch_date": accepted[-1]["dispatch_date"] if accepted else None,
         "rows": rows,
     }
