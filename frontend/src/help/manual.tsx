@@ -733,6 +733,21 @@ export const MANUAL: Chapter[] = [
           their own. "Reset" goes back to the standard columns.
         </p>
         <p>
+          To set the TDS Section of many items at once, add the "TDS Section"
+          column with "Choose Columns…". Type "none" in its search box to see
+          the items that have no section yet, or a section ("194Q", "393(1)
+          Sl. 8(ii)" or "purchase of goods") to see the items under it. Then
+          use "Actions", "Export to Excel", fill in the "TDS section" column of
+          the "Items" sheet, and bring the file back with "Import from Excel…":
+          each item is found by its ID or "Item number" and only what you
+          changed is saved (see "Import, export and print"). Type the old
+          number ("194C") or the new one ("393(1) Sl. 6(i)"); where one new
+          number covers several old sections, such as "393(1) Sl. 6(iii)" for
+          194J(a), 194J(b) and 194J(ba), give the old number. A section not in
+          the list is refused, and leaving the cell empty means no section.
+          The "How to fill" sheet lists the sections.
+        </p>
+        <p>
           To bring your items across from ERPNext, use "Admin", "Migration
           Tools" (see that chapter).
         </p>

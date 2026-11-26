@@ -1,4 +1,4 @@
-import { TdsSectionPicker } from "./Tds";
+import { TdsSectionPicker, useTdsSections } from "./Tds";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, type SignedIn } from "./api";
@@ -292,6 +292,13 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
     setSelected(null);
   };
   const yes = (on: boolean) => (on ? "Yes" : "");
+  // The TDS Section column shows the new number beside the old one kept on the item.
+  const tdsSections = useTdsSections();
+  const tdsShown = (code?: string) => {
+    if (!code) return "";
+    const sec = tdsSections.find((s) => s.code === code);
+    return sec?.new_code ? `${code} · ${sec.new_code}` : code;
+  };
   // Every column the list can show; each person picks theirs with "Choose Columns…" (Sidharth, 2026-11-24).
   const columns = useColumns<Item>("items", [
     { key: "no", label: "Item No", fixed: true, search: "no", cell: (i) => i.item_number },
@@ -361,6 +368,8 @@ function ItemList({ session, company }: { session: SignedIn; company?: Company }
     { key: "allow_sales", label: "Allow Sales", cell: (i) => yes(i.allow_sales) },
     { key: "lead", label: "Lead Time (days)", num: true, cell: (i) => (i.lead_time_days == null ? "" : String(i.lead_time_days)) },
     { key: "moq", label: "Min Order Qty", num: true, cell: (i) => plain(i.min_order_qty) },
+    // Sidharth 2026-11-26: see and fill in each item's TDS Section ("none" finds the empty ones).
+    { key: "tds", label: "TDS Section", search: "tds", cell: (i) => tdsShown(i.tds_section) },
   ]);
   const sortKey = columns.sort;
   const reload = useCallback(() => {

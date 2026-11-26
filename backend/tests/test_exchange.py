@@ -522,6 +522,58 @@ def test_reimport_finds_items_by_number_and_never_changes_it(owner, alpha):
         assert Item.objects.get(item_number="IT-999999").name == "Ghee 1 litre"
 
 
+def test_items_tds_section_is_filled_in_by_reimport(owner, alpha):
+    """Sidharth 2026-11-26: the Items list finds the items with no TDS section, and
+    the exported file, filled in, sets each item's section by its item number. The
+    new number works where only one old section has it; the help sheet lists them."""
+    for path, body in (("item-groups", '{"name": "Dairy"}'), ("brands", '{"name": "Apurvam"}')):
+        owner.post(f"/api/v1/{path}/", data=body, content_type="application/json", HTTP_HOST=HOST)
+    sheets = {
+        "Items": [
+            ITEMS,
+            ["Ghee 500 ml", "Goods", "Dairy", "pkt", "0405", "Apurvam"],
+            ["Butter 100 g", "Goods", "Dairy", "pkt", "0405", "Apurvam"],
+            ["Paneer 200 g", "Goods", "Dairy", "pkt", "0405", "Apurvam"],
+        ]
+    }
+    assert send(owner, "items", sheets, commit=True).json()["saved"] is True
+
+    def listed(**params):
+        query = "&".join(f"{k}={v}" for k, v in {"page": 1, **params}.items())
+        res = owner.get(f"/api/v1/items/?{query}", HTTP_HOST=HOST)
+        return sorted((i["name"], i["tds_section"]) for i in res.json()["results"])
+
+    assert len(listed(tds="none")) == 3
+
+    got = sheets_of(owner, "items")
+    head = got["Items"][0]
+    assert "TDS section" in head
+    how = [r for r in got["How to fill"] if r[1] == "TDS section"]
+    assert "194Q" in how[0][3] and "393(1) Sl. 8(ii)" in how[0][3], how
+    name = head.index("Name")
+    rows = {r[name]: ["" if v is None else str(v) for v in r] for r in got["Items"][1:]}
+    col = head.index("TDS section")
+    for name, section in (("Ghee 500 ml", "194q"), ("Butter 100 g", "393(1) Sl. 8(ii)")):
+        rows[name][0] = ""  # by item number alone, as from a file kept elsewhere
+        rows[name][col] = section
+    out = send(owner, "items", {"Items": [head, rows["Ghee 500 ml"], rows["Butter 100 g"]]}, True)
+    out = out.json()
+    assert (out["new"], out["changed"], out["saved"]) == (0, 2, True), out
+    assert listed(tds="194Q") == [("Butter 100 g", "194Q"), ("Ghee 500 ml", "194Q")]
+    assert listed(tds="purchase goods") == listed(tds="sl. 8(ii)") == listed(tds="194Q")
+    assert listed(tds="none") == [("Paneer 200 g", "")]
+    assert [i[0] for i in listed(sort="-tds")][:2] == ["Butter 100 g", "Ghee 500 ml"]
+
+    # A new number several old sections share, or one not in the list, is refused.
+    rows["Paneer 200 g"][col] = "393(1) Sl. 6(iii)"
+    out = send(owner, "items", {"Items": [head, rows["Paneer 200 g"]]}).json()
+    assert "give the old number" in str(out["errors"]), out
+    assert "194J(a), 194J(b), 194J(ba)" in str(out["errors"]), out
+    rows["Paneer 200 g"][col] = "194Z"
+    out = send(owner, "items", {"Items": [head, rows["Paneer 200 g"]]}).json()
+    assert "194Z is not in the TDS sections list" in str(out["errors"]), out
+
+
 def test_reimport_finds_customers_by_customer_number(owner, company, alpha):
     sheets = {
         "Ledgers": [
