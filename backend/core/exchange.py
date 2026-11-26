@@ -49,8 +49,13 @@ from core.api import EDIT, VIEW, Signed, _check, _company
 from tenancy.context import require_tenant, tenant_atomic
 
 IMPORT = "masters.import"
+# Rows a file may hold, and rows that may add or change a record: a whole
+# exported catalogue comes back with only a few rows changed, and the rows
+# that change nothing are passed over without saving (Sidharth 2026-11-26,
+# 11,157 items re-imported to fill in their TDS sections).
+MAX_FILE_ROWS = 50000
 MAX_ROWS = 5000
-MAX_BYTES = 5 * 1024 * 1024
+MAX_BYTES = 20 * 1024 * 1024
 ID_LABEL = "ID"
 
 
@@ -763,9 +768,16 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
     id_at, at = _headers(main, header, ID_LABEL)
     if not at:
         raise ParseError("The first row must hold the column names, as in the exported file.")
-    if len(body) > MAX_ROWS:
-        raise ParseError(f"Import at most {MAX_ROWS} rows at a time.")
+    if len(body) > MAX_FILE_ROWS:
+        raise ParseError(f"Import at most {MAX_FILE_ROWS} rows at a time.")
     code_at = _code_columns(master, main, header)
+    # Rows exactly as MyERP would export them now: nothing to check or save.
+    same = _unchanged(master, ctx, tables, header, body, id_at, at, code_at) if keep_codes else {}
+    if len(body) - len(same) > MAX_ROWS:
+        raise ParseError(
+            f"Add or change at most {MAX_ROWS} {master.noun}s at a time; this file adds or "
+            f"changes {len(body) - len(same)}. Rows left as exported do not count."
+        )
 
     errors: list[dict] = []
 
@@ -804,6 +816,10 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
     counts = {"new": 0, "changed": 0, "same": 0}
     with tenant_atomic():
         for n, row in body:
+            if n in same:
+                counts["same"] += 1
+                unclaimed -= {(sheet.field, k) for sheet, _ in children for k in same[n]}
+                continue
             data, bad, filled = _cells(main.columns, at, row)
             instance = None
             ref = row[id_at].strip() if id_at is not None and id_at < len(row) else ""
@@ -878,12 +894,110 @@ def run_import(master: Master, ctx: Context, table, commit: bool, keep_codes: bo
             transaction.set_rollback(True, using=require_tenant().db_alias)
     errors.sort(key=lambda e: (e["sheet"] != main.title, e["sheet"], e["row"]))
     return {
-        "rows": len(results) + len({e["row"] for e in errors if e["sheet"] == main.title}),
+        "rows": len(results)
+        + len(same)
+        + len({e["row"] for e in errors if e["sheet"] == main.title}),
         **counts,
         "errors": errors,
         "results": results,
         "saved": saved,
     }
+
+
+def _same_text(kind: str, a: str, b: str) -> bool:
+    """A cell as read back from Excel against the exported text: Excel may give
+    a number back as 18 for "18.000000"."""
+    a, b = a.strip(), b.strip()
+    if a == b:
+        return True
+    if kind == "number" and a and b:
+        try:
+            return Decimal(a) == Decimal(b)
+        except InvalidOperation:
+            return False
+    return False
+
+
+def _unchanged(master, ctx, tables, header, body, id_at, at, code_at) -> dict[int, set[str]]:
+    """The rows of the file that would change nothing: each found by its ID (or
+    code) and holding, in every column the file has, the text an export gives
+    now, with the same lines on every list sheet the file has. Row number ->
+    the keys its list-sheet lines are filed under."""
+    current = _tables_out(master, ctx, blank=False)
+    main = current[0]
+    col_at = {c.field: i + 1 for i, c in enumerate(main.sheet.columns)}
+    kinds = {c.field: c.kind for c in main.sheet.columns}
+    by_id = {r[0]: r for r in main.rows}
+    by_code = {
+        (path, r[col_at[path]].strip().lower()): r
+        for path in code_at
+        for r in main.rows
+        if r[col_at[path]].strip()
+    }
+    link_col = col_at.get(master.link)
+
+    # Lines of the list sheets, in the file and now, by sheet and owner.
+    by_title = {title.strip().lower(): rows for title, rows in tables[1:]}
+    lists = []
+    for table in current[1:]:
+        rows = by_title.get(table.sheet.title.lower())
+        if rows is None:
+            continue  # not in the file: an import leaves those lines alone
+        child_header, child_body = _body(rows)
+        link_at, child_at = _headers(table.sheet, child_header, table.sheet.link_label)
+        if link_at is None:
+            return {}  # the import itself says what is wrong
+        fields = list(child_at)
+        positions = {c.field: i + 1 for i, c in enumerate(table.sheet.columns)}
+        child_kinds = {c.field: c.kind for c in table.sheet.columns}
+        given: dict[str, list[list[str]]] = {}
+        for _, row in child_body:
+            owner = row[link_at].strip().lower() if link_at < len(row) else ""
+            given.setdefault(owner, []).append(
+                [row[child_at[f]] if child_at[f] < len(row) else "" for f in fields]
+            )
+        now: dict[str, list[list[str]]] = {}
+        for row in table.rows:
+            now.setdefault(row[0].strip().lower(), []).append([row[positions[f]] for f in fields])
+        kinds_in_order = [child_kinds[f] for f in fields]
+        lists.append((table.sheet, given, now, kinds_in_order))
+
+    out: dict[int, set[str]] = {}
+    for n, row in body:
+
+        def cell(i, row=row) -> str:
+            return row[i].strip() if i is not None and i < len(row) else ""
+
+        ref = cell(id_at)
+        record = by_id.get(ref) if ref else None
+        if ref and record is None:
+            continue
+        for path, i in code_at.items():
+            code = cell(i).lower()
+            if record is None and code:
+                record = by_code.get((path, code))
+        if record is None:
+            continue
+        if any(not _same_text(kinds[f], cell(i), record[col_at[f]]) for f, i in at.items()):
+            continue
+        keys = {ref.lower()} if ref else set()
+        if link_col is not None:
+            keys.add(record[link_col].strip().lower())
+        owner = record[link_col].strip().lower() if link_col is not None else record[0]
+        alike = True
+        for _, given, now, child_kinds in lists:
+            mine = [line for k in keys for line in given.get(k, [])]
+            theirs = now.get(owner, [])
+            if len(mine) != len(theirs) or any(
+                not _same_text(k, a, b)
+                for x, y in zip(mine, theirs, strict=True)
+                for k, a, b in zip(child_kinds, x, y, strict=True)
+            ):
+                alike = False
+                break
+        if alike:
+            out[n] = keys
+    return out
 
 
 def _report(detail, main: Sheet, sheets: list[Sheet], n: int, lines, labels, problem) -> None:
@@ -1128,7 +1242,9 @@ class ImportView(APIView):
         if upload is None:
             raise ParseError("Choose a file to import.")
         if upload.size > MAX_BYTES:
-            raise ParseError("The file is too big; import at most 5 MB at a time.")
+            raise ParseError(
+                f"The file is too big; import at most {MAX_BYTES // 1024 // 1024} MB at a time."
+            )
         tables = read_tables(upload.name, upload.read())
         notes: list[str] = []
         extra: dict = {}

@@ -574,6 +574,60 @@ def test_items_tds_section_is_filled_in_by_reimport(owner, alpha):
     assert "194Z is not in the TDS sections list" in str(out["errors"]), out
 
 
+def test_a_whole_export_comes_back_and_only_changed_rows_count(owner, alpha, monkeypatch):
+    """Sidharth 2026-11-26: all 11,157 items exported, a few TDS sections filled
+    in, and the file refused ("at most 5000 rows"). Rows left as exported are
+    passed over, and only rows that add or change a record count to the limit."""
+    for path, body in (("item-groups", '{"name": "Dairy"}'), ("brands", '{"name": "Apurvam"}')):
+        owner.post(f"/api/v1/{path}/", data=body, content_type="application/json", HTTP_HOST=HOST)
+    names = ["Ghee 500 ml", "Butter 100 g", "Paneer 200 g", "Curd 400 g"]
+    sheets = {
+        "Items": [ITEMS] + [[n, "Goods", "Dairy", "pkt", "0405", "Apurvam"] for n in names],
+        "Units of measure": [UNITS, ["Ghee 500 ml", "Carton", "24", "Packet", "", ""]],
+    }
+    assert send(owner, "items", sheets, commit=True).json()["saved"] is True
+
+    got = sheets_of(owner, "items")
+    got.pop("How to fill")
+    text = {t: [["" if v is None else str(v) for v in r] for r in rows] for t, rows in got.items()}
+    head = text["Items"][0]
+    name, tds = head.index("Name"), head.index("TDS section")
+    # Excel gives numbers back as numbers: "24.000000" comes back as 24.
+    qty = text["Units of measure"][0].index("Contains how many")
+    assert "24" in [r[qty] for r in text["Units of measure"][1:]]
+
+    monkeypatch.setattr(exchange, "MAX_ROWS", 1)
+    out = send(owner, "items", text, commit=True).json()
+    assert (out["rows"], out["new"], out["changed"], out["same"]) == (4, 0, 0, 4), out
+    assert out["saved"] is True and out["errors"] == []
+
+    for row in text["Items"][1:]:
+        if row[name] == "Paneer 200 g":
+            row[tds] = "194Q"
+    out = send(owner, "items", text, commit=True).json()
+    assert (out["rows"], out["changed"], out["same"], out["saved"]) == (4, 1, 3, True), out
+    assert out["results"][0]["changes"] == [{"field": "TDS section", "old": "", "new": "194Q"}]
+
+    # A change on a list sheet alone is a change too; two changed rows are over the limit.
+    for row in text["Units of measure"][1:]:
+        if row[qty] == "24":
+            row[qty] = "12"
+    for row in text["Items"][1:]:
+        if row[name] == "Curd 400 g":
+            row[tds] = "194Q"
+    out = send(owner, "items", text).json()
+    assert "Add or change at most 1 items at a time; this file adds or changes 2." in str(out), out
+    monkeypatch.setattr(exchange, "MAX_ROWS", 5000)
+    out = send(owner, "items", text, commit=True).json()
+    assert (out["changed"], out["same"], out["saved"]) == (2, 2, True), out
+    with use_tenant(alpha):
+        from core.models import Item
+
+        assert dict(Item.objects.values_list("name", "tds_section"))["Curd 400 g"] == "194Q"
+        carton = Item.objects.get(name="Ghee 500 ml").units.get(unit__name="Carton")
+        assert carton.contains_qty == 12
+
+
 def test_reimport_finds_customers_by_customer_number(owner, company, alpha):
     sheets = {
         "Ledgers": [
