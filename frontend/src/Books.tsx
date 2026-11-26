@@ -6,6 +6,7 @@ import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu } from "./Exchange";
 import { openTab } from "./Master";
 import { dmy, EntryLink, rupees } from "./Reports";
+import { useItemSearch } from "./ItemSearch";
 import { useKept } from "./Keep";
 
 /** Accounts reports, read straight from the general ledger (Sidharth, 2026-11-18,
@@ -212,15 +213,14 @@ type LedgerPick = { id: number; name: string; group_name?: string };
 
 /** Reports › Ledger Statement: every entry to one ledger, with the balance after each. */
 export function LedgerStatementPage({ companyId }: { companyId: number }) {
-  const [ledgers, setLedgers] = useState<LedgerPick[]>([]);
   const [ledger, setLedger] = useKept("Books.215.ledger", hashParam("ledger"));
+  // The picker asks the server as the person types (first 50 matches and the picked one),
+  // never the whole list of 10,000+ ledgers (2026-11-26).
+  const { items: ledgers, onType } = useItemSearch<LedgerPick>(`v1/companies/${companyId}/ledgers/?lean=1`, [ledger]);
   const [from, setFrom] = useKept("Books.216.from", hashParam("from"));
   const [to, setTo] = useKept("Books.217.to", hashParam("to") || today());
   const [data, setData] = useState<Statement | null>(null);
   const [error, setError] = useState<unknown>("");
-  useEffect(() => {
-    api<LedgerPick[]>(`v1/companies/${companyId}/ledgers/`).then(setLedgers);
-  }, [companyId]);
   useEffect(() => {
     if (!ledger) {
       setData(null);
@@ -256,7 +256,8 @@ export function LedgerStatementPage({ companyId }: { companyId: number }) {
               options={ledgers.map((l) => ({ value: String(l.id), label: l.name, hint: l.group_name }))}
               value={ledger}
               onChange={setLedger}
-              placeholder="Pick a ledger"
+              onType={onType}
+              placeholder="Type to search ledgers…"
               ariaLabel="Ledger"
             />
           </label>

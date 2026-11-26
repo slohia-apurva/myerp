@@ -1063,6 +1063,64 @@ def _ledger_pages(ledgers, params) -> dict:
     return {"count": sum(r["n"] for r in totals.values()), "groups": out}
 
 
+LEDGER_PICK_LIMIT = 50
+
+
+def _ledger_counts(company) -> dict:
+    """The Dashboard's ledger counts, counted in the database (it used to read
+    every ledger, 10,000+ with the customers and suppliers, 2026-11-26)."""
+    rows = company.ledgers.aggregate(
+        total=Count("pk"),
+        customers=Count("pk", filter=Q(party__isnull=False, group__nature="asset")),
+        suppliers=Count("pk", filter=Q(party__isnull=False, group__nature="liability")),
+    )
+    return rows
+
+
+def _lean_ledgers(company, params) -> list[dict]:
+    """?lean=1: ledgers for a picker, only {id, name, group_name, nature,
+    is_active, party}, never the full record. ?nature=expense,income keeps those
+    natures; ?party=0 leaves out customer and supplier ledgers. With ?search=1,
+    only the first 50 (by name) whose name, account number or customer or vendor
+    number holds every word of q, plus the ledgers named in ids (the one already
+    picked; with no q at all, only those), so a picker never loads every ledger."""
+    rows = company.ledgers.all()
+    if natures := [n for n in params.get("nature", "").split(",") if n]:
+        rows = rows.filter(group__nature__in=natures)
+    if params.get("party") == "0":
+        rows = rows.filter(party__isnull=True)
+    if params.get("search") == "1":
+        ids = {int(x) for x in params.get("ids", "").split(",") if x.strip().isdigit()}
+        found = rows if "q" in params else rows.none()  # no q at all: only the ids
+        for word in params.get("q", "").split():
+            found = found.filter(
+                Q(name__icontains=word)
+                | Q(account_number__icontains=word)
+                | Q(party__customer_number__icontains=word)
+                | Q(party__vendor_number__icontains=word)
+            )
+        first = list(
+            found.order_by("-is_active", "name", "pk").values_list("pk", flat=True)[
+                :LEDGER_PICK_LIMIT
+            ]
+        )
+        rows = rows.filter(pk__in={*first, *ids})
+    out = rows.order_by("name", "pk").values(
+        "id", "name", "is_active", "group__name", "group__nature", "party_id"
+    )
+    return [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "is_active": r["is_active"],
+            "group_name": r["group__name"],
+            "nature": r["group__nature"],
+            "party": r["party_id"],
+        }
+        for r in out
+    ]
+
+
 class LedgerListView(APIView):
     """GET ?q=text&group=id (group includes the groups under it). Each ledger's
     "in use" lock is left out; ledgers/<id>/ has it."""
@@ -1072,6 +1130,11 @@ class LedgerListView(APIView):
     def get(self, request, pk: int):
         _check(request, VIEW)
         company = _company(request, pk)
+        params = request.query_params
+        if params.get("counts") == "1":
+            return Response(_ledger_counts(company))
+        if params.get("lean") == "1":
+            return Response(_lean_ledgers(company, params))
         ledgers = company.ledgers.select_related(
             "group", "party", "salesman", "preferred_transporter"
         ).prefetch_related(

@@ -221,3 +221,55 @@ def test_the_ledgers_list_comes_a_page_at_a_time(as_user, company, alpha):
 
     found = call(accountant, "get", f"{path}&name=expense%201").json()
     assert found["count"] == 11  # Expense 10 to 19 and 21 (01 is disabled)
+
+
+@pytest.fixture
+def many(alpha, company):
+    """Sixty expense ledgers, a disabled one, a customer and a supplier."""
+    from core.models import Ledger, LedgerGroup, Party
+
+    with use_tenant(alpha):
+        expenses = LedgerGroup.objects.get(company_id=company, name="Indirect Expenses")
+        Ledger.objects.bulk_create(
+            Ledger(company_id=company, group=expenses, name=f"Expense {n:02d}")
+            for n in range(1, 61)
+        )
+        Ledger.objects.filter(name="Expense 01").update(is_active=False)
+        for side, code in (("customer", "sundry_debtors"), ("supplier", "sundry_creditors")):
+            party = Party.objects.create(name=f"A {side}", state_code="27")
+            group = LedgerGroup.objects.get(company_id=company, code=code)
+            Ledger.objects.create(
+                company_id=company, group=group, name=party.name, party=party, party_side=side
+            )
+
+
+def test_dashboard_counts_ledgers_without_reading_them(as_user, company, many):
+    accountant = as_user("accountant")
+    every = call(accountant, "get", f"companies/{company}/ledgers/").json()
+    counts = call(accountant, "get", f"companies/{company}/ledgers/?counts=1").json()
+    assert counts == {"total": len(every), "customers": 1, "suppliers": 1}
+
+
+def test_a_ledger_picker_reads_lean_rows_and_searches_on_the_server(as_user, company, many):
+    accountant = as_user("accountant")
+    path = f"companies/{company}/ledgers/?lean=1"
+    expense = call(accountant, "get", f"{path}&nature=expense&party=0").json()
+    assert len(expense) == 60 and set(expense[0]) == {
+        "id",
+        "name",
+        "is_active",
+        "group_name",
+        "nature",
+        "party",
+    }
+    assert {x["nature"] for x in expense} == {"expense"}
+
+    first = call(accountant, "get", f"{path}&search=1&q=&ids=").json()
+    assert len(first) == 50 and first[0]["name"] != "Expense 01"  # disabled go last
+    picked = expense[0]["id"]  # Expense 01, disabled: still sent while it is the pick
+    found = call(accountant, "get", f"{path}&search=1&q=expense%2042&ids={picked}").json()
+    assert [x["name"] for x in found] == ["Expense 01", "Expense 42"]
+    only = call(accountant, "get", f"{path}&search=1&ids={picked}").json()
+    assert [x["name"] for x in only] == ["Expense 01"]
+    party = call(accountant, "get", f"{path}&search=1&q=customer").json()
+    assert [x["name"] for x in party] == ["A customer"] and party[0]["party"]

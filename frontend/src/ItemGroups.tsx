@@ -82,7 +82,9 @@ export function ItemGroupsPage({ session }: { session: SignedIn }) {
 
 function GroupList(props: { session: SignedIn; canEdit: boolean }) {
   const { canEdit } = props;
-  const { groups, reload } = useItemGroups(true);
+  // The tree comes lean (261 groups' "in use" checks took 3 s on staging, 2026-11-26); the
+  // picked group's checks and accounts come on their own when it is clicked.
+  const { groups, reload } = useItemGroups();
   const [selectedId, setSelected] = useKept<number | null>("ItemGroups.selectedId", null);
   const [folded, setFolded] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<number | null>(Infinity);
@@ -135,7 +137,18 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
       return next;
     });
   const total = (g: ItemGroup): number => g.item_count + (children.get(g.id) ?? []).reduce((t, c) => t + total(c), 0);
-  const selected = groups.find((g) => g.id === selectedId) ?? null;
+  const [detail, setDetail] = useState<ItemGroup | null>(null);
+  useEffect(() => {
+    setDetail(null);
+    if (selectedId === null) return;
+    let live = true;
+    api<ItemGroup>(`v1/item-groups/${selectedId}/`).then((d) => live && setDetail(d), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [selectedId, groups]);
+  const listed = groups.find((g) => g.id === selectedId) ?? null;
+  const selected = detail && detail.id === selectedId ? detail : listed;
   const edit = (what: number | string) => openTab(`#/item-groups?form=${what}`);
 
   const rows = (g: ItemGroup, depth: number): JSX.Element[] => {
@@ -242,7 +255,7 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
                   ["Name", selected.name],
                   ["Under", groups.find((g) => g.id === selected.parent)?.name ?? "Top level"],
                   ["Items", String(selected.item_count)],
-                  ["In Use", selected.lock?.in_use.join(", ") ?? ""],
+                  ["In Use", detail ? (selected.lock?.in_use.join(", ") ?? "") : "…"],
                   ["Disabled", selected.is_active ? "No" : "Yes"],
                   ["Notes", selected.notes],
                 ]}
@@ -270,7 +283,7 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
                 ))}
               </>
             ) : (
-              <p className="small">{selected ? "No accounts set yet." : "Click a group to see its accounts here."}</p>
+              <p className="small">{selected ? (detail ? "No accounts set yet." : "Loading…") : "Click a group to see its accounts here."}</p>
             )}
           </SidePanel>
           <SidePanel title="Activity">

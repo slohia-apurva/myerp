@@ -18,13 +18,14 @@ type PartyRenewal = {
   name: string;
   valid_until: string;
 };
-type LedgerRow = { id: number; nature: string; party: { id?: number } | null; is_active: boolean };
+/** Counted on the server: the list itself is 10,000+ ledgers with the customers and suppliers. */
+type LedgerCounts = { total: number; customers: number; suppliers: number };
 
 /** The first screen after signing in: the company being worked in, at a glance. */
 export function Dashboard({ session, company }: { session: SignedIn; company?: Company }) {
   const canSeeMasters = session.permissions.includes("masters.view");
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [ledgers, setLedgers] = useState<LedgerRow[]>([]);
+  const [ledgers, setLedgers] = useState<LedgerCounts>({ total: 0, customers: 0, suppliers: 0 });
   const [partyRenewals, setPartyRenewals] = useState<PartyRenewal[]>([]);
   const [noBrand, setNoBrand] = useState(0);
   const [decided, setDecided] = useState<AdditionRequest[]>([]);
@@ -41,7 +42,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
     if (!id) return;
     setOverview(null);
     api<Overview>(`v1/companies/${id}/`).then(setOverview);
-    api<LedgerRow[]>(`v1/companies/${id}/ledgers/`).then(setLedgers);
+    api<LedgerCounts>(`v1/companies/${id}/ledgers/?counts=1`).then(setLedgers);
     api<PartyRenewal[]>("v1/party-documents/renewals/").then(setPartyRenewals, () => setPartyRenewals([]));
   }, [id]);
   useEffect(() => {
@@ -66,8 +67,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
       </section>
     );
 
-  const customers = ledgers.filter((l) => l.party && l.nature === "asset").length;
-  const suppliers = ledgers.filter((l) => l.party && l.nature === "liability").length;
+  const { customers, suppliers } = ledgers;
   const diff = overview ? Number(overview.opening.difference) : 0;
   const renewals = (overview?.certificates ?? [])
     .filter((x) => x.valid_until)
@@ -84,7 +84,7 @@ export function Dashboard({ session, company }: { session: SignedIn; company?: C
         <div className="stats">
           <div className="stat">
             <span className="stat-label">Ledgers</span>
-            <span className="stat-value">{ledgers.length}</span>
+            <span className="stat-value">{ledgers.total}</span>
             <a className="stat-note" href={`${base}/ledgers`}>
               Open ledgers
             </a>
