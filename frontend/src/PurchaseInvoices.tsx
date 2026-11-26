@@ -41,6 +41,9 @@ type Line = {
   unbilled_qty: string;
   qty: string;
   receipt_rate: string;
+  /** The order's rate came from the supplier's own price or price list (locked there). */
+  rate_locked?: boolean;
+  rate_source?: string;
   rate: string;
   gst_rate: string;
   taxable?: string;
@@ -740,9 +743,17 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
                             <input className="num-in" inputMode="decimal" value={l.qty} onChange={(e) => changeLine(i, { qty: e.target.value })} aria-label="Bill quantity" />
                           </td>
                           <td>{l.unit_name}</td>
-                          <td className="num">{money(l.receipt_rate)}</td>
+                          <td className="num nowrap" title={l.rate_locked ? `Locked on the order: ${l.rate_source}` : undefined}>
+                            {money(l.receipt_rate)}
+                            {l.rate_locked && <span aria-label="locked"> 🔒</span>}
+                          </td>
                           <td className="num">
                             <input className="num-in" inputMode="decimal" value={l.rate} onChange={(e) => changeLine(i, { rate: e.target.value })} aria-label="Bill rate" />
+                            {l.rate_locked && num(l.rate) > num(l.receipt_rate) && (
+                              <span className="rate-differs">
+                                ₹{money(String(r2(num(l.rate) - num(l.receipt_rate))))} above the agreed price (₹{money(String(r2((num(l.rate) - num(l.receipt_rate)) * num(l.qty))))} more). The purchaser is told on Submit.
+                              </span>
+                            )}
                           </td>
                           <td className="num">{money(String(calc[i].taxable))}</td>
                           <td className="num">
@@ -1185,7 +1196,10 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                           <td className="nowrap">{l.receipt_number}</td>
                           <td className="num">{Number(l.qty)}</td>
                           <td>{l.unit_name}</td>
-                          <td className="num">{money(l.receipt_rate)}</td>
+                          <td className="num nowrap">
+                            {money(l.receipt_rate)}
+                            {l.rate_locked && <span title={`Locked on the order: ${l.rate_source}`}> 🔒</span>}
+                          </td>
                           <td className="num">{money(l.rate)}</td>
                           <td className="num">{money(l.taxable ?? "0")}</td>
                           <td className="num">{Number(l.gst_rate)}</td>

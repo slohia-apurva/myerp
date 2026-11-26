@@ -45,7 +45,8 @@ from core.models import (
     TermsSet,
 )
 from core.parties import items_for_party, picked_ledgers
-from core.price_lists import find_rate
+from core.price_lists import TYPED, check_rate, find_rate, is_locked
+from core.price_lists import source_words as price_source_words
 from core.terms import terms_for
 from insurance import api as insurance
 from insurance.models import InsurancePolicy
@@ -263,6 +264,8 @@ def _line_out(ln: PurchaseOrderLine) -> dict:
         "unit_name": ln.unit.short_name or ln.unit.name,
         "qty": _plain(ln.qty),
         "rate": _plain(ln.rate),
+        "rate_source": ln.rate_source,
+        "rate_locked": is_locked(ln.rate_source),
         "discount_pct": _plain(ln.discount_pct),
         "taxable": str(ln.taxable),
         "gst_rate": _plain(ln.gst_rate),
@@ -687,6 +690,15 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
             problems.append("The rate cannot be below zero.")
         if not 0 <= line["discount_pct"] <= 100:
             problems.append("The discount is between 0 and 100%.")
+        source = TYPED
+        if unit_row is not None and line["qty"] > 0 and line["rate"] >= 0:
+            # A rate from the supplier's own price or price list is locked (Sidharth, 2026-11-26).
+            source, locked = check_rate(
+                party, item, unit_row.unit, line["qty"], data["order_date"], PriceList.BUYING,
+                line["rate"], line["discount_pct"],
+            )  # fmt: skip
+            if locked:
+                problems.append(locked[0].upper() + locked[1:])
         gst = Decimal("0")
         if with_gst:
             found = gst_rate_on(item, data["order_date"])
@@ -717,6 +729,7 @@ def _save_order(o: PurchaseOrder, data: dict) -> None:
                 unit_id=line["unit"],
                 qty=line["qty"],
                 rate=line["rate"],
+                rate_source=source[:80],
                 discount_pct=line["discount_pct"],
                 taxable=taxable,
                 gst_rate=gst,
@@ -1307,10 +1320,11 @@ class OrderRateView(APIView):
             supplier.party, item, unit_row.unit, max(qty, Decimal("0")), _day(params.get("date")),
             PriceList.BUYING,
         )  # fmt: skip
-        if source == "own":
-            said = "From supplier's own price"
-        elif source:
-            said = f'From price list "{source}"'
-        else:
-            said = ""
-        return Response({"rate": _plain(rate) if rate is not None else None, "source": said})
+        said = price_source_words(source, PriceList.BUYING) if rate is not None else ""
+        return Response(
+            {
+                "rate": _plain(rate) if rate is not None else None,
+                "source": said,
+                "locked": bool(said),
+            }
+        )

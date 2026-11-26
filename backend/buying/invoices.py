@@ -21,6 +21,7 @@ now; an import's bill comes with its bill of entry, later.
 from __future__ import annotations
 
 import datetime
+import html as html_lib
 from collections import defaultdict
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
@@ -44,11 +45,14 @@ from buying.models import (
     PurchaseOrder,
 )
 from buying.receipts import _factor
-from core import attachments, numbering
+from core import attachments, mail, numbering
 from core.api import Signed
 from core.companies import visible_companies
 from core.credit_terms import summary as term_summary
 from core.models import Branch, CreditTerm, FiscalYear, Item, Ledger
+from core.notifications import notify, people_with_roles
+from core.price_lists import is_locked
+from core.printout import indian
 from posting import accounts, service
 from posting.models import GLEntry, StockLot, StockMove
 from posting.service import GLLine, Revalue, Voucher, money
@@ -157,6 +161,8 @@ def _line_out(ln: PurchaseInvoiceLine, inv: PurchaseInvoice) -> dict:
         "unbilled_qty": _plain(unbilled),
         "qty": _plain(ln.qty),
         "receipt_rate": _plain(_receipt_rate(rl)),
+        "rate_locked": is_locked(rl.order_line.rate_source),
+        "rate_source": rl.order_line.rate_source,
         "rate": _plain(ln.rate),
         "taxable": ln.taxable,
         "gst_rate": _plain(ln.gst_rate),
@@ -718,6 +724,94 @@ def _submit(inv: PurchaseInvoice, user) -> None:
     inv.submitted_at = timezone.now()
     inv.submitted_by = user
     inv.save()
+    tell_rate_differences(inv, lines)
+
+
+def _rs(value: Decimal) -> str:
+    return f"₹ {indian(f'{value:.2f}')}"
+
+
+def above_locked(lines) -> list[dict]:
+    """Bill lines whose rate is above the order's locked rate (one from the
+    supplier's own price or price list): what a rate-difference debit note is for."""
+    out = []
+    for ln in lines:
+        ol = ln.receipt_line.order_line
+        if not is_locked(ol.rate_source):
+            continue
+        agreed = _receipt_rate(ln.receipt_line)
+        if ln.rate > agreed:
+            out.append(
+                {
+                    "item": ln.item.name,
+                    "order": ol.order,
+                    "qty": ln.qty,
+                    "unit": ln.unit.short_name or ln.unit.name,
+                    "agreed": agreed,
+                    "billed": ln.rate,
+                    "more": money((ln.rate - agreed) * ln.qty),
+                    "source": ol.rate_source,
+                }
+            )
+    return out
+
+
+def tell_rate_differences(inv: PurchaseInvoice, lines) -> None:
+    """Sidharth, 2026-11-26: the Bill Rate stays open to match the supplier's
+    bill; when it is above a locked order rate, the order's purchaser gets a bell
+    notice and an email, so a rate-difference debit note can be issued."""
+    rows = above_locked(lines)
+    if not rows:
+        return
+    purchasers = {r["order"].purchaser for r in rows if r["order"].purchaser_id}
+    users = [p.user for p in purchasers if p.user_id and p.user.is_active]
+    if not users:
+        users = people_with_roles(inv.company, "purchase", "owner")
+    total = sum((r["more"] for r in rows), Decimal("0"))
+    title = f"Bill {inv.bill_no} of {inv.supplier.name}: rate above the agreed price"
+    said = "\n".join(
+        f"• {r['item']} (PO {r['order'].number}, {r['source']}): billed {_plain(r['billed'])} "
+        f"against {_plain(r['agreed'])} per {r['unit']} on {_plain(r['qty'])}, "
+        f"{_rs(r['more'])} more"
+        for r in rows
+    )
+    ask = (
+        f"Purchase Invoice {inv.number} was booked at the bill's rates, {_rs(total)} above "
+        "the agreed prices. Issue a rate-difference debit note to the supplier "
+        '(open the invoice, "Create ▾ › Debit Note").'
+    )
+    to = sorted({p.email or (p.user.email if p.user_id else "") for p in purchasers} - {""})
+    mailed = ""
+    if to:
+        try:
+            body = f"{ask}\n\n{said}\n"
+            mail.send(
+                inv.company,
+                to=to,
+                subject=title,
+                text=body,
+                html='<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px">'
+                + "".join(
+                    f'<p style="margin:0 0 10px">{html_lib.escape(p).replace(chr(10), "<br>")}</p>'
+                    for p in (ask, said)
+                )
+                + "</div>",
+            )
+            mailed = f"\n\nMailed to {', '.join(to)}."
+        except mail.NotSetUp as exc:
+            mailed = f"\n\nNot mailed: {exc}"
+        except ValidationError as exc:
+            detail = exc.detail.get("detail") if isinstance(exc.detail, dict) else exc.detail
+            mailed = f"\n\nNot mailed: {detail[0] if isinstance(detail, list) else detail}"
+    else:
+        mailed = "\n\nNot mailed: the order has no purchaser with an email address."
+    notify(
+        users,
+        inv.company,
+        title,
+        f"{ask}\n\n{said}{mailed}",
+        f"#/companies/{inv.company_id}/purchase-invoices?view={inv.pk}",
+    )
 
 
 def _cancel(inv: PurchaseInvoice, user, reason: str) -> None:
@@ -782,6 +876,8 @@ def _draft_from(company, receipt_lines: list[GoodsReceiptLine]) -> dict:
             "unbilled_qty": _plain(_unbilled(rl)),
             "qty": _plain(_to_bill(rl)),
             "receipt_rate": _plain(_receipt_rate(rl)),
+            "rate_locked": is_locked(rl.order_line.rate_source),
+            "rate_source": rl.order_line.rate_source,
             "rate": _plain(_receipt_rate(rl)),
             "gst_rate": _plain(rl.order_line.gst_rate),
         }

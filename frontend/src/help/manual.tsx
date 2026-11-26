@@ -604,9 +604,11 @@ export const MANUAL: Chapter[] = [
           A price list is a named set of rates for items, for selling or for
           buying. Each rate starts on a date, and an item can have a lower rate
           for bigger quantities. This is one list shared by every company in the
-          group. Prices are used for rates on quotations, orders and invoices
-          once Sales and Purchase are built; until then the item's own "MRP" is
-          unchanged.
+          group. Sales and purchase orders take their rates from here, and a
+          rate that comes from a price list or a party's own prices is locked
+          on the order: it shows grey with a 🔒 and cannot be typed over. To
+          change such a rate, change the price list or the party's "Item
+          Prices". The item's "MRP" never becomes an order's rate.
         </p>
         <h3>Add a price list</h3>
         <ol>
@@ -3534,8 +3536,13 @@ export const MANUAL: Chapter[] = [
             printed under the item name). The unit starts as the item's
             purchase unit. Type the "Qty".
             The "Rate" fills in from the supplier's own Item Prices, or else its
-            "Buying" price list, and the line under it says which; type over it
-            to use another rate. Add a "Disc %" if the supplier gives one. A new
+            "Buying" price list, and the line under it says which. Such a rate
+            is locked: it shows grey with a 🔒, cannot be typed over and takes
+            no "Disc %". To change it, change the price list or the supplier's
+            "Item Prices". When the supplier has no price for the item, type the
+            rate; the line says "Typed (no price set)", and you can add a "Disc
+            %" if the supplier gives one. Opening a saved draft, "Duplicate",
+            or changing the supplier or the date reads the prices again. A new
             empty row appears for the next item; "✕" removes a line.
           </li>
           <li>
@@ -4035,6 +4042,14 @@ export const MANUAL: Chapter[] = [
             "Items" lists each receipt line still to bill ("To Bill"), at the
             order's rate. Change "Bill Qty", "Bill Rate" or "GST %" to match the
             bill; a line whose rate differs is shaded and says by how much.
+            A 🔒 beside the "Receipt Rate" means the order's rate came from the
+            supplier's own price or price list. The "Bill Rate" stays open so
+            the bill can be entered as the supplier made it, but when it is
+            above that price a red note gives the difference, and on Submit
+            the order's purchaser gets a bell notice and an email (from the
+            company's Mail Account) asking for a rate-difference debit note
+            ("Create ▾ › Debit Note" on the invoice). With no purchaser on the
+            order, the notice goes to the Purchase team and Owners.
             "Remove" leaves a line for a later bill. Under each item name the
             line shows its item no. and HSN, here and on the submitted bill;
             debit notes, returns, delivery notes, sales invoices, credit notes
@@ -4555,8 +4570,13 @@ export const MANUAL: Chapter[] = [
             starts as the item's sales unit; you can pick any other unit of the
             item, and no other. The "Rate" fills in by itself, with where it
             came from under it: first the customer's own price, then its price
-            list, and last the item's MRP ("MRP (no price set)"). Type another
-            rate to change it. "In Stock" shows what is at the "Despatch From"
+            list. Such a rate is locked: it shows grey with a 🔒 and cannot be
+            typed over; to change it, change the price list or the customer's
+            "Item Prices". The item's MRP is never used. When the customer has
+            no price for the item the "Rate" stays empty: type it, and the line
+            says "Typed (no price set)". Opening a saved draft, "Duplicate", or
+            changing the customer or the date reads the prices again. Delivery
+            notes, sales invoices and returns keep the order's rate. "In Stock" shows what is at the "Despatch From"
             place, in the line's unit; it turns red when the quantity ordered
             is more than that.
           </li>

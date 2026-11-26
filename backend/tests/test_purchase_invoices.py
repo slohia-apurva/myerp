@@ -189,3 +189,46 @@ def test_a_revalued_lot_used_since_blocks_the_cancel(buyer, owner, received, alp
                                        batch=Batch.objects.get(item=tea))])  # fmt: skip
     gone = call(owner, "post", f"purchase-invoices/{inv['id']}/cancel/", {"reason": "x"})
     assert gone.status_code == 400 and "has since been issued" in str(gone.json())
+
+
+def test_a_bill_above_a_locked_order_rate_tells_the_purchaser(buyer, received, alpha):  # noqa: F811
+    """Sidharth, 2026-11-26: the Bill Rate stays open to match the supplier's bill;
+    above a locked order rate the order's purchaser gets a notice (and a mail), so a
+    rate-difference debit note can be issued."""
+    from accounts.models import User
+    from buying.models import PurchaseOrder, PurchaseOrderLine
+    from core.models import Notification, SalesPerson
+
+    g = received
+    with use_tenant(alpha):
+        me = User.objects.get(email="buyer@x.in")
+        anil = SalesPerson.objects.create(
+            name="Anil", is_purchaser=True, user=me, email="anil@x.in"
+        )
+        PurchaseOrder.objects.filter(lines__receipt_lines__receipt_id=g["receipt"]).update(
+            purchaser=anil
+        )
+        PurchaseOrderLine.objects.filter(item_id=g["tea"]).update(
+            rate_source="Supplier's own price"
+        )
+    draft = call(buyer, "get", f"{_inv_url(g)}draft-from/?receipt={g['receipt']}").json()
+    assert [(ln["item_name"], ln["rate_locked"]) for ln in draft["lines"]] == [
+        ("CTC Tea", True),
+        ("Tea Box", False),
+    ]
+    draft["lines"][0]["rate"] = "255"  # Rs 5 a Kg above the agreed 250
+    draft["lines"][1]["rate"] = "25"  # the box was never locked: no notice for it
+    made = call(buyer, "post", _inv_url(g), _body(g, draft)).json()
+    done = call(
+        buyer, "patch", f"purchase-invoices/{made['id']}/",
+        _body(g, draft, bill_total=made["total"], submit=True),
+    )  # fmt: skip
+    assert done.status_code == 200, done.json()
+    with use_tenant(alpha):
+        notes = list(Notification.objects.filter(user=me, title__contains="agreed price"))
+    assert len(notes) == 1
+    body = notes[0].body
+    assert "CTC Tea" in body and "billed 255 against 250 per kg on 600, ₹ 3,000.00 more" in body
+    assert "Tea Box" not in body
+    assert "rate-difference debit note" in body
+    assert "Not mailed: The company's mail account is not set up" in body

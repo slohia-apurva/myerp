@@ -22,6 +22,7 @@ import { OrderMail, SupplierMail } from "./SupplierMail";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
 import { Connections } from "./Connections";
+import { RateBox, RateSource } from "./RateLock";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -37,6 +38,8 @@ type Line = {
   unit_name: string;
   qty: string;
   rate: string;
+  rate_source?: string;
+  rate_locked?: boolean;
   discount_pct: string;
   taxable: string;
   gst_rate: string;
@@ -483,9 +486,12 @@ type Draft = {
   /** Typed by the person: a new item, unit or quantity no longer fetches a rate. */
   rateTyped: boolean;
   source: string;
+  /** The rate comes from the supplier's own price or its price list: it cannot be
+   * typed over, nor given a discount (Sidharth, 2026-11-26). */
+  locked: boolean;
 };
 let nextKey = 1;
-const blankLine = (): Draft => ({ key: nextKey++, item: "", description: "", unit: "", qty: "", rate: "", discount: "", rateTyped: false, source: "" });
+const blankLine = (): Draft => ({ key: nextKey++, item: "", description: "", unit: "", qty: "", rate: "", discount: "", rateTyped: false, source: "", locked: false });
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 function work(line: Draft, gst: number) {
@@ -602,7 +608,8 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       rate: l.rate,
       discount: l.discount_pct === "0" ? "" : l.discount_pct,
       rateTyped: true,
-      source: "",
+      source: l.rate_locked ? (l.rate_source ?? "") : "",
+      locked: !!l.rate_locked,
     })),
     blankLine(),
   ]);
@@ -721,7 +728,7 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
       setAgentId(next);
       setMailAgentUser(false);
     }
-    setLines((ls) => ls.map((l) => (l.rateTyped ? l : { ...l, rate: "", source: "" })));
+    setLines((ls) => ls.map((l) => (l.rateTyped && !l.locked ? l : { ...l, rate: "", source: "", locked: false })));
   };
 
   const ag = suppliers.find((s) => `l${s.id}` === agent);
@@ -739,15 +746,27 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
   const tick = (id: number, on: boolean) => setMailTo((m) => (on ? [...m, id] : m.filter((x) => x !== id)));
   const tickWa = (id: number, on: boolean) => setWaTo((w) => (on ? [...w, id] : w.filter((x) => x !== id)));
 
+  // A rate from the supplier's own price or price list is locked; with none, the line
+  // keeps a typed rate (Sidharth, 2026-11-26). Asked for every line whatever was typed.
   const fetchRate = (line: Draft) => {
-    if (!supplier || !line.item || !line.unit || line.rateTyped) return;
+    if (!supplier || !line.item || !line.unit) return;
     const q = new URLSearchParams({ supplier, item: line.item, unit: line.unit, qty: line.qty || "1", date: orderDate });
-    api<{ rate: string | null; source: string }>(`v1/companies/${companyId}/purchase-orders/rate/?${q}`).then((r) =>
+    api<{ rate: string | null; source: string; locked: boolean }>(`v1/companies/${companyId}/purchase-orders/rate/?${q}`).then((r) =>
       setLines((ls) =>
-        ls.map((l) => (l.key === line.key && !l.rateTyped ? { ...l, rate: r.rate ?? l.rate, source: r.rate ? r.source : "" } : l)),
+        ls.map((l) => {
+          if (l.key !== line.key) return l;
+          if (r.locked && r.rate) return { ...l, rate: r.rate, source: r.source, locked: true, discount: "", rateTyped: false };
+          return l.locked ? { ...l, rate: "", source: "", locked: false, rateTyped: false } : l;
+        }),
       ),
     );
   };
+  // Opening a draft or a duplicate, and changing the supplier or the date, reads the
+  // rates again, so the order follows today's prices.
+  useEffect(() => {
+    lines.forEach((l) => l.item && fetchRate(l));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplier, orderDate]);
   const change = (key: number, patch: Partial<Draft>) => {
     setLines((ls) => {
       let next = ls.map((l) => (l.key === key ? { ...l, ...patch } : l));
@@ -1165,24 +1184,17 @@ function OrderForm(props: { companyId: number; title: string; order: PurchaseOrd
                           )}
                         </td>
                         <td className="num">
-                          <input
-                            className="num"
-                            inputMode="decimal"
-                            aria-label={`Rate ${i + 1}`}
+                          <RateBox
+                            label={`Rate ${i + 1}`}
                             value={l.rate}
-                            onChange={(e) => change(l.key, { rate: e.target.value, rateTyped: true, source: "" })}
+                            locked={l.locked}
+                            onChange={(v) => change(l.key, { rate: v, rateTyped: true, source: "" })}
+                            why="This rate comes from the supplier's own price or its price list. To change it, change the price list (Masters › Price Lists) or the supplier's Item Prices."
                           />
-                          {l.source && <span className="small">{l.source}</span>}
+                          <RateSource line={l} />
                         </td>
                         <td className="num">
-                          <input
-                            className="num"
-                            inputMode="decimal"
-                            aria-label={`Discount ${i + 1}`}
-                            placeholder="0"
-                            value={l.discount}
-                            onChange={(e) => change(l.key, { discount: e.target.value })}
-                          />
+                          <RateBox label={`Discount ${i + 1}`} value={l.discount} locked={l.locked} placeholder="0" onChange={(v) => change(l.key, { discount: v })} why="A rate from the price list takes no discount." />
                         </td>
                         <td className="num">{l.item ? money(w.taxable) : ""}</td>
                         <td className="num">{l.item ? gstOf(l) : ""}</td>

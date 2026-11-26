@@ -182,6 +182,9 @@ class PurchaseOrderLine(models.Model):
     unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name="+")
     qty = models.DecimalField(**QTY, validators=[MinValueValidator(Decimal("0.000001"))])
     rate = models.DecimalField(**QTY, validators=[MinValueValidator(0)])
+    # Where the rate came from: "Supplier's own price", "Price list: <name>" (both
+    # locked, Sidharth 2026-11-26) or "Typed" (core.price_lists.check_rate).
+    rate_source = models.CharField(max_length=80, blank=True)
     discount_pct = models.DecimalField(
         max_digits=5,
         decimal_places=2,

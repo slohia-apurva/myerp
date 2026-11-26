@@ -414,3 +414,56 @@ def find_rate(
         if line is not None:
             return line.rate, line.price_list.name
     return None, ""
+
+
+# Locked rates (Sidharth, 2026-11-26) ----------------------------------------
+# A rate that comes from the party's own Item Prices or its price list cannot be
+# typed over on an order; only a line with no such price takes a typed rate.
+# Later documents (receipts, delivery notes, invoices, returns) copy the order's
+# rate, so the lock holds all the way down. The Purchase Invoice's Bill Rate
+# stays open to match the supplier's bill; a bill above a locked rate tells
+# the purchaser (buying.invoices.tell_rate_differences).
+
+TYPED = "Typed"
+
+
+def source_words(source: str, side: str = PriceList.SELLING) -> str:
+    """How the screens name where a rate came from ("own", a list's name, or "")."""
+    if source == "own":
+        return "Customer's price" if side == PriceList.SELLING else "Supplier's own price"
+    return f"Price list: {source}" if source else ""
+
+
+def is_locked(rate_source: str) -> bool:
+    """Whether a stored line source (source_words, or TYPED) names a master price."""
+    return bool(rate_source) and rate_source != TYPED and not rate_source.startswith("MRP")
+
+
+def check_rate(
+    party: Party | None,
+    item: Item,
+    unit: Unit,
+    qty,
+    on: datetime.date,
+    side: str,
+    rate: Decimal,
+    discount: Decimal = Decimal("0"),
+) -> tuple[str, str]:
+    """(the line's rate source to keep, a problem or ""). A line whose item has a
+    price for this party must carry exactly that rate, with no discount."""
+    if party is None:
+        return TYPED, ""
+    found, source = find_rate(party, item, unit, qty, on, side)
+    if found is None:
+        return TYPED, ""
+    words = source_words(source, side)
+    who = "customer" if side == PriceList.SELLING else "supplier"
+    from_where = f'price list "{source}"' if source != "own" else f"the {who}'s own price"
+    if Decimal(rate) != found:
+        return words, (
+            f"the rate of {item.name} is set by {from_where} at {found.normalize():f} "
+            "and cannot be changed here."
+        )
+    if discount:
+        return words, f"{item.name} has its rate from {from_where}, so it takes no discount."
+    return words, ""
