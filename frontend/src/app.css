@@ -4717,8 +4717,12 @@ body {
     font-size: 14px;
     padding: 7px 10px;
   }
-  .item-title input {
-    font-size: 19px;
+  .item-title input,
+  .doc-title {
+    font-size: 18px;
+  }
+  .doc-head {
+    padding: 8px 10px;
   }
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4924,4 +4928,149 @@ button.scan-pick {
   justify-content: space-between;
   color: var(--slate);
   font-size: 13px;
+
+/* Tables as cards on phones (Sidharth, 2026-11-26: "quite a few screens still do not fit on
+   the iPhone"). Below 768px a list (table.pick) shows each row as a card: the first column in
+   bold on its own line, the rest after it with their headings in small letters; the column
+   searches sit three to a line, each under its heading. A table of lines (table.grid) shows
+   each line as a card of fields, three to a line, the item across the whole card (the
+   line number is left out). The headings
+   come from PhoneTables.ts (data-label). Nothing scrolls sideways. */
+@media (max-width: 768px) {
+  table.pick,
+  table.pick > thead,
+  table.pick > tbody,
+  table.pick > tfoot,
+  table.grid,
+  table.grid > thead,
+  table.grid > tbody,
+  table.grid > tfoot {
+    display: block;
+    width: 100%;
+  }
+  .table-scroll:has(> table.grid) {
+    overflow-x: visible;
+  }
+  table.pick > thead > tr:first-child,
+  table.grid > thead > tr:first-child {
+    display: none;
+  }
+  table.pick tr.col-search {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px 6px;
+    padding: 8px 10px;
+    background: var(--mist);
+  }
+  table.pick tr.col-search th {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  table.pick tr.col-search th:not([data-label]),
+  table.pick tr.col-search th:not(:has(input)) {
+    display: none;
+  }
+  table.pick tr.col-search input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 26px;
+    font-size: 12px;
+  }
+  table.pick > tbody > tr,
+  table.pick > tfoot > tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 3px 12px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.pick > tbody > tr > td,
+  table.pick > tfoot > tr > td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  table.pick > tbody > tr > td:empty,
+  table.pick > tfoot > tr > td:empty {
+    display: none;
+  }
+  table.pick > tbody > tr > td:first-child {
+    flex-basis: 100%;
+    font-weight: 600;
+  }
+  table.pick > tbody > tr > td[colspan] {
+    flex-basis: 100%;
+    font-weight: 400;
+  }
+  table.pick tbody tr.selected {
+    background: var(--mint);
+  }
+  :is(table.pick tr.col-search th, table.pick > tbody > tr > td:not(:first-child), table.grid > tbody > tr > td)[data-label]::before {
+    content: attr(data-label);
+    color: var(--slate);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  table.pick > tbody > tr > td[data-label]:not(:first-child)::before {
+    margin-right: 5px;
+  }
+  table.grid > tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.grid > tbody > tr > td {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+  table.grid > tbody > tr > td:empty,
+  table.grid > tbody > tr > td[data-label="#"] {
+    display: none;
+  }
+  table.grid > tbody > tr > td:nth-child(2)::before {
+    content: none !important;
+  }
+  table.grid > tbody > tr > td:not([data-label]) {
+    justify-content: flex-end;
+  }
+  table.grid > tbody > tr > td:nth-child(2),
+  table.grid > tbody > tr > td[colspan] {
+    grid-column: 1 / -1;
+  }
+  table.grid > tbody > tr > td :is(input, .combo, select, textarea) {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  table.grid > tfoot > tr {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 12px;
+    padding: 8px 10px;
+  }
+  table.grid > tfoot > tr > td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  table.grid > tfoot > tr > td:empty {
+    display: none;
+  }
 }
