@@ -172,6 +172,17 @@ class PurchaseOrder(models.Model):
     def __str__(self) -> str:
         return self.number or f"Draft purchase order {self.pk}"
 
+    def supplier_status_label(self) -> str:
+        """The orders list's "Supplier Reply" (Sidharth, 2026-11-26): an order
+        never mailed whose goods all came in the quantities ordered needs no
+        reply, so it reads "Not required". Short or excess goods still read
+        "Not sent": the supplier is to be mailed about them."""
+        if not self.supplier_status and self.status == self.RECEIVED:
+            lines = [ln for ln in self.lines.all() if ln.item.maintain_stock]
+            if lines and all(ln.received_qty == ln.qty for ln in lines):
+                return "Not required"
+        return self.get_supplier_status_display()
+
 
 class PurchaseOrderLine(models.Model):
     order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="lines")

@@ -3670,7 +3670,10 @@ export const MANUAL: Chapter[] = [
             …"), which opens the order. The order's "Supplier Response" box
             lists each mailing (to whom, by whom, and when the link was
             opened) and each reply, and the orders list has a "Supplier Reply"
-            column: "Not sent", "Sent", "Opened", "Accepted" or "Issue".
+            column: "Not sent", "Sent", "Opened", "Accepted" or "Issue". An
+            order that was never mailed and whose goods all came in the
+            quantities ordered shows "Not required"; if anything came short or
+            in excess it stays "Not sent", so mail the supplier about it.
           </li>
           <li>
             To change a submitted order, open it, click "Cancel order", say why,
