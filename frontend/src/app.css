@@ -4928,6 +4928,7 @@ button.scan-pick {
   justify-content: space-between;
   color: var(--slate);
   font-size: 13px;
+}
 
 /* Tables as cards on phones (Sidharth, 2026-11-26: "quite a few screens still do not fit on
    the iPhone"). Below 768px a list (table.pick) shows each row as a card: the first column in

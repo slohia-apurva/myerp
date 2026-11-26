@@ -171,6 +171,8 @@ export function ReportsMenu(props: { active: boolean; company: Company; stock: b
       items={[
         ["Stock Summary", `#/companies/${id}/stock-summary`, props.stock],
         ["Stock Ledger", `#/companies/${id}/stock-ledger`, props.stock],
+        // Opens Batches, where "Trace" on a batch opens its Batch Trace (Sidharth, 2026-11-26).
+        ["Batch Traceability", "#/batches", props.stock],
         ["Trial Balance", `#/companies/${id}/trial-balance`, props.books],
         ["Ledger Statement", `#/companies/${id}/ledger-statement`, props.books],
       ]}

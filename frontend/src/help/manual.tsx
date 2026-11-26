@@ -1497,8 +1497,10 @@ export const MANUAL: Chapter[] = [
         <ul>
           <li>Scan the QR code on a retention sample label.</li>
           <li>
-            Or click "Masters" in the top menu, then "Batches", and click
-            "Trace" on the batch's row (or under "Batch Details" on the right).
+            Or click "Reports" in the top menu, then "Batch Traceability" (or
+            "Masters", then "Batches"). The Batches list opens: find the batch
+            with the search boxes under the headings and click "Trace" on its
+            row (or under "Batch Details" on the right).
           </li>
         </ul>
         <p>
@@ -5052,7 +5054,9 @@ export const MANUAL: Chapter[] = [
           at the top right and read straight from the stock ledger, so they
           always agree with the submitted entries. Anyone whose role may see
           stock can open them. Each has the "Actions ▾" button with "Print" and
-          "Download PDF".
+          "Download PDF". "Batch Traceability" in the same menu opens the
+          Batches list, where "Trace" on a batch shows where it came from, where
+          it is and where it went (see "Batch Trace").
         </p>
         <h3>Stock Summary</h3>
         <ul>
