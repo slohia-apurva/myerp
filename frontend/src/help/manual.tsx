@@ -1960,8 +1960,8 @@ export const MANUAL: Chapter[] = [
           roles" screen for any other role that should import. A file may hold
           up to 50,000 rows and 20 MB, so a whole exported list (all your
           items, say) can come back: rows you left as exported are passed over
-          and shown as "with no change", and up to 5,000 rows at a time may add
-          or change records.
+          and shown as "with no change", and up to 1,000 rows at a time may add
+          or change records (more than that, split the file into parts).
         </p>
       </>
     ),

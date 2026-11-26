@@ -54,7 +54,9 @@ IMPORT = "masters.import"
 # that change nothing are passed over without saving (Sidharth 2026-11-26,
 # 11,157 items re-imported to fill in their TDS sections).
 MAX_FILE_ROWS = 50000
-MAX_ROWS = 5000
+# Each changed row is saved the form's way, about a tenth of a second for an
+# item, and a request has 5 minutes on the server: 1,000 fits with room to spare.
+MAX_ROWS = 1000
 MAX_BYTES = 20 * 1024 * 1024
 ID_LABEL = "ID"
 
@@ -1049,9 +1051,13 @@ def _save_row(
     """Save one row the screen's way: ("new" | "changed" | "same", the
     record's name, what changed as [{field, old, new}])."""
     context = {"request": ctx.request}
+    # Before and after as an export shows them: without the per-record "in use"
+    # checks, a dozen queries an item that no column holds (the save still
+    # refuses a change to a key field in use).
+    shown = {**context, "list": True}
     before = None
     if instance is not None:
-        before = dict(master.serializer(instance, context=context).data)
+        before = dict(master.serializer(instance, context=shown).data)
     serializer = master.serializer(
         instance, data=data, partial=instance is not None, context=context
     )
@@ -1060,7 +1066,7 @@ def _save_row(
     if instance is None:
         return "new", str(record), []
     record = master.queryset(ctx).get(pk=record.pk)
-    after = dict(master.serializer(record, context=context).data)
+    after = dict(master.serializer(record, context=shown).data)
     if after == before:
         return "same", str(record), []
     return "changed", str(record), _changes(sheets, before, after)
@@ -1112,7 +1118,6 @@ def _by_code(
 ) -> tuple[Any, list[str]]:
     """The record a row is about, found by its code when the ID is empty, and
     what is wrong with the row's codes: a code is never changed by an import."""
-    labels = {c.field: c.label for c in master.columns()}
     problems = []
     if instance is None and not ref:
         for path, text in codes.items():
@@ -1132,7 +1137,7 @@ def _by_code(
     for path, text in codes.items():
         now = master.codes[path].of(instance) or ""
         if text and now and text.lower() != now.lower():
-            label = labels[path]
+            label = next(c.label for c in master.columns() if c.field == path)
             where = f"the ID {ref} is" if ref else "this row is"
             problems.append(
                 f"{label}: {where} the {master.noun} {now}, and its {label.lower()} "
