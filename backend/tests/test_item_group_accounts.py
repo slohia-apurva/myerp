@@ -176,3 +176,33 @@ def test_sales_ledger_is_an_income_ledger_and_can_be_added_once_in_use(
     # ... but once set, it is locked like the others.
     cleared = call(accountant, "patch", f"item-groups/{main['id']}/", {"accounts_in": [row(books)]})
     assert cleared.status_code == 400
+
+
+def test_one_group_opens_with_its_checks_and_accounts(accountant, books):
+    main = call(
+        accountant, "post", "item-groups/", {"name": "Raw material", "accounts_in": [row(books)]}
+    ).json()
+    sub = call(accountant, "post", "item-groups/", {"name": "Spices", "parent": main["id"]}).json()
+    got = call(accountant, "get", f"item-groups/{sub['id']}/").json()
+    assert got["lock"] == {"in_use": [], "locked": []}
+    assert got["accounts"][0]["stock_ledger_name"] == "Raw Stock"
+    assert got["accounts_from"]["name"] == "Raw material"
+    assert call(accountant, "get", "item-groups/999999/").status_code == 404
+
+
+def test_account_pickers_offer_only_stock_expense_and_income_ledgers(accountant, books, alpha):
+    """The pickers never load the customer and supplier ledgers (thousands of them)."""
+    with use_tenant(alpha):
+        debtors = LedgerGroup.objects.get(company=books["company"], code="sundry_debtors")
+        Ledger.objects.create(company_id=books["company"], group=debtors, name="A Customer")
+        income = LedgerGroup.objects.filter(company=books["company"], nature="income").first()
+        Ledger.objects.create(company_id=books["company"], group=income, name="Tea Sales")
+    got = call(accountant, "get", f"item-groups/ledgers/?company={books['company']}").json()
+    names = {k: {r["name"] for r in v} for k, v in got.items()}
+    assert "Raw Stock" in names["stock"] and "Raw COGS" not in names["stock"]
+    assert "Raw COGS" in names["cogs"] and "Raw Stock" not in names["cogs"]
+    assert "Tea Sales" in names["sales"]
+    everything = names["stock"] | names["cogs"] | names["sales"]
+    assert "A Customer" not in everything and "Cash" not in everything
+    assert "Other Stock" not in everything  # another company's
+    assert call(accountant, "get", "item-groups/ledgers/?company=999999").status_code == 404

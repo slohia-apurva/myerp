@@ -2,14 +2,14 @@
 Each item sits in one group; groups nest to any depth like ledger groups."""
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Count
+from django.db.models import Count, Q
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import duplicates, exchange
-from core.api import EDIT, VIEW, Signed, _check
+from core.api import EDIT, VIEW, Signed, _check, _company
 from core.locks import (
     account_uses,
     lock_status,
@@ -339,9 +339,18 @@ class ItemGroupListView(APIView):
 
 
 class ItemGroupDetailView(APIView):
-    """Edit only: item groups are never deleted, only made inactive."""
+    """GET: one group with its "in use" checks and accounts (the list leaves
+    them out, so screens open fast). PATCH: change it. Item groups are never
+    deleted, only made inactive."""
 
     permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        group = _groups().filter(pk=pk).first()
+        if group is None:
+            raise NotFound("No such item group.")
+        return Response(ItemGroupSerializer(group).data)
 
     @tenant_atomic()
     def patch(self, request, pk: int):
@@ -353,3 +362,40 @@ class ItemGroupDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         _save_group(group, dict(serializer.validated_data))
         return Response(ItemGroupSerializer(_groups().get(pk=group.pk)).data)
+
+
+class ItemGroupLedgersView(APIView):
+    """GET ?company=ID: the ledgers the Accounts pickers of an item group offer
+    in that company, as {stock, cogs, sales} lists of {id, name, is_active}:
+    ledgers under Stock-in-Hand, expense ledgers and income ledgers. Customer
+    and supplier ledgers (thousands) are never among them, so the screen no
+    longer loads the company's whole ledger list."""
+
+    permission_classes = [Signed]
+
+    def get(self, request):
+        _check(request, VIEW)
+        try:
+            company_id = int(request.query_params.get("company", ""))
+        except ValueError:
+            raise ValidationError({"company": ["Give a number."]}) from None
+        company = _company(request, company_id)
+        stock_root = company.ledger_groups.filter(code="stock_in_hand").first()
+        stock_groups = {stock_root.pk, *stock_root.descendant_ids()} if stock_root else set()
+        rows = (
+            company.ledgers.filter(
+                Q(group_id__in=stock_groups) | Q(group__nature__in=("expense", "income"))
+            )
+            .order_by("name")
+            .values("id", "name", "is_active", "group_id", "group__nature")
+        )
+        out: dict[str, list] = {"stock": [], "cogs": [], "sales": []}
+        for r in rows:
+            row = {"id": r["id"], "name": r["name"], "is_active": r["is_active"]}
+            if r["group_id"] in stock_groups:
+                out["stock"].append(row)
+            elif r["group__nature"] == "expense":
+                out["cogs"].append(row)
+            else:
+                out["sales"].append(row)
+        return Response(out)

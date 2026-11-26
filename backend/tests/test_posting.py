@@ -283,6 +283,22 @@ def test_a_voucher_posts_once_and_items_lock(books):
         assert uses("ledger", b["stock_ledger"]) == ["1 entry"]
 
 
+def test_a_main_groups_accounts_lock_once_its_items_stock_is_valued(books):
+    """The lock looks at the group's own tree only: a receipt of an item in the
+    sub-group locks the main group's row, not the sub-group or another group."""
+    b = books
+    from core.locks import account_uses
+
+    with use_tenant(b["tenant"]), tenant_atomic():
+        main = ItemGroup.objects.get(name="Raw material")
+        other = ItemGroup.objects.create(name="Packing")
+        assert account_uses(main, b["company"]) == []
+        receive(b, 1, "10", "5")
+        assert account_uses(main, b["company"]) == ["1 stock posting"]
+        assert account_uses(other, b["company"]) == []
+        assert account_uses(ItemGroup.objects.get(name="Tea"), b["company"]) == []
+
+
 def test_missing_stock_ledger_is_named(books):
     b = books
     with use_tenant(b["tenant"]), tenant_atomic():

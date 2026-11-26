@@ -219,6 +219,11 @@ urlpatterns = [
     ),
     path("brands/<int:pk>/", brands.BrandDetailView.as_view(), name="brand"),
     path("item-groups/", item_groups.ItemGroupListView.as_view(), name="item-groups"),
+    path(
+        "item-groups/ledgers/",
+        item_groups.ItemGroupLedgersView.as_view(),
+        name="item-group-ledgers",
+    ),
     path("item-groups/<int:pk>/", item_groups.ItemGroupDetailView.as_view(), name="item-group"),
     path("units/", units.UnitListView.as_view(), name="units"),
     path("units/gst-codes/", units.GstUnitCodeView.as_view(), name="unit-gst-codes"),
