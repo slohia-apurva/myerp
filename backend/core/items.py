@@ -52,7 +52,7 @@ from core.models import (
     Unit,
 )
 from core.numbering import follow_numbers, next_number
-from core.tds_sections import check_section
+from core.tds_sections import check_section, current_sections
 from tenancy.context import tenant_atomic
 from tenancy.models import HsnCode
 
@@ -760,6 +760,9 @@ class ItemImportSerializer(ItemSerializer):
     number may be given (kept from the system the items come from)."""
 
     item_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    # A file may give the section's new number or a picker's text, longer than the
+    # old number kept on the item; the save turns it into the old number.
+    tds_section = serializers.CharField(max_length=120, required=False, allow_blank=True)
 
     class Meta(ItemSerializer.Meta):
         read_only_fields = []
@@ -804,6 +807,14 @@ exchange.register(
             )
         },
         sources={"erpnext": erpnext.item_tables},
+        codecs={
+            # The help sheet lists the sections in force; the save checks what is typed.
+            "tds_section": exchange.Codec(
+                lambda v: v or "",
+                lambda t: t.strip(),
+                choices=lambda: [s.code for s in current_sections()],
+            )
+        },
         labels={
             "stock_unit": "Default unit (stock unit)",
             "mrp": "MRP (₹)",
@@ -864,6 +875,10 @@ exchange.register(
             "plans.order_up_to": "In the default unit; empty refills to the safety stock",
             "plans.transfer_from": "Only for Transfer: the branch it comes from",
             "plans.transfer_days": "Only for Transfer: days on the way",
+            "tds_section": "The section a purchase of this item deducts TDS under: its old "
+            "number (194Q) or its new one (393(1) Sl. 8(ii)) where only one old section has "
+            "it; empty for none (goods: 194Q when the company deducts it; services: the "
+            "supplier's default)",
             "units.contains_qty": "Leave empty on the stock unit's row",
             "units.contains_unit": "Leave empty on the stock unit's row",
         },
@@ -935,6 +950,13 @@ def _search(rows, params):
             for field in fields:
                 match |= Q(**{f"{field}__icontains": word})
             rows = rows.filter(match)
+    # TDS Section: the old number ("194q") or the new one ("393(1) sl. 8"); "none"
+    # finds the items with no section (Sidharth 2026-11-26: fill them by Excel).
+    tds = params.get("tds", "").strip()
+    if tds.lower() in ("none", "-", "empty", "blank"):
+        rows = rows.filter(tds_section="")
+    elif tds:
+        rows = rows.filter(tds_section__in=_sections_matching(tds))
     gst = _words(params.get("gst", ""))
     if gst or params.get("sort", "").removeprefix("-") == "gst":
         today = ItemGstRate.objects.filter(item=OuterRef("pk"), valid_from__lte=date.today())
@@ -948,6 +970,18 @@ def _search(rows, params):
     if group.isdigit():
         rows = rows.filter(item_group__in=_group_and_below(int(group)))
     return rows
+
+
+def _sections_matching(text: str) -> set[str]:
+    """The old numbers of the sections whose old number, new number or name holds
+    every word typed (capitals ignored)."""
+    words = [w.lower() for w in text.split()]
+    found = set()
+    for sec in current_sections():
+        seen = f"{sec.code} {sec.new_code} {sec.name}".lower()
+        if all(w in seen for w in words):
+            found.add(sec.code)
+    return found
 
 
 # What each column of the Items list sorts by (Sidharth, 2026-11-24: click a heading).
@@ -973,6 +1007,7 @@ SORTS = {
     "allow_sales": "allow_sales",
     "lead": "lead_time_days",
     "moq": "min_order_qty",
+    "tds": "tds_section",
 }
 
 
