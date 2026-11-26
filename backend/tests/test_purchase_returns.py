@@ -182,3 +182,57 @@ def test_a_draft_return_shows_its_entries_at_receipt_cost(store, buyer, received
     assert grni["ledger"] == "Goods Received but Bills not Received"
     assert D(grni["debit"]) == D(draft["value"]) > 0
     assert sum(D(e["credit"]) for e in entries) == D(draft["value"])
+
+
+def _listed(client, g, view="submitted"):
+    rows = call(client, "get", f"{_ret_url(g)}?view={view}").json()
+    return {r["id"]: (r["debit_state"], r["debit_label"], r["debit_notes"]) for r in rows}
+
+
+def test_the_list_shows_which_returns_still_need_a_debit_note(store, buyer, received, alpha):  # noqa: F811,E501
+    """Sidharth, 2026-11-26 (preview 107): the "Debit Note" column and the
+    "Debit Note Pending" view on the Purchase Return list."""
+    g = received
+    ret = _send_back(store, g)
+    draft = _send_back(store, g, boxes="1", submit=False)
+    assert _listed(buyer, g)[ret["id"]][0] == "waiting"
+    assert _listed(buyer, g, "draft")[draft["id"]][0] == ""
+    assert _listed(buyer, g, "debit_pending") == {}
+
+    # Billed for all 30 boxes: the 3 sent back now need a debit note.
+    inv = _bill(buyer, g, box_qty="30")
+    assert _listed(buyer, g, "debit_pending") == {ret["id"]: ("pending", "Pending", "")}
+    view = call(buyer, "get", f"purchase-returns/{ret['id']}/").json()
+    assert view["debit_state"] == "pending" and view["to_debit"]
+
+    made = call(buyer, "get", f"{_dn_url(g)}draft-from/?return={ret['id']}").json()
+    body = {"invoice": inv["id"], "note_date": TODAY.isoformat(),
+            "lines": [{"invoice_line": ln["invoice_line"], "return_line": ln["return_line"],
+                       "qty": "2"} for ln in made["lines"]],
+            "submit": True}  # fmt: skip
+    note = call(buyer, "post", _dn_url(g), body).json()
+    assert _listed(buyer, g, "debit_pending") == {ret["id"]: ("part", "Part Done", note["number"])}
+
+    body["lines"][0]["qty"] = "1"
+    last = call(buyer, "post", _dn_url(g), body).json()
+    assert _listed(buyer, g, "debit_pending") == {}
+    state, label, notes = _listed(buyer, g)[ret["id"]]
+    assert (state, label) == ("done", "Done")
+    assert notes == ", ".join(sorted([note["number"], last["number"]]))
+
+
+def test_a_return_the_bill_left_out_needs_no_debit_note_in_the_list(store, buyer, received, alpha):  # noqa: F811,E501
+    g = received
+    ret = _send_back(store, g)
+    _bill(buyer, g, box_qty="20")  # 7 boxes still to be billed: they may yet include these 3
+    assert _listed(buyer, g)[ret["id"]][0] == "waiting"
+    rest = call(buyer, "get", f"{_inv_url(g)}draft-from/?receipt={g['receipt']}").json()
+    assert [ln["qty"] for ln in rest["lines"]] == ["7"]  # only the boxes are left
+    inv = call(buyer, "post", _inv_url(g), _body(g, rest, bill_no="DTT/1202")).json()
+    body = _body(g, rest, bill_no="DTT/1202", bill_total=inv["total"], submit=True)
+    done = call(buyer, "patch", f"purchase-invoices/{inv['id']}/", body)
+    assert done.status_code == 200, done.json()  # 27 billed in all: the 3 were left out
+    assert _listed(buyer, g)[ret["id"]][:2] == (
+        "not_needed",
+        "Not Needed (Billed for Actual Qty Recd.)",
+    )
