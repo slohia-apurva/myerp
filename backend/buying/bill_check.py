@@ -150,47 +150,39 @@ def _qr_date(value: str) -> datetime.date | None:
         return None
 
 
-def _bill_no_row(inv, qr, text):
-    entry = inv.bill_no or "—"
+def _no_row(key, label, number, qr, text, note=""):
+    """A document number (the supplier's invoice or challan no) against the QR's
+    or the text's: an exact match, written differently (close), or not read."""
+    entry = number or "—"
     if qr and qr.get("doc_no"):
         bill = qr["doc_no"]
-        if _norm(bill) == _norm(inv.bill_no):
-            return _row("bill_no", "Supplier Invoice No", entry, bill, SAME, source="QR")
-        ratio = difflib.SequenceMatcher(None, _norm(bill), _norm(inv.bill_no)).ratio()
+        if _norm(bill) == _norm(number):
+            return _row(key, label, entry, bill, SAME, source="QR")
+        ratio = difflib.SequenceMatcher(None, _norm(bill), _norm(number)).ratio()
         if ratio >= 0.7:
-            return _row(
-                "bill_no",
-                "Supplier Invoice No",
-                entry,
-                bill,
-                WRITTEN,
-                note="GST returns match on the exact number",
-                source="QR",
-            )
-        return _row("bill_no", "Supplier Invoice No", entry, bill, DIFFERS, source="QR")
-    if not text or not inv.bill_no:
-        return _row("bill_no", "Supplier Invoice No", entry, "", NOT_READ)
-    if _norm(inv.bill_no) in _norm(text):
-        return _row("bill_no", "Supplier Invoice No", entry, inv.bill_no, SAME)
+            return _row(key, label, entry, bill, WRITTEN, note=note, source="QR")
+        return _row(key, label, entry, bill, DIFFERS, source="QR")
+    if not text or not number:
+        return _row(key, label, entry, "", NOT_READ)
+    if _norm(number) in _norm(text):
+        return _row(key, label, entry, number, SAME)
     tokens = {
         t.strip(".,:;|")
         for t in re.findall(r"[A-Za-z0-9][A-Za-z0-9/\-.]{3,}", text)
         if re.search(r"\d", t)
     }
-    close = difflib.get_close_matches(inv.bill_no.upper(), [t.upper() for t in tokens], 1, 0.75)
+    close = difflib.get_close_matches(number.upper(), [t.upper() for t in tokens], 1, 0.75)
     if close:
-        return _row(
-            "bill_no",
-            "Supplier Invoice No",
-            entry,
-            close[0],
-            WRITTEN,
-            note="GST returns match on the exact number",
-        )
-    return _row("bill_no", "Supplier Invoice No", entry, "", NOT_READ)
+        return _row(key, label, entry, close[0], WRITTEN, note=note)
+    return _row(key, label, entry, "", NOT_READ)
 
 
-def _gstin_rows(inv, qr, text) -> tuple[list[dict], list[str]]:
+def _bill_no_row(inv, qr, text):
+    note = "GST returns match on the exact number"
+    return _no_row("bill_no", "Supplier Invoice No", inv.bill_no, qr, text, note)
+
+
+def _gstin_rows(inv, qr, text, doc="bill") -> tuple[list[dict], list[str]]:
     party = inv.supplier.party
     supplier = (party.gstin if party else "") or ""
     ours = {g for g in [inv.branch.gstin, inv.company.gstin] if g}
@@ -232,7 +224,7 @@ def _gstin_rows(inv, qr, text) -> tuple[list[dict], list[str]]:
             )
         )
         refuse.append(
-            f"The bill is from GSTIN {seller}, not {inv.supplier.name} ({supplier}). "
+            f"The {doc} is from GSTIN {seller}, not {inv.supplier.name} ({supplier}). "
             "Check the supplier or the file."
         )
     if not expected:
@@ -254,22 +246,25 @@ def _gstin_rows(inv, qr, text) -> tuple[list[dict], list[str]]:
             )
         )
         refuse.append(
-            f"The bill is addressed to GSTIN {buyer}, not {inv.company.name} ({expected}). "
+            f"The {doc} is addressed to GSTIN {buyer}, not {inv.company.name} ({expected}). "
             "It may belong to another company."
         )
     return rows, refuse
 
 
-def _date_row(inv, qr, text):
-    entry = inv.bill_date.strftime("%d %b %Y") if inv.bill_date else "—"
+def _day_row(key, label, day, qr, text):
+    entry = day.strftime("%d %b %Y") if day else "—"
     if qr and _qr_date(qr.get("doc_date", "")):
         d = _qr_date(qr["doc_date"])
-        result = SAME if d == inv.bill_date else DIFFERS
-        bill = d.strftime("%d %b %Y")
-        return _row("bill_date", "Supplier Invoice Date", entry, bill, result, source="QR")
-    if inv.bill_date and inv.bill_date in _dates_in(text or ""):
-        return _row("bill_date", "Supplier Invoice Date", entry, entry, SAME)
-    return _row("bill_date", "Supplier Invoice Date", entry, "", NOT_READ)
+        result = SAME if d == day else DIFFERS
+        return _row(key, label, entry, d.strftime("%d %b %Y"), result, source="QR")
+    if day and day in _dates_in(text or ""):
+        return _row(key, label, entry, entry, SAME)
+    return _row(key, label, entry, "", NOT_READ)
+
+
+def _date_row(inv, qr, text):
+    return _day_row("bill_date", "Supplier Invoice Date", inv.bill_date, qr, text)
 
 
 def _triples(text: str) -> list[dict]:

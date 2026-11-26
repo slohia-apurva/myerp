@@ -1374,7 +1374,7 @@ export const MANUAL: Chapter[] = [
     id: "bill-reading",
     title: "Bill Reading",
     summary:
-      "For Owners: how supplier bills are read for the Bill Check on purchase invoices, and what Submit does when a bill differs.",
+      "For Owners: how supplier bills and challans are read for the Bill Check on purchase invoices and the Challan Check on goods receipts, and what Submit does when they differ.",
     body: (
       <>
         <p>
@@ -3901,6 +3901,31 @@ export const MANUAL: Chapter[] = [
           goods as pending on the orders again. It is refused if any of the
           goods have since been issued or moved, including by an entry dated
           later that needed them.
+        </p>
+        <h3>Challan Check</h3>
+        <p>
+          Once the supplier's challan is in "Attachments" (a PDF or photo, type
+          "Supplier's challan", "Supplier's invoice" or "Other"), the "Challan
+          Check" box at the top of the receipt reads it, the same way as the
+          purchase invoice's "Bill Check", and compares it with what was
+          received: "Supplier GSTIN", "Our GSTIN", "Challan No", "Challan Date",
+          "E-way Bill No", "Vehicle No", and for each line the "HSN" and the
+          "Quantity" (the challan's quantity against the quantity received).
+          "On the Order" shows the order's quantity for reference. No rates or
+          GST are checked here: the invoice's Bill Check does that. When the
+          challan says more than was received, a red line at the top says so:
+          if the goods never came, enter "Received" as on the challan and send
+          the shortfall back with a Purchase Return, or ask the supplier to bill
+          what was received. "Check Again" and "Mark as Seen…" work as on the
+          invoice.
+        </p>
+        <p>
+          On "Submit", a challan that differs opens "The supplier's challan does
+          not match this receipt" with the differences: correct the receipt, or
+          type why it is right and click "Submit with Reason" (kept in Activity).
+          The Owner's choice under Admin › "Bill Reading" applies here too, and a
+          challan from another supplier's GSTIN, or addressed to another
+          company's GSTIN, is always refused.
         </p>
         <h3>Printing the receipt, bin sheets and bag labels</h3>
         <p>

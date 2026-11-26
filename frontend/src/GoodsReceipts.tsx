@@ -3,6 +3,7 @@ import { TransitInsuranceView, type OrderInsurance } from "./Insurance";
 import { useTransporterSearch } from "./Shipments";
 import { api, type SignedIn } from "./api";
 import { DocSide, keptDraft } from "./Attachments";
+import { BillCheckBox, BillCheckPopup, billCheckOf, CHALLAN_WORDS } from "./BillCheck";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -553,6 +554,8 @@ function ReceiptForm(props: {
   const [binCheck, setBinCheck] = useState<LineDraft[] | null>(null);
   const [noLedgers, setNoLedgers] = useState<MissingLedgers | null>(null);
   const [saves, setSaves] = useState(0); // reads the Ledger Posting again after each save
+  const [files, setFiles] = useState(0); // reads the Challan Check again after a file is added
+  const [challanCheck, setChallanCheck] = useState<ReturnType<typeof billCheckOf>>(null);
 
   // The supplier's open orders (with what is still to come), once a supplier is picked.
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
@@ -666,10 +669,11 @@ function ReceiptForm(props: {
     closeThisTab(() => {
       window.location.hash = base(companyId);
     });
-  const save = async (submit: boolean) => {
+  const save = async (submit: boolean, billCheckReason = "") => {
     setError("");
     setBusy(true);
     const body = {
+      bill_check_reason: billCheckReason,
       supplier: Number(supplier) || null,
       branch: Number(branch) || null,
       receipt_date: date,
@@ -729,9 +733,14 @@ function ReceiptForm(props: {
         window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
       }
       setSaves((n) => n + 1);
+      // The supplier's challan differs (buying/challan_check.py): show the differences, ask for a reason.
+      const differs = billCheckOf(err);
       // Missing item group ledgers: all of them in a popup, not an error at the top (Sidharth, 2026-11-17).
       const noLedgersNow = missingLedgersOf(err);
-      if (noLedgersNow) setNoLedgers(noLedgersNow);
+      if (differs) {
+        setChallanCheck(differs);
+        setFiles((n) => n + 1);
+      } else if (noLedgersNow) setNoLedgers(noLedgersNow);
       else {
         setError(err);
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -787,6 +796,18 @@ function ReceiptForm(props: {
       />
       {binCheck && <BinCheckPopup lines={binCheck} all={lines} onGo={goToLine} onClose={() => setBinCheck(null)} />}
       {noLedgers && <MissingLedgersPopup refusal={noLedgers} document={`the goods receipt from ${sup?.name ?? "a supplier"}`} onClose={() => setNoLedgers(null)} />}
+      {challanCheck && (
+        <BillCheckPopup
+          check={challanCheck}
+          busy={busy}
+          words={CHALLAN_WORDS}
+          onClose={() => setChallanCheck(null)}
+          onSubmit={(reason) => {
+            setChallanCheck(null);
+            save(true, reason);
+          }}
+        />
+      )}
       <form id="grn-form" className="doc-page" onSubmit={onSubmit}>
         <div className="side-main">
           <div className="item-head doc-head">
@@ -798,6 +819,7 @@ function ReceiptForm(props: {
               {orders.length > 0 && <span className="tag">Against {pending.filter((o) => orders.includes(o.id)).map((o) => o.number).join(", ") || r?.order_numbers.join(", ")}</span>}
             </p>
           </div>
+          {draftId && <BillCheckBox invoiceId={draftId} path={`v1/goods-receipts/${draftId}/challan-check/`} words={CHALLAN_WORDS} stamp={`${files}-${saves}`} canSeen={!!setup?.can_submit} />}
           <ErrorNote error={error} />
           <Fold title="Supplier and Receipt" open summary={sup ? `${showDate(date)} · ${br?.name ?? ""}` : ""}>
             <p className="small">
@@ -1012,7 +1034,7 @@ function ReceiptForm(props: {
           </Fold>
           <LedgerPosting url={draftId ? `v1/goods-receipts/${draftId}/ledger-posting/` : null} stamp={saves} />
         </div>
-        <DocSide type="goods_receipt" id={draftId}>
+        <DocSide type="goods_receipt" id={draftId} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Against Purchase Order">
             {lines.length ? (
               <SideRows rows={lines.map((l) => [l.info.item_name, `${qty(round6(num(l.info.earlier) + accepted(l)))} of ${qty(l.info.ordered)} ${l.info.unit_name}`])} />
@@ -1325,6 +1347,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
   const [reason, setReason] = useState("");
   const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
   const [ticked, setTicked] = useState<number[]>([]); // bags picked for labels
+  const [challanCheck, setChallanCheck] = useState<ReturnType<typeof billCheckOf>>(null);
   const reload = useCallback(() => {
     api<GoodsReceipt>(`v1/goods-receipts/${id}/`).then(setR, setError);
   }, [id]);
@@ -1345,7 +1368,11 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
       announceSaved("goods_receipt_saved", { id, name: done.number || "Draft" });
     } catch (err) {
       const missing = missingLedgersOf(err);
-      if (missing) setNoLedgers(missing);
+      const differs = billCheckOf(err);
+      if (differs) {
+        setChallanCheck(differs);
+        setFiles((n) => n + 1);
+      } else if (missing) setNoLedgers(missing);
       else setError(err);
     }
   };
@@ -1394,6 +1421,18 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
         }
       />
       {noLedgers && <MissingLedgersPopup refusal={noLedgers} document={`the goods receipt from ${r.supplier_name}`} onClose={() => setNoLedgers(null)} />}
+      {challanCheck && (
+        <BillCheckPopup
+          check={challanCheck}
+          busy={false}
+          words={CHALLAN_WORDS}
+          onClose={() => setChallanCheck(null)}
+          onSubmit={(reason) => {
+            setChallanCheck(null);
+            act("submit", { bill_check_reason: reason });
+          }}
+        />
+      )}
       <div className="doc-page">
         <div className="side-main">
           <div className="item-head doc-head">
@@ -1424,6 +1463,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
             </div>
           )}
           <ErrorNote error={error} />
+          {r.status !== "cancelled" && <BillCheckBox invoiceId={r.id} path={`v1/goods-receipts/${r.id}/challan-check/`} words={CHALLAN_WORDS} stamp={String(files)} canSeen={!!setup?.can_submit} />}
           <Fold title="Supplier and Receipt" open>
             <dl className="kv">
               {(
