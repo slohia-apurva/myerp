@@ -137,9 +137,13 @@ def refuse_move_outside_top(kind: str, record, field: str, old_group, new_group,
     """A record in use may move to another group only under the same top-level
     group (Sidharth, 2026-11-13). `old_group` and `new_group` are the groups
     before and after (None for none)."""
-    if record is None or not record.pk or not uses(kind, record):
+    # The cheap tests first: working out whether a record is in use takes a
+    # dozen queries (an import of thousands of items, 2026-11-26).
+    if record is None or not record.pk:
         return
     if old_group is None or (new_group is not None and old_group.pk == new_group.pk):
+        return
+    if not uses(kind, record):
         return
     top = root_group(old_group)
     if new_group is None or root_group(new_group).pk != top.pk:
