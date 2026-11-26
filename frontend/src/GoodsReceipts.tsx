@@ -16,6 +16,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn, useReturns } from "./Refresh";
 import { usePeopleSearch } from "./SalesPeople";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Purchase > Goods Receipt: what arrived against a supplier's purchase orders, and
  * which bins and batches it went into. Submit posts the stock (Dr Stock, Cr Goods Received
@@ -1571,6 +1572,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
           )}
           <TransitInsuranceView rows={r.insurance ?? []} />
           <LedgerPosting url={`v1/goods-receipts/${r.id}/ledger-posting/`} stamp={r.status} />
+          <Connections companyId={companyId} kind="goods_receipt" id={r.id} stamp={r.status} create={r.status === "submitted" ? { purchase_invoice: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&receipt=${r.id}`), purchase_return: () => openTab(`#/companies/${companyId}/purchase-returns?form=new&receipt=${r.id}`) } : undefined} />
         </div>
         <DocSide type="goods_receipt" id={r.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">

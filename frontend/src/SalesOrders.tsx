@@ -20,6 +20,7 @@ import { OrderMail } from "./SupplierMail";
 import { type PickBrief } from "./PickLists";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Sales > Sales Order: what a customer asked the company for. A draft can be
  * changed; Submit gives it its number and fixes it. Nothing here posts to the books.
@@ -1755,6 +1756,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               )}
             </Fold>
           )}
+          <Connections companyId={companyId} kind="sales_order" id={order.id} stamp={order.status} />
         </div>
         <DocSide type="sales_order" id={order.id} onChange={() => setFiles((n) => n + 1)}>
           <TotalsPanel

@@ -13,6 +13,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { TotalsPanel } from "./PurchaseOrders";
 import { portalNumbers } from "./SalesInvoices";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Sales > Credit Note: a GST credit note against a submitted sales invoice (Sidharth,
  * 2026-11-21, previews 18a/18b/18c in mockups/sales), of one of three types, all with GST:
@@ -794,6 +795,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
             </table>
             <p className="small">The invoice's due dates less its submitted credit notes and this one, taken off the latest due first{editedTotals ? ". Save to see this note's change." : "."}</p>
           </Fold>
+          <Connections companyId={companyId} kind="credit_note" id={note.id} stamp={`${saved}-${note.status}`} />
         </div>
         <DocSide type="credit_note" id={note.id} onChange={() => setFiles((n) => n + 1)}>
           <TotalsPanel
