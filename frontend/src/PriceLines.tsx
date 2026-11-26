@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { api } from "./api";
 import { Combobox } from "./Combobox";
 import { type Item } from "./Items";
 import { unitLabel, useUnits, type Unit } from "./Units";
@@ -75,13 +74,12 @@ export function useItemChoices(chosen: (number | null)[] = [], party?: PartyItem
   return useItemSearch<Item>(url, chosen, visits);
 }
 
-export function useCustomerChoices() {
-  const [parties, setParties] = useState<PartyOption[]>([]);
+/** Customers (or suppliers) for an item's Customer or Supplier Prices, asked from the server
+ * as the person types, plus the parties already on the rows (10,000 parties on staging took
+ * 8 s to load whole, and saved rows showed no name meanwhile: Sidharth 2026-11-26). */
+export function usePartyChoices(side: "customer" | "supplier" | null, chosen: (number | null | undefined)[]) {
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
-  useEffect(() => {
-    api<PartyOption[]>("v1/parties/").then(setParties, () => setParties([]));
-  }, [visits]);
-  return parties;
+  return useItemSearch<PartyOption>(side ? `v1/parties/?side=${side}` : null, chosen, visits);
 }
 
 /** The table of rates. `by` says what the first column picks: the item (price lists and a
@@ -107,7 +105,7 @@ export function PriceTable(props: {
 function PriceGrid(props: Parameters<typeof PriceTable>[0]) {
   const { rows, onChange, by, readOnly } = props;
   const { items, onType } = useItemChoices(rows.map((r) => r.item), props.party);
-  const parties = useCustomerChoices();
+  const { items: parties, onType: findParties } = usePartyChoices(by === "item" ? null : by, rows.map((r) => r.party));
   const { units } = useUnits();
   const unitById = useMemo(() => new Map(units.map((u) => [u.id, u])), [units]);
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
@@ -165,7 +163,8 @@ function PriceGrid(props: Parameters<typeof PriceTable>[0]) {
                       value={r.party ? String(r.party) : ""}
                       placeholder={`Type to search ${by === "supplier" ? "suppliers" : "customers"}…`}
                       ariaLabel={by === "supplier" ? "Supplier" : "Customer"}
-                      options={parties.filter((x) => (by === "supplier" ? x.vendor_number : x.customer_number)).map((x) => ({ value: String(x.id), label: x.name }))}
+                      onType={findParties}
+                      options={parties.map((x) => ({ value: String(x.id), label: x.name }))}
                       onChange={(v) => set(i, { party: Number(v) || null })}
                     />
                   )}
