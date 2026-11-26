@@ -255,14 +255,46 @@ def test_the_rate_comes_from_own_prices_then_the_buying_list(buyer, world, alpha
         )  # fmt: skip
     base = f"companies/{world['company']}/purchase-orders/rate/?supplier={world['local']}"
     own = call(buyer, "get", f"{base}&item={world['tea']}&unit={world['kg']}&qty=500").json()
-    assert own == {"rate": "170", "source": "From supplier's own price"}
+    assert own == {"rate": "170", "source": "Supplier's own price", "locked": True}
     # Below its own price's slab there is no rate (its own prices win outright).
     assert (
         call(buyer, "get", f"{base}&item={world['tea']}&unit={world['kg']}&qty=5").json()["rate"]
         is None
     )
     listed = call(buyer, "get", f"{base}&item={world['box']}&unit={world['pack']}&qty=5").json()
-    assert listed == {"rate": "12", "source": 'From price list "Tea Buying 26-27"'}
+    assert listed == {"rate": "12", "source": "Price list: Tea Buying 26-27", "locked": True}
+
+
+def test_a_rate_from_the_suppliers_prices_is_locked(buyer, world, alpha):
+    """Sidharth, 2026-11-26: a rate from the supplier's own price or its price list
+    cannot be changed on the order (nor got round with a discount); a line with no
+    such price takes a typed rate."""
+    with use_tenant(alpha):
+        party = Ledger.objects.get(pk=world["local"]).party
+        plist = PriceList.objects.create(name="Packing 2026", kind=PriceList.BUYING)
+        party.buying_price_list = plist
+        party.save()
+        PriceListLine.objects.create(
+            price_list=plist, item_id=world["box"], unit_id=world["pack"], rate="12",
+            from_date=TODAY.replace(day=1),
+        )  # fmt: skip
+    url = f"companies/{world['company']}/purchase-orders/"
+    refused = call(buyer, "post", url, order(world)).json()["lines"]
+    assert refused == [
+        'Line 2: The rate of Tea Box is set by price list "Packing 2026" at 12 and cannot be '
+        "changed here."
+    ]
+    box = {"item": world["box"], "unit": world["pack"], "qty": "33", "rate": "12"}
+    refused = call(buyer, "post", url, order(world, lines=[{**box, "discount_pct": "5"}])).json()
+    assert refused["lines"] == [
+        'Line 1: Tea Box has its rate from price list "Packing 2026", so it takes no discount.'
+    ]
+    tea = {"item": world["tea"], "unit": world["kg"], "qty": "500", "rate": "180"}
+    saved = call(buyer, "post", url, order(world, lines=[tea, box])).json()
+    assert [(ln["rate_source"], ln["rate_locked"]) for ln in saved["lines"]] == [
+        ("Typed", False),
+        ("Price list: Packing 2026", True),
+    ]
 
 
 def test_the_form_gets_suppliers_branches_and_items(buyer, world):

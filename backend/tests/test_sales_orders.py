@@ -245,15 +245,14 @@ def test_the_item_picker_offers_only_the_customers_products(seller, world):
     assert len(call(seller, "get", f"{other}&q=").json()) == 3
 
 
-def test_the_rate_comes_from_own_price_then_price_list_then_mrp(seller, world):
+def test_the_rate_comes_from_own_price_then_price_list_never_mrp(seller, world):
     q = (
         f"{url(world)}rate/?customer={world['local']}&item={world['tea']}"
         f"&unit={world['case']}&qty=10&date={TODAY}"
     )
-    mrp = call(seller, "get", q).json()
-    # MRP 120 a packet, 24 to the carton.
-    assert (mrp["rate"], mrp["source"]) == ("2880", "mrp")
-    assert mrp["source_label"] == "MRP (no price set)"
+    # The item has an MRP, but MRP never comes to a sales order (Sidharth, 2026-11-26).
+    none = call(seller, "get", q).json()
+    assert (none["rate"], none["source"], none["locked"]) == (None, "", False)
     with use_tenant(world["tenant"]):
         plist = PriceList.objects.create(name="Distributor 2026", kind=PriceList.SELLING)
         PriceListLine.objects.create(
@@ -271,7 +270,35 @@ def test_the_rate_comes_from_own_price_then_price_list_then_mrp(seller, world):
             rate=2200, from_date=TODAY.replace(day=1),
         )  # fmt: skip
     own = call(seller, "get", q).json()
-    assert (own["rate"], own["source_label"]) == ("2200", "Customer's price")
+    assert (own["rate"], own["source_label"], own["locked"]) == ("2200", "Customer's price", True)
+
+
+def test_a_rate_from_the_customers_prices_is_locked(seller, world):
+    """Sidharth, 2026-11-26: a rate from the customer's own price or price list
+    cannot be changed on the order; other lines take a typed rate."""
+    with use_tenant(world["tenant"]):
+        plist = PriceList.objects.create(name="Distributor 2026", kind=PriceList.SELLING)
+        PriceListLine.objects.create(
+            price_list=plist, item_id=world["tea"], unit_id=world["case"], rate=2200,
+            from_date=TODAY.replace(day=1),
+        )  # fmt: skip
+        party = Ledger.objects.get(pk=world["local"]).party
+        party.price_list = plist
+        party.save()
+    refused = call(seller, "post", url(world), order(world)).json()["lines"]
+    assert refused == [
+        'Line 1: The rate of Green Tea 100 g is set by price list "Distributor 2026" at 2200 '
+        "and cannot be changed here."
+    ]
+    lines = [
+        {"item": world["tea"], "unit": world["case"], "qty": "25", "rate": "2200"},
+        {"item": world["loose"], "unit": world["kg"], "qty": "12.5", "rate": "410.4"},
+    ]
+    saved = call(seller, "post", url(world), order(world, lines=lines)).json()
+    assert [(ln["rate_source"], ln["rate_locked"]) for ln in saved["lines"]] == [
+        ("Price list: Distributor 2026", True),
+        ("Typed", False),
+    ]
 
 
 def test_stock_is_counted_in_the_area_or_the_whole_branch(seller, world):

@@ -5197,3 +5197,40 @@ button.conn-plus {
     display: none;
   }
 }
+/* Locked rates on orders (Sidharth, 2026-11-26): a rate from the price list is
+   grey with a lock and cannot be typed over; RateLock.tsx. */
+.rate-locked {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.rate-locked > span {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.rate-locked input,
+.rate-locked input:focus {
+  background: var(--mist);
+  border-color: var(--line);
+  color: var(--ink);
+  padding-left: 26px;
+  cursor: not-allowed;
+}
+.small.rate-from {
+  display: block;
+  color: var(--green);
+}
+.small.rate-typed {
+  display: block;
+  color: var(--amber);
+}
+.rate-differs {
+  display: block;
+  color: var(--red);
+  font-size: 12.5px;
+}

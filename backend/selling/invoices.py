@@ -50,10 +50,11 @@ from core.api import Signed
 from core.companies import visible_companies
 from core.credit_terms import summary as term_summary
 from core.models import Item, Ledger, Party
+from core.price_lists import TYPED
 from posting import accounts, service
 from posting import api as posting_api
 from posting.service import GLLine, Voucher
-from selling.api import _charges, _company, _split, charges_gst, place_state, source_words
+from selling.api import _charges, _company, _split, charges_gst, place_state
 from selling.models import (
     DeliveryNote,
     SalesInvoice,
@@ -123,7 +124,7 @@ def _line_out(ln: SalesInvoiceLine) -> dict:
         "qty": _plain(ln.qty),
         "rate": _plain(ln.rate),
         "note_number": ln.note_line.note.number,
-        "rate_source": source_words(ol.rate_source) if ol.rate_source else "",
+        "rate_source": "" if ol.rate_source == TYPED else ol.rate_source,
         "taxable": str(ln.taxable),
         "gst_rate": _plain(ln.gst_rate),
         "cgst": str(ln.cgst),

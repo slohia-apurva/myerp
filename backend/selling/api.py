@@ -50,7 +50,8 @@ from core.models import (
     WarehouseLocation,
 )
 from core.parties import items_for_party, picked_ledgers
-from core.price_lists import find_rate
+from core.price_lists import TYPED, check_rate, find_rate, is_locked
+from core.price_lists import source_words as price_source_words
 from core.terms import terms_for
 from posting.models import GLEntry
 from selling import stock
@@ -138,6 +139,7 @@ def _line_out(ln: SalesOrderLine, held: dict[int, Decimal] | None = None) -> dic
         "qty": _plain(ln.qty),
         "rate": _plain(ln.rate),
         "rate_source": ln.rate_source,
+        "rate_locked": is_locked(ln.rate_source),
         "taxable": str(ln.taxable),
         "gst_rate": _plain(ln.gst_rate),
         "cgst": str(ln.cgst),
@@ -580,6 +582,15 @@ def _save_order(o: SalesOrder, data: dict) -> None:
             problems.append(f"{unit_row.unit} is counted in whole numbers.")
         if line["rate"] < 0:
             problems.append("The rate cannot be below zero.")
+        source = TYPED
+        if unit_row is not None and line["qty"] > 0 and line["rate"] >= 0:
+            # A rate from the customer's own price or price list is locked (Sidharth, 2026-11-26).
+            source, locked = check_rate(
+                party, item, unit_row.unit, line["qty"], data["order_date"], PriceList.SELLING,
+                line["rate"],
+            )  # fmt: skip
+            if locked:
+                problems.append(locked[0].upper() + locked[1:])
         gst = ZERO
         if with_gst:
             found = gst_rate_on(item, data["order_date"])
@@ -604,7 +615,7 @@ def _save_order(o: SalesOrder, data: dict) -> None:
                 unit_id=line["unit"],
                 qty=line["qty"],
                 rate=line["rate"],
-                rate_source=(line.get("rate_source") or "")[:80],
+                rate_source=source[:80],
                 taxable=taxable,
                 gst_rate=gst,
                 cgst=cgst,
@@ -1198,31 +1209,15 @@ class OrderItemsView(APIView):
         return Response(out)
 
 
-def mrp_rate(item: Item, unit_id: int) -> Decimal | None:
-    """The item's MRP (for one stock unit) in the line's unit."""
-    if item.mrp is None:
-        return None
-    row = item.units.filter(unit_id=unit_id).first()
-    factor = row.factor if row is not None and row.factor else Decimal("1")
-    return (item.mrp * factor).quantize(Decimal("0.01"))
-
-
 def find_sale_rate(party, item, unit_row, qty, day) -> tuple[Decimal | None, str]:
-    """The customer's own price, else its price list, else the item's MRP
-    (Sidharth's order). The source is "own", the list's name, "mrp" or ""."""
-    rate, source = find_rate(party, item, unit_row.unit, qty, day, PriceList.SELLING)
-    if rate is not None:
-        return rate, source
-    mrp = mrp_rate(item, unit_row.unit_id)
-    return (mrp, "mrp") if mrp is not None else (None, "")
+    """The customer's own price, else its price list, else none: the rate is then
+    typed (Sidharth, 2026-11-26: MRP never comes to a sales order). The source is
+    "own", the list's name or ""."""
+    return find_rate(party, item, unit_row.unit, qty, day, PriceList.SELLING)
 
 
 def source_words(source: str) -> str:
-    if source == "own":
-        return "Customer's price"
-    if source == "mrp":
-        return "MRP (no price set)"
-    return f"Price list: {source}" if source else ""
+    return price_source_words(source, PriceList.SELLING)
 
 
 class OrderRateView(APIView):
@@ -1252,6 +1247,7 @@ class OrderRateView(APIView):
                 "rate": _plain(rate) if rate is not None else None,
                 "source": source,
                 "source_label": source_words(source),
+                "locked": rate is not None,
             }
         )
 
