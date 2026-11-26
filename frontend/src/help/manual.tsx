@@ -1950,8 +1950,11 @@ export const MANUAL: Chapter[] = [
           who can see a master can export it. Importing needs two permissions:
           "Create and edit" and "Import from a file" under Masters. Only the
           Owner has "Import from a file" to start with; tick it on the "User
-          roles" screen for any other role that should import. Up to 5,000 rows
-          and 5 MB at a time.
+          roles" screen for any other role that should import. A file may hold
+          up to 50,000 rows and 20 MB, so a whole exported list (all your
+          items, say) can come back: rows you left as exported are passed over
+          and shown as "with no change", and up to 5,000 rows at a time may add
+          or change records.
         </p>
       </>
     ),
