@@ -185,7 +185,12 @@ export const MANUAL: Chapter[] = [
             on one line, with the menu under them (on two short lines). Phone
             screens use smaller text, buttons and headings so more fits on the
             screen; tapping a field does not zoom in, but you can still pinch to
-            zoom.
+            zoom. On a phone each row of a list shows as a card: the first
+            column in bold, the rest under it with their headings in small
+            letters, and the column searches above the list, each under its
+            heading. The item lines of an entry show the same way, one card per
+            line with the item across the top, so nothing slides sideways.
+            Reports keep their columns and slide sideways.
           </li>
           <li>
             <strong>Company</strong> (top right, beside "Help"): the company you
