@@ -780,7 +780,9 @@ def _draft_from(company, receipt_lines: list[GoodsReceiptLine]) -> dict:
             "unit": rl.unit_id,
             "unit_name": rl.unit.short_name or rl.unit.name,
             "unbilled_qty": _plain(_unbilled(rl)),
-            "qty": _plain(_to_bill(rl)),
+            # The full quantity still to bill, returns included: suppliers bill what they sent,
+            # and a debit note settles goods sent back (Sidharth, 2026-11-26).
+            "qty": _plain(_unbilled(rl)),
             "receipt_rate": _plain(_receipt_rate(rl)),
             "rate": _plain(_receipt_rate(rl)),
             "gst_rate": _plain(rl.order_line.gst_rate),
@@ -793,7 +795,7 @@ def _draft_from(company, receipt_lines: list[GoodsReceiptLine]) -> dict:
     for rl in receipt_lines:
         o = rl.order_line.order
         orders[o.pk] = o
-        by_order[o.pk] += _receipt_rate(rl) * _to_bill(rl)
+        by_order[o.pk] += _receipt_rate(rl) * _unbilled(rl)
     for oid, billed in by_order.items():
         o = orders[oid]
         goods = sum((ln.taxable for ln in o.lines.all()), ZERO)

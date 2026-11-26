@@ -69,10 +69,11 @@ def test_return_then_full_bill_then_debit_note_settles_everything(
     with use_tenant(alpha):
         assert stock_value(g_company(g)) == before - D("90.00")
 
-    # The supplier bills all 30 boxes anyway; the new bill offers 27.
+    # The supplier bills all 30 boxes, as received: the new bill offers all 30, and a
+    # debit note settles the 3 sent back (Sidharth, 2026-11-26).
     draft = call(buyer, "get", f"{_inv_url(g)}draft-from/?receipt={g['receipt']}").json()
-    assert draft["lines"][1]["qty"] == "27"
-    inv = _bill(buyer, g, box_qty="30")
+    assert draft["lines"][1]["qty"] == "30"
+    inv = _bill(buyer, g)
     with use_tenant(alpha):
         assert _grni(g) == D("90.00")  # the returned boxes wait for the debit note
 
@@ -118,7 +119,7 @@ def test_a_bill_without_the_returned_goods_needs_no_debit_note(
 ):  # noqa: F811,E501
     g = received
     ret = _send_back(store, g)
-    _bill(buyer, g)  # 27 boxes, as offered
+    _bill(buyer, g, box_qty="27")  # the supplier left the 3 out
     with use_tenant(alpha):
         assert _grni(g) == 0
     refused = call(buyer, "get", f"{_dn_url(g)}draft-from/?return={ret['id']}")
@@ -227,7 +228,8 @@ def test_a_return_the_bill_left_out_needs_no_debit_note_in_the_list(store, buyer
     _bill(buyer, g, box_qty="20")  # 7 boxes still to be billed: they may yet include these 3
     assert _listed(buyer, g)[ret["id"]][0] == "waiting"
     rest = call(buyer, "get", f"{_inv_url(g)}draft-from/?receipt={g['receipt']}").json()
-    assert [ln["qty"] for ln in rest["lines"]] == ["7"]  # only the boxes are left
+    assert [ln["qty"] for ln in rest["lines"]] == ["10"]  # the boxes, returns included
+    rest["lines"][0]["qty"] = "7"
     inv = call(buyer, "post", _inv_url(g), _body(g, rest, bill_no="DTT/1202")).json()
     body = _body(g, rest, bill_no="DTT/1202", bill_total=inv["total"], submit=True)
     done = call(buyer, "patch", f"purchase-invoices/{inv['id']}/", body)

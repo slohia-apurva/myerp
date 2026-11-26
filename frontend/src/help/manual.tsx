@@ -4238,9 +4238,12 @@ export const MANUAL: Chapter[] = [
             are not touched: the Debit Note does that.
           </li>
           <li>
-            Once the supplier's bill is in, "Create ▾" › "Debit Note" makes the
-            debit note for these goods. If the bill leaves the returned goods
-            out (it was made for 197, say), no debit note is needed and the
+            A Purchase Invoice made from the receipt offers the full quantity
+            received, returned goods included, because the supplier bills what
+            was sent. Once the bill is in, "Create ▾" › "Debit Note" makes the
+            debit note for the returned goods. If the bill leaves the returned
+            goods out (it was made for 197, say), change the quantity on the
+            invoice to match the bill: no debit note is needed then, and the
             receipt is settled when that bill is entered.
           </li>
           <li>
