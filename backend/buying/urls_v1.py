@@ -2,6 +2,7 @@ from django.urls import path
 
 from buying import (
     api,
+    bill_check,
     debit_notes,
     direct_bills,
     invoice_pdf,
@@ -131,6 +132,17 @@ urlpatterns = [
     path(
         "purchase-invoices/<int:pk>/tds/", tds.InvoiceTdsView.as_view(), name="purchase-invoice-tds"
     ),
+    path(
+        "purchase-invoices/<int:pk>/bill-check/",
+        bill_check.BillCheckView.as_view(),
+        name="purchase-invoice-bill-check",
+    ),
+    path(
+        "purchase-invoices/<int:pk>/bill-check/seen/",
+        bill_check.BillCheckSeenView.as_view(),
+        name="purchase-invoice-bill-check-seen",
+    ),
+    path("bill-reading/", bill_check.BillReadingSettingView.as_view(), name="bill-reading"),
     path(
         "purchase-invoices/<int:pk>/cancel/",
         invoices.InvoiceCancelView.as_view(),

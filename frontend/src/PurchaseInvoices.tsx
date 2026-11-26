@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 
 import { TransitInsuranceView, type OrderInsurance } from "./Insurance";
 import { api, type SignedIn } from "./api";
 import { DocSide, keptDraft } from "./Attachments";
+import { BillCheckBox, BillCheckPopup, billCheckOf } from "./BillCheck";
 import { ChangeLog } from "./Audit";
 import { PageHeader } from "./Brand";
 import { Combobox } from "./Combobox";
@@ -468,6 +469,8 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
   const [error, setError] = useState<unknown>("");
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState("");
+  const [files, setFiles] = useState(0);
+  const [billCheck, setBillCheck] = useState<ReturnType<typeof billCheckOf>>(null);
 
   // Posting Date follows the bill date until it is changed (Sidharth, 2026-11-15).
   const [postingTouched, setPostingTouched] = useState(!!inv?.posting_date && inv.posting_date !== inv.bill_date);
@@ -529,7 +532,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
     closeThisTab(() => {
       window.location.hash = base(companyId);
     });
-  const save = async (submit: boolean) => {
+  const save = async (submit: boolean, billCheckReason = "") => {
     setError("");
     setBusy(true);
     const body = {
@@ -544,6 +547,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
       lines: lines.map((l) => ({ receipt_line: l.receipt_line, qty: l.qty || "0", rate: l.rate || "0", gst_rate: l.gst_rate || "0" })),
       charges: charges.filter((c) => c.item).map((c) => ({ item: Number(c.item), amount: c.amount || "0", gst_rate: c.gst_rate || "0", in_stock_cost: c.in_stock_cost })),
       submit,
+      bill_check_reason: billCheckReason,
     };
     try {
       const done = draftId
@@ -565,6 +569,14 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
       if (kept && !draftId) {
         setDraftId(kept);
         window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${base(companyId)}?form=${kept}`);
+      }
+      // The supplier's bill differs (buying/bill_check.py): show the differences, ask for a reason.
+      const differs = billCheckOf(err);
+      if (differs) {
+        setBillCheck(differs);
+        setFiles((n) => n + 1);
+        setBusy(false);
+        return;
       }
       setError(err);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -616,6 +628,7 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
               ))}
             </p>
           </div>
+          {draftId && <BillCheckBox invoiceId={draftId} stamp={`${files}-${savedAt}`} canSeen={props.canSubmit} />}
           <ErrorNote error={error} />
           <Fold title="Supplier's Bill" open>
             <p className="small">
@@ -810,8 +823,19 @@ function InvoiceForm(props: { companyId: number; title: string; invoice: Invoice
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           </Fold>
         </div>
-        <DocSide type="purchase_invoice" id={draftId} />
+        <DocSide type="purchase_invoice" id={draftId} onChange={() => setFiles((n) => n + 1)} />
       </form>
+      {billCheck && (
+        <BillCheckPopup
+          check={billCheck}
+          busy={busy}
+          onClose={() => setBillCheck(null)}
+          onSubmit={(reason) => {
+            setBillCheck(null);
+            save(true, reason);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -1028,6 +1052,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
             </p>
           </div>
           {inv.status === "cancelled" && <p className="use-note">Cancelled: {inv.cancel_reason}</p>}
+          {inv.kind === "regular" && inv.status !== "cancelled" && <BillCheckBox invoiceId={inv.id} stamp={String(files)} canSeen={can("submit")} />}
           {cancelling && (
             <div className="use-note no-print">
               <label>

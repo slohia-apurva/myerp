@@ -188,6 +188,7 @@ export function AdminMenu(props: { active: boolean; canSeeMasters: boolean; canM
         ["Company", "#/companies", props.canSeeMasters],
         ["Users", "#/users", props.canManageUsers],
         ["User roles", "#/roles", props.canManageUsers],
+        ["Bill Reading", "#/bill-reading", props.isOwner],
         ["Migration Tools", "#/migration", props.canMigrate],
         ["Reset data", "#/reset", props.isOwner],
       ]}

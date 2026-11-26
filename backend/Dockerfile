@@ -5,8 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
-# DejaVu fonts carry the rupee sign for printed PDFs (core/printout.py).
-RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core \
+# DejaVu fonts carry the rupee sign for printed PDFs (core/printout.py); Tesseract reads
+# scanned supplier bills for the Bill Check (buying/bill_reading.py).
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install -r requirements.txt

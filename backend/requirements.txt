@@ -14,3 +14,8 @@ openpyxl==3.1.5
 lxml==6.1.3  # openpyxl reads and writes Excel files several times faster with it
 reportlab==4.2.5
 chardet==5.2.0  # reportlab needs it; requests warns about newer ones
+# Bill Check (buying/bill_reading.py): e-invoice QR codes, PDF pages, OCR (needs tesseract-ocr).
+zxing-cpp==3.2.0.post1
+pypdfium2==5.15.2
+pytesseract==0.3.13
+pillow==13.0.0

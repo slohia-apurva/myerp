@@ -1002,3 +1002,50 @@ class StockCheckRun(models.Model):
         when = timezone.localtime(self.made_at) if self.made_at else None
         name = "Daily Stock Check" if self.daily else "Stock Check"
         return f"{name} {when:%d/%m/%Y %H:%M}" if when else name
+
+
+class BillReading(models.Model):
+    """What the supplier's bill attached to a purchase invoice says, read from
+    its e-invoice QR code, its own text or by OCR (buying/bill_reading.py), kept
+    so the Bill Check box and Submit compare without reading the file again
+    (Sidharth, 2026-11-26, previews 108a/108b). "Mark as Seen" keeps who
+    accepted the differences and why."""
+
+    attachment = models.OneToOneField(
+        "core.Attachment", on_delete=models.CASCADE, related_name="bill_reading"
+    )
+    reading = models.JSONField(default=dict)
+    read_at = models.DateTimeField(auto_now=True)
+    read_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    seen_reason = models.CharField(max_length=300, blank=True)
+    seen_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"Bill reading of attachment {self.attachment_id}"
+
+
+class BillCheckSetting(models.Model):
+    """The Owner's "Bill Reading" settings (Admin, preview 108c): one row for
+    the whole group. Claude reading is shown there but not built yet."""
+
+    WARN, REFUSE = "warn", "refuse"
+    ON_DIFFERENCE = [(WARN, "Warn, and ask for a reason"), (REFUSE, "Refuse Submit")]
+
+    ocr = models.BooleanField(default=True)
+    on_difference = models.CharField(max_length=6, choices=ON_DIFFERENCE, default=WARN)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    changed_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return "Bill Reading settings"
+
+    @classmethod
+    def current(cls) -> "BillCheckSetting":
+        return cls.objects.order_by("pk").first() or cls()

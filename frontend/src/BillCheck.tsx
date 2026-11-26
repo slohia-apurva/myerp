@@ -1,0 +1,406 @@
+import { useCallback, useEffect, useState } from "react";
+import { api, ApiError } from "./api";
+import { Fold } from "./Master";
+
+/** One compared fact: what the entry says, what the supplier's bill says (buying/bill_check.py). */
+export type CheckRow = {
+  key: string;
+  label: string;
+  group: string;
+  entry: string;
+  bill: string;
+  result: "same" | "differs" | "written" | "not_read" | "info";
+  note: string;
+  source: string;
+};
+
+export type BillCheck = {
+  files: { id: number; filename: string; kind: string }[];
+  file: { id: number; filename: string } | null;
+  checked: boolean;
+  can_read: boolean;
+  source?: string;
+  error?: string;
+  read_at?: string;
+  read_by_name?: string;
+  seen_reason?: string;
+  seen_by_name?: string;
+  seen_at?: string | null;
+  on_difference?: "warn" | "refuse";
+  rows?: CheckRow[];
+  differences?: number;
+  refuse?: string[];
+  headline?: string;
+  summary?: string;
+};
+
+/** The Bill Check a refused Submit sent back, if that is why it was refused. */
+export function billCheckOf(
+  err: unknown,
+): (BillCheck & { refusedSubmit: boolean }) | null {
+  if (
+    err instanceof ApiError &&
+    err.data &&
+    typeof err.data === "object" &&
+    "bill_check" in err.data
+  ) {
+    const data = err.data as { bill_check: BillCheck; refused?: boolean };
+    return {
+      ...data.bill_check,
+      refusedSubmit: !!data.refused || !!data.bill_check.refuse?.length,
+    };
+  }
+  return null;
+}
+
+const SOURCE: Record<string, string> = {
+  qr: "the e-invoice QR code",
+  text: "the PDF's text",
+  ocr: "OCR",
+};
+
+function readFrom(source?: string): string {
+  return (source ?? "")
+    .split("+")
+    .filter(Boolean)
+    .map((s) => SOURCE[s] ?? s)
+    .join(" and ");
+}
+
+function Result({ row }: { row: CheckRow }) {
+  const label =
+    row.result === "same"
+      ? row.key.endsWith("_hsn")
+        ? "✓ Same heading"
+        : "✓ Same"
+      : row.result === "written"
+        ? "Written differently"
+        : row.result === "not_read"
+          ? "Not read"
+          : row.result === "info"
+            ? "From the bill"
+            : row.note || "Differs";
+  const cls =
+    row.result === "same"
+      ? "pill on"
+      : row.result === "differs"
+        ? "pill bad"
+        : row.result === "written"
+          ? "pill warn"
+          : "pill";
+  return (
+    <>
+      <span className={cls}>{label}</span>
+      {row.result === "written" && row.note && (
+        <div className="small">{row.note}</div>
+      )}
+    </>
+  );
+}
+
+export function CheckTable({ rows }: { rows: CheckRow[] }) {
+  let group = "";
+  return (
+    <table className="grid bill-check">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>In This Entry</th>
+          <th>On Supplier's Bill</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.flatMap((r) => {
+          const out = [];
+          if (r.group && r.group !== group) {
+            group = r.group;
+            out.push(
+              <tr key={`g-${r.key}`} className="bill-check-group">
+                <td colSpan={4}>{r.group}</td>
+              </tr>,
+            );
+          }
+          out.push(
+            <tr
+              key={r.key}
+              className={
+                r.result === "differs" || r.result === "written"
+                  ? "bill-check-bad"
+                  : undefined
+              }
+            >
+              <td className="bill-check-label">{r.label}</td>
+              <td>{r.entry || "—"}</td>
+              <td>
+                {r.bill || "—"}
+                {r.source && <span className="small"> {r.source}</span>}
+              </td>
+              <td>
+                <Result row={r} />
+              </td>
+            </tr>,
+          );
+          return out;
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function headlineOf(c: BillCheck): string {
+  if (c.refuse?.length) return c.refuse.join(" ");
+  return c.headline || "";
+}
+
+/** "Bill Check" box on a purchase invoice (Sidharth, 2026-11-26, preview 108a): the supplier's
+ * bill in Attachments is read once (QR code, the PDF's text, or OCR) and compared with the entry. */
+export function BillCheckBox(props: {
+  invoiceId: number;
+  stamp: string;
+  canSeen: boolean;
+}) {
+  const { invoiceId, stamp, canSeen } = props;
+  const [check, setCheck] = useState<BillCheck | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [seeing, setSeeing] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const run = useCallback(
+    async (again: boolean, attachment?: number) => {
+      setBusy(true);
+      setError("");
+      try {
+        setCheck(
+          await api<BillCheck>(
+            `v1/purchase-invoices/${invoiceId}/bill-check/`,
+            { again, attachment },
+          ),
+        );
+      } catch (err) {
+        setError((err as Error).message);
+      }
+      setBusy(false);
+    },
+    [invoiceId],
+  );
+
+  useEffect(() => {
+    let live = true;
+    api<BillCheck>(`v1/purchase-invoices/${invoiceId}/bill-check/`).then(
+      (c) => {
+        if (!live) return;
+        setCheck(c);
+        // A bill not read yet is read straight away (it takes a few seconds for a scan).
+        if (!c.checked && c.file) run(false);
+      },
+      (err) => live && setError((err as Error).message),
+    );
+    return () => {
+      live = false;
+    };
+  }, [invoiceId, stamp, run]);
+
+  const markSeen = async () => {
+    setError("");
+    try {
+      setCheck(
+        await api<BillCheck>(
+          `v1/purchase-invoices/${invoiceId}/bill-check/seen/`,
+          { reason },
+        ),
+      );
+      setSeeing(false);
+      setReason("");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  if (!check) return null;
+  const n = check.differences ?? 0;
+  const refused = !!check.refuse?.length;
+  const summary = busy
+    ? "Reading the bill…"
+    : !check.file
+      ? "No bill attached"
+      : !check.checked
+        ? "Not checked yet"
+        : check.error && !check.rows?.length
+          ? "Could not read"
+          : refused
+            ? "Wrong bill?"
+            : n
+              ? `${n} difference${n === 1 ? "" : "s"}`
+              : "Matches";
+  const headline = headlineOf(check);
+  return (
+    <Fold title="Bill Check" summary={summary} open={!!check.file}>
+      {!check.file && (
+        <p className="small">
+          Add the supplier's bill (a PDF or photo, type "Supplier's invoice") in
+          Attachments, and it is checked against this entry.
+        </p>
+      )}
+      {busy && (
+        <p className="popup-wait" role="status">
+          Reading {check.file?.filename}… a scanned page takes a few seconds.
+        </p>
+      )}
+      {!busy && check.checked && (
+        <>
+          {check.error && !check.rows?.length && (
+            <p className="use-note">{check.error}</p>
+          )}
+          {headline && (
+            <p className={refused || n ? "bill-check-alert" : "use-note"}>
+              {headline}
+            </p>
+          )}
+          {!!check.rows?.length && !n && !refused && (
+            <p className="use-note">
+              The supplier's bill matches this entry wherever it could be read.
+            </p>
+          )}
+          {!!check.rows?.length && <CheckTable rows={check.rows} />}
+          {check.seen_reason && (
+            <p className="small">
+              Differences accepted by {check.seen_by_name}: {check.seen_reason}
+            </p>
+          )}
+          {seeing && (
+            <div className="bill-check-seen">
+              <label htmlFor="bill-check-reason">
+                Why Are the Differences All Right?
+              </label>
+              <input
+                id="bill-check-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. 5 Pcs short received, debit note to follow"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={markSeen}
+                disabled={!reason.trim()}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="link"
+                onClick={() => setSeeing(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </>
+      )}
+      {error && <p className="error">{error}</p>}
+      {check.file && !busy && (
+        <div className="bill-check-foot">
+          <button
+            type="button"
+            className="link"
+            onClick={() => run(true, check.file?.id)}
+          >
+            Check Again
+          </button>
+          {canSeen &&
+            check.checked &&
+            n > 0 &&
+            !refused &&
+            !check.seen_reason &&
+            !seeing && (
+              <button
+                type="button"
+                className="link"
+                onClick={() => setSeeing(true)}
+              >
+                Mark as Seen…
+              </button>
+            )}
+          {check.checked && (
+            <span className="small">
+              Read from {check.file.filename}
+              {check.source ? ` (${readFrom(check.source)})` : ""}
+              {check.read_by_name ? ` · checked by ${check.read_by_name}` : ""}
+            </span>
+          )}
+        </div>
+      )}
+    </Fold>
+  );
+}
+
+/** Submit refused because the bill differs (preview 108b): the differences, and Submit with a reason. */
+export function BillCheckPopup(props: {
+  check: BillCheck & { refusedSubmit: boolean };
+  busy: boolean;
+  onSubmit: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const { check } = props;
+  const [reason, setReason] = useState("");
+  const rows = (check.rows ?? []).filter(
+    (r) => r.result === "differs" || r.result === "written",
+  );
+  const hard = !!check.refuse?.length;
+  return (
+    <div
+      className="popup-back"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}
+    >
+      <div
+        className="popup grn-check"
+        role="dialog"
+        aria-modal="true"
+        aria-label="The supplier's bill does not match this entry"
+      >
+        <h3>The supplier's bill does not match this entry</h3>
+        {headlineOf(check) && (
+          <p className="bill-check-alert">{headlineOf(check)}</p>
+        )}
+        <CheckTable rows={rows} />
+        {props.check.refusedSubmit ? (
+          <p className="small">
+            {hard
+              ? "This bill cannot be submitted against this entry. Check the supplier, the company or the file."
+              : "Correct the entry first: only an Owner may submit it as it is."}
+          </p>
+        ) : (
+          <>
+            <label htmlFor="bill-check-submit-reason">
+              To Go Ahead Anyway, Say Why (Kept in Activity)
+            </label>
+            <input
+              id="bill-check-submit-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. 5 Pcs short received, debit note to follow"
+              autoFocus
+            />
+          </>
+        )}
+        <div className="popup-actions">
+          <button type="button" className="link" onClick={props.onClose}>
+            Cancel
+          </button>
+          {!props.check.refusedSubmit && (
+            <button
+              type="button"
+              disabled={!reason.trim() || props.busy}
+              onClick={() => props.onSubmit(reason.trim())}
+            >
+              Submit with Reason
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

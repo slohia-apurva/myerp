@@ -4928,6 +4928,7 @@ button.scan-pick {
   justify-content: space-between;
   color: var(--slate);
   font-size: 13px;
+}
 
 /* Tables as cards on phones (Sidharth, 2026-11-26: "quite a few screens still do not fit on
    the iPhone"). Below 768px a list (table.pick) shows each row as a card: the first column in
@@ -5073,4 +5074,72 @@ button.scan-pick {
   table.grid > tfoot > tr > td:empty {
     display: none;
   }
+}
+
+/* Bill Check on a purchase invoice (BillCheck.tsx, preview 108a): the supplier's bill against the entry. */
+table.grid.bill-check {
+  width: 100%;
+  margin: 8px 0;
+}
+table.bill-check td.bill-check-label {
+  font-weight: 700;
+  color: var(--green);
+}
+table.bill-check tr.bill-check-group td {
+  background: #f6f9f7;
+  font-weight: 700;
+  color: var(--deep-green);
+}
+table.bill-check tr.bill-check-bad td {
+  background: #fff7f6;
+}
+.bill-check-alert {
+  background: #fdecea;
+  border-left: 4px solid var(--red);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+.bill-check-foot,
+.bill-check-seen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bill-check-foot .small {
+  margin-left: auto;
+}
+.bill-check-seen input {
+  flex: 1 1 260px;
+}
+.popup.grn-check input#bill-check-submit-reason {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* Admin › Bill Reading (BillReading.tsx, preview 108c). */
+form.bill-reading {
+  max-width: 1000px;
+}
+form.bill-reading label.tick-line {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin: 10px 0;
+}
+form.bill-reading label.tick-line input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: none;
+}
+.bill-reading .tick-line .small {
+  display: block;
+}
+.bill-reading-later {
+  opacity: 0.55;
 }
