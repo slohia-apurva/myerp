@@ -12,7 +12,7 @@ import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { GrnPrint, PRINT_KINDS, type PrintKind } from "./GrnPrint";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { useOnReturn, useReturns } from "./Refresh";
 import { usePeopleSearch } from "./SalesPeople";
 import { useKept } from "./Keep";
@@ -256,9 +256,9 @@ const COLUMNS: [key: string, label: string, text: (r: GoodsReceipt) => string, n
 ];
 
 function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
-  const [view, setView] = useKept("GoodsReceipts.view", "all");
+  const [view, setView] = useKept("GoodsReceipts.view", () => listStart("all").view);
   const [rows, setRows] = useState<GoodsReceipt[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("GoodsReceipts.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("GoodsReceipts.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("GoodsReceipts.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {

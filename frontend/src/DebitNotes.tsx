@@ -8,7 +8,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
 import { useReturns } from "./Refresh";
@@ -147,9 +147,9 @@ const COLUMNS: [key: string, label: string, text: (r: Note) => string, num?: boo
 ];
 
 function NoteList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
-  const [view, setView] = useKept("DebitNotes.view", "submitted");
+  const [view, setView] = useKept("DebitNotes.view", () => listStart("submitted").view);
   const [rows, setRows] = useState<Note[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("DebitNotes.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("DebitNotes.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("DebitNotes.selectedId", null);
   const [error, setError] = useState<unknown>("");
   const reload = useCallback(() => {

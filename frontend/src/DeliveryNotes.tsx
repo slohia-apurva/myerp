@@ -10,7 +10,7 @@ import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
-import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
+import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { invoiceBase, makeSalesInvoice } from "./SalesInvoices";
 import { useKept } from "./Keep";
 import { Connections } from "./Connections";
@@ -176,9 +176,9 @@ const COLUMNS: [key: string, label: string, text: (n: Note) => string, num?: boo
 ];
 
 function NoteList({ companyId }: { companyId: number }) {
-  const [view, setView] = useKept("DeliveryNotes.view", "all");
+  const [view, setView] = useKept("DeliveryNotes.view", () => listStart("all").view);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [search, setSearch] = useKept<Record<string, string>>("DeliveryNotes.search", {});
+  const [search, setSearch] = useKept<Record<string, string>>("DeliveryNotes.search", () => listStart("").search);
   const [selectedId, setSelectedId] = useKept<number | null>("DeliveryNotes.selectedId", null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
