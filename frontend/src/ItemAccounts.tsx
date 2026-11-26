@@ -37,8 +37,9 @@ export function ItemAccountsEditor(props: { rows: ItemAccount[]; onChange: (rows
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
   useEffect(() => {
     for (const id of companies.split(",").filter(Boolean).map(Number)) {
-      api<LedgerRow[]>(`v1/companies/${id}/ledgers/`).then((rows) =>
-        setLedgers((all) => ({ ...all, [id]: rows.filter((l) => l.nature === "expense" && !l.party) })),
+      // Only expense ledgers that are not customers or suppliers, picked on the server (2026-11-26).
+      api<LedgerRow[]>(`v1/companies/${id}/ledgers/?lean=1&nature=expense&party=0`).then((rows) =>
+        setLedgers((all) => ({ ...all, [id]: rows })),
       );
     }
   }, [companies, visits]);

@@ -5096,7 +5096,10 @@ export const MANUAL: Chapter[] = [
         </ul>
         <h3>Ledger Statement</h3>
         <ul>
-          <li>Pick the "Ledger", and the "From" and "To" dates.</li>
+          <li>
+            Pick the "Ledger", and the "From" and "To" dates. Type a few letters of the ledger's name,
+            account number or customer or vendor number in "Ledger": the box shows the first 50 that match.
+          </li>
           <li>
             The first line is the "Opening" balance on From. Each line after it
             is one entry: its date, its number (click it to open the entry),
