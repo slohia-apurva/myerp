@@ -27,7 +27,7 @@ function existingOf(data: unknown): Existing | undefined {
 }
 
 function keptDraftOf(data: unknown): number | undefined {
-  if (data && typeof data === "object" && ("attachments" in data || "missing_accounts" in data) && "id" in data) {
+  if (data && typeof data === "object" && ("attachments" in data || "missing_accounts" in data || "bill_check" in data) && "id" in data) {
     const id = (data as { id: unknown }).id;
     if (typeof id === "number") return id;
   }
