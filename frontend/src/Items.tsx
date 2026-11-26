@@ -24,6 +24,7 @@ import { useOnReturn, useReturns } from "./Refresh";
 import { useColumns } from "./Columns";
 import { Pager, ShowInactive, useShowInactive, type Paged } from "./Pager";
 import { useKept } from "./Keep";
+import { useItemSearch } from "./ItemSearch";
 
 /** Items: one catalogue for every company in the group, each item with its chain of units. */
 export type ItemUnit = {
@@ -1061,10 +1062,13 @@ function ItemForm(props: {
   const [rates, setRates] = useState<GstRate[]>((from?.gst_rates ?? []).map((r) => ({ ...r, rate: plain(r.rate) })));
   // A duplicate starts with no customer or supplier names: a party's code belongs to one item only.
   const [names, setNames] = useState<PartyName[]>(props.copyOf ? [] : (from?.party_names ?? []).map((r) => ({ ...r })));
-  const [parties, setParties] = useState<PartyRow[]>([]);
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
+  // Customers and suppliers are asked from the server as the person types, not all
+  // 10,000 when the form opens (8 s on staging, Sidharth 2026-11-26).
+  const { items: suppliers, onType: typeSupplier } = useItemSearch<PartyRow>("v1/parties/?side=supplier", [supplier], visits);
+  const { items: customers, onType: typeCustomer } = useItemSearch<PartyRow>("v1/parties/?side=customer", [owner], visits);
+  const { items: parties, onType: typeParty } = useItemSearch<PartyRow>("v1/parties/", names.map((n) => n.party), visits);
   useEffect(() => {
-    api<PartyRow[]>("v1/parties/").then(setParties);
     api<PlanBranch[]>("v1/items/plan-branches/").then(setPlanBranches);
   }, [visits]);
   // Its own Expense Account per company (bills without goods receipt).
@@ -1263,7 +1267,6 @@ function ItemForm(props: {
     }
   };
 
-  const suppliers = parties.filter((x) => x.vendor_number || String(x.id) === supplier);
   const supplierName = suppliers.find((x) => String(x.id) === supplier)?.name ?? from?.preferred_supplier_name ?? "";
   const many = new Set(planBranches.map((b) => b.company)).size > 1;
   const branchLabel = (b: PlanBranch) => (many ? `${b.company_name} › ${b.name}` : b.name);
@@ -1511,6 +1514,7 @@ function ItemForm(props: {
                     onChange={setSupplier}
                     empty="None"
                     placeholder="Type to search suppliers…"
+                    onType={typeSupplier}
                     options={suppliers.map((x) => ({ value: String(x.id), label: x.vendor_number ? `${x.name} (${x.vendor_number})` : x.name }))}
                   />
                   <span className="small">The stock check buys a shortage from this supplier, at its Supplier Prices.</span>
@@ -1564,7 +1568,8 @@ function ItemForm(props: {
                       value={owner}
                       onChange={setOwner}
                       placeholder="Type to search customers…"
-                      options={parties.filter((x) => x.customer_number || String(x.id) === owner).map((x) => ({ value: String(x.id), label: x.customer_number ? `${x.name} (${x.customer_number})` : x.name }))}
+                      onType={typeCustomer}
+                      options={customers.map((x) => ({ value: String(x.id), label: x.customer_number ? `${x.name} (${x.customer_number})` : x.name }))}
                     />
                     <span className="small">Whose goods these are: counted, never valued. Every BOM, Manufacturing Order and Stock Receipt or Delivery takes the customer from here.</span>
                   </label>
@@ -1997,6 +2002,7 @@ function ItemForm(props: {
                   value=""
                   placeholder="Type to search customers and suppliers…"
                   ariaLabel="Add customer or supplier"
+                  onType={typeParty}
                   options={parties
                     .filter((x) => !names.some((n) => n.party === x.id))
                     .map((x) => ({ value: String(x.id), label: `${x.name}${partyKind(x) ? ` · ${partyKind(x)}` : ""}` }))}
