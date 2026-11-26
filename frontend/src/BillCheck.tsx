@@ -67,7 +67,7 @@ function readFrom(source?: string): string {
     .join(" and ");
 }
 
-function Result({ row }: { row: CheckRow }) {
+function Result({ row, doc }: { row: CheckRow; doc: string }) {
   const label =
     row.result === "same"
       ? row.key.endsWith("_hsn")
@@ -78,7 +78,7 @@ function Result({ row }: { row: CheckRow }) {
         : row.result === "not_read"
           ? "Not read"
           : row.result === "info"
-            ? "From the bill"
+            ? row.note || `From the ${doc}`
             : row.note || "Differs";
   const cls =
     row.result === "same"
@@ -98,15 +98,22 @@ function Result({ row }: { row: CheckRow }) {
   );
 }
 
-export function CheckTable({ rows }: { rows: CheckRow[] }) {
+/** Words for the box: the invoice's Bill Check, or the Goods Receipt's Challan Check. */
+export type CheckWords = { title: string; doc: string; entry: string };
+export const BILL_WORDS: CheckWords = { title: "Bill Check", doc: "bill", entry: "entry" };
+export const CHALLAN_WORDS: CheckWords = { title: "Challan Check", doc: "challan", entry: "receipt" };
+
+const title = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+
+export function CheckTable({ rows, words = BILL_WORDS }: { rows: CheckRow[]; words?: CheckWords }) {
   let group = "";
   return (
     <table className="grid bill-check">
       <thead>
         <tr>
           <th>Check</th>
-          <th>In This Entry</th>
-          <th>On Supplier's Bill</th>
+          <th>In This {title(words.entry)}</th>
+          <th>On Supplier's {title(words.doc)}</th>
           <th>Result</th>
         </tr>
       </thead>
@@ -137,7 +144,7 @@ export function CheckTable({ rows }: { rows: CheckRow[] }) {
                 {r.source && <span className="small"> {r.source}</span>}
               </td>
               <td>
-                <Result row={r} />
+                <Result row={r} doc={words.doc} />
               </td>
             </tr>,
           );
@@ -154,13 +161,18 @@ function headlineOf(c: BillCheck): string {
 }
 
 /** "Bill Check" box on a purchase invoice (Sidharth, 2026-11-26, preview 108a): the supplier's
- * bill in Attachments is read once (QR code, the PDF's text, or OCR) and compared with the entry. */
+ * bill in Attachments is read once (QR code, the PDF's text, or OCR) and compared with the entry.
+ * The Goods Receipt's "Challan Check" (preview 109a) is the same box: pass `path` and `words`. */
 export function BillCheckBox(props: {
   invoiceId: number;
   stamp: string;
   canSeen: boolean;
+  path?: string;
+  words?: CheckWords;
 }) {
   const { invoiceId, stamp, canSeen } = props;
+  const words = props.words ?? BILL_WORDS;
+  const path = props.path ?? `v1/purchase-invoices/${invoiceId}/bill-check/`;
   const [check, setCheck] = useState<BillCheck | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -174,7 +186,7 @@ export function BillCheckBox(props: {
       try {
         setCheck(
           await api<BillCheck>(
-            `v1/purchase-invoices/${invoiceId}/bill-check/`,
+            path,
             { again, attachment },
           ),
         );
@@ -183,12 +195,12 @@ export function BillCheckBox(props: {
       }
       setBusy(false);
     },
-    [invoiceId],
+    [path],
   );
 
   useEffect(() => {
     let live = true;
-    api<BillCheck>(`v1/purchase-invoices/${invoiceId}/bill-check/`).then(
+    api<BillCheck>(path).then(
       (c) => {
         if (!live) return;
         setCheck(c);
@@ -200,14 +212,14 @@ export function BillCheckBox(props: {
     return () => {
       live = false;
     };
-  }, [invoiceId, stamp, run]);
+  }, [path, stamp, run]);
 
   const markSeen = async () => {
     setError("");
     try {
       setCheck(
         await api<BillCheck>(
-          `v1/purchase-invoices/${invoiceId}/bill-check/seen/`,
+          `${path}seen/`,
           { reason },
         ),
       );
@@ -222,25 +234,26 @@ export function BillCheckBox(props: {
   const n = check.differences ?? 0;
   const refused = !!check.refuse?.length;
   const summary = busy
-    ? "Reading the bill…"
+    ? `Reading the ${words.doc}…`
     : !check.file
-      ? "No bill attached"
+      ? `No ${words.doc} attached`
       : !check.checked
         ? "Not checked yet"
         : check.error && !check.rows?.length
           ? "Could not read"
           : refused
-            ? "Wrong bill?"
+            ? `Wrong ${words.doc}?`
             : n
               ? `${n} difference${n === 1 ? "" : "s"}`
               : "Matches";
   const headline = headlineOf(check);
   return (
-    <Fold title="Bill Check" summary={summary} open={!!check.file}>
+    <Fold title={words.title} summary={summary} open={!!check.file}>
       {!check.file && (
         <p className="small">
-          Add the supplier's bill (a PDF or photo, type "Supplier's invoice") in
-          Attachments, and it is checked against this entry.
+          {words.doc === "challan"
+            ? `Add the supplier's challan or invoice (a PDF or photo, type "Supplier's challan") in Attachments, and it is checked against what was received.`
+            : `Add the supplier's bill (a PDF or photo, type "Supplier's invoice") in Attachments, and it is checked against this entry.`}
         </p>
       )}
       {busy && (
@@ -260,10 +273,11 @@ export function BillCheckBox(props: {
           )}
           {!!check.rows?.length && !n && !refused && (
             <p className="use-note">
-              The supplier's bill matches this entry wherever it could be read.
+              The supplier's {words.doc} matches this {words.entry} wherever it
+              could be read.
             </p>
           )}
-          {!!check.rows?.length && <CheckTable rows={check.rows} />}
+          {!!check.rows?.length && <CheckTable rows={check.rows} words={words} />}
           {check.seen_reason && (
             <p className="small">
               Differences accepted by {check.seen_by_name}: {check.seen_reason}
@@ -342,8 +356,11 @@ export function BillCheckPopup(props: {
   busy: boolean;
   onSubmit: (reason: string) => void;
   onClose: () => void;
+  words?: CheckWords;
 }) {
   const { check } = props;
+  const words = props.words ?? BILL_WORDS;
+  const heading = `The supplier's ${words.doc} does not match this ${words.entry}`;
   const [reason, setReason] = useState("");
   const rows = (check.rows ?? []).filter(
     (r) => r.result === "differs" || r.result === "written",
@@ -359,18 +376,18 @@ export function BillCheckPopup(props: {
         className="popup grn-check"
         role="dialog"
         aria-modal="true"
-        aria-label="The supplier's bill does not match this entry"
+        aria-label={heading}
       >
-        <h3>The supplier's bill does not match this entry</h3>
+        <h3>{heading}</h3>
         {headlineOf(check) && (
           <p className="bill-check-alert">{headlineOf(check)}</p>
         )}
-        <CheckTable rows={rows} />
+        <CheckTable rows={rows} words={words} />
         {props.check.refusedSubmit ? (
           <p className="small">
             {hard
-              ? "This bill cannot be submitted against this entry. Check the supplier, the company or the file."
-              : "Correct the entry first: only an Owner may submit it as it is."}
+              ? `This ${words.doc} cannot be submitted against this ${words.entry}. Check the supplier, the company or the file.`
+              : `Correct the ${words.entry} first: only an Owner may submit it as it is.`}
           </p>
         ) : (
           <>

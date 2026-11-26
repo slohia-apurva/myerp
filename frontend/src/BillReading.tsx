@@ -63,7 +63,7 @@ export function BillReadingPage() {
     <section className="page">
       <PageHeader
         title="Bill Reading"
-        sub="How MyERP reads supplier bills attached to Purchase Invoices · Owner only"
+        sub="How MyERP reads supplier bills and challans attached to Purchase Invoices and Goods Receipts · Owner only"
         crumbs={[{ label: "Admin", href: "#/" }]}
         actions={
           <>

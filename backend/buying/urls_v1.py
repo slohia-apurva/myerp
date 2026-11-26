@@ -3,6 +3,7 @@ from django.urls import path
 from buying import (
     api,
     bill_check,
+    challan_check,
     debit_notes,
     direct_bills,
     invoice_pdf,
@@ -91,6 +92,16 @@ urlpatterns = [
         name="goods-receipt-pending",
     ),
     path("goods-receipts/<int:pk>/", receipts.ReceiptDetailView.as_view(), name="goods-receipt"),
+    path(
+        "goods-receipts/<int:pk>/challan-check/",
+        challan_check.ChallanCheckView.as_view(),
+        name="goods-receipt-challan-check",
+    ),
+    path(
+        "goods-receipts/<int:pk>/challan-check/seen/",
+        challan_check.ChallanCheckSeenView.as_view(),
+        name="goods-receipt-challan-check-seen",
+    ),
     path(
         "goods-receipts/<int:pk>/ledger-posting/",
         receipts.ReceiptLedgerPostingView.as_view(),

@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.models import AuditEntry
+from buying import challan_check
 from buying.api import _addresses_out, _company, _letterhead, branch_title, orders_insurance
 from buying.models import (
     GoodsReceipt,
@@ -284,6 +285,8 @@ class ReceiptSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True)
     lines = LineSerializer(many=True, required=False, default=list)
     submit = serializers.BooleanField(required=False, default=False)
+    # Why Submit goes ahead though the supplier's challan differs (buying/challan_check.py).
+    bill_check_reason = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 def _stores_person(value, field: str, current_id: int | None):
@@ -830,6 +833,9 @@ class ReceiptListView(APIView):
         _save(r, data)
         if data.get("submit"):
             refused = attachments.refuse_submit(r, "goods_receipt")
+            refused = refused or challan_check.refuse_submit(
+                r, request.user, data.get("bill_check_reason", "")
+            )
             if refused := refused or _accounts_refused(r, request.user):
                 return refused
             _submit(r, request.user)
@@ -876,6 +882,9 @@ class ReceiptDetailView(APIView):
         _save(r, data)
         if data.get("submit"):
             refused = attachments.refuse_submit(r, "goods_receipt")
+            refused = refused or challan_check.refuse_submit(
+                r, request.user, data.get("bill_check_reason", "")
+            )
             if refused := refused or _accounts_refused(r, request.user):
                 return refused
             _submit(r, request.user)
@@ -945,6 +954,9 @@ class ReceiptSubmitView(APIView):
         r = _receipt(request, pk, lock=True)
         if r.status != GoodsReceipt.DRAFT:
             raise ValidationError({"detail": "This receipt is already submitted."})
+        reason = str(request.data.get("bill_check_reason", ""))
+        if refused := challan_check.refuse_submit(r, request.user, reason):
+            return refused
         _submit(r, request.user)
         return Response(_fresh(r))
 
