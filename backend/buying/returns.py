@@ -25,7 +25,14 @@ from rest_framework.views import APIView
 
 from buying.api import _company, _plain
 from buying.invoices import _lots, _side, _text, grni_value, open_qty
-from buying.models import GoodsReceipt, GoodsReceiptLine, PurchaseReturn, PurchaseReturnLine
+from buying.models import (
+    DebitNote,
+    DebitNoteLine,
+    GoodsReceipt,
+    GoodsReceiptLine,
+    PurchaseReturn,
+    PurchaseReturnLine,
+)
 from buying.receipts import _factor, can
 from core import attachments, numbering
 from core.api import Signed
@@ -112,6 +119,53 @@ def _line_out(ln: PurchaseReturnLine) -> dict:
     }
 
 
+# Is a debit note still due? (Sidharth, 2026-11-26, preview 107) -------------------
+
+DEBIT_LABELS = {
+    "pending": "Pending",
+    "part": "Part Done",
+    "done": "Done",
+    "waiting": "Waiting for Bill",
+    "not_needed": "Not Needed (Billed for Actual Qty Recd.)",
+}
+
+
+def _line_debit(ln: PurchaseReturnLine) -> str:
+    """One returned line: due, done, waiting for the bill, or not needed. Goods
+    billed and sent back but not debited are due; a receipt line not billed in
+    full may still be billed for them; billed in full without them, nothing is due."""
+    rl = ln.receipt_line
+    over = max(rl.billed_qty + rl.returned_qty - rl.accepted_qty, ZERO) - rl.debited_qty
+    if min(ln.qty - ln.debited_qty, over) > 0:
+        return "due"
+    if ln.debited_qty >= ln.qty:
+        return "done"
+    if rl.billed_qty + rl.returned_qty < rl.accepted_qty:
+        return "waiting"
+    return "not_needed"
+
+
+def debit_state(r: PurchaseReturn, rows, notes: str) -> dict:
+    """The return's "Debit Note" column: blank unless submitted."""
+    state = ""
+    if r.status == PurchaseReturn.SUBMITTED:
+        seen = {_line_debit(ln) for ln in rows if ln.qty}
+        debited = any(ln.debited_qty > 0 for ln in rows)
+        if "due" in seen:
+            state = "part" if debited else "pending"
+        elif "waiting" in seen:
+            state = "waiting"
+        elif debited:
+            state = "done"
+        elif seen:
+            state = "not_needed"
+    return {
+        "debit_state": state,
+        "debit_label": DEBIT_LABELS.get(state, ""),
+        "debit_notes": notes,
+    }
+
+
 def _unit_value(rl: GoodsReceiptLine) -> Decimal:
     return (rl.value / rl.accepted_qty).quantize(Decimal("0.01")) if rl.accepted_qty else ZERO
 
@@ -160,6 +214,7 @@ def _return_out(r: PurchaseReturn, lines: bool = True) -> dict:
         data["lines"] = [_line_out(ln) for ln in rows]
         if r.status == PurchaseReturn.DRAFT:
             data["value"] = sum((x["value"] for x in data["lines"]), ZERO)
+        data.update(debit_state(r, rows, debit_notes_of(r)))
         data["to_debit"] = any(ln.qty > ln.debited_qty and ln.receipt_line.billed_qty > 0
                                for ln in rows) and r.status == PurchaseReturn.SUBMITTED  # fmt: skip
         data["entries"] = _entries(r)
@@ -483,7 +538,7 @@ def _return(request, pk: int, lock: bool = False) -> PurchaseReturn:
 
 
 class ReturnListView(APIView):
-    """GET ?view=submitted|draft|cancelled|all&q=text. POST makes a draft (or,
+    """GET ?view=submitted|draft|cancelled|all|debit_pending&q=text. POST makes a draft (or,
     with "submit": true, submits it)."""
 
     permission_classes = [Signed]
@@ -502,7 +557,27 @@ class ReturnListView(APIView):
                 | Q(receipt__number__icontains=word)
                 | Q(lines__item__name__icontains=word)
             ).distinct()
-        return Response([_return_out(r, lines=False) for r in rows[:1000]])
+        if view == "debit_pending":
+            rows = rows.filter(status=PurchaseReturn.SUBMITTED)
+        rows = list(rows.prefetch_related("lines__receipt_line")[:1000])
+        notes: dict[int, list[str]] = {}
+        for ret_id, number in (
+            DebitNoteLine.objects.filter(
+                return_line__ret__in=rows, note__status=DebitNote.SUBMITTED
+            )
+            .values_list("return_line__ret_id", "note__number")
+            .order_by("note__number")
+            .distinct()
+        ):
+            notes.setdefault(ret_id, []).append(number)
+        out = []
+        for r in rows:
+            data = _return_out(r, lines=False)
+            data.update(debit_state(r, list(r.lines.all()), ", ".join(notes.get(r.pk, []))))
+            if view == "debit_pending" and data["debit_state"] not in ("pending", "part"):
+                continue
+            out.append(data)
+        return Response(out)
 
     @tenant_atomic()
     def post(self, request, pk: int):

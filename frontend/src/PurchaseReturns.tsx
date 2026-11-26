@@ -69,6 +69,10 @@ type Return = {
   submitted_at: string | null;
   lines?: Line[];
   to_debit?: boolean;
+  /** Is a debit note still due (Sidharth, 2026-11-26, preview 107)? Blank unless submitted. */
+  debit_state?: "" | "pending" | "part" | "done" | "waiting" | "not_needed";
+  debit_label?: string;
+  debit_notes?: string;
   entries?: Entry[];
 };
 type DraftFrom = {
@@ -120,7 +124,7 @@ export function PurchaseReturnsPage({ companyId, session }: { companyId: number;
   const view = Number(hashParam("view"));
   if (form && can("create")) return <ReturnFormTab companyId={companyId} form={form} canSubmit={can("submit")} />;
   if (view > 0) return <ReturnView companyId={companyId} id={view} can={can} canDebit={session.permissions.includes("purchase.create")} />;
-  return <ReturnList companyId={companyId} canCreate={can("create")} />;
+  return <ReturnList companyId={companyId} canCreate={can("create")} canDebit={session.permissions.includes("purchase.create")} />;
 }
 
 // The list ----------------------------------------------------------------------
@@ -130,7 +134,10 @@ const VIEWS = [
   { value: "draft", label: "Drafts" },
   { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" },
+  { value: "debit_pending", label: "Debit Note Pending" },
 ];
+const debitPill = (state?: string) => (state === "pending" || state === "part" ? "pill warn" : state === "done" ? "pill on" : "pill");
+const debitText = (r: Return) => [r.debit_label, r.debit_notes].filter(Boolean).join(" ");
 const COLUMNS: [key: string, label: string, text: (r: Return) => string, num?: boolean][] = [
   ["number", "Return No", (r) => r.number || "Draft"],
   ["date", "Return Date", (r) => `${shortDate(r.return_date)} ${showDate(r.return_date)}`],
@@ -138,10 +145,11 @@ const COLUMNS: [key: string, label: string, text: (r: Return) => string, num?: b
   ["receipt", "Goods Receipt", (r) => r.receipt_number],
   ["reason", "Reason", (r) => r.reason_label],
   ["value", "Value ₹", (r) => `${r.value} ${money(r.value)}`, true],
+  ["debit", "Debit Note", debitText],
   ["status", "Status", (r) => r.status_label],
 ];
 
-function ReturnList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
+function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; canCreate: boolean; canDebit: boolean }) {
   const [view, setView] = useKept("PurchaseReturns.view", "submitted");
   const [rows, setRows] = useState<Return[]>([]);
   const [search, setSearch] = useKept<Record<string, string>>("PurchaseReturns.search", {});
@@ -256,6 +264,10 @@ function ReturnList({ companyId, canCreate }: { companyId: number; canCreate: bo
                   <td>{r.reason_label}</td>
                   <td className="num">{money(r.value)}</td>
                   <td>
+                    {r.debit_label && <span className={debitPill(r.debit_state)}>{r.debit_label}</span>}
+                    {r.debit_notes && <span className="small"> {r.debit_notes}</span>}
+                  </td>
+                  <td>
                     <span className={pillClass(r.status)}>{r.status_label}</span>
                   </td>
                 </tr>
@@ -266,6 +278,7 @@ function ReturnList({ companyId, canCreate }: { companyId: number; canCreate: bo
                 <tr>
                   <td colSpan={5}>Total</td>
                   <td className="num">{money(String(r2(total)))}</td>
+                  <td />
                   <td />
                 </tr>
               </tfoot>
@@ -285,6 +298,7 @@ function ReturnList({ companyId, canCreate }: { companyId: number; canCreate: bo
                   ["Return Date", showDate(selected.return_date)],
                   ["Reason", selected.reason_label],
                   ["Value", `₹${money(selected.value)}`],
+                  ["Debit Note", debitText(selected)],
                   ["Made By", selected.created_by_name],
                 ]}
               />
@@ -295,6 +309,11 @@ function ReturnList({ companyId, canCreate }: { companyId: number; canCreate: bo
                 <button type="button" className="link" onClick={() => pdf(selected.id)}>
                   Print
                 </button>
+                {canDebit && (selected.debit_state === "pending" || selected.debit_state === "part") && (
+                  <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/debit-notes?form=new&return=${selected.id}`)}>
+                    Make Debit Note
+                  </button>
+                )}
               </div>
             </SidePanel>
             <SidePanel title="Activity">

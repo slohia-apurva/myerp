@@ -4088,6 +4088,18 @@ export const MANUAL: Chapter[] = [
             receipt is settled when that bill is entered.
           </li>
           <li>
+            To see which returns still need a debit note, pick "Debit Note
+            Pending" in the "Show" box of the Purchase Return list. The "Debit
+            Note" column says for each submitted return: "Pending" (the bill is
+            in and no debit note made yet), "Part Done" (some debited, the rest
+            still due), "Done" (with the debit note numbers), "Waiting for Bill"
+            (the supplier's bill is not entered yet) or "Not Needed (Billed for
+            Actual Qty Recd.)" (the bill left the returned goods out). Type in
+            the search box under the heading to find, say, "pending". Click a
+            pending return and "Make Debit Note" at the right opens the debit
+            note for it.
+          </li>
+          <li>
             "Cancel return" asks why, puts the goods back into the bins they
             left and reverses the entries. It is refused while a debit note
             settles the return; cancel the debit note first.
