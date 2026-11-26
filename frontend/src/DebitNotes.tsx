@@ -13,6 +13,7 @@ import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
 import { useReturns } from "./Refresh";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Purchase > Debit Note (Sidharth, 2026-11-15, preview 75): goods sent back on a
  * Purchase Return, debited against the supplier's bill at the bill's rate and GST. Submit
@@ -956,6 +957,7 @@ function NoteView({ companyId, id, can }: { companyId: number; id: number; can: 
               <p className="pre">{note.notes}</p>
             </Fold>
           )}
+          <Connections companyId={companyId} kind="debit_note" id={note.id} stamp={note.status} />
         </div>
         <DocSide type="debit_note" id={note.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">

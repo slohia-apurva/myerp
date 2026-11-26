@@ -1559,6 +1559,66 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "connections",
+    title: "Connections",
+    summary:
+      "At the bottom of every entry: the entries it came from, the ones made from it, and the returns and notes against it.",
+    body: (
+      <>
+        <p>
+          Every entry screen (Purchase Order, Goods Receipt, Purchase Invoice,
+          Purchase Return, Debit Note, TDS Adjustment, Sales Order, Pick List,
+          Delivery Note, Sales Invoice, Credit Note, Manufacturing Order and
+          Stock Transfer) has a "Connections" box at the bottom of the page,
+          once the entry is saved. Click its title bar to fold it; folded, the
+          bar still reads the counts, such as "PO 1 · GRN 2 · Return 1 · Debit
+          Note 1".
+        </p>
+        <h3>What it shows</h3>
+        <ul>
+          <li>
+            A strip across the top with the chain the entry sits in, such as
+            "Purchase Order → Goods Receipt → This Purchase Invoice → Purchase
+            Return → Debit Note", so you can see where you are.
+          </li>
+          <li>
+            The linked entries in groups, such as "Came From", "Returns and
+            Notes" and "Paid and Adjusted" on a purchase invoice, or "Made For
+            It", "Sent" and "Returns and Receipts" on a sales order. Entries
+            two or three steps away are shown too: a purchase order shows the
+            invoices and debit notes of its goods receipts, and a sales order
+            the invoices and credit notes of its delivery notes.
+          </li>
+          <li>
+            Each kind of entry has its count, then each entry's number, date,
+            amount and status ("Draft" grey, "Cancelled" red). A kind with
+            nothing yet shows greyed with a dashed border.
+          </li>
+          <li>
+            Payments and receipts, and the Material Issue and Production Entry
+            of a Manufacturing Order, are not built yet; their place shows in a
+            dashed yellow box.
+          </li>
+        </ul>
+        <h3>Open or make an entry</h3>
+        <p>
+          Click a number to open that entry in the same tab; its "Close" comes
+          back here (Ctrl+click opens it in a new tab). The "+" beside a kind
+          makes a new one from this entry, the same as the matching line in
+          "Create ▾" at the top: for example a "Debit Note" or "Supplementary
+          Bill" from a submitted purchase invoice, or a "Credit Note" from a
+          submitted sales invoice. It shows only when "Create ▾" would offer it
+          and your role may make it.
+        </p>
+        <p>
+          Kinds your role may not see are left out: a "Storekeeper", for
+          example, does not see TDS Adjustments. Only entries of the company
+          you are working in are shown.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "brands",
     title: "Brands",
     summary:
@@ -3573,6 +3633,13 @@ export const MANUAL: Chapter[] = [
           order after Submit, and more can still be added later. Adding or
           removing a file is written to the order's Activity, which sits below
           in the same column. Anyone who may make orders may add files; others, such as "Storekeeper", only see and open them. If the company has ticked this entry under "Attachment Needed to Submit" (Companies › "Attachments"), "Submit" is refused until at least one file is added; the draft is saved, so add the file and press "Submit" again.
+        </p>
+        <h3>Connections</h3>
+        <p>
+          At the bottom of a saved order, "Connections" lists the goods
+          receipts, purchase invoices, returns and debit notes made from it,
+          and the sales order it was made for; click a number to open it. See
+          the chapter "Connections".
         </p>
         <h3>Transit insurance</h3>
         <p>

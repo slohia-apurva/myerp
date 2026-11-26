@@ -11,6 +11,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { LedgerPosting } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry › Accounts › TDS Adjustment (Sidharth, 2026-11-19, preview 95c): TDS missed on submitted bills
  * is deducted now (Dr supplier, Cr "TDS Payable <section>"), or TDS deducted in excess is given back.
@@ -606,6 +607,7 @@ function AdjustmentView({ companyId, id, can }: { companyId: number; id: number;
             {Number(adj.interest) > 0 && <p className="small">Interest is for information, to pay with the TDS challan; it is not posted here.</p>}
           </Fold>
           <LedgerPosting url={`v1/tds-adjustments/${adj.id}/ledger-posting/`} stamp={adj.status} />
+          <Connections companyId={companyId} kind="tds_adjustment" id={adj.id} stamp={adj.status} />
         </div>
         <DocSide type="tds_adjustment" id={adj.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">

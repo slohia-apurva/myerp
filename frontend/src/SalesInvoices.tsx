@@ -14,6 +14,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { makeCreditNote } from "./CreditNotes";
 import { TotalsPanel } from "./PurchaseOrders";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Sales > Sales Invoice: the tax invoice for one or more submitted delivery notes of a
  * customer (Sidharth, 2026-11-20, previews 14a/14b in mockups/sales). Quantities are what the notes
@@ -1109,6 +1110,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
             </Fold>
           )}
           <LedgerPosting url={`v1/sales-invoices/${inv.id}/ledger-posting/`} stamp={`${saved}-${inv.status}`} />
+          <Connections companyId={companyId} kind="sales_invoice" id={inv.id} stamp={`${saved}-${inv.status}`} create={inv.status === "submitted" ? { credit_note: () => void makeCreditNote(companyId, inv.id).catch(setError) } : undefined} />
         </div>
         <DocSide type="sales_invoice" id={inv.id} onChange={() => setFiles((n) => n + 1)}>
           <TotalsPanel
