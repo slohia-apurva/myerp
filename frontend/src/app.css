@@ -830,6 +830,13 @@ table.groups tr.group-top:first-child td {
   border-top: 0;
 }
 /* The group opened from a link ("Open ..." on a duplicate refusal). */
+/* A group shown only because a group under it matches the search. */
+table.groups tr.context td {
+  color: var(--slate);
+}
+table.groups tr.context .gname {
+  font-weight: normal;
+}
 table.groups tr.marked td {
   background: var(--mint);
 }
