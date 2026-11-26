@@ -1410,7 +1410,7 @@ fieldset > legend + .form-tabs {
 /* The open list is drawn on the page itself (FloatingList.tsx), placed under its field, so no box or
    table around the field can cut it off (Sidharth, 2026-11-15). */
 .combo-list.floating {
-  position: fixed;
+  position: absolute;
   z-index: 1000;
   right: auto;
   margin: 0;
@@ -4545,6 +4545,12 @@ table.price-lines .price-open .row > label.wide {
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+/* Nothing may make the page wider than the phone, so it never slides sideways (iPhone ignores
+   overflow-x on body alone; Sidharth, 2026-11-26). */
+html,
+body {
+  overflow-x: clip;
 }
 @media (max-width: 768px) {
   :root {
