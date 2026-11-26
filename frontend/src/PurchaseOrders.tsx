@@ -21,6 +21,7 @@ import { PoPrint } from "./PoPrint";
 import { OrderMail, SupplierMail } from "./SupplierMail";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
  * be changed; Submit gives it its number and fixes it. Nothing here posts to the books. */
@@ -1930,6 +1931,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               )}
             </Fold>
           )}
+          <Connections companyId={companyId} kind="purchase_order" id={order.id} stamp={order.status} create={(order.status === "ordered" || order.status === "part_received") ? { goods_receipt: () => openTab(`#/companies/${companyId}/goods-receipts?form=new&order=${order.id}`), purchase_invoice: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&order=${order.id}`) } : undefined} />
         </div>
         <DocSide type="purchase_order" id={order.id} onChange={() => setFiles((n) => n + 1)}>
           <TotalsPanel

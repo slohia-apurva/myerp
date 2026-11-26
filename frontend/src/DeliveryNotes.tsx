@@ -13,6 +13,7 @@ import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedge
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { invoiceBase, makeSalesInvoice } from "./SalesInvoices";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Sales > Delivery Note: the goods going out to the customer (Sidharth, 2026-11-20,
  * previews 7-9 in mockups/sales). Made from a picked pick list with its bins and batches; Submit
@@ -715,6 +716,7 @@ function NoteView({ companyId, id, session }: { companyId: number; id: number; s
             </p>
           </Fold>
           <LedgerPosting url={`v1/delivery-notes/${note.id}/ledger-posting/`} stamp={`${saved}-${note.status}`} />
+          <Connections companyId={companyId} kind="delivery_note" id={note.id} stamp={`${saved}-${note.status}`} create={note.status === "submitted" && !note.billed && !note.invoice ? { sales_invoice: () => void makeSalesInvoice(companyId, note.id).catch(setError) } : undefined} />
         </div>
         <DocSide type="delivery_note" id={note.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Details">

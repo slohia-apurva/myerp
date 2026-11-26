@@ -13,6 +13,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
 import { useKept } from "./Keep";
 import type { Check } from "./ScanPicking";
+import { Connections } from "./Connections";
 
 /** Entry > Sales > Pick List: where the stores take a sales order's goods from,
  * bin and batch per item (Sidharth, 2026-11-19, preview 6). Made by itself when
@@ -550,6 +551,7 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
               bags.
             </p>
           </Fold>
+          <Connections companyId={companyId} kind="pick_list" id={pick.id} stamp={pick.status} />
         </div>
         <DocSide type="pick_list" id={pick.id} onChange={() => setFiles((n) => n + 1)}>
           {pick.check && pick.status !== "cancelled" && (

@@ -13,6 +13,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { EntriesBox, type Entry } from "./PurchaseInvoices";
 import { useReturns } from "./Refresh";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Purchase > Purchase Return (Sidharth, 2026-11-15, preview 74): goods sent back
  * to the supplier against a goods receipt. Submit takes them out of the bin they were put
@@ -806,6 +807,7 @@ function ReturnView({ companyId, id, can, canDebit }: { companyId: number; id: n
               <p className="pre">{ret.notes}</p>
             </Fold>
           )}
+          <Connections companyId={companyId} kind="purchase_return" id={ret.id} stamp={ret.status} create={ret.status === "submitted" && ret.to_debit && canDebit ? { debit_note: () => openTab(`#/companies/${companyId}/debit-notes?form=new&return=${ret.id}`) } : undefined} />
         </div>
         <DocSide type="purchase_return" id={ret.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">

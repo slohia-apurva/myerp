@@ -442,16 +442,14 @@ function ShipmentForm(props: {
   onCancel: () => void;
 }) {
   const s = props.shipment;
-  const [parties, setParties] = useState<Party[]>([]);
   const branches = useCompanyDetail(props.companyId)?.branches ?? [];
   const visits = useReturns(); // lists load again on coming back to this tab (Refresh.ts)
-  useEffect(() => {
-    api<Party[]>("v1/parties/").then(setParties);
-  }, [visits]);
   const [account, setAccount] = useState(s ? String(s.account) : "");
   const [awb, setAwb] = useState(s?.awb ?? "");
   const [bookedOn, setBookedOn] = useState(s?.booked_on ?? today());
   const [party, setParty] = useState(s?.party ? String(s.party) : "");
+  // Customers are asked as the person types, not all 10,000 at once (Sidharth 2026-11-26).
+  const { items: parties, onType: typeParty } = useItemSearch<Party>("v1/parties/?side=customer", [party], visits);
   const [branch, setBranch] = useState(s?.branch ? String(s.branch) : "");
   const [reference, setReference] = useState(s?.reference ?? "");
   const [city, setCity] = useState(s?.ship_to_city ?? "");
@@ -554,6 +552,7 @@ function ShipmentForm(props: {
               value={party}
               onChange={setParty}
               empty="None"
+              onType={typeParty}
               options={parties.map((p) => ({
                 value: String(p.id),
                 label: p.name,

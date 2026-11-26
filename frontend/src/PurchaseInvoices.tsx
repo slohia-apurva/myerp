@@ -18,6 +18,7 @@ import { TdsBox, type TdsInfo } from "./Tds";
 import { BillTypePicker, billPdf, billPrintItems, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
 import { useReturns } from "./Refresh";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Purchase > Purchase Invoice (Sidharth, 2026-11-15, preview 67): the supplier's
  * bill, entered against goods receipts. Submit clears "Goods Received but Bills not
@@ -1237,6 +1238,7 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
             </Fold>
           )}
           <TransitInsuranceView rows={inv.insurance ?? []} />
+          <Connections companyId={companyId} kind="purchase_invoice" id={inv.id} stamp={inv.status} create={inv.status === "submitted" && !supp && !direct ? { debit_note: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}`), supplementary_bill: () => openTab(`${base(companyId)}?form=new&supplementary=${inv.id}`) } : undefined} />
         </div>
         <DocSide type="purchase_invoice" id={inv.id} onChange={() => setFiles((n) => n + 1)}>
           <SidePanel title="Activity">

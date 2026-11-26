@@ -13,6 +13,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { MoPicks, type Pick, type PickLine } from "./MoPicks";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Production > Manufacturing Order (Sidharth, 2026-11-23, preview 15d in mockups/planning):
  * what to make, how much, by when and with which BOM version (the item's ★ default to start with, or
@@ -1002,6 +1003,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               </table>
             </Fold>
           )}
+          {o && <Connections companyId={companyId} kind="manufacturing_order" id={o.id} stamp={status} />}
         </div>
         <DocSide type="manufacturing_order" id={o?.id ?? null} onChange={() => setFiles((n) => n + 1)}>
           {shown?.cost && (

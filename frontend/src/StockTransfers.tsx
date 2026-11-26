@@ -13,6 +13,7 @@ import { ActionsMenu, usePrintMenu } from "./Exchange";
 import { MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useKept } from "./Keep";
+import { Connections } from "./Connections";
 
 /** Entry > Stock > Stock Transfer: goods moving between two branches of one company with the same
  * GSTIN (Sidharth, 2026-11-22, preview 9a in mockups/planning). Draft → Dispatch (the goods leave
@@ -827,6 +828,7 @@ function TransferView({ companyId, id, session }: { companyId: number; id: numbe
           )}
           {t && <StockPosting id={t.id} stamp={`${saved}-${t.status}`} />}
           <p className="small">Only between branches with the same GSTIN. A move to a branch with another GSTIN is a sale in GST law (a tax invoice and a matching purchase) and cannot be made here.</p>
+          {t && <Connections companyId={companyId} kind="stock_transfer" id={t.id} stamp={`${saved}-${t.status}`} />}
         </div>
         <DocSide type="stock_transfer" id={t?.id ?? null} onChange={() => setFiles((n) => n + 1)}>
           {t && (
