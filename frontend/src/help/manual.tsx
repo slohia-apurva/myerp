@@ -1692,6 +1692,13 @@ export const MANUAL: Chapter[] = [
           "Duplicate" and "+ Sub-group" each open the form.
         </p>
         <p>
+          To find a group, type in the "Search" box under "Group" (or under
+          "Notes"). Only the groups that hold every word you typed are shown,
+          with the groups above them in grey so you can see where each one
+          sits. The line above the list says how many match, for example "6 of
+          261 groups match". Clear the box to see the whole tree again.
+        </p>
+        <p>
           Once an item sits in a group, or in a group below it, that group
           can be moved only under another group of the same main group, so
           reports keep their meaning; the form shows a line "In use: ..." at the

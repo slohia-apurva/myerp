@@ -151,7 +151,28 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
   const selected = detail && detail.id === selectedId ? detail : listed;
   const edit = (what: number | string) => openTab(`#/item-groups?form=${what}`);
 
+  // Search boxes under the headings (Group, Notes): the groups that match every word typed,
+  // shown in the tree with the groups above them, which are greyed (Sidharth, 2026-11-26).
+  const [find, setFind] = useKept<{ name: string; notes: string }>("ItemGroups.find", { name: "", notes: "" });
+  const searching = find.name.trim() !== "" || find.notes.trim() !== "";
+  const { hits, shown } = useMemo(() => {
+    const has = (text: string, typed: string) =>
+      typed
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean)
+        .every((w) => text.toLowerCase().includes(w));
+    const hits = new Set(groups.filter((g) => has(g.name, find.name) && has(g.notes, find.notes)).map((g) => g.id));
+    const byId = new Map(groups.map((g) => [g.id, g]));
+    const shown = new Set<number>();
+    for (const id of hits) {
+      for (let g = byId.get(id); g && !shown.has(g.id); g = g.parent === null ? undefined : byId.get(g.parent)) shown.add(g.id);
+    }
+    return { hits, shown };
+  }, [groups, find]);
+
   const rows = (g: ItemGroup, depth: number): JSX.Element[] => {
+    if (searching && !shown.has(g.id)) return [];
     const kids = children.get(g.id) ?? [];
     const top = depth === 0;
     const stop = (fn: () => void) => (e: { stopPropagation: () => void }) => {
@@ -161,7 +182,7 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
     const out = [
       <tr
         key={g.id}
-        className={`${top ? "group-top" : ""}${selectedId === g.id ? " selected" : ""}${g.is_active ? "" : " off"}`}
+        className={`${top ? "group-top" : ""}${selectedId === g.id ? " selected" : ""}${g.is_active ? "" : " off"}${searching && !hits.has(g.id) ? " context" : ""}`}
         onClick={() => setSelected(g.id)}
         onDoubleClick={() => edit(g.id)}
       >
@@ -212,7 +233,7 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
         </td>
       </tr>,
     ];
-    if (!folded.has(g.id)) for (const c of kids) out.push(...rows(c, depth + 1));
+    if (searching || !folded.has(g.id)) for (const c of kids) out.push(...rows(c, depth + 1));
     return out;
   };
 
@@ -232,7 +253,7 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
       <div className="side-layout">
         <div className="side-main">
           <div className="page-head">
-            <p className="small">{groups.length} groups.</p>
+            <p className="small">{searching ? `${hits.size} of ${groups.length} groups match.` : `${groups.length} groups.`}</p>
             <LevelPicker levels={deepest} value={level} onPick={showLevels} />
           </div>
           <table className="groups">
@@ -243,6 +264,23 @@ function GroupList(props: { session: SignedIn; canEdit: boolean }) {
                 <th className="num">Items</th>
                 <th />
               </tr>
+              <tr className="col-search no-print">
+                <th>
+                  <input type="search" placeholder="Search" aria-label="Search Group" value={find.name} onChange={(e) => setFind({ ...find, name: e.target.value })} />
+                </th>
+                <th>
+                  <input type="search" placeholder="Search" aria-label="Search Notes" value={find.notes} onChange={(e) => setFind({ ...find, notes: e.target.value })} />
+                </th>
+                <th />
+                <th />
+              </tr>
+              {searching && hits.size === 0 && (
+                <tr className="col-search-none">
+                  <th colSpan={4} className="small">
+                    Nothing matches the column searches.
+                  </th>
+                </tr>
+              )}
             </thead>
             <tbody>{(children.get(null) ?? []).flatMap((g) => rows(g, 0))}</tbody>
           </table>
