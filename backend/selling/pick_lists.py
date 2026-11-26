@@ -97,6 +97,10 @@ def pick_out(p: PickList, full: bool = True) -> dict:
     }
     if not full:
         return data
+    from selling.scan_picking import check
+
+    checked = check(p)
+    data["check"] = {k: v for k, v in checked.items() if k != "rows"}
     data["items"] = [
         {
             "order_line": i["line"].pk,
@@ -124,6 +128,7 @@ def pick_out(p: PickList, full: bool = True) -> dict:
                     **package_out(r.package),
                     "qty": picking.plain(r.qty),
                     "qty_unit": picking.plain(r.qty / i["factor"]),
+                    "verified": checked["rows"].get(r.pk),
                 }
                 for r in i["rows"]
             ],
@@ -292,7 +297,14 @@ class PickListView(APIView):
         view = request.query_params.get("view", "open")
         if view in VIEWS:
             rows = rows.filter(status__in=VIEWS[view])
-        return Response([pick_out(p, full=False) for p in rows[:500]])
+        out = [pick_out(p, full=False) for p in rows[:500]]
+        if request.query_params.get("check") == "1":  # Scan Picking's list of open lists
+            from selling.scan_picking import check
+
+            for data, p in zip(out, rows[:500], strict=True):
+                c = check(p)
+                data["check"] = {k: v for k, v in c.items() if k != "rows"}
+        return Response(out)
 
 
 class PickDetailView(APIView):

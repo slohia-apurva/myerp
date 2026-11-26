@@ -1,6 +1,15 @@
 from django.urls import path
 
-from selling import api, credit_notes, customer_mail, delivery, hold, invoices, pick_lists
+from selling import (
+    api,
+    credit_notes,
+    customer_mail,
+    delivery,
+    hold,
+    invoices,
+    pick_lists,
+    scan_picking,
+)
 
 urlpatterns = [
     path("companies/<int:pk>/sales-orders/", api.OrderListView.as_view(), name="sales-orders"),
@@ -66,6 +75,22 @@ urlpatterns = [
         "pick-lists/<int:pk>/despatch/",
         pick_lists.PickDespatchView.as_view(),
         name="pick-list-despatch",
+    ),
+    path(
+        "companies/<int:pk>/scan-picking/find/",
+        scan_picking.FindView.as_view(),
+        name="scan-picking-find",
+    ),
+    path("pick-lists/<int:pk>/scans/", scan_picking.ScanView.as_view(), name="pick-list-scans"),
+    path(
+        "pick-lists/<int:pk>/scans/swap/",
+        scan_picking.SwapView.as_view(),
+        name="pick-list-scan-swap",
+    ),
+    path(
+        "pick-lists/<int:pk>/scans/hand/",
+        scan_picking.HandView.as_view(),
+        name="pick-list-scan-hand",
     ),
     path("pick-lists/<int:pk>/pdf/", pick_lists.PickPdfView.as_view(), name="pick-list-pdf"),
     path(

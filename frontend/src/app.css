@@ -4723,3 +4723,162 @@ html {
     font-size: 11px;
   }
 }
+
+/* Scan Picking (Sidharth, 2026-11-25, mockups/scan-picking): one column made for a phone or a
+   scanner gun; bins as titled boxes, the scan box always ready. Uses the usual buttons. */
+.scan-main {
+  max-width: 720px;
+  padding: 0 16px 24px;
+}
+.scan-label {
+  display: block;
+  color: var(--green);
+  font-weight: 700;
+  font-size: 14px;
+  margin: 12px 0 6px;
+}
+.scan-count {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.scan-bar {
+  height: 10px;
+  background: var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 2px 0 10px;
+}
+.scan-bar i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+.scan-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.scan-box input {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  padding: 11px 12px;
+  border: 2px solid var(--green);
+  border-radius: 8px;
+}
+.scan-box button {
+  white-space: nowrap;
+}
+.scan-flash {
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.scan-flash.ok {
+  background: var(--mint);
+  border: 2px solid var(--green);
+  color: var(--deep-green);
+}
+.scan-flash.warn {
+  background: #fff8e6;
+  border: 2px solid #e0b44c;
+  color: #5c4400;
+}
+.scan-flash.bad {
+  background: #fde8e7;
+  border: 2px solid var(--red);
+  color: var(--red);
+}
+.scan-flash .buttons {
+  margin-top: 8px;
+}
+.scan-submit {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+}
+label.scan-show {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0 10px;
+}
+.scan-group {
+  border: 1px solid var(--mint-line);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+.scan-group h2 {
+  margin: 0;
+  background: var(--mint);
+  color: var(--deep-green);
+  font-size: 15px;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.scan-group h2 span {
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--slate);
+}
+.scan-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.scan-group h2 + .scan-line {
+  border-top: 0;
+}
+.scan-line.done {
+  background: #f3faf6;
+}
+.scan-what {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.scan-qty {
+  white-space: nowrap;
+}
+button.scan-pick {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  color: var(--ink);
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  font-weight: 400;
+  align-items: center;
+  height: auto;
+  min-height: 0;
+  white-space: normal;
+}
+.scan-hand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  color: var(--green);
+}
+.scan-hand input.num {
+  width: 80px;
+}
+.popup.scan-camera video {
+  width: 100%;
+  max-height: 60vh;
+  background: #000;
+  border-radius: 8px;
+}
