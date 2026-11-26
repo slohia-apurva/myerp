@@ -4054,6 +4054,16 @@ export const MANUAL: Chapter[] = [
             goods show as not debited again.
           </li>
           <li>
+            "Charges": a note for goods sent back fills in each charge on the
+            bill with its share for those goods. Freight the goods receipt added
+            to the stock cost takes the share the receipt gave those goods, so it
+            clears with them and nothing goes to "Purchase Price Difference";
+            other charges are shared by value. Change an amount, "Remove" a line,
+            or "Add charge" (for example return freight we paid, which is
+            credited back to that charge's expense ledger). GST is worked out on
+            the charges too. A "Rate charged higher" note has no charges.
+          </li>
+          <li>
             The "Attachments" box keeps the supplier's credit note and other
             papers. "Print ▾" › "Debit Note" gives the note to send to the
             supplier: the "Supplier" and "Issued By" boxes, the reason, their bill,
