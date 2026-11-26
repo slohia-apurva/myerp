@@ -1218,6 +1218,36 @@ def _also_in(request, ids):
     return companies
 
 
+PARTY_PICK_LIMIT = 50
+
+
+def _picked_parties(params) -> list[dict]:
+    """For a type-to-search customer or supplier picker (an item's Customer or Supplier
+    Prices): with ?search=1 only the first 50 parties (by name) holding every word typed
+    in q, plus those named in ids (the rows already there), never all 10,000 (the whole
+    list took 8 s on staging and the saved rows showed no name meanwhile, Sidharth
+    2026-11-26). ?side=customer|supplier keeps those with a customer or vendor number."""
+    rows = Party.objects.all()
+    side = params.get("side")
+    if side == "customer":
+        rows = rows.exclude(customer_number="")
+    elif side == "supplier":
+        rows = rows.exclude(vendor_number="")
+    ids = {int(x) for x in params.get("ids", "").split(",") if x.strip().isdigit()}
+    chosen = Q(pk__in=ids)
+    if "q" in params:
+        found = rows
+        for word in params.get("q", "").split():
+            found = found.filter(name__icontains=word)
+        first = list(found.order_by("name", "pk").values_list("pk", flat=True)[:PARTY_PICK_LIMIT])
+        chosen |= Q(pk__in=first)
+    return list(
+        rows.filter(chosen)
+        .order_by("name")
+        .values("id", "name", "customer_number", "vendor_number")
+    )
+
+
 class PartyListView(APIView):
     """GET /parties/?not_in=COMPANY[&side=customer|supplier]: the group's
     customers and suppliers, optionally only those that company has no ledger
@@ -1227,6 +1257,8 @@ class PartyListView(APIView):
 
     def get(self, request):
         _check(request, VIEW)
+        if request.query_params.get("search") == "1":
+            return Response(_picked_parties(request.query_params))
         parties = Party.objects.select_related("credit_term").prefetch_related(
             "addresses", "contacts", "ledgers__company", "products", "documents"
         )

@@ -314,3 +314,21 @@ def test_a_partys_own_prices_keep_to_its_products(alpha, accountant, world):
         accountant, "put", f"parties/{world['other']}/item-prices/", [line(world, item="jag")]
     )
     assert other.status_code == 200, other.json()
+
+
+def test_the_customer_picker_on_an_item_searches_the_server(alpha, accountant, world):
+    # An item's Customer and Supplier Prices pick parties as the person types, plus the
+    # parties already on the rows, so a saved row's name shows at once (Sidharth 2026-11-26).
+    with use_tenant(alpha):
+        Party.objects.create(name="Fresh Leaf Traders", vendor_number="VEND-1")
+
+    def names(q):
+        rows = call(accountant, "get", f"parties/?search=1&{q}").json()
+        return sorted(r["name"] for r in rows)
+
+    assert names(f"side=customer&ids={world['other']}") == ["Other Shop"]
+    assert names("side=customer&q=fresh") == ["Fresh Mart"]
+    assert names("side=supplier&q=fresh") == ["Fresh Leaf Traders"]
+    assert names(f"side=customer&q=fresh+mart&ids={world['other']}") == ["Fresh Mart", "Other Shop"]
+    assert names("side=customer&q=") == ["Fresh Mart", "Other Shop"]
+    assert names("side=customer") == []
