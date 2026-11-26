@@ -5142,6 +5142,8 @@ form.bill-reading label.tick-line input {
 }
 .bill-reading-later {
   opacity: 0.55;
+}
+
 /* Connections on every entry's view (Sidharth, 2026-11-26, previews
    mockups/connections/1-2): the chain, then groups of linked entries. */
 .connections .conn-chain {
