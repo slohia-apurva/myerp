@@ -3674,6 +3674,24 @@ export const MANUAL: Chapter[] = [
             with it too.
           </li>
           <li>
+            "Send Reminder" on an order that is "Ordered" or "Part received"
+            (for example one opened from "Pending Purchase Orders" or the
+            "Procurement Tracker") writes to the supplier asking when the
+            quantity still to come will be supplied. The mail has a grid of
+            every line still pending: "Item Code", "Item", "Ordered",
+            "Received", "Pending" and "Expected Delivery" (in red, with the
+            days late, once the date has passed). Lines received in full or
+            closed are left out; untick a line under "Lines" to leave it out
+            too. "To" starts with the contacts the order was mailed to, "CC"
+            with you and the order's purchaser. The "Subject" ("Reminder:
+            Pending Supply against PO No : …") and the opening and closing
+            words can be changed, and "Attach" adds the order as a PDF. Under
+            the lines a note shows when the last reminder went and how many
+            have been sent. "Send" sends it from the company's mail account;
+            replies come to you and each reminder is written to the order's
+            Activity.
+          </li>
+          <li>
             "Email PO" on a submitted order sends the order itself to the
             supplier, as a PDF in the printed layout. "To" starts with the
             contacts ticked "Mail" on the order (and the agent, if ticked),

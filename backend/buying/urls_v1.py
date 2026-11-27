@@ -9,6 +9,7 @@ from buying import (
     invoice_pdf,
     invoices,
     planning,
+    po_reminder,
     purchase_prints,
     receipts,
     reports,
@@ -66,6 +67,11 @@ urlpatterns = [
         "purchase-orders/<int:pk>/mail/",
         supplier_mail.OrderMailView.as_view(),
         name="purchase-order-mail",
+    ),
+    path(
+        "purchase-orders/<int:pk>/reminder/",
+        po_reminder.ReminderView.as_view(),
+        name="purchase-order-reminder",
     ),
     path(
         "purchase-orders/<int:pk>/supplier-mail/",

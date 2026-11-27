@@ -362,3 +362,194 @@ export function OrderMail({
     </Fold>
   );
 }
+
+type PendingLine = {
+  id: number;
+  item_code: string;
+  item_name: string;
+  unit: string;
+  ordered: string;
+  received: string;
+  pending: string;
+  expected: string;
+  days_late: number;
+};
+type ReminderDraft = {
+  order_number: string;
+  mail_ready: boolean;
+  from: string;
+  to: Person[];
+  to_options: Person[];
+  cc: Person[];
+  cc_options: Person[];
+  lines: PendingLine[];
+  subject: string;
+  intro: string;
+  closing: string;
+  signature: string;
+  attachment: string;
+  last: { date: string; by: string; to: string[] } | null;
+  count: number;
+};
+
+const lateWords = (d: number) => (d ? `${d} day${d === 1 ? "" : "s"} late` : "");
+
+/** "Send Reminder" on an open purchase order (Sidharth, 2026-11-27): asks the
+ * supplier when the quantity still to come will be supplied, with a grid of
+ * those lines. */
+export function SupplierReminder({ orderId, onClose, onSent }: { orderId: number; onClose: () => void; onSent: (to: string[]) => void }) {
+  const [draft, setDraft] = useState<ReminderDraft | null>(null);
+  const [to, setTo] = useState<Person[]>([]);
+  const [cc, setCc] = useState<Person[]>([]);
+  const [ticked, setTicked] = useState<number[]>([]);
+  const [subject, setSubject] = useState("");
+  const [intro, setIntro] = useState("");
+  const [closing, setClosing] = useState("");
+  const [withOrder, setWithOrder] = useState(true);
+  const [error, setError] = useState<unknown>("");
+  const [busy, setBusy] = useState(false);
+  const link = `v1/purchase-orders/${orderId}/reminder/`;
+  useEffect(() => {
+    api<ReminderDraft>(link).then((d) => {
+      setDraft(d);
+      setTo(d.to);
+      setCc(d.cc);
+      setTicked(d.lines.map((l) => l.id));
+      setSubject(d.subject);
+      setIntro(d.intro);
+      setClosing(d.closing);
+    }, setError);
+  }, [link]);
+  const chosen = useMemo(() => (draft ? draft.lines.filter((l) => ticked.includes(l.id)) : []), [draft, ticked]);
+  if (!draft)
+    return (
+      <Fold title="Send Reminder" open>
+        <ErrorNote error={error} />
+      </Fold>
+    );
+  const greeting = draft.to_options.find((o) => o.email === to[0]?.email)?.name || "Sir/Madam";
+  const send = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const done = await api<{ sent_to: string[] }>(link, {
+        to: to.map((p) => p.email),
+        cc: cc.map((p) => p.email),
+        subject,
+        intro,
+        closing,
+        lines: ticked,
+        attach_order: withOrder,
+      });
+      onSent(done.sent_to);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Fold title="Send Reminder" open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
+      {!draft.mail_ready && (
+        <p className="use-note">
+          The company's mail account is not set up yet. An Owner sets it under Admin › Company › Edit › "Mail Account".
+        </p>
+      )}
+      {draft.lines.length === 0 ? (
+        <p className="small">Every line has come in full or is closed; there is nothing to chase.</p>
+      ) : (
+        <div className="supplier-mail">
+          <div>
+            <People label="To" value={to} options={draft.to_options} onChange={setTo} />
+            <People label="CC" value={cc} options={draft.cc_options} onChange={setCc} />
+            <label className="field">
+              <span className="fact-label">Subject</span>
+              <input value={subject} onChange={(e) => setSubject(e.target.value)} />
+            </label>
+            <div className="field">
+              <span className="fact-label">Lines</span>
+              {draft.lines.map((l) => (
+                <label key={l.id} className="check">
+                  <input
+                    type="checkbox"
+                    checked={ticked.includes(l.id)}
+                    onChange={(e) => setTicked(e.target.checked ? [...ticked, l.id] : ticked.filter((x) => x !== l.id))}
+                  />
+                  {l.item_code} {l.item_name} ({l.pending} {l.unit} pending)
+                </label>
+              ))}
+            </div>
+            <div className="field">
+              <span className="fact-label">Attach</span>
+              <label className="check">
+                <input type="checkbox" checked={withOrder} onChange={(e) => setWithOrder(e.target.checked)} />
+                Purchase Order {draft.order_number} (PDF)
+              </label>
+            </div>
+            {draft.last && (
+              <p className="use-note">
+                Last reminder: {draft.last.date} by {draft.last.by}
+                {draft.last.to.length ? ` to ${draft.last.to.join(", ")}` : ""} ({draft.count} reminder{draft.count === 1 ? "" : "s"} sent so far).
+              </p>
+            )}
+          </div>
+          <div className="mail-preview">
+            <span className="fact-label">The Mail (the two text boxes can be changed)</span>
+            <p>Dear {greeting},</p>
+            <textarea rows={3} value={intro} onChange={(e) => setIntro(e.target.value)} aria-label="Opening" />
+            <table className="grid mail-grid">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Item Code</th>
+                  <th>Item</th>
+                  <th className="num">Ordered</th>
+                  <th className="num">Received</th>
+                  <th className="num">Pending</th>
+                  <th>Expected Delivery</th>
+                </tr>
+              </thead>
+              <tbody>
+                {chosen.map((l, i) => (
+                  <tr key={l.id}>
+                    <td>{i + 1}</td>
+                    <td className="nowrap">{l.item_code}</td>
+                    <td>{l.item_name}</td>
+                    <td className="num nowrap">
+                      {l.ordered} {l.unit}
+                    </td>
+                    <td className="num nowrap">
+                      {l.received} {l.unit}
+                    </td>
+                    <td className="num nowrap">
+                      <b>
+                        {l.pending} {l.unit}
+                      </b>
+                    </td>
+                    <td className={l.days_late ? "late nowrap" : "nowrap"}>
+                      {l.expected}
+                      {l.days_late > 0 && <div className="small">{lateWords(l.days_late)}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <textarea rows={3} value={closing} onChange={(e) => setClosing(e.target.value)} aria-label="Closing" />
+            <p className="pre">Regards,{"\n" + draft.signature}</p>
+          </div>
+        </div>
+      )}
+      <ErrorNote error={error} />
+      <div className="buttons">
+        <button type="button" className="link" onClick={onClose}>
+          Cancel
+        </button>
+        {draft.lines.length > 0 && (
+          <button type="button" disabled={busy || !draft.mail_ready || !to.length || !chosen.length || !subject.trim()} onClick={send}>
+            {busy ? "Sending…" : "Send"}
+          </button>
+        )}
+      </div>
+    </Fold>
+  );
+}
