@@ -1,10 +1,11 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { api, upload, SignedIn } from "./api";
 import { Activity, WithActivity } from "./Audit";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 import { PageHeader, Section } from "./Brand";
 import { usePrintMenu } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 
 type Role = {
   id: number;
@@ -90,7 +91,6 @@ export function UsersPage({ session }: { session: SignedIn }) {
     setCopyOf(copy);
     setEditing(value);
   };
-  const roleName = (id: number) => roles.find((r) => r.id === id)?.name ?? "?";
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     const found = openId && users.find((u) => u.id === openId);
@@ -100,6 +100,29 @@ export function UsersPage({ session }: { session: SignedIn }) {
     }
   }, [openId, users, opened]);
 
+  const userColumns = useMemo<Column<User>[]>(
+    () => [
+      {
+        key: "name",
+        label: "Name",
+        fixed: true,
+        cell: (u) => (
+          <>
+            {u.full_name || u.email}
+            <br />
+            <span className="small">{u.email}</span>
+          </>
+        ),
+      },
+      { key: "roles", label: "Roles", standard: true, cell: (u) => u.roles.map((id) => roles.find((r) => r.id === id)?.name ?? "?").join(", ") || <span className="small">No role</span> },
+      { key: "status", label: "Status", standard: true, cell: (u) => (!u.is_active ? "Deactivated" : u.signed_in_before ? "Active" : "Not signed in yet") },
+      { key: "companies", label: "Companies", cell: (u) => u.companies.map((id) => companies.find((c) => c.id === id)?.name ?? "").filter(Boolean).join(", ") },
+      { key: "phone", label: "Phone", cell: (u) => u.phone },
+      { key: "last_login", label: "Last Sign-in", nowrap: true, cell: (u) => (u.last_login ? new Date(u.last_login).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "") },
+    ],
+    [roles, companies],
+  );
+  const columns = useColumns("users", userColumns, { sort: false });
   const printing = usePrintMenu({ title: "Users" });
 
   return (
@@ -109,12 +132,13 @@ export function UsersPage({ session }: { session: SignedIn }) {
         crumbs={[{ label: "Settings", href: "#/users" }]}
         actions={
           <>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
             <button onClick={() => edit("new")}>Add user</button>
           </>
         }
       />
       {printing.panel}
+      {columns.panel}
       <WithActivity activity={<Activity type="user" stamp={JSON.stringify(users)} />}>
         <p className="small">
           People sign in with the Google account for their email address. Add them here first; nobody else can sign in.
@@ -139,22 +163,16 @@ export function UsersPage({ session }: { session: SignedIn }) {
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Roles</th>
-              <th>Status</th>
+              {columns.shown.map((c) => (
+                <th key={c.key}>{c.label}</th>
+              ))}
               <ActionHeads />
             </tr>
           </thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className={u.is_active ? "" : "inactive"}>
-                <td>
-                  {u.full_name || u.email}
-                  <br />
-                  <span className="small">{u.email}</span>
-                </td>
-                <td>{u.roles.map(roleName).join(", ") || <span className="small">No role</span>}</td>
-                <td>{!u.is_active ? "Deactivated" : u.signed_in_before ? "Active" : "Not signed in yet"}</td>
+                <Cells shown={columns.shown} row={u} />
                 <ActionCells canEdit onOpen={() => edit(u)} onDuplicate={() => edit("new", u)} />
               </tr>
             ))}

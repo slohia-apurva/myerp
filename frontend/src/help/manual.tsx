@@ -149,6 +149,32 @@ export const MANUAL: Chapter[] = [
           says "Nothing matches the column searches." "Print" and "Download PDF"
           under "Actions" print only the lines you can see.
         </p>
+
+        <h3>Choosing the columns of a list</h3>
+        <p>
+          Every list has "Choose Columns…" under "Actions" at the top right:
+          the masters ("Items", "People", "Transporters", "Units", "Brands",
+          "Credit terms", "Price lists", "Terms", "Batches", "BOMs", "Insurance
+          policies", "HSN codes", "Countries", "PIN codes", "Companies" and
+          "Users") and the lists of entries ("Purchase Order", "Goods Receipt",
+          "Purchase Invoice", "Purchase Return", "Debit Note", "Sales Order",
+          "Pick List", "Delivery Note", "Sales Invoice", "Credit Note",
+          "Manufacturing Order", "Stock Transfer", "Stock Receipt", "Stock
+          Delivery", "Own Use", "TDS Adjustment" and "Shipments").
+        </p>
+        <p>
+          Tick the columns you want and untick the rest. Many lists offer more
+          than they show at first, for example "Taxable ₹", "Credit Term",
+          "Transporter", "Purchaser" and "Made By" on purchase orders, or
+          "Salesman", "Customer PO" and "Vehicle No" on sales invoices. Drag a
+          line by its ⋮⋮ handle, or use ▲ and ▼, to change the order, then
+          click "Save". The first column (the number or name) always shows.
+          Your choice is kept under your own sign-in, so it follows you to any
+          computer, and other people keep their own. "Reset" goes back to the
+          standard columns. A search box follows its column, "Print" and
+          "Download PDF" print the columns you chose, and where a list has a
+          "Total" line it adds up each amount column you show.
+        </p>
         <p>
           Every item picker looks up items as you type: type part of the item's
           name or its item no. The list shows the first 50 that match, so type
@@ -1942,8 +1968,10 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           Every list screen has an "Actions" button at the top right. Click it
-          for a short list: "Print" and "Download PDF" on every list, and on
-          masters also "Import from Excel…" and "Export to Excel". They work the
+          for a short list: "Print", "Download PDF" and "Choose Columns…" on
+          every list (see "Choosing the columns of a list" under "Getting
+          started"), and on masters also "Import from Excel…" and "Export to
+          Excel". They work the
           same way everywhere. Import and export are on "Units", "Credit terms",
           "Items", "Item groups", "Brands", "Ledgers", "Ledger groups",
           "Branches", "Licences and certificates" and "Transporters".

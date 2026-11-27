@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { ColumnSearch } from "./ColumnSearch";
 import { FloatingList } from "./FloatingList";
 import { PageHeader } from "./Brand";
 import { usePrintMenu } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { SidePanel, SideRows } from "./Master";
 import { openRequestAddition } from "./RequestAddition";
 
@@ -17,6 +18,22 @@ const search = (q: string, pick: boolean, cols: string[] = []) =>
       `&code=${encodeURIComponent(cols[0] ?? "")}&desc=${encodeURIComponent(cols[1] ?? "")}`,
   );
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const HSN_COLUMNS: Column<Hsn>[] = [
+  {
+    key: "code",
+    label: "HSN code",
+    fixed: true,
+    cell: (h) => (
+      <>
+        {h.hsn_code}
+        {!h.is_active && <span className="pill">Inactive</span>}
+      </>
+    ),
+  },
+  { key: "desc", label: "Description", standard: true, cell: (h) => h.description },
+];
+
 /** Masters > HSN codes: the central list, to look up and search. The details of the
  * clicked row are on the right. Nobody adds or changes a code here: MyERP keeps the list. */
 export function HsnPage({ session }: { session: SignedIn }) {
@@ -29,6 +46,17 @@ export function HsnPage({ session }: { session: SignedIn }) {
     return () => clearTimeout(t);
   }, [q, cols]);
   const searching = q !== "" || cols.some((c) => c.trim() !== "");
+  const columns = useColumns("hsn", HSN_COLUMNS, { sort: false });
+  // The boxes follow the person's columns; the server takes them as code and description.
+  const shownKeys = columns.shown.map((c) => c.key).join(",");
+  const onSearch = useCallback(
+    (values: string[]) => {
+      const keys = shownKeys.split(",");
+      const next = ["code", "desc"].map((k) => values[keys.indexOf(k)] ?? "");
+      setCols((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+    },
+    [shownKeys],
+  );
   const printing = usePrintMenu({ title: "HSN codes", scope: q ? `Search: ${q}` : "" });
   const selected = found.results.find((h) => h.id === selectedId) ?? null;
   return (
@@ -42,12 +70,13 @@ export function HsnPage({ session }: { session: SignedIn }) {
                 Request Addition
               </button>
             )}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
         sub={`${found.total} code${found.total === 1 ? "" : "s"} · kept centrally by MyERP, the same for every company. Searched when you enter an item's HSN.`}
       />
       {printing.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <input
@@ -59,10 +88,13 @@ export function HsnPage({ session }: { session: SignedIn }) {
           <table className="pick">
             <thead>
               <tr>
-                <th>HSN code</th>
-                <th>Description</th>
-              </tr>
-              <ColumnSearch onSearch={setCols} />
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
+                </tr>
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} onSearch={onSearch} />
             </thead>
             <tbody>
               {found.results.map((h) => (
@@ -71,16 +103,12 @@ export function HsnPage({ session }: { session: SignedIn }) {
                   className={`${h.is_active ? "" : "off"}${selectedId === h.id ? " selected" : ""}`}
                   onClick={() => setSelected(h.id)}
                 >
-                  <td>
-                    {h.hsn_code}
-                    {!h.is_active && <span className="pill">Inactive</span>}
-                  </td>
-                  <td>{h.description}</td>
+                  <Cells shown={columns.shown} row={h} />
                 </tr>
               ))}
               {found.results.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     {found.total === 0 && !searching ? "The list has not been loaded yet." : "Nothing matches."}
                   </td>
                 </tr>

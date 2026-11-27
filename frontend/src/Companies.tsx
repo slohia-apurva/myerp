@@ -14,6 +14,7 @@ import { Activity, WithActivity } from "./Audit";
 import { api, upload, SignedIn } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { useExchange, usePrintMenu } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { ActionCells, ActionHeads, ActiveButton, FormBody } from "./RowActions";
 
 // Address and contact, shared by companies and branches.
@@ -449,6 +450,18 @@ export function StateSelect(props: {
   );
 }
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const COMPANY_COLUMNS: Column<Company>[] = [
+  { key: "name", label: "Company", fixed: true, cell: (c) => <a href={`#/companies/${c.id}`}>{c.name}</a> },
+  { key: "abbr", label: "Short code", standard: true, cell: (c) => c.abbr },
+  { key: "gstin", label: "GSTIN", standard: true, cell: (c) => c.gstin || <span className="small">Unregistered</span> },
+  { key: "state", label: "State", standard: true, cell: (c) => c.state },
+  { key: "pan", label: "PAN", cell: (c) => c.pan },
+  { key: "tan", label: "TAN", cell: (c) => c.tan },
+  { key: "cin", label: "CIN", cell: (c) => c.cin },
+  { key: "books_start", label: "Books Start", nowrap: true, cell: (c) => (c.books_start ? c.books_start.split("-").reverse().join("-") : "") },
+];
+
 export function CompaniesPage({ session }: { session: SignedIn }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [adding, setAdding] = useState(false);
@@ -462,6 +475,7 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
   }, []);
   useEffect(reload, [reload]);
 
+  const columns = useColumns("companies", COMPANY_COLUMNS, { sort: false });
   const printing = usePrintMenu({ title: "Companies" });
 
   return (
@@ -471,7 +485,7 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
         crumbs={[{ label: "Masters", href: "#/companies" }]}
         actions={
           <>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
             {session.user.is_owner && (
               <button
                 onClick={() => {
@@ -486,6 +500,7 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
         }
       />
       {printing.panel}
+      {columns.panel}
       <p className="small">
         Each company keeps its own books, GST registration and document numbers.
         A new company starts with a Head office branch and the standard ledger
@@ -508,22 +523,16 @@ export function CompaniesPage({ session }: { session: SignedIn }) {
       <table>
         <thead>
           <tr>
-            <th>Company</th>
-            <th>Short code</th>
-            <th>GSTIN</th>
-            <th>State</th>
+            {columns.shown.map((c) => (
+              <th key={c.key}>{c.label}</th>
+            ))}
             <th />
           </tr>
         </thead>
         <tbody>
           {companies.map((c) => (
             <tr key={c.id}>
-              <td>
-                <a href={`#/companies/${c.id}`}>{c.name}</a>
-              </td>
-              <td>{c.abbr}</td>
-              <td>{c.gstin || <span className="small">Unregistered</span>}</td>
-              <td>{c.state}</td>
+              <Cells shown={columns.shown} row={c} />
               <td className="act">
                 {session.user.is_owner && (
                   <button

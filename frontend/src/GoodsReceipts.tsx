@@ -11,6 +11,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, TotalRow, useColumns, type Column } from "./Columns";
 import { GrnPrint, PRINT_KINDS, type PrintKind } from "./GrnPrint";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
@@ -245,15 +246,23 @@ const VIEWS = [
   { value: "submitted", label: "Submitted" },
   { value: "cancelled", label: "Cancelled" },
 ];
-const COLUMNS: [key: string, label: string, text: (r: GoodsReceipt) => string, num?: boolean][] = [
-  ["number", "GRN No", (r) => r.number || "Draft"],
-  ["date", "Date", (r) => `${shortDate(r.receipt_date)} ${showDate(r.receipt_date)}`],
-  ["supplier", "Supplier", (r) => r.supplier_name],
-  ["branch", "Warehouse", (r) => r.branch_name],
-  ["orders", "Purchase Orders", (r) => r.order_numbers.join(" ")],
-  ["challan", "Challan No", (r) => r.challan_no],
-  ["value", "Stock Value ₹", (r) => `${r.stock_value} ${money(r.stock_value)}`, true],
-  ["status", "Status", (r) => r.status_label],
+const COLUMNS: Column<GoodsReceipt>[] = [
+  { key: "number", label: "GRN No", fixed: true, text: (r) => r.number || "Draft", cell: (r) => (r.number ? <b>{r.number}</b> : <span className="small">Draft</span>) },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (r) => `${shortDate(r.receipt_date)} ${showDate(r.receipt_date)}`, cell: (r) => shortDate(r.receipt_date) },
+  { key: "supplier", label: "Supplier", standard: true, text: (r) => r.supplier_name, cell: (r) => r.supplier_name },
+  { key: "branch", label: "Warehouse", standard: true, text: (r) => r.branch_name, cell: (r) => r.branch_name },
+  { key: "orders", label: "Purchase Orders", standard: true, text: (r) => r.order_numbers.join(" "), cell: (r) => r.order_numbers.join(", ") },
+  { key: "challan", label: "Challan No", standard: true, text: (r) => r.challan_no, cell: (r) => r.challan_no },
+  {
+    key: "value",
+    label: "Stock Value ₹",
+    standard: true,
+    num: true,
+    text: (r) => `${r.stock_value} ${money(r.stock_value)}`,
+    total: (r) => Number(r.stock_value),
+    cell: (r) => (r.status === "submitted" ? money(r.stock_value) : ""),
+  },
+  { key: "status", label: "Status", standard: true, text: (r) => r.status_label, cell: (r) => <span className={pillClass(r.status)}>{r.status_label}</span> },
 ];
 
 function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
@@ -274,20 +283,10 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
     const open = Number(hashParam("open"));
     if (open && rows.some((r) => r.id === open)) setSelectedId(open);
   }, [rows]);
-  const shown = useMemo(
-    () =>
-      rows.filter((r) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          const value = text(r).toLowerCase();
-          return words.every((w) => value.includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("goods-receipts", COLUMNS, { sort: false });
   const selected = rows.find((r) => r.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Goods receipts: ${VIEWS.find((v) => v.value === view)?.label ?? ""}`, scope: "" });
-  const total = shown.reduce((sum, r) => sum + Number(r.stock_value), 0);
   return (
     <section className="page">
       <PageHeader
@@ -308,12 +307,13 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
               </button>
             )}
             {canCreate && <button onClick={() => openTab(`${base(companyId)}?form=new`)}>New goods receipt</button>}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
       />
       <ErrorNote error={error} />
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -328,31 +328,12 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                    />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No goods receipts match.
                   </td>
                 </tr>
@@ -368,28 +349,11 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
                     if (e.key === "Enter") openTab(`${base(companyId)}?view=${r.id}`);
                   }}
                 >
-                  <td>{r.number ? <b>{r.number}</b> : <span className="small">Draft</span>}</td>
-                  <td className="nowrap">{shortDate(r.receipt_date)}</td>
-                  <td>{r.supplier_name}</td>
-                  <td>{r.branch_name}</td>
-                  <td>{r.order_numbers.join(", ")}</td>
-                  <td>{r.challan_no}</td>
-                  <td className="num">{r.status === "submitted" ? money(r.stock_value) : ""}</td>
-                  <td>
-                    <span className={pillClass(r.status)}>{r.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={r} />
                 </tr>
               ))}
             </tbody>
-            {shown.length > 1 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={6}>Total</td>
-                  <td className="num">{money(total)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
+            {shown.length > 1 && <TotalRow shown={columns.shown} rows={shown} show={money} />}
           </table>
           {shown.length > 0 && (
             <p className="small no-print">Click a receipt to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>

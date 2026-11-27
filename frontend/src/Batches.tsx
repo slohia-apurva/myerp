@@ -6,6 +6,7 @@ import { PageHeader, Section } from "./Brand";
 import { Combobox } from "./Combobox";
 import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import type { Item } from "./Items";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
@@ -61,6 +62,28 @@ function useBatchItems(chosen: number | string | null) {
 
 const formParam = () => hashParam("form");
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const BATCH_COLUMNS: Column<Batch>[] = [
+  {
+    key: "number",
+    label: "Batch No",
+    fixed: true,
+    cell: (b) => (
+      <>
+        {b.number}
+        {!b.is_active && <span className="pill">Disabled</span>}
+      </>
+    ),
+  },
+  { key: "item_no", label: "Item No", standard: true, cell: (b) => b.item_number },
+  { key: "item", label: "Item", standard: true, cell: (b) => b.item_name },
+  { key: "mfg", label: "Mfg Date", standard: true, cell: (b) => showDate(b.mfg_date) },
+  { key: "expiry", label: "Expiry", standard: true, cell: (b) => showDate(b.expiry_date) },
+  { key: "status", label: "Status", standard: true, cell: (b) => b.status_label },
+  { key: "supplier_batch", label: "Supplier Batch No", cell: (b) => b.supplier_batch_no },
+  { key: "notes", label: "Notes", cell: (b) => <span className="small">{b.notes}</span> },
+];
+
 /** Masters > Batches. The details of the clicked row are on the right; Add, Edit and
  * Duplicate open in a new tab. */
 export function BatchesPage({ session }: { session: SignedIn }) {
@@ -86,7 +109,8 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
   useEffect(() => {
     if (startName && canEdit) window.location.hash = `#/batches?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const io = useExchange({ master: "batches", noun: "batches", session: props.session, onImported: reload });
+  const columns = useColumns("batches", BATCH_COLUMNS, { sort: false });
+  const io = useExchange({ master: "batches", noun: "batches", session: props.session, onImported: reload, extra: [columns.item] });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (openId && batches.some((b) => b.id === openId)) {
@@ -115,6 +139,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <div className="filter-row" style={{ maxWidth: 360, marginBottom: 8 }}>
@@ -123,16 +148,15 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
           <table className="pick">
             <thead>
               <tr>
-                <th>Batch No</th>
-                <th>Item No</th>
-                <th>Item</th>
-                <th>Mfg Date</th>
-                <th>Expiry</th>
-                <th>Status</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
                 <ActionHeads />
                 {canTrace && <th />}
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
             </thead>
             <tbody>
               {shown.map((b) => (
@@ -142,15 +166,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
                   onClick={() => setSelected(b.id)}
                   onDoubleClick={() => edit(b.id)}
                 >
-                  <td>
-                    {b.number}
-                    {!b.is_active && <span className="pill">Disabled</span>}
-                  </td>
-                  <td>{b.item_number}</td>
-                  <td>{b.item_name}</td>
-                  <td>{showDate(b.mfg_date)}</td>
-                  <td>{showDate(b.expiry_date)}</td>
-                  <td>{b.status_label}</td>
+                  <Cells shown={columns.shown} row={b} />
                   <ActionCells canEdit={canEdit} onOpen={() => edit(b.id)} onDuplicate={() => edit(`copy-${b.id}`)} />
                   {canTrace && (
                     <td className="act">
@@ -163,7 +179,7 @@ function BatchList(props: { session: SignedIn; canEdit: boolean; batches: Batch[
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={canTrace ? 9 : 8} className="small">
+                  <td colSpan={columns.shown.length + (canTrace ? 3 : 2)} className="small">
                     No batches yet. Click "Add batch", or receive goods of a batch-tracked item.
                   </td>
                 </tr>

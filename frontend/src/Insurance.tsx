@@ -9,6 +9,7 @@ import { money } from "./Companies";
 import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName, type Creatable } from "./Create";
 import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { Fold, FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
@@ -96,6 +97,32 @@ function usePolicies(companyId: number) {
   return { policies, reload };
 }
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const POLICY_COLUMNS: Column<Policy>[] = [
+  {
+    key: "number",
+    label: "Policy Number",
+    fixed: true,
+    cell: (p) => (
+      <>
+        {p.number}
+        {!p.is_active && <span className="pill">Disabled</span>}
+        {p.days_left === 0 && p.is_active && <span className="pill">Expired</span>}
+      </>
+    ),
+  },
+  { key: "insurer", label: "Insurer", standard: true, cell: (p) => p.insurer_name },
+  { key: "kind", label: "Type of Insurance", standard: true, cell: (p) => p.kind_label },
+  { key: "valid_to", label: "Valid To", standard: true, cell: (p) => shortDate(p.valid_to) },
+  { key: "cover", label: "Total Cover ₹", standard: true, num: true, cell: (p) => money(p.cover) },
+  { key: "balance", label: "Balance ₹", standard: true, num: true, cell: (p) => (p.is_transit ? <span className={p.low ? "error" : undefined}>{money(p.balance)}</span> : "") },
+  { key: "valid_from", label: "Valid From", cell: (p) => shortDate(p.valid_from) },
+  { key: "covers", label: "Covers", cell: (p) => p.covers_label },
+  { key: "premium", label: "Premium ₹", num: true, cell: (p) => money(p.premium) },
+  { key: "used", label: "Used ₹", num: true, cell: (p) => (p.is_transit ? money(p.used) : "") },
+  { key: "orders", label: "Orders", num: true, cell: (p) => p.orders || "" },
+];
+
 /** `?form=new`, `?form=<id>` or `?form=copy-<id>`: this tab adds, changes or duplicates one policy. */
 export function InsurancePage({ companyId, session, companyName }: { companyId: number; session: SignedIn; companyName: string }) {
   const canEdit = session.permissions.includes("masters.edit");
@@ -123,7 +150,8 @@ function PolicyList(props: { companyId: number; session: SignedIn; canEdit: bool
       opened();
     }
   }, [openId, policies, opened]);
-  const io = useExchange({ master: "insurance-policies", noun: "insurance policies", session: props.session, company: companyId, onImported: reload });
+  const columns = useColumns("insurance-policies", POLICY_COLUMNS, { sort: false });
+  const io = useExchange({ master: "insurance-policies", noun: "insurance policies", session: props.session, company: companyId, onImported: reload, extra: [columns.item] });
   const selected = policies.find((p) => p.id === selectedId) ?? null;
   const edit = (id: number | string) => openTab(pageHash(companyId, `?form=${id}`));
   return (
@@ -139,6 +167,7 @@ function PolicyList(props: { companyId: number; session: SignedIn; canEdit: bool
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           {policies.length === 0 ? (
@@ -147,15 +176,14 @@ function PolicyList(props: { companyId: number; session: SignedIn; canEdit: bool
             <table className="pick">
               <thead>
                 <tr>
-                  <th>Policy Number</th>
-                  <th>Insurer</th>
-                  <th>Type of Insurance</th>
-                  <th>Valid To</th>
-                  <th className="num">Total Cover ₹</th>
-                  <th className="num">Balance ₹</th>
+                  {columns.shown.map((c) => (
+                    <th key={c.key} className={c.num ? "num" : undefined}>
+                      {c.label}
+                    </th>
+                  ))}
                   <ActionHeads />
                 </tr>
-                <ColumnSearch />
+                <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
               </thead>
               <tbody>
                 {policies.map((p) => (
@@ -165,16 +193,7 @@ function PolicyList(props: { companyId: number; session: SignedIn; canEdit: bool
                     onClick={() => setSelected(p.id)}
                     onDoubleClick={() => edit(p.id)}
                   >
-                    <td>
-                      {p.number}
-                      {!p.is_active && <span className="pill">Disabled</span>}
-                      {p.days_left === 0 && p.is_active && <span className="pill">Expired</span>}
-                    </td>
-                    <td>{p.insurer_name}</td>
-                    <td>{p.kind_label}</td>
-                    <td>{shortDate(p.valid_to)}</td>
-                    <td className="num">{money(p.cover)}</td>
-                    <td className={`num${p.low ? " error" : ""}`}>{p.is_transit ? money(p.balance) : ""}</td>
+                    <Cells shown={columns.shown} row={p} />
                     <ActionCells canEdit={canEdit} onOpen={() => edit(p.id)} onDuplicate={() => edit(`copy-${p.id}`)} />
                   </tr>
                 ))}

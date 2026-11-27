@@ -8,6 +8,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { LedgerPosting } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { useKept } from "./Keep";
@@ -90,14 +91,14 @@ const VIEWS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" },
 ];
-const COLUMNS: [key: string, label: string, text: (r: Adjustment) => string, num?: boolean][] = [
-  ["number", "Adjustment No", (r) => r.number || "Draft"],
-  ["date", "Date", (r) => `${dmy(r.adj_date)} ${showDate(r.adj_date)}`],
-  ["supplier", "Supplier", (r) => r.supplier_name],
-  ["section", "Section", (r) => `${r.section} ${r.section_shown}`],
-  ["kind", "Kind", (r) => r.kind_label],
-  ["total", "TDS ₹", (r) => `${r.total} ${signed(r.total)}`, true],
-  ["status", "Status", (r) => r.status_label],
+const COLUMNS: Column<Adjustment>[] = [
+  { key: "number", label: "Adjustment No", fixed: true, text: (r) => r.number || "Draft", cell: (r) => (r.number ? <b>{r.number}</b> : <span className="small">Draft</span>) },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (r) => `${dmy(r.adj_date)} ${showDate(r.adj_date)}`, cell: (r) => dmy(r.adj_date) },
+  { key: "supplier", label: "Supplier", standard: true, text: (r) => r.supplier_name, cell: (r) => r.supplier_name },
+  { key: "section", label: "Section", standard: true, nowrap: true, text: (r) => `${r.section} ${r.section_shown}`, cell: (r) => r.section },
+  { key: "kind", label: "Kind", standard: true, text: (r) => r.kind_label, cell: (r) => r.kind_label },
+  { key: "total", label: "TDS ₹", standard: true, num: true, text: (r) => `${r.total} ${signed(r.total)}`, cell: (r) => signed(r.total) },
+  { key: "status", label: "Status", standard: true, text: (r) => r.status_label, cell: (r) => <span className={pillClass(r.status)}>{r.status_label}</span> },
 ];
 
 function AdjustmentList({ companyId }: { companyId: number }) {
@@ -114,17 +115,8 @@ function AdjustmentList({ companyId }: { companyId: number }) {
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((r) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          const value = text(r).toLowerCase();
-          return words.every((w) => value.includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("tds-adjustments", COLUMNS, { sort: false });
   const selected = rows.find((r) => r.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `TDS adjustments: ${VIEWS.find((v) => v.value === view)?.label ?? ""}`, scope: "" });
   return (
@@ -138,12 +130,13 @@ function AdjustmentList({ companyId }: { companyId: number }) {
             <button type="button" className="secondary" onClick={() => openTab(`#/companies/${companyId}/tds-check`)}>
               TDS Check
             </button>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
       />
       <ErrorNote error={error} />
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -158,25 +151,12 @@ function AdjustmentList({ companyId }: { companyId: number }) {
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , isNum]) => (
-                  <th key={key} className={isNum ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(e) => setSearch({ ...search, [key]: e.target.value })} />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No TDS adjustments match.
                   </td>
                 </tr>
@@ -192,15 +172,7 @@ function AdjustmentList({ companyId }: { companyId: number }) {
                     if (e.key === "Enter") openTab(`${base(companyId)}?view=${r.id}`);
                   }}
                 >
-                  <td>{r.number ? <b>{r.number}</b> : <span className="small">Draft</span>}</td>
-                  <td className="nowrap">{dmy(r.adj_date)}</td>
-                  <td>{r.supplier_name}</td>
-                  <td className="nowrap">{r.section}</td>
-                  <td>{r.kind_label}</td>
-                  <td className="num">{signed(r.total)}</td>
-                  <td>
-                    <span className={pillClass(r.status)}>{r.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={r} />
                 </tr>
               ))}
             </tbody>

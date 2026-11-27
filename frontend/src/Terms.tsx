@@ -6,6 +6,7 @@ import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
@@ -59,6 +60,25 @@ export function TermsText({ text }: { text: string }) {
 
 const formParam = () => hashParam("form");
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const TERMS_COLUMNS: Column<TermsSet>[] = [
+  {
+    key: "name",
+    label: "Terms",
+    fixed: true,
+    cell: (s) => (
+      <>
+        {s.name}
+        {!s.is_active && <span className="pill">Disabled</span>}
+      </>
+    ),
+  },
+  { key: "kind", label: "Type", standard: true, cell: (s) => s.kind_label },
+  { key: "defaults", label: "Default For", standard: true, cell: (s) => s.default_companies.map((c) => c.name).join(", ") },
+  { key: "used", label: "Used By", standard: true, num: true, cell: (s) => s.party_count || "" },
+  { key: "notes", label: "Notes", cell: (s) => <span className="small">{s.notes}</span> },
+];
+
 /** Masters > Terms and conditions: the clicked set is shown on the right; Add, Edit and
  * Duplicate open in a new tab. */
 export function TermsPage({ session }: { session: SignedIn }) {
@@ -80,7 +100,8 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; sets: TermsSet[]
   useEffect(() => {
     if (startName && canEdit) window.location.hash = `#/terms?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const io = useExchange({ master: "terms", noun: "terms and conditions", session: props.session, onImported: reload });
+  const columns = useColumns("terms", TERMS_COLUMNS, { sort: false });
+  const io = useExchange({ master: "terms", noun: "terms and conditions", session: props.session, onImported: reload, extra: [columns.item] });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (openId && sets.some((s) => s.id === openId)) {
@@ -102,18 +123,20 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; sets: TermsSet[]
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>Terms</th>
-                <th>Type</th>
-                <th>Default For</th>
-                <th className="num">Used By</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
                 <ActionHeads />
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
             </thead>
             <tbody>
               {sets.map((s) => (
@@ -123,13 +146,7 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; sets: TermsSet[]
                   onClick={() => setSelected(s.id)}
                   onDoubleClick={() => openTab(`#/terms?form=${s.id}`)}
                 >
-                  <td>
-                    {s.name}
-                    {!s.is_active && <span className="pill">Disabled</span>}
-                  </td>
-                  <td>{s.kind_label}</td>
-                  <td>{s.default_companies.map((c) => c.name).join(", ")}</td>
-                  <td className="num">{s.party_count || ""}</td>
+                  <Cells shown={columns.shown} row={s} />
                   <ActionCells
                     canEdit={canEdit}
                     onOpen={() => openTab(`#/terms?form=${s.id}`)}

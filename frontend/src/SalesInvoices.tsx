@@ -9,6 +9,7 @@ import { money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { makeCreditNote } from "./CreditNotes";
@@ -201,15 +202,24 @@ export function SalesInvoicesPage({ companyId, session }: { companyId: number; s
   return <InvoiceList companyId={companyId} />;
 }
 
-const COLUMNS: [key: string, label: string, text: (i: Invoice) => string, num?: boolean][] = [
-  ["number", "Invoice No", (i) => i.number || "Draft"],
-  ["date", "Date", (i) => shortDate(i.invoice_date)],
-  ["customer", "Customer", (i) => i.customer_name],
-  ["note", "Delivery Note", (i) => i.delivery_note_number],
-  ["due", "Due", (i) => shortDate(i.first_due)],
-  ["einvoice", "e-Invoice", (i) => (i.irn ? "Made" : i.status === "submitted" && i.needs_einvoice ? "Pending" : "")],
-  ["total", "Total ₹", (i) => money(i.total), true],
-  ["status", "Status", (i) => i.status_label],
+const einvoice = (i: Invoice) => (i.irn ? "Made" : i.status === "submitted" && i.needs_einvoice ? "Pending" : "");
+const COLUMNS: Column<Invoice>[] = [
+  { key: "number", label: "Invoice No", fixed: true, text: (i) => i.number || "Draft", cell: (i) => <b>{i.number || "Draft"}</b> },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (i) => shortDate(i.invoice_date), cell: (i) => shortDate(i.invoice_date) },
+  { key: "customer", label: "Customer", standard: true, text: (i) => i.customer_name, cell: (i) => i.customer_name },
+  { key: "note", label: "Delivery Note", standard: true, text: (i) => i.delivery_note_number, cell: (i) => i.delivery_note_number },
+  { key: "due", label: "Due", standard: true, nowrap: true, text: (i) => shortDate(i.first_due), cell: (i) => shortDate(i.first_due) },
+  { key: "einvoice", label: "e-Invoice", standard: true, text: einvoice, cell: einvoice },
+  { key: "total", label: "Total ₹", standard: true, num: true, text: (i) => money(i.total), total: (i) => Number(i.total), cell: (i) => money(i.total) },
+  { key: "status", label: "Status", standard: true, text: (i) => i.status_label, cell: (i) => <span className={pillClass(i.status)}>{i.status_label}</span> },
+  { key: "taxable", label: "Taxable ₹", num: true, text: (i) => money(i.taxable_total), total: (i) => Number(i.taxable_total), cell: (i) => money(i.taxable_total) },
+  { key: "order", label: "Sales Order", text: (i) => i.order_number, cell: (i) => i.order_number },
+  { key: "po", label: "Customer PO", text: (i) => i.customer_po_no, cell: (i) => i.customer_po_no },
+  { key: "salesman", label: "Salesman", text: (i) => i.salesman_name, cell: (i) => i.salesman_name },
+  { key: "term", label: "Credit Term", text: (i) => i.credit_term_name, cell: (i) => i.credit_term_name },
+  { key: "transporter", label: "Transporter", text: (i) => i.transporter_name, cell: (i) => i.transporter_name },
+  { key: "vehicle", label: "Vehicle No", text: (i) => i.vehicle_no, cell: (i) => i.vehicle_no },
+  { key: "gstin", label: "Customer GSTIN", text: (i) => i.customer_gstin, cell: (i) => i.customer_gstin },
 ];
 
 function InvoiceList({ companyId }: { companyId: number }) {
@@ -228,16 +238,8 @@ function InvoiceList({ companyId }: { companyId: number }) {
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((i) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => text(i).toLowerCase().includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("sales-invoices", COLUMNS, { sort: false });
   const selected = rows.find((i) => i.id === selectedId) ?? null;
   const printing = usePrintMenu({
     title: `Sales invoices: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`,
@@ -250,10 +252,11 @@ function InvoiceList({ companyId }: { companyId: number }) {
         title="Sales Invoice"
         crumbs={[{ label: "Entry › Sales", href: invoiceBase(companyId) }]}
         sub={`${shown.length} ${shown.length === 1 ? "invoice" : "invoices"} · made from a submitted delivery note ("Create ▾" on the note)`}
-        actions={printing.buttons}
+        actions={printing.menu([...printing.items, columns.item])}
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -268,25 +271,12 @@ function InvoiceList({ companyId }: { companyId: number }) {
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(e) => setSearch({ ...search, [key]: e.target.value })} />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No sales invoices match.
                   </td>
                 </tr>
@@ -302,21 +292,7 @@ function InvoiceList({ companyId }: { companyId: number }) {
                     if (e.key === "Enter") open(i.id);
                   }}
                 >
-                  {COLUMNS.map(([key, , text, num]) =>
-                    key === "number" ? (
-                      <td key={key}>
-                        <b>{text(i)}</b>
-                      </td>
-                    ) : key === "status" ? (
-                      <td key={key}>
-                        <span className={pillClass(i.status)}>{i.status_label}</span>
-                      </td>
-                    ) : (
-                      <td key={key} className={num ? "num" : key === "date" || key === "due" ? "nowrap" : undefined}>
-                        {text(i)}
-                      </td>
-                    ),
-                  )}
+                  <Cells shown={columns.shown} row={i} />
                 </tr>
               ))}
             </tbody>

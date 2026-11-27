@@ -10,6 +10,7 @@ import { money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { MoPicks, type Pick, type PickLine } from "./MoPicks";
 import { useKept } from "./Keep";
@@ -186,16 +187,38 @@ export function ManufacturingOrdersPage({ companyId, session }: { companyId: num
   return <OrderList companyId={companyId} session={session} />;
 }
 
-const COLUMNS: [key: string, label: string, text: (o: Order) => string, num?: boolean][] = [
-  ["number", "MO No", (o) => o.number || "Draft"],
-  ["date", "Date", (o) => shortDate(o.order_date)],
-  ["branch", "Branch", (o) => o.branch_name],
-  ["item", "Item", (o) => o.item_name],
-  ["qty", "Qty", (o) => `${o.qty} ${o.unit_name}`, true],
-  ["bom", "BOM Version", (o) => `${o.bom_number} · ${o.bom_version}`],
-  ["batch", "Batch No", (o) => o.batch_no],
-  ["due", "Due", (o) => shortDate(o.due_date)],
-  ["status", "Status", (o) => o.status_label],
+const COLUMNS: Column<Order>[] = [
+  { key: "number", label: "MO No", fixed: true, text: (o) => o.number || "Draft", cell: (o) => <b>{o.number || "Draft"}</b> },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (o) => shortDate(o.order_date), cell: (o) => shortDate(o.order_date) },
+  { key: "branch", label: "Branch", standard: true, text: (o) => o.branch_name, cell: (o) => o.branch_name },
+  { key: "item", label: "Item", standard: true, text: (o) => o.item_name, cell: (o) => o.item_name },
+  {
+    key: "qty",
+    label: "Qty",
+    standard: true,
+    num: true,
+    text: (o) => `${o.qty} ${o.unit_name}`,
+    cell: (o) => (
+      <span className="nowrap">
+        {o.qty} {o.unit_name}
+      </span>
+    ),
+  },
+  {
+    key: "bom",
+    label: "BOM Version",
+    standard: true,
+    text: (o) => `${o.bom_number} · ${o.bom_version}`,
+    cell: (o) => (
+      <>
+        {o.bom_number} · {o.bom_default ? "★ " : ""}
+        {o.bom_version}
+      </>
+    ),
+  },
+  { key: "batch", label: "Batch No", standard: true, text: (o) => o.batch_no, cell: (o) => o.batch_no },
+  { key: "due", label: "Due", standard: true, nowrap: true, text: (o) => shortDate(o.due_date), cell: (o) => shortDate(o.due_date) },
+  { key: "status", label: "Status", standard: true, text: (o) => o.status_label, cell: (o) => <span className={pillClass(o.status)}>{o.status_label}</span> },
 ];
 
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
@@ -214,16 +237,8 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((o) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => text(o).toLowerCase().includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("manufacturing-orders", COLUMNS, { sort: false });
   const selected = rows.find((o) => o.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Manufacturing orders: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`, scope: "" });
   const open = (id: number) => openTab(`${ordersBase(companyId)}?view=${id}`);
@@ -235,7 +250,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
         sub={`${shown.length} ${shown.length === 1 ? "order" : "orders"} · what to make, how much, by when and with which BOM version`}
         actions={
           <>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
             {can(session, "create") && (
               <button type="button" onClick={() => openTab(`${ordersBase(companyId)}?form=new`)}>
                 New Manufacturing Order
@@ -246,6 +261,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -260,25 +276,12 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(ev) => setSearch({ ...search, [key]: ev.target.value })} />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No manufacturing orders match.
                   </td>
                 </tr>
@@ -294,24 +297,7 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                     if (ev.key === "Enter") open(o.id);
                   }}
                 >
-                  <td>
-                    <b>{o.number || "Draft"}</b>
-                  </td>
-                  <td className="nowrap">{shortDate(o.order_date)}</td>
-                  <td>{o.branch_name}</td>
-                  <td>{o.item_name}</td>
-                  <td className="num nowrap">
-                    {o.qty} {o.unit_name}
-                  </td>
-                  <td>
-                    {o.bom_number} · {o.bom_default ? "★ " : ""}
-                    {o.bom_version}
-                  </td>
-                  <td>{o.batch_no}</td>
-                  <td className="nowrap">{shortDate(o.due_date)}</td>
-                  <td>
-                    <span className={pillClass(o.status)}>{o.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={o} />
                 </tr>
               ))}
             </tbody>

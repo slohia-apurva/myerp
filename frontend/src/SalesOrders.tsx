@@ -14,6 +14,7 @@ import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } fr
 import { useCreditTerms } from "./CreditTerms";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, TotalRow, useColumns, type Column } from "./Columns";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { AddressBlock, ContactTicks, PaymentPanel, TotalsPanel, type Contact, type Place } from "./PurchaseOrders";
 import { OrderMail } from "./SupplierMail";
@@ -299,16 +300,23 @@ const nextDocs = (makePick: (() => void) | null, makeNote: (() => void) | null, 
 
 // The list ----------------------------------------------------------------------
 
-const COLUMNS: [key: string, label: string, text: (o: SalesOrder) => string, num?: boolean][] = [
-  ["number", "SO No", (o) => o.number || "Draft"],
-  ["date", "Date", (o) => `${shortDate(o.order_date)} ${showDate(o.order_date)}`],
-  ["customer", "Customer", (o) => o.customer_name],
-  ["salesman", "Salesman", (o) => o.salesman_name],
-  ["despatch", "Despatch From", (o) => o.despatch_from],
-  ["delivery", "Delivery Date", (o) => `${shortDate(o.delivery_date)} ${showDate(o.delivery_date)}`],
-  ["po", "Customer PO", (o) => o.customer_po_no],
-  ["total", "Amount ₹", (o) => `${o.total} ${money(o.total)}`, true],
-  ["status", "Status", (o) => o.status_label],
+const COLUMNS: Column<SalesOrder>[] = [
+  { key: "number", label: "SO No", fixed: true, text: (o) => o.number || "Draft", cell: (o) => (o.number ? <b>{o.number}</b> : <span className="small">Draft</span>) },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (o) => `${shortDate(o.order_date)} ${showDate(o.order_date)}`, cell: (o) => shortDate(o.order_date) },
+  { key: "customer", label: "Customer", standard: true, text: (o) => o.customer_name, cell: (o) => o.customer_name },
+  { key: "salesman", label: "Salesman", standard: true, text: (o) => o.salesman_name, cell: (o) => o.salesman_name },
+  { key: "despatch", label: "Despatch From", standard: true, text: (o) => o.despatch_from, cell: (o) => o.despatch_from },
+  { key: "delivery", label: "Delivery Date", standard: true, nowrap: true, text: (o) => `${shortDate(o.delivery_date)} ${showDate(o.delivery_date)}`, cell: (o) => shortDate(o.delivery_date) },
+  { key: "po", label: "Customer PO", standard: true, text: (o) => o.customer_po_no, cell: (o) => o.customer_po_no },
+  { key: "total", label: "Amount ₹", standard: true, num: true, text: (o) => `${o.total} ${money(o.total)}`, total: (o) => Number(o.total), cell: (o) => money(o.total) },
+  { key: "status", label: "Status", standard: true, text: (o) => o.status_label, cell: (o) => <span className={pillClass(o.status)}>{o.status_label}</span> },
+  { key: "taxable", label: "Taxable ₹", num: true, text: (o) => money(o.taxable_total), total: (o) => Number(o.taxable_total), cell: (o) => money(o.taxable_total) },
+  { key: "items", label: "Items", num: true, text: (o) => String(o.line_count), cell: (o) => o.line_count },
+  { key: "area", label: "Area", text: (o) => o.area_name, cell: (o) => o.area_name },
+  { key: "term", label: "Credit Term", text: (o) => o.credit_term_name, cell: (o) => o.credit_term_name },
+  { key: "transporter", label: "Transporter", text: (o) => o.transporter_name, cell: (o) => o.transporter_name },
+  { key: "gstin", label: "Customer GSTIN", text: (o) => o.customer_gstin, cell: (o) => o.customer_gstin },
+  { key: "made_by", label: "Made By", text: (o) => o.created_by_name, cell: (o) => o.created_by_name },
 ];
 
 function OrderList({ companyId, session }: { companyId: number; session: SignedIn }) {
@@ -329,21 +337,11 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      orders.filter((o) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          const value = text(o).toLowerCase();
-          return words.every((w) => value.includes(w));
-        }),
-      ),
-    [orders, search],
-  );
+  const shown = useMemo(() => matching(orders, COLUMNS, search), [orders, search]);
+  const columns = useColumns("sales-orders", COLUMNS, { sort: false });
   const selected = orders.find((o) => o.id === selectedId) ?? null;
   const viewLabel = VIEWS.find(([v]) => v === view)?.[1] ?? "";
   const printing = usePrintMenu({ title: `Sales orders: ${viewLabel}`, scope: setup?.company_name ?? "" });
-  const total = shown.reduce((sum, o) => sum + Number(o.total), 0);
 
   return (
     <section className="page">
@@ -365,12 +363,13 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
               </button>
             )}
             {canCreate && <button onClick={() => openTab(`${base(companyId)}?form=new`)}>New sales order</button>}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -385,31 +384,12 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                    />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No sales orders match.
                   </td>
                 </tr>
@@ -425,29 +405,11 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                     if (e.key === "Enter") openTab(`${base(companyId)}?view=${o.id}`);
                   }}
                 >
-                  <td>{o.number ? <b>{o.number}</b> : <span className="small">Draft</span>}</td>
-                  <td className="nowrap">{shortDate(o.order_date)}</td>
-                  <td>{o.customer_name}</td>
-                  <td>{o.salesman_name}</td>
-                  <td>{o.despatch_from}</td>
-                  <td className="nowrap">{shortDate(o.delivery_date)}</td>
-                  <td>{o.customer_po_no}</td>
-                  <td className="num">{money(o.total)}</td>
-                  <td>
-                    <span className={pillClass(o.status)}>{o.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={o} />
                 </tr>
               ))}
             </tbody>
-            {shown.length > 1 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={7}>Total</td>
-                  <td className="num">{money(total)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
+            {shown.length > 1 && <TotalRow shown={columns.shown} rows={shown} show={money} />}
           </table>
           {shown.length > 0 && (
             <p className="small no-print">Click an order to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>
