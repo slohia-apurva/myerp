@@ -277,3 +277,67 @@ class PdfView(APIView):
         scope = str(request.data.get("scope") or "")[:200] or _group_name()
         stem = f"{title}-{datetime.date.today().isoformat()}"
         return pdf_response(title, scope, request.data.get("sheets"), stem)
+
+
+def xlsx(title: str, scope: str, sheets: list[dict]) -> bytes:
+    """The report as an Excel file: the title and scope on top, then each
+    table with its headings; columns of numbers go in as numbers."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    book = Workbook()
+    ws = book.active
+    ws.title = re.sub(r"[\[\]:*?/\\]", " ", title)[:31] or "Report"
+    ws.append([title])
+    ws["A1"].font = Font(bold=True, size=13)
+    if scope:
+        ws.append([scope])
+    for sheet in _clean(sheets):
+        ws.append([])
+        if sheet["title"] and sheet["title"] != title:
+            ws.append([sheet["title"]])
+            ws.cell(ws.max_row, 1).font = Font(bold=True)
+        ws.append(sheet["columns"])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(bold=True)
+        right = [
+            numeric([r[i] for r in sheet["rows"]]) and i not in sheet["text"]
+            for i in range(len(sheet["columns"]))
+        ]
+        for row in sheet["rows"]:
+            ws.append([_number(v) if right[i] else v for i, v in enumerate(row)])
+    for column in ws.columns:
+        width = max((len(str(c.value or "")) for c in column[2:]), default=8)
+        ws.column_dimensions[column[0].column_letter].width = min(max(width + 2, 8), 60)
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
+
+
+def _number(text: str):
+    """1,23,456.50 or ₹ 12.00 Dr -> a number Excel can add up (Dr/Cr kept as text)."""
+    if not text or text == "—" or text.endswith((" Dr", " Cr")):
+        return text
+    plain = text.replace(",", "").replace("₹", "").strip()
+    try:
+        return float(plain) if "." in plain else int(plain)
+    except ValueError:
+        return text
+
+
+class XlsxView(APIView):
+    """POST {title, scope, sheets} -> the same report as an Excel file
+    ("Export to Excel" on a report)."""
+
+    permission_classes = [Signed]
+
+    def post(self, request):
+        title = str(request.data.get("title") or "Report")[:120]
+        scope = str(request.data.get("scope") or "")[:200] or _group_name()
+        stem = _slug(f"{title}-{datetime.date.today().isoformat()}")
+        response = HttpResponse(
+            xlsx(title, scope, request.data.get("sheets")),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{stem}.xlsx"'
+        return response

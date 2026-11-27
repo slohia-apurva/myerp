@@ -142,6 +142,7 @@ urlpatterns = [
     path("gst-rates/", gst_rates.GstRateListView.as_view(), name="gst-rates"),
     path("tds-sections/", gst_rates.TdsSectionListView.as_view(), name="tds-sections"),
     path("print/pdf/", printout.PdfView.as_view(), name="print-pdf"),
+    path("print/xlsx/", printout.XlsxView.as_view(), name="print-xlsx"),
     path("print/mark/", print_mark.MarkView.as_view(), name="print-mark"),
     path(
         "companies/<int:pk>/print-image/",

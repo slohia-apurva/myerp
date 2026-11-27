@@ -99,6 +99,8 @@ export function usePrintMenu(props: {
   scope?: string;
   /** For a screen whose table sits inside a form: give the sheets directly instead of reading the page. */
   read?: () => PrintSheet["sheets"];
+  /** For a paged list or report: fetch every row from the server, not just the page shown. */
+  load?: () => Promise<PrintSheet["sheets"]>;
 }): {
   buttons: ReactNode;
   panel: ReactNode;
@@ -111,20 +113,31 @@ export function usePrintMenu(props: {
   const [error, setError] = useState("");
   const closeSheet = useCallback(() => setSheet(null), []);
   const here = useRef<HTMLSpanElement>(null);
-  const read = (): PrintSheet => {
+  const read = async (): Promise<PrintSheet> => {
+    if (props.load) return { title: props.title, scope: props.scope ?? "", sheets: await props.load() };
     if (props.read) return { title: props.title, scope: props.scope ?? "", sheets: props.read() };
     const page = here.current?.closest("section.page") ?? document.querySelector("section.page");
     return { title: props.title, scope: props.scope ?? "", sheets: page ? readTables(page, props.title) : [] };
   };
-  const print = () => {
+  const print = async () => {
     setError("");
-    const s = read();
+    let s: PrintSheet;
+    try {
+      s = await read();
+    } catch (err) {
+      return setError((err as Error).message);
+    }
     if (!s.sheets.length) return setError("There is nothing on this screen to print.");
     setSheet(s);
   };
   const pdf = async () => {
     setError("");
-    const s = read();
+    let s: PrintSheet;
+    try {
+      s = await read();
+    } catch (err) {
+      return setError((err as Error).message);
+    }
     if (!s.sheets.length) return setError("There is nothing on this screen to put in a PDF.");
     const stem = `${props.title}-${new Date().toISOString().slice(0, 10)}`;
     try {
@@ -298,7 +311,7 @@ export type PrintSheet = {
   title: string;
   scope: string;
   /** The list, then any rows kept inside its records (parts, units of measure). */
-  sheets: { title: string; columns: string[]; rows: string[][]; right?: boolean[] }[];
+  sheets: { title: string; columns: string[]; rows: string[][]; right?: boolean[]; text?: number[] }[];
 };
 
 type RowResult = {

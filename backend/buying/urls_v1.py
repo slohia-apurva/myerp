@@ -11,6 +11,7 @@ from buying import (
     planning,
     purchase_prints,
     receipts,
+    reports,
     returns,
     supplementary,
     supplier_link,
@@ -44,6 +45,11 @@ urlpatterns = [
         "companies/<int:pk>/purchase-orders/rate/",
         api.OrderRateView.as_view(),
         name="purchase-order-rate",
+    ),
+    path(
+        "companies/<int:pk>/pending-purchase-orders/",
+        reports.PendingOrdersView.as_view(),
+        name="pending-purchase-orders",
     ),
     path("purchase-orders/<int:pk>/", api.OrderDetailView.as_view(), name="purchase-order"),
     path(
