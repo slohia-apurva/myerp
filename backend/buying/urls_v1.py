@@ -13,6 +13,7 @@ from buying import (
     po_reminder,
     purchase_prints,
     receipts,
+    reminder_schedule,
     reports,
     returns,
     supplementary,
@@ -74,6 +75,12 @@ urlpatterns = [
         mail_text.OfferedView.as_view(),
         name="purchase-order-mail-templates",
     ),
+    path(
+        "purchase-orders/<int:pk>/reminders/",
+        reminder_schedule.OrderRemindersView.as_view(),
+        name="purchase-order-reminders",
+    ),
+    path("reminder-schedule/", reminder_schedule.ScheduleView.as_view(), name="reminder-schedule"),
     path(
         "purchase-orders/<int:pk>/reminder/",
         po_reminder.ReminderView.as_view(),

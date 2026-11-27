@@ -20,6 +20,7 @@ import { STOCK_COST } from "./Items";
 import { defaultPolicy, TransitInsuranceFold, TransitInsuranceView, type OrderInsurance, type PolicyPick } from "./Insurance";
 import { PoPrint } from "./PoPrint";
 import { EmailSupplier } from "./SupplierMail";
+import { OrderRemindersBox } from "./ReminderSchedule";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
 import { Connections } from "./Connections";
@@ -1884,6 +1885,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
             <ReceivedBox order={order} canClose={can("submit")} onDone={(o) => setOrder(o)} />
           )}
           {!!order.supplier_response?.rows.length && <SupplierReplies box={order.supplier_response} />}
+          {!draft && order.status !== "cancelled" && can("submit") && (
+            <Fold title="Reminders" open>
+              <OrderRemindersBox orderId={order.id} canChange={order.status === "ordered" || order.status === "part_received"} stamp={files} />
+            </Fold>
+          )}
           {!!order.charges?.length && <ChargesView order={order} />}
           {order.insured_by !== "none" && <TransitInsuranceView rows={[order]} />}
           {(order.terms || order.notes) && (

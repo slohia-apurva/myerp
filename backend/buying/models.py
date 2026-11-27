@@ -112,6 +112,8 @@ class PurchaseOrder(models.Model):
     # Who the order is mailed to: ids of the supplier's and the agent firm's contacts,
     # and whether the purchaser gets it too.
     mail_to = models.JSONField(default=list, blank=True)
+    # Leave this order out of the automatic reminders (buying/auto_reminders.py).
+    no_auto_reminders = models.BooleanField(default=False)
     # Contacts ticked to get the order on WhatsApp (kept now; sending comes later).
     whatsapp_to = models.JSONField(default=list, blank=True)
     mail_agent_user = models.BooleanField(default=False)
@@ -1063,3 +1065,70 @@ class BillCheckSetting(models.Model):
     @classmethod
     def current(cls) -> "BillCheckSetting":
         return cls.objects.order_by("pk").first() or cls()
+
+
+class ReminderSchedule(models.Model):
+    """Automatic reminders to suppliers for orders with goods still to come
+    (Sidharth, 2026-11-27, preview po-reminder/5): one schedule for the whole
+    group. Its steps count days from the order's Expected Delivery; then a
+    reminder goes every `repeat_days`, up to `repeat_max` more. Sent once a day
+    from `send_hour` by the hourly scheduler (buying/auto_reminders.py)."""
+
+    is_on = models.BooleanField(default=False)
+    send_hour = models.PositiveSmallIntegerField(default=10, validators=[MaxValueValidator(23)])
+    skip_sundays = models.BooleanField(default=True)
+    copy_purchaser = models.BooleanField(default=True)
+    copy_submitter = models.BooleanField(default=True)
+    repeat_days = models.PositiveSmallIntegerField(default=7)
+    repeat_max = models.PositiveSmallIntegerField(default=4)
+    repeat_template = models.ForeignKey(
+        "core.MailTemplate", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    last_run_on = models.DateField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return "Reminder Schedule"
+
+    @classmethod
+    def current(cls) -> "ReminderSchedule":
+        return cls.objects.order_by("pk").first() or cls.objects.create()
+
+
+class ReminderStep(models.Model):
+    schedule = models.ForeignKey(ReminderSchedule, on_delete=models.CASCADE, related_name="steps")
+    position = models.PositiveSmallIntegerField()
+    days = models.PositiveSmallIntegerField(default=0)
+    before = models.BooleanField(default=False)  # before Expected Delivery, else after
+    template = models.ForeignKey(
+        "core.MailTemplate", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["position"]
+
+    def __str__(self) -> str:
+        return f"{self.days} days {'before' if self.before else 'after'}"
+
+
+class OrderReminder(models.Model):
+    """One reminder about an order's pending goods, sent by hand ("Email
+    Supplier") or by the schedule. A failed automatic one (no mailbox, no
+    address) is kept with `failed`, so the purchaser is told only once."""
+
+    order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="reminders")
+    sent_at = models.DateTimeField(auto_now_add=True)
+    automatic = models.BooleanField(default=False)
+    step = models.PositiveSmallIntegerField(null=True, blank=True)  # automatic: 1, 2, 3…
+    template_name = models.CharField(max_length=80, blank=True)
+    sent_to = models.JSONField(default=list, blank=True)
+    line_count = models.PositiveSmallIntegerField(default=0)
+    by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    failed = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["sent_at", "id"]
+
+    def __str__(self) -> str:
+        return f"Reminder for {self.order}"

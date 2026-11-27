@@ -86,6 +86,7 @@ export type Party = {
   salesman_name?: string;
   preferred_transporter?: number | null;
   preferred_transporter_name?: string;
+  no_auto_reminders?: boolean;
   addresses: PartyAddress[];
   contacts: PartyContact[];
   products: PartyProduct[];
@@ -518,6 +519,13 @@ export function PartyFields({
               />
             </label>
           )}
+          {supplier && (
+            <label className="check">
+              <input type="checkbox" checked={!!p.no_auto_reminders} onChange={(e) => set({ no_auto_reminders: e.target.checked })} />
+              No Automatic Reminders
+              <span className="small">This company's automatic reminders (Masters › Reminder schedule) leave this supplier out.</span>
+            </label>
+          )}
         </div>
         {supplier && (
           <div className="panel-card">
@@ -907,6 +915,7 @@ export function PartySummary({ party: p, states, supplier }: { party: Party; sta
         ] as [string, string][])
       : []),
     ...(p.preferred_transporter_name ? ([["Preferred Transporter", p.preferred_transporter_name]] as [string, string][]) : []),
+    ...(supplier && p.no_auto_reminders ? ([["Automatic Reminders", "Left out"]] as [string, string][]) : []),
   ];
   return (
     <>
