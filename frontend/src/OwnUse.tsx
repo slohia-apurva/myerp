@@ -10,6 +10,7 @@ import { money } from "./Companies";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useKept } from "./Keep";
@@ -120,14 +121,15 @@ export function OwnUsePage({ companyId, session }: { companyId: number; session:
   return <EntryList companyId={companyId} session={session} />;
 }
 
-const COLUMNS: [key: string, label: string, text: (e: Entry) => string, num?: boolean][] = [
-  ["number", "Entry No", (e) => e.number || "Draft"],
-  ["date", "Date", (e) => shortDate(e.entry_date)],
-  ["place", "Branch", (e) => e.place_name],
-  ["items", "Items", (e) => e.items ?? ""],
-  ["reason", "Reason", (e) => e.reason],
-  ["value", "Cost ₹", (e) => (e.status === "draft" ? "" : money(e.value)), true],
-  ["status", "Status", (e) => e.status_label],
+const cost = (e: Entry) => (e.status === "draft" ? "" : money(e.value));
+const COLUMNS: Column<Entry>[] = [
+  { key: "number", label: "Entry No", fixed: true, text: (e) => e.number || "Draft", cell: (e) => <b>{e.number || "Draft"}</b> },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (e) => shortDate(e.entry_date), cell: (e) => shortDate(e.entry_date) },
+  { key: "place", label: "Branch", standard: true, text: (e) => e.place_name, cell: (e) => e.place_name },
+  { key: "items", label: "Items", standard: true, text: (e) => e.items ?? "", cell: (e) => e.items },
+  { key: "reason", label: "Reason", standard: true, text: (e) => e.reason, cell: (e) => e.reason },
+  { key: "value", label: "Cost ₹", standard: true, num: true, text: cost, cell: cost },
+  { key: "status", label: "Status", standard: true, text: (e) => e.status_label, cell: (e) => <span className={pillClass(e.status)}>{e.status_label}</span> },
 ];
 
 function EntryList({ companyId, session }: { companyId: number; session: SignedIn }) {
@@ -146,16 +148,8 @@ function EntryList({ companyId, session }: { companyId: number; session: SignedI
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((e) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => text(e).toLowerCase().includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("own-use", COLUMNS, { sort: false });
   const selected = rows.find((e) => e.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Own use: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`, scope: "" });
   const open = (id: number) => openTab(`${ownUseBase(companyId)}?view=${id}`);
@@ -167,7 +161,7 @@ function EntryList({ companyId, session }: { companyId: number; session: SignedI
         sub={`${shown.length} ${shown.length === 1 ? "entry" : "entries"} · our own stock used inside the company`}
         actions={
           <>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
             {can(session, "create") && (
               <button type="button" onClick={() => openTab(`${ownUseBase(companyId)}?form=new`)}>
                 New Own Use
@@ -178,6 +172,7 @@ function EntryList({ companyId, session }: { companyId: number; session: SignedI
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -192,25 +187,12 @@ function EntryList({ companyId, session }: { companyId: number; session: SignedI
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(ev) => setSearch({ ...search, [key]: ev.target.value })} />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No own use entries match.
                   </td>
                 </tr>
@@ -226,17 +208,7 @@ function EntryList({ companyId, session }: { companyId: number; session: SignedI
                     if (ev.key === "Enter") open(e.id);
                   }}
                 >
-                  <td>
-                    <b>{e.number || "Draft"}</b>
-                  </td>
-                  <td className="nowrap">{shortDate(e.entry_date)}</td>
-                  <td>{e.place_name}</td>
-                  <td>{e.items}</td>
-                  <td>{e.reason}</td>
-                  <td className="num">{e.status === "draft" ? "" : money(e.value)}</td>
-                  <td>
-                    <span className={pillClass(e.status)}>{e.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={e} />
                 </tr>
               ))}
             </tbody>

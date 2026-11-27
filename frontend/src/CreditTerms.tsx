@@ -6,6 +6,7 @@ import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
@@ -47,6 +48,24 @@ export function useCreditTerms() {
  * view or duplicate one credit term (Sidharth, 2026-11-13). */
 const formParam = () => hashParam("form");
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const TERM_COLUMNS: Column<CreditTerm>[] = [
+  {
+    key: "name",
+    label: "Name",
+    fixed: true,
+    cell: (t) => (
+      <>
+        {t.name}
+        {!t.is_active && <span className="pill">Inactive</span>}
+      </>
+    ),
+  },
+  { key: "summary", label: "When payment is due", standard: true, cell: (t) => t.summary },
+  { key: "parties", label: "Parties", standard: true, num: true, cell: (t) => t.party_count || "" },
+  { key: "notes", label: "Notes", cell: (t) => <span className="small">{t.notes}</span> },
+];
+
 /** Masters > Credit terms: one list for every company in the group. The details of the
  * clicked row are on the right; Add, Edit and Duplicate open in a new tab. */
 export function CreditTermsPage({ session }: { session: SignedIn }) {
@@ -69,7 +88,8 @@ function TermList(props: { session: SignedIn; canEdit: boolean; terms: CreditTer
     // Opened by "Create …" in a dropdown: go straight to the Add page.
     if (startName && canEdit) window.location.hash = `#/credit-terms?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const io = useExchange({ master: "credit-terms", noun: "credit terms", session: props.session, onImported: reload });
+  const columns = useColumns("credit-terms", TERM_COLUMNS, { sort: false });
+  const io = useExchange({ master: "credit-terms", noun: "credit terms", session: props.session, onImported: reload, extra: [columns.item] });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     // Opened from a link (for example a duplicate-name refusal): select that row.
@@ -92,17 +112,20 @@ function TermList(props: { session: SignedIn; canEdit: boolean; terms: CreditTer
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>When payment is due</th>
-                <th className="num">Parties</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
                 <ActionHeads />
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
             </thead>
             <tbody>
               {terms.map((t) => (
@@ -112,12 +135,7 @@ function TermList(props: { session: SignedIn; canEdit: boolean; terms: CreditTer
                   onClick={() => setSelected(t.id)}
                   onDoubleClick={() => openTab(`#/credit-terms?form=${t.id}`)}
                 >
-                  <td>
-                    {t.name}
-                    {!t.is_active && <span className="pill">Inactive</span>}
-                  </td>
-                  <td>{t.summary}</td>
-                  <td className="num">{t.party_count || ""}</td>
+                  <Cells shown={columns.shown} row={t} />
                   <ActionCells
                     canEdit={canEdit}
                     onOpen={() => openTab(`#/credit-terms?form=${t.id}`)}

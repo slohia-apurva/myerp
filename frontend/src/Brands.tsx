@@ -5,6 +5,7 @@ import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useOpenParam } from "./ErrorNote";
 import { useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ColumnSearch } from "./ColumnSearch";
@@ -30,6 +31,23 @@ export function useBrands() {
  * view or duplicate one brand (Sidharth, 2026-11-13). */
 const formParam = () => hashParam("form");
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const BRAND_COLUMNS: Column<Brand>[] = [
+  {
+    key: "name",
+    label: "Brand",
+    fixed: true,
+    cell: (b) => (
+      <>
+        {b.name}
+        {!b.is_active && <span className="pill">Disabled</span>}
+      </>
+    ),
+  },
+  { key: "notes", label: "Notes", standard: true, cell: (b) => <span className="small">{b.notes}</span> },
+  { key: "items", label: "Items", standard: true, num: true, cell: (b) => (b.item_count > 0 ? b.item_count : <span className="small">—</span>) },
+];
+
 /** Masters > Brands. The details of the clicked row are on the right; Add, Edit and
  * Duplicate open in a new tab. */
 export function BrandsPage({ session }: { session: SignedIn }) {
@@ -52,7 +70,8 @@ function BrandList(props: { session: SignedIn; canEdit: boolean; brands: Brand[]
     // Opened by "Create …" in a dropdown: go straight to the Add page.
     if (startName && canEdit) window.location.hash = `#/brands?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const io = useExchange({ master: "brands", noun: "brands", session: props.session, onImported: reload });
+  const columns = useColumns("brands", BRAND_COLUMNS, { sort: false });
+  const io = useExchange({ master: "brands", noun: "brands", session: props.session, onImported: reload, extra: [columns.item] });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     // Opened from a link (for example a duplicate-name refusal): select that row.
@@ -76,17 +95,20 @@ function BrandList(props: { session: SignedIn; canEdit: boolean; brands: Brand[]
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>Brand</th>
-                <th>Notes</th>
-                <th className="num">Items</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
                 <ActionHeads />
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
             </thead>
             <tbody>
               {brands.map((b) => (
@@ -96,18 +118,13 @@ function BrandList(props: { session: SignedIn; canEdit: boolean; brands: Brand[]
                   onClick={() => setSelected(b.id)}
                   onDoubleClick={() => edit(b.id)}
                 >
-                  <td>
-                    {b.name}
-                    {!b.is_active && <span className="pill">Disabled</span>}
-                  </td>
-                  <td className="small">{b.notes}</td>
-                  <td className="num">{b.item_count > 0 ? b.item_count : <span className="small">—</span>}</td>
+                  <Cells shown={columns.shown} row={b} />
                   <ActionCells canEdit={canEdit} onOpen={() => edit(b.id)} onDuplicate={() => edit(`copy-${b.id}`)} />
                 </tr>
               ))}
               {brands.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="small">
+                  <td colSpan={columns.shown.length + 2} className="small">
                     No brands yet. Click "Add brand".
                   </td>
                 </tr>

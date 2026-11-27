@@ -14,6 +14,7 @@ import { announceSaved, closeThisTab, creatable, useCreated, type Creatable } fr
 import { useCreditTerms, type CreditTerm } from "./CreditTerms";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, TotalRow, useColumns, type Column } from "./Columns";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { STOCK_COST } from "./Items";
 import { defaultPolicy, TransitInsuranceFold, TransitInsuranceView, type OrderInsurance, type PolicyPick } from "./Insurance";
@@ -282,16 +283,38 @@ export function PurchaseOrdersPage({ companyId, session }: { companyId: number; 
 // The list ----------------------------------------------------------------------
 
 /** What each column's search box looks in. */
-const COLUMNS: [key: string, label: string, text: (o: PurchaseOrder) => string, num?: boolean][] = [
-  ["number", "PO No", (o) => o.number || "Draft"],
-  ["date", "Date", (o) => `${shortDate(o.order_date)} ${showDate(o.order_date)}`],
-  ["supplier", "Supplier", (o) => o.supplier_name],
-  ["branch", "Deliver To", (o) => o.branch_name],
-  ["expected", "Expected", (o) => `${shortDate(o.expected_date)} ${showDate(o.expected_date)}`],
-  ["ref", "Supplier Ref", (o) => o.supplier_ref],
-  ["total", "Amount ₹", (o) => `${o.total} ${money(o.total)}`, true],
-  ["status", "Status", (o) => o.status_label],
-  ["reply", "Supplier Reply", (o) => o.supplier_status_label],
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const COLUMNS: Column<PurchaseOrder>[] = [
+  { key: "number", label: "PO No", fixed: true, text: (o) => o.number || "Draft", cell: (o) => (o.number ? <b>{o.number}</b> : <span className="small">Draft</span>) },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (o) => `${shortDate(o.order_date)} ${showDate(o.order_date)}`, cell: (o) => shortDate(o.order_date) },
+  { key: "supplier", label: "Supplier", standard: true, text: (o) => o.supplier_name, cell: (o) => o.supplier_name },
+  { key: "branch", label: "Deliver To", standard: true, text: (o) => o.branch_name, cell: (o) => o.branch_name },
+  { key: "expected", label: "Expected", standard: true, nowrap: true, text: (o) => `${shortDate(o.expected_date)} ${showDate(o.expected_date)}`, cell: (o) => shortDate(o.expected_date) },
+  { key: "ref", label: "Supplier Ref", standard: true, text: (o) => o.supplier_ref, cell: (o) => o.supplier_ref },
+  {
+    key: "total",
+    label: "Amount ₹",
+    standard: true,
+    num: true,
+    text: (o) => `${o.total} ${money(o.total)}`,
+    total: (o) => Number(o.total),
+    cell: (o) => (o.currency !== "INR" ? `${o.currency_symbol}${money(o.total)}` : money(o.total)),
+  },
+  { key: "status", label: "Status", standard: true, text: (o) => o.status_label, cell: (o) => <span className={pillClass(o.status)}>{o.status_label}</span> },
+  {
+    key: "reply",
+    label: "Supplier Reply",
+    standard: true,
+    text: (o) => o.supplier_status_label,
+    cell: (o) => o.number && o.status !== "cancelled" && <span className={replyClass(o.supplier_status)}>{o.supplier_status_label}</span>,
+  },
+  { key: "taxable", label: "Taxable ₹", num: true, text: (o) => money(o.taxable_total), total: (o) => Number(o.taxable_total), cell: (o) => money(o.taxable_total) },
+  { key: "items", label: "Items", num: true, text: (o) => String(o.line_count), cell: (o) => o.line_count },
+  { key: "term", label: "Credit Term", text: (o) => o.credit_term_name, cell: (o) => o.credit_term_name },
+  { key: "transporter", label: "Transporter", text: (o) => o.transporter_name, cell: (o) => o.transporter_name },
+  { key: "purchaser", label: "Purchaser", text: (o) => o.purchaser_name, cell: (o) => o.purchaser_name },
+  { key: "gstin", label: "Supplier GSTIN", text: (o) => o.supplier_gstin, cell: (o) => o.supplier_gstin },
+  { key: "made_by", label: "Made By", text: (o) => o.created_by_name, cell: (o) => o.created_by_name },
 ];
 const replyClass = (s: string) => (s === "accepted" ? "pill on" : s === "issue" ? "pill warn" : "pill");
 
@@ -313,21 +336,11 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      orders.filter((o) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          const value = text(o).toLowerCase();
-          return words.every((w) => value.includes(w));
-        }),
-      ),
-    [orders, search],
-  );
+  const shown = useMemo(() => matching(orders, COLUMNS, search), [orders, search]);
+  const columns = useColumns("purchase-orders", COLUMNS, { sort: false });
   const selected = orders.find((o) => o.id === selectedId) ?? null;
   const viewLabel = VIEWS.find(([v]) => v === view)?.[1] ?? "";
   const printing = usePrintMenu({ title: `Purchase orders: ${viewLabel}`, scope: setup?.company_name ?? "" });
-  const total = shown.reduce((sum, o) => sum + Number(o.total), 0);
 
   return (
     <section className="page">
@@ -349,12 +362,13 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
               </button>
             )}
             {canCreate && <button onClick={() => openTab(`${base(companyId)}?form=new`)}>New purchase order</button>}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -369,31 +383,12 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                    />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No purchase orders match.
                   </td>
                 </tr>
@@ -409,30 +404,11 @@ function OrderList({ companyId, session }: { companyId: number; session: SignedI
                     if (e.key === "Enter") openTab(`${base(companyId)}?view=${o.id}`);
                   }}
                 >
-                  <td>{o.number ? <b>{o.number}</b> : <span className="small">Draft</span>}</td>
-                  <td className="nowrap">{shortDate(o.order_date)}</td>
-                  <td>{o.supplier_name}</td>
-                  <td>{o.branch_name}</td>
-                  <td className="nowrap">{shortDate(o.expected_date)}</td>
-                  <td>{o.supplier_ref}</td>
-                  <td className="num">{o.currency !== "INR" ? `${o.currency_symbol}${money(o.total)}` : money(o.total)}</td>
-                  <td>
-                    <span className={pillClass(o.status)}>{o.status_label}</span>
-                  </td>
-                  <td>{o.number && o.status !== "cancelled" && <span className={replyClass(o.supplier_status)}>{o.supplier_status_label}</span>}</td>
+                  <Cells shown={columns.shown} row={o} />
                 </tr>
               ))}
             </tbody>
-            {shown.length > 1 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={6}>Total</td>
-                  <td className="num">{money(total)}</td>
-                  <td />
-                  <td />
-                </tr>
-              </tfoot>
-            )}
+            {shown.length > 1 && <TotalRow shown={columns.shown} rows={shown} show={money} />}
           </table>
           {shown.length > 0 && (
             <p className="small no-print">Click an order to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>

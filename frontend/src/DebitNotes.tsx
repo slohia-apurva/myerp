@@ -8,6 +8,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, TotalRow, useColumns, type Column } from "./Columns";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { EntriesBox, Totals, type Entry } from "./PurchaseInvoices";
 import { rateCalc, RateLinesTable, type RateLine } from "./RateLines";
@@ -136,14 +137,29 @@ const VIEWS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" },
 ];
-const COLUMNS: [key: string, label: string, text: (r: Note) => string, num?: boolean][] = [
-  ["number", "DN No", (r) => r.number || "Draft"],
-  ["date", "Date", (r) => `${shortDate(r.note_date)} ${showDate(r.note_date)}`],
-  ["supplier", "Supplier", (r) => r.supplier_name],
-  ["invoice", "Against Invoice", (r) => `${r.invoice_number} ${r.bill_no}`],
-  ["reason", "Reason", (r) => r.reason_label],
-  ["total", "Amount ₹", (r) => `${r.total} ${money(r.total)}`, true],
-  ["status", "Status", (r) => r.status_label],
+const COLUMNS: Column<Note>[] = [
+  { key: "number", label: "DN No", fixed: true, text: (r) => r.number || "Draft", cell: (r) => (r.number ? <b>{r.number}</b> : <span className="small">Draft</span>) },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (r) => `${shortDate(r.note_date)} ${showDate(r.note_date)}`, cell: (r) => shortDate(r.note_date) },
+  { key: "supplier", label: "Supplier", standard: true, text: (r) => r.supplier_name, cell: (r) => r.supplier_name },
+  {
+    key: "invoice",
+    label: "Against Invoice",
+    standard: true,
+    text: (r) => `${r.invoice_number} ${r.bill_no}`,
+    cell: (r) => (
+      <>
+        {r.invoice_number} <span className="small">Bill {r.bill_no}</span>
+      </>
+    ),
+  },
+  { key: "reason", label: "Reason", standard: true, text: (r) => r.reason_label, cell: (r) => r.reason_label },
+  { key: "total", label: "Amount ₹", standard: true, num: true, text: (r) => `${r.total} ${money(r.total)}`, total: (r) => Number(r.total), cell: (r) => money(r.total) },
+  { key: "status", label: "Status", standard: true, text: (r) => r.status_label, cell: (r) => <span className={pillClass(r.status)}>{r.status_label}</span> },
+  { key: "taxable", label: "Taxable ₹", num: true, text: (r) => money(r.taxable_total), total: (r) => Number(r.taxable_total), cell: (r) => money(r.taxable_total) },
+  { key: "supplier_note", label: "Supplier Note No", text: (r) => r.supplier_note_no, cell: (r) => r.supplier_note_no },
+  { key: "gstin", label: "Supplier GSTIN", text: (r) => r.supplier_gstin, cell: (r) => r.supplier_gstin },
+  { key: "branch", label: "Branch", text: (r) => r.branch_name, cell: (r) => r.branch_name },
+  { key: "made_by", label: "Made By", text: (r) => r.created_by_name, cell: (r) => r.created_by_name },
 ];
 
 function NoteList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
@@ -160,20 +176,10 @@ function NoteList({ companyId, canCreate }: { companyId: number; canCreate: bool
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((r) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          const value = text(r).toLowerCase();
-          return words.every((w) => value.includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("debit-notes", COLUMNS, { sort: false });
   const selected = rows.find((r) => r.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Debit notes: ${VIEWS.find((v) => v.value === view)?.label ?? ""}`, scope: "" });
-  const total = shown.reduce((sum, r) => sum + Number(r.total), 0);
   return (
     <section className="page">
       <PageHeader
@@ -194,12 +200,13 @@ function NoteList({ companyId, canCreate }: { companyId: number; canCreate: bool
               </button>
             )}
             {canCreate && <button onClick={() => openTab(`${base(companyId)}?form=new`)}>New debit note</button>}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
       />
       <ErrorNote error={error} />
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -214,31 +221,12 @@ function NoteList({ companyId, canCreate }: { companyId: number; canCreate: bool
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , isNum]) => (
-                  <th key={key} className={isNum ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                    />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No debit notes match.
                   </td>
                 </tr>
@@ -254,29 +242,11 @@ function NoteList({ companyId, canCreate }: { companyId: number; canCreate: bool
                     if (e.key === "Enter") openTab(`${base(companyId)}?view=${r.id}`);
                   }}
                 >
-                  <td>{r.number ? <b>{r.number}</b> : <span className="small">Draft</span>}</td>
-                  <td className="nowrap">{shortDate(r.note_date)}</td>
-                  <td>{r.supplier_name}</td>
-                  <td>
-                    {r.invoice_number} <span className="small">Bill {r.bill_no}</span>
-                  </td>
-                  <td>{r.reason_label}</td>
-                  <td className="num">{money(r.total)}</td>
-                  <td>
-                    <span className={pillClass(r.status)}>{r.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={r} />
                 </tr>
               ))}
             </tbody>
-            {shown.length > 1 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={5}>Total</td>
-                  <td className="num">{money(String(r2(total)))}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
+            {shown.length > 1 && <TotalRow shown={columns.shown} rows={shown} show={(n) => money(String(n))} />}
           </table>
           {shown.length > 0 && (
             <p className="small no-print">Click a debit note to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>

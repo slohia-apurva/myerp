@@ -9,6 +9,7 @@ import { money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { invoiceBase, makeSalesInvoice } from "./SalesInvoices";
@@ -164,15 +165,15 @@ export function DeliveryNotesPage({ companyId, session }: { companyId: number; s
   return <NoteList companyId={companyId} />;
 }
 
-const COLUMNS: [key: string, label: string, text: (n: Note) => string, num?: boolean][] = [
-  ["number", "Note No", (n) => n.number || "Draft"],
-  ["date", "Date", (n) => shortDate(n.note_date)],
-  ["customer", "Customer", (n) => n.customer_name],
-  ["order", "Sales Order", (n) => n.order_number],
-  ["despatch", "Despatch From", (n) => n.despatch_from],
-  ["vehicle", "Vehicle No", (n) => n.vehicle_no],
-  ["value", "Taxable ₹", (n) => money(n.taxable_total), true],
-  ["status", "Status", (n) => n.status_label],
+const COLUMNS: Column<Note>[] = [
+  { key: "number", label: "Note No", fixed: true, text: (n) => n.number || "Draft", cell: (n) => <b>{n.number || "Draft"}</b> },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (n) => shortDate(n.note_date), cell: (n) => shortDate(n.note_date) },
+  { key: "customer", label: "Customer", standard: true, text: (n) => n.customer_name, cell: (n) => n.customer_name },
+  { key: "order", label: "Sales Order", standard: true, text: (n) => n.order_number, cell: (n) => n.order_number },
+  { key: "despatch", label: "Despatch From", standard: true, text: (n) => n.despatch_from, cell: (n) => n.despatch_from },
+  { key: "vehicle", label: "Vehicle No", standard: true, text: (n) => n.vehicle_no, cell: (n) => n.vehicle_no },
+  { key: "value", label: "Taxable ₹", standard: true, num: true, text: (n) => money(n.taxable_total), cell: (n) => money(n.taxable_total) },
+  { key: "status", label: "Status", standard: true, text: (n) => n.status_label, cell: (n) => <span className={pillClass(n.status)}>{n.status_label}</span> },
 ];
 
 function NoteList({ companyId }: { companyId: number }) {
@@ -191,16 +192,8 @@ function NoteList({ companyId }: { companyId: number }) {
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      notes.filter((n) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => text(n).toLowerCase().includes(w));
-        }),
-      ),
-    [notes, search],
-  );
+  const shown = useMemo(() => matching(notes, COLUMNS, search), [notes, search]);
+  const columns = useColumns("delivery-notes", COLUMNS, { sort: false });
   const selected = notes.find((n) => n.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Delivery notes: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`, scope: "" });
   const open = (id: number) => openTab(`${deliveryBase(companyId)}?view=${id}`);
@@ -210,10 +203,11 @@ function NoteList({ companyId }: { companyId: number }) {
         title="Delivery Note"
         crumbs={[{ label: "Entry › Sales", href: deliveryBase(companyId) }]}
         sub={`${shown.length} ${shown.length === 1 ? "delivery note" : "delivery notes"} · made from a picked pick list ("Create ▾" on the order or the list)`}
-        actions={printing.buttons}
+        actions={printing.menu([...printing.items, columns.item])}
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -228,31 +222,12 @@ function NoteList({ companyId }: { companyId: number }) {
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                    />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No delivery notes match.
                   </td>
                 </tr>
@@ -268,18 +243,7 @@ function NoteList({ companyId }: { companyId: number }) {
                     if (e.key === "Enter") open(n.id);
                   }}
                 >
-                  <td>
-                    <b>{n.number || "Draft"}</b>
-                  </td>
-                  <td className="nowrap">{shortDate(n.note_date)}</td>
-                  <td>{n.customer_name}</td>
-                  <td>{n.order_number}</td>
-                  <td>{n.despatch_from}</td>
-                  <td>{n.vehicle_no}</td>
-                  <td className="num">{money(n.taxable_total)}</td>
-                  <td>
-                    <span className={pillClass(n.status)}>{n.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={n} />
                 </tr>
               ))}
             </tbody>

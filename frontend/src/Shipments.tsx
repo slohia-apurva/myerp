@@ -5,6 +5,7 @@ import { useItemSearch } from "./ItemSearch";
 import { api, type SignedIn } from "./api";
 import { PageHeader, Section } from "./Brand";
 import { usePrintMenu } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { Combobox } from "./Combobox";
 import { type Company, type Contact } from "./Companies";
 import { useOnReturn, useReturns } from "./Refresh";
@@ -50,6 +51,75 @@ type TrackingEvent = {
   source: string;
   by: string;
 };
+
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const SHIPMENT_COLUMNS: Column<Shipment>[] = [
+  { key: "booked", label: "Booked", fixed: true, nowrap: true, cell: (s) => day(s.booked_on) },
+  {
+    key: "awb",
+    label: "AWB and courier",
+    standard: true,
+    cell: (s) => (
+      <>
+        {s.tracking_link ? (
+          <a href={s.tracking_link} target="_blank" rel="noreferrer">
+            {s.awb}
+          </a>
+        ) : (
+          s.awb
+        )}
+        <div className="small">{s.account_name}</div>
+      </>
+    ),
+  },
+  {
+    key: "customer",
+    label: "Customer and invoice",
+    standard: true,
+    cell: (s) => (
+      <>
+        {s.party_name}
+        {s.reference && <div className="small">{s.reference}</div>}
+      </>
+    ),
+  },
+  { key: "to", label: "To", standard: true, cell: (s) => [s.ship_to_city, s.ship_to_pincode].filter(Boolean).join(" ") },
+  {
+    key: "status",
+    label: "Status",
+    standard: true,
+    cell: (s) => (
+      <>
+        {s.cancelled ? (
+          <span className="pill">Cancelled</span>
+        ) : s.alerts.includes(s.status_label) ? (
+          <span className="pill action-delete">{s.status_label}</span>
+        ) : (
+          s.status_label
+        )}
+        {s.alerts
+          .filter((a) => a !== s.status_label)
+          .map((a) => (
+            <span key={a} className="pill action-delete">
+              {a}
+            </span>
+          ))}
+      </>
+    ),
+  },
+  {
+    key: "update",
+    label: "Last update",
+    standard: true,
+    cell: (s) => (
+      <>
+        <span style={{ whiteSpace: "nowrap" }}>{when(s.last_event_at)}</span>
+        {s.last_place && <div className="small">{s.last_place}</div>}
+      </>
+    ),
+  },
+  { key: "days", label: "Days out", standard: true, cell: (s) => (s.is_open ? s.days_out : "") },
+];
 
 type Shipment = {
   id: number;
@@ -259,6 +329,7 @@ export function ShipmentsPage({
     title: `Shipments: ${viewLabel}`,
     scope: [company?.name, q && `Search: ${q}`].filter(Boolean).join(" · "),
   });
+  const columns = useColumns("shipments", SHIPMENT_COLUMNS, { sort: false });
   if (company && !company.modules.includes("sales"))
     return <NoSales company={company} />;
   const changed = () => setStamp((n) => n + 1);
@@ -270,7 +341,7 @@ export function ShipmentsPage({
         sub={`${company?.name ?? ""}: every AWB sent out and where it is now.`}
         actions={
           <>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
             {canMasters && (
               <a
                 className="button secondary"
@@ -304,6 +375,7 @@ export function ShipmentsPage({
         </nav>
       </PageHeader>
       {printing.panel}
+      {columns.panel}
       <>
         {open === "new" && (
           <ShipmentForm
@@ -354,70 +426,16 @@ export function ShipmentsPage({
           <table>
             <thead>
               <tr>
-                <th>Booked</th>
-                <th>AWB and courier</th>
-                <th>Customer and invoice</th>
-                <th>To</th>
-                <th>Status</th>
-                <th>Last update</th>
-                <th>Days out</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key}>{c.label}</th>
+                ))}
                 <th />
               </tr>
             </thead>
             <tbody>
               {rows.map((s) => (
                 <tr key={s.id} className={s.cancelled ? "off" : ""}>
-                  <td style={{ whiteSpace: "nowrap" }}>{day(s.booked_on)}</td>
-                  <td>
-                    {s.tracking_link ? (
-                      <a
-                        href={s.tracking_link}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {s.awb}
-                      </a>
-                    ) : (
-                      s.awb
-                    )}
-                    <div className="small">{s.account_name}</div>
-                  </td>
-                  <td>
-                    {s.party_name}
-                    {s.reference && <div className="small">{s.reference}</div>}
-                  </td>
-                  <td>
-                    {[s.ship_to_city, s.ship_to_pincode]
-                      .filter(Boolean)
-                      .join(" ")}
-                  </td>
-                  <td>
-                    {s.cancelled ? (
-                      <span className="pill">Cancelled</span>
-                    ) : s.alerts.includes(s.status_label) ? (
-                      <span className="pill action-delete">
-                        {s.status_label}
-                      </span>
-                    ) : (
-                      s.status_label
-                    )}
-                    {s.alerts
-                      .filter((a) => a !== s.status_label)
-                      .map((a) => (
-                        <span key={a} className="pill action-delete">
-                          {a}
-                        </span>
-                      ))}
-                  </td>
-                  <td>
-                    <span style={{ whiteSpace: "nowrap" }}>
-                      {when(s.last_event_at)}
-                    </span>
-                    {s.last_place && (
-                      <div className="small">{s.last_place}</div>
-                    )}
-                  </td>
-                  <td>{s.is_open ? s.days_out : ""}</td>
+                  <Cells shown={columns.shown} row={s} />
                   <td className="act">
                     <button className="link" onClick={() => setOpen(s.id)}>
                       Open

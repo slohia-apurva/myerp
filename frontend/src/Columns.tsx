@@ -11,7 +11,13 @@ export type Column<T> = {
   fixed?: boolean;
   standard?: boolean;
   num?: boolean;
+  /** Keep the cell on one line (dates). */
+  nowrap?: boolean;
   search?: string;
+  /** Lists that search on the screen: the words a search box under this column matches. */
+  text?: (row: T) => string;
+  /** Added up in the list's Total line (amounts). */
+  total?: (row: T) => number;
   /** false: the heading cannot be clicked to sort (a figure worked out per company, say). */
   sort?: false;
   cell: (row: T) => ReactNode;
@@ -25,9 +31,12 @@ export type Column<T> = {
 export function useColumns<T>(
   list: string,
   all: Column<T>[],
+  /** sort: false for a list the server does not sort: its headings stay plain. */
+  options: { sort?: false } = {},
 ): { shown: Column<T>[]; item: MenuItem; panel: ReactNode; sort: string; heading: (c: Column<T>) => ReactNode } {
   const [chosen, setChosen] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
+  const sortable = options.sort !== false;
   // The column the list is sorted by: "hsn" A to Z, "-hsn" Z to A, "" the screen's own order. Kept
   // under the person's sign-in with their columns (Sidharth, 2026-11-24).
   const [sort, setSort] = useState("");
@@ -36,11 +45,13 @@ export function useColumns<T>(
       (r) => setChosen(r.columns),
       () => undefined,
     );
-    api<{ columns: string[] }>(`v1/my-columns/${list}-sort/`).then(
-      (r) => setSort(r.columns[0] ?? ""),
-      () => undefined,
-    );
-  }, [list]);
+    // A list the server does not sort keeps no sort to fetch.
+    if (sortable)
+      api<{ columns: string[] }>(`v1/my-columns/${list}-sort/`).then(
+        (r) => setSort(r.columns[0] ?? ""),
+        () => undefined,
+      );
+  }, [list, sortable]);
   const sortBy = (key: string) => {
     const next = sort === key ? `-${key}` : key;
     setSort(next);
@@ -48,7 +59,7 @@ export function useColumns<T>(
   };
   /** A heading: click to sort by it (▲ A to Z, ▼ Z to A); the others show a grey ⇅. */
   const heading = (c: Column<T>) => {
-    if (c.sort === false) return c.label;
+    if (c.sort === false || !sortable) return c.label;
     const on = sort === c.key ? "▲" : sort === `-${c.key}` ? "▼" : "";
     return (
       // A span, not a button, so Print still reads the heading; the arrow is left out of print.
@@ -185,5 +196,86 @@ function ChooseColumns<T>(props: { all: Column<T>[]; shown: string[]; onSave: (k
         </div>
       </div>
     </div>
+  );
+}
+
+/** A list that searches on the screen: the rows whose columns hold every word typed under them. */
+export function matching<T>(rows: T[], all: Column<T>[], search: Record<string, string>): T[] {
+  const asked = all
+    .filter((c) => c.text)
+    .map((c) => ({ text: c.text!, words: (search[c.key] ?? "").toLowerCase().split(/\s+/).filter(Boolean) }))
+    .filter((c) => c.words.length);
+  if (!asked.length) return rows;
+  return rows.filter((r) => asked.every((c) => {
+    const value = c.text(r).toLowerCase();
+    return c.words.every((w) => value.includes(w));
+  }));
+}
+
+/** The headings of a list that searches on the screen, with a search box under each shown column. */
+export function ListHeads<T>(props: {
+  shown: Column<T>[];
+  search: Record<string, string>;
+  setSearch: (next: Record<string, string>) => void;
+  heading?: (c: Column<T>) => ReactNode;
+}) {
+  return (
+    <>
+      <tr>
+        {props.shown.map((c) => (
+          <th key={c.key} className={c.num ? "num" : undefined}>
+            {props.heading ? props.heading(c) : c.label}
+          </th>
+        ))}
+      </tr>
+      <tr className="col-search no-print">
+        {props.shown.map((c) => (
+          <th key={c.key}>
+            {c.text && (
+              <input
+                type="search"
+                aria-label={`Search ${c.label}`}
+                placeholder="Search"
+                value={props.search[c.key] ?? ""}
+                onChange={(e) => props.setSearch({ ...props.search, [c.key]: e.target.value })}
+              />
+            )}
+          </th>
+        ))}
+      </tr>
+    </>
+  );
+}
+
+/** One row's cells, in the person's columns. */
+export function Cells<T>({ shown, row }: { shown: Column<T>[]; row: T }) {
+  return (
+    <>
+      {shown.map((c) => (
+        <td key={c.key} className={c.num ? "num" : c.nowrap ? "nowrap" : undefined}>
+          {c.cell(row)}
+        </td>
+      ))}
+    </>
+  );
+}
+
+/** The "Total" line under a list: each shown column with a `total` added up, the word "Total" in
+ * the first column; nothing when no amount column is shown. */
+export function TotalRow<T>(props: { shown: Column<T>[]; rows: T[]; show: (n: number) => ReactNode; extra?: number }) {
+  if (!props.shown.some((c) => c.total)) return null;
+  return (
+    <tfoot>
+      <tr>
+        {props.shown.map((c, i) => (
+          <td key={c.key} className={c.total ? "num" : undefined}>
+            {c.total ? props.show(Math.round(props.rows.reduce((sum, r) => sum + c.total!(r), 0) * 100) / 100) : i === 0 ? "Total" : null}
+          </td>
+        ))}
+        {Array.from({ length: props.extra ?? 0 }, (_, i) => (
+          <td key={`x${i}`} />
+        ))}
+      </tr>
+    </tfoot>
   );
 }

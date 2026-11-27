@@ -1,11 +1,29 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { PageHeader } from "./Brand";
 import { ColumnSearch } from "./ColumnSearch";
 import { usePrintMenu } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { SidePanel, SideRows } from "./Master";
 import { type PinInfo, type PinRow, searchPins } from "./Pin";
 import { openRequestAddition } from "./RequestAddition";
+
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const PIN_COLUMNS: Column<PinRow>[] = [
+  {
+    key: "pin",
+    label: "PIN Code",
+    fixed: true,
+    cell: (r) => (
+      <>
+        {r.pin}
+        {!r.is_active && <span className="pill">Inactive</span>}
+      </>
+    ),
+  },
+  { key: "city", label: "City", standard: true, cell: (r) => r.city },
+  { key: "state", label: "State", standard: true, cell: (r) => r.state_name },
+];
 
 /** Masters > PIN codes: the central list of PIN, city and state that an Indian address is
  * picked from. The details of the clicked row, with the couriers that deliver there, are on
@@ -27,6 +45,17 @@ export function PinCodesPage({ session }: { session: SignedIn }) {
     setInfo(null);
     if (pin) api<PinInfo>(`v1/pin/${pin}/`).then(setInfo, () => setInfo(null));
   }, [pin]);
+  const columns = useColumns("pin-codes", PIN_COLUMNS, { sort: false });
+  // The boxes follow the person's columns; the server takes them as PIN, city and state.
+  const shownKeys = columns.shown.map((c) => c.key).join(",");
+  const onSearch = useCallback(
+    (values: string[]) => {
+      const keys = shownKeys.split(",");
+      const next = ["pin", "city", "state"].map((k) => values[keys.indexOf(k)] ?? "");
+      setCols((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+    },
+    [shownKeys],
+  );
   const printing = usePrintMenu({ title: "PIN codes", scope: q ? `Search: ${q}` : "" });
   const couriers = info?.couriers.map((c) => `${c.courier}${c.oda ? " (out of delivery area)" : ""}`).join(", ");
   return (
@@ -40,12 +69,13 @@ export function PinCodesPage({ session }: { session: SignedIn }) {
                 Request Addition
               </button>
             )}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
         sub={`${found.total} PIN code${found.total === 1 ? "" : "s"} · kept centrally by MyERP, the same for every company. Picked on an Indian address, which fills its city and state.`}
       />
       {printing.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <input
@@ -57,11 +87,13 @@ export function PinCodesPage({ session }: { session: SignedIn }) {
           <table className="pick">
             <thead>
               <tr>
-                <th>PIN Code</th>
-                <th>City</th>
-                <th>State</th>
-              </tr>
-              <ColumnSearch onSearch={setCols} />
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
+                </tr>
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} onSearch={onSearch} />
             </thead>
             <tbody>
               {found.results.map((r) => (
@@ -70,17 +102,12 @@ export function PinCodesPage({ session }: { session: SignedIn }) {
                   className={`${r.is_active ? "" : "off"}${selectedId === r.id ? " selected" : ""}`}
                   onClick={() => setSelected(r.id)}
                 >
-                  <td>
-                    {r.pin}
-                    {!r.is_active && <span className="pill">Inactive</span>}
-                  </td>
-                  <td>{r.city}</td>
-                  <td>{r.state_name}</td>
+                  <Cells shown={columns.shown} row={r} />
                 </tr>
               ))}
               {found.results.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     {found.total === 0 && !searching ? "The list has not been loaded yet." : "Nothing matches."}
                   </td>
                 </tr>

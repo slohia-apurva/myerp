@@ -10,6 +10,7 @@ import { usePeopleSearch } from "./SalesPeople";
 import { announceSaved, closeThisTab, creatable, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import type { PackageRow } from "./GoodsReceipts";
 import { BagLabelPrint } from "./GrnPrint";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
@@ -179,21 +180,23 @@ function Labels({ id, sheet }: { id: number; sheet: boolean }) {
   return <BagLabelPrint sheet={sheet} co={`${e.customer_name}'s goods · ${e.company_name}`} foot={`${shortDate(e.entry_date)} · ${e.number}`} number={e.number} bags={e.packages ?? []} />;
 }
 
-function columns(kind: Kind): [key: string, label: string, text: (e: Entry) => string][] {
+function listColumns(kind: Kind): Column<Entry>[] {
   return [
-    ["number", kind === "receipt" ? "Receipt No" : "Delivery No", (e) => e.number || "Draft"],
-    ["date", "Date", (e) => shortDate(e.entry_date)],
-    ["customer", "Customer", (e) => e.customer_name],
-    ["place", "Branch", (e) => e.place_name],
-    ...(kind === "receipt" ? [["challan", "Customer's Challan", (e: Entry) => e.challan_no] as [string, string, (e: Entry) => string]] : []),
-    ["items", "Items", (e) => e.items ?? ""],
-    ["status", "Status", (e) => e.status_label],
+    { key: "number", label: kind === "receipt" ? "Receipt No" : "Delivery No", fixed: true, text: (e) => e.number || "Draft", cell: (e) => <b>{e.number || "Draft"}</b> },
+    { key: "date", label: "Date", standard: true, nowrap: true, text: (e) => shortDate(e.entry_date), cell: (e) => shortDate(e.entry_date) },
+    { key: "customer", label: "Customer", standard: true, text: (e) => e.customer_name, cell: (e) => e.customer_name },
+    { key: "place", label: "Branch", standard: true, text: (e) => e.place_name, cell: (e) => e.place_name },
+    ...(kind === "receipt" ? [{ key: "challan", label: "Customer's Challan", standard: true, text: (e: Entry) => e.challan_no, cell: (e: Entry) => e.challan_no }] : []),
+    { key: "items", label: "Items", standard: true, text: (e) => e.items ?? "", cell: (e) => e.items },
+    { key: "status", label: "Status", standard: true, text: (e) => e.status_label, cell: (e) => <span className={pillClass(e.status)}>{e.status_label}</span> },
+    { key: "transporter", label: "Transporter", text: (e) => e.transporter_name, cell: (e) => e.transporter_name },
+    { key: "reason", label: "Reason", text: (e) => e.reason, cell: (e) => e.reason },
   ];
 }
 
 function EntryList({ companyId, session, kind }: { companyId: number; session: SignedIn; kind: Kind }) {
   const text = TEXT[kind];
-  const cols = useMemo(() => columns(kind), [kind]);
+  const cols = useMemo(() => listColumns(kind), [kind]);
   const [view, setView] = useKept("CustomerStock.view", () => listStart("all").view);
   const [rows, setRows] = useState<Entry[]>([]);
   const [search, setSearch] = useKept<Record<string, string>>("CustomerStock.search", () => listStart("").search);
@@ -209,16 +212,8 @@ function EntryList({ companyId, session, kind }: { companyId: number; session: S
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((e) =>
-        cols.every(([key, , value]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => value(e).toLowerCase().includes(w));
-        }),
-      ),
-    [rows, search, cols],
-  );
+  const shown = useMemo(() => matching(rows, cols, search), [rows, search, cols]);
+  const columns = useColumns(`customer-stock-${kind}`, cols, { sort: false });
   const selected = rows.find((e) => e.id === selectedId) ?? null;
   const printing = usePrintMenu({
     title: `Stock ${text.many}: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`,
@@ -234,7 +229,7 @@ function EntryList({ companyId, session, kind }: { companyId: number; session: S
         sub={`${shown.length} ${shown.length === 1 ? text.one : text.many} · ${text.sub}`}
         actions={
           <>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
             {can(session, "create") && (
               <button type="button" onClick={() => openTab(`${base}?form=new`)}>
                 New {text.title}
@@ -245,6 +240,7 @@ function EntryList({ companyId, session, kind }: { companyId: number; session: S
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -259,23 +255,12 @@ function EntryList({ companyId, session, kind }: { companyId: number; session: S
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {cols.map(([key, label]) => (
-                  <th key={key}>{label}</th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {cols.map(([key, label]) => (
-                  <th key={key}>
-                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(ev) => setSearch({ ...search, [key]: ev.target.value })} />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={cols.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No stock {text.many} match.
                   </td>
                 </tr>
@@ -291,21 +276,7 @@ function EntryList({ companyId, session, kind }: { companyId: number; session: S
                     if (ev.key === "Enter") open(e.id);
                   }}
                 >
-                  {cols.map(([key, , value]) =>
-                    key === "status" ? (
-                      <td key={key}>
-                        <span className={pillClass(e.status)}>{e.status_label}</span>
-                      </td>
-                    ) : key === "number" ? (
-                      <td key={key}>
-                        <b>{value(e)}</b>
-                      </td>
-                    ) : (
-                      <td key={key} className={key === "date" ? "nowrap" : undefined}>
-                        {value(e)}
-                      </td>
-                    ),
-                  )}
+                  <Cells shown={columns.shown} row={e} />
                 </tr>
               ))}
             </tbody>

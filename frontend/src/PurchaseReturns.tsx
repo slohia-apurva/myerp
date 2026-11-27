@@ -9,6 +9,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, TotalRow, useColumns, type Column } from "./Columns";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { EntriesBox, type Entry } from "./PurchaseInvoices";
 import { useReturns } from "./Refresh";
@@ -139,15 +140,26 @@ const VIEWS = [
 ];
 const debitPill = (state?: string) => (state === "pending" || state === "part" ? "pill warn" : state === "done" ? "pill on" : "pill");
 const debitText = (r: Return) => [r.debit_label, r.debit_notes].filter(Boolean).join(" ");
-const COLUMNS: [key: string, label: string, text: (r: Return) => string, num?: boolean][] = [
-  ["number", "Return No", (r) => r.number || "Draft"],
-  ["date", "Return Date", (r) => `${shortDate(r.return_date)} ${showDate(r.return_date)}`],
-  ["supplier", "Supplier", (r) => r.supplier_name],
-  ["receipt", "Goods Receipt", (r) => r.receipt_number],
-  ["reason", "Reason", (r) => r.reason_label],
-  ["value", "Value ₹", (r) => `${r.value} ${money(r.value)}`, true],
-  ["debit", "Debit Note", debitText],
-  ["status", "Status", (r) => r.status_label],
+const COLUMNS: Column<Return>[] = [
+  { key: "number", label: "Return No", fixed: true, text: (r) => r.number || "Draft", cell: (r) => (r.number ? <b>{r.number}</b> : <span className="small">Draft</span>) },
+  { key: "date", label: "Return Date", standard: true, nowrap: true, text: (r) => `${shortDate(r.return_date)} ${showDate(r.return_date)}`, cell: (r) => shortDate(r.return_date) },
+  { key: "supplier", label: "Supplier", standard: true, text: (r) => r.supplier_name, cell: (r) => r.supplier_name },
+  { key: "receipt", label: "Goods Receipt", standard: true, nowrap: true, text: (r) => r.receipt_number, cell: (r) => r.receipt_number },
+  { key: "reason", label: "Reason", standard: true, text: (r) => r.reason_label, cell: (r) => r.reason_label },
+  { key: "value", label: "Value ₹", standard: true, num: true, text: (r) => `${r.value} ${money(r.value)}`, total: (r) => Number(r.value), cell: (r) => money(r.value) },
+  {
+    key: "debit",
+    label: "Debit Note",
+    standard: true,
+    text: debitText,
+    cell: (r) => (
+      <>
+        {r.debit_label && <span className={debitPill(r.debit_state)}>{r.debit_label}</span>}
+        {r.debit_notes && <span className="small"> {r.debit_notes}</span>}
+      </>
+    ),
+  },
+  { key: "status", label: "Status", standard: true, text: (r) => r.status_label, cell: (r) => <span className={pillClass(r.status)}>{r.status_label}</span> },
 ];
 
 function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; canCreate: boolean; canDebit: boolean }) {
@@ -164,20 +176,10 @@ function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; can
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((r) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          const value = text(r).toLowerCase();
-          return words.every((w) => value.includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("purchase-returns", COLUMNS, { sort: false });
   const selected = rows.find((r) => r.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Purchase returns: ${VIEWS.find((v) => v.value === view)?.label ?? ""}`, scope: "" });
-  const total = shown.reduce((sum, r) => sum + Number(r.value), 0);
   return (
     <section className="page">
       <PageHeader
@@ -198,12 +200,13 @@ function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; can
               </button>
             )}
             {canCreate && <button onClick={() => openTab(`${base(companyId)}?form=new`)}>New purchase return</button>}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
       />
       <ErrorNote error={error} />
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -218,31 +221,12 @@ function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; can
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , isNum]) => (
-                  <th key={key} className={isNum ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                    />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No purchase returns match.
                   </td>
                 </tr>
@@ -258,32 +242,11 @@ function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; can
                     if (e.key === "Enter") openTab(`${base(companyId)}?view=${r.id}`);
                   }}
                 >
-                  <td>{r.number ? <b>{r.number}</b> : <span className="small">Draft</span>}</td>
-                  <td className="nowrap">{shortDate(r.return_date)}</td>
-                  <td>{r.supplier_name}</td>
-                  <td className="nowrap">{r.receipt_number}</td>
-                  <td>{r.reason_label}</td>
-                  <td className="num">{money(r.value)}</td>
-                  <td>
-                    {r.debit_label && <span className={debitPill(r.debit_state)}>{r.debit_label}</span>}
-                    {r.debit_notes && <span className="small"> {r.debit_notes}</span>}
-                  </td>
-                  <td>
-                    <span className={pillClass(r.status)}>{r.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={r} />
                 </tr>
               ))}
             </tbody>
-            {shown.length > 1 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={5}>Total</td>
-                  <td className="num">{money(String(r2(total)))}</td>
-                  <td />
-                  <td />
-                </tr>
-              </tfoot>
-            )}
+            {shown.length > 1 && <TotalRow shown={columns.shown} rows={shown} show={(n) => money(String(n))} />}
           </table>
           {shown.length > 0 && (
             <p className="small no-print">Click a return to see it at the right (click it again to close the panel); double-click or press Enter to open it; "Close" there brings you back here.</p>

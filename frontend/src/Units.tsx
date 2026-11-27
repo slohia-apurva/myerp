@@ -6,6 +6,7 @@ import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { ActionCells, ActionHeads } from "./RowActions";
@@ -62,6 +63,24 @@ export function useGstCodes() {
  * view or duplicate one unit (Sidharth, 2026-11-13). */
 const formParam = () => hashParam("form");
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const UNIT_COLUMNS: Column<Unit>[] = [
+  {
+    key: "name",
+    label: "Unit",
+    fixed: true,
+    cell: (u) => (
+      <>
+        {u.name}
+        {!u.is_active && <span className="pill">Disabled</span>}
+      </>
+    ),
+  },
+  { key: "short", label: "Short name", standard: true, cell: (u) => u.short_name },
+  { key: "gst", label: "GST unit code", standard: true, cell: (u) => u.gst_code },
+  { key: "whole", label: "Whole numbers only", standard: true, cell: (u) => (u.whole_numbers ? "Yes" : "No") },
+];
+
 /** Masters > Units. The details of the clicked row are on the right; Add, Edit and
  * Duplicate open in a new tab. */
 export function UnitsPage({ session }: { session: SignedIn }) {
@@ -84,7 +103,8 @@ function UnitList(props: { session: SignedIn; canEdit: boolean; units: Unit[]; r
     // Opened by "Create …" in a dropdown: go straight to the Add page.
     if (startName && canEdit) window.location.hash = `#/units?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const io = useExchange({ master: "units", noun: "units", session: props.session, onImported: reload });
+  const columns = useColumns("units", UNIT_COLUMNS, { sort: false });
+  const io = useExchange({ master: "units", noun: "units", session: props.session, onImported: reload, extra: [columns.item] });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     // Opened from a link (for example a duplicate-name refusal): select that row.
@@ -109,18 +129,20 @@ function UnitList(props: { session: SignedIn; canEdit: boolean; units: Unit[]; r
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>Unit</th>
-                <th>Short name</th>
-                <th>GST unit code</th>
-                <th>Whole numbers only</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
                 <ActionHeads />
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
             </thead>
             <tbody>
               {units.map((u) => (
@@ -130,13 +152,7 @@ function UnitList(props: { session: SignedIn; canEdit: boolean; units: Unit[]; r
                   onClick={() => setSelected(u.id)}
                   onDoubleClick={() => edit(u.id)}
                 >
-                  <td>
-                    {u.name}
-                    {!u.is_active && <span className="pill">Disabled</span>}
-                  </td>
-                  <td>{u.short_name}</td>
-                  <td>{u.gst_code}</td>
-                  <td>{u.whole_numbers ? "Yes" : "No"}</td>
+                  <Cells shown={columns.shown} row={u} />
                   <ActionCells canEdit={canEdit} onOpen={() => edit(u.id)} onDuplicate={() => edit(`copy-${u.id}`)} />
                 </tr>
               ))}

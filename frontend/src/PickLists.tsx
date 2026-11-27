@@ -9,6 +9,7 @@ import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { makeDeliveryNote } from "./DeliveryNotes";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
 import { useKept } from "./Keep";
@@ -119,14 +120,20 @@ export function PickListsPage({ companyId, session }: { companyId: number; sessi
   return <PickListList companyId={companyId} />;
 }
 
-const COLUMNS: [key: string, label: string, text: (p: PickList) => string][] = [
-  ["number", "Pick List No", (p) => p.number],
-  ["date", "Made On", (p) => shortDate(p.created_at)],
-  ["order", "Sales Order", (p) => p.order_number],
-  ["customer", "Customer", (p) => p.customer_name],
-  ["despatch", "Despatch From", (p) => p.despatch_from],
-  ["stock", "Stock", (p) => (p.all_in ? "All in stock" : "Short")],
-  ["status", "Status", (p) => p.status_label],
+const COLUMNS: Column<PickList>[] = [
+  { key: "number", label: "Pick List No", fixed: true, text: (p) => p.number, cell: (p) => <b>{p.number}</b> },
+  { key: "date", label: "Made On", standard: true, nowrap: true, text: (p) => shortDate(p.created_at), cell: (p) => shortDate(p.created_at) },
+  { key: "order", label: "Sales Order", standard: true, text: (p) => p.order_number, cell: (p) => p.order_number },
+  { key: "customer", label: "Customer", standard: true, text: (p) => p.customer_name, cell: (p) => p.customer_name },
+  { key: "despatch", label: "Despatch From", standard: true, text: (p) => p.despatch_from, cell: (p) => p.despatch_from },
+  {
+    key: "stock",
+    label: "Stock",
+    standard: true,
+    text: (p) => (p.all_in ? "All in stock" : "Short"),
+    cell: (p) => <span className={p.all_in ? "pill on" : "pill warn"}>{p.all_in ? "All in stock" : "Short"}</span>,
+  },
+  { key: "status", label: "Status", standard: true, text: (p) => p.status_label, cell: (p) => <span className={pillClass(p.status)}>{p.status_label}</span> },
 ];
 
 function PickListList({ companyId }: { companyId: number }) {
@@ -145,16 +152,8 @@ function PickListList({ companyId }: { companyId: number }) {
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      lists.filter((p) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => text(p).toLowerCase().includes(w));
-        }),
-      ),
-    [lists, search],
-  );
+  const shown = useMemo(() => matching(lists, COLUMNS, search), [lists, search]);
+  const columns = useColumns("pick-lists", COLUMNS, { sort: false });
   const selected = lists.find((p) => p.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Pick lists: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`, scope: "" });
   const open = (id: number) => openTab(`${base(companyId)}?view=${id}`);
@@ -164,10 +163,11 @@ function PickListList({ companyId }: { companyId: number }) {
         title="Pick List"
         crumbs={[{ label: "Entry › Sales", href: base(companyId) }]}
         sub={`${shown.length} ${shown.length === 1 ? "pick list" : "pick lists"} · made when a sales order is submitted`}
-        actions={printing.buttons}
+        actions={printing.menu([...printing.items, columns.item])}
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -182,29 +182,12 @@ function PickListList({ companyId }: { companyId: number }) {
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>{label}</th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input
-                      type="search"
-                      aria-label={`Search ${label}`}
-                      placeholder="Search"
-                      value={search[key] ?? ""}
-                      onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                    />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No pick lists match.
                   </td>
                 </tr>
@@ -220,19 +203,7 @@ function PickListList({ companyId }: { companyId: number }) {
                     if (e.key === "Enter") open(p.id);
                   }}
                 >
-                  <td>
-                    <b>{p.number}</b>
-                  </td>
-                  <td className="nowrap">{shortDate(p.created_at)}</td>
-                  <td>{p.order_number}</td>
-                  <td>{p.customer_name}</td>
-                  <td>{p.despatch_from}</td>
-                  <td>
-                    <span className={p.all_in ? "pill on" : "pill warn"}>{p.all_in ? "All in stock" : "Short"}</span>
-                  </td>
-                  <td>
-                    <span className={pillClass(p.status)}>{p.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={p} />
                 </tr>
               ))}
             </tbody>

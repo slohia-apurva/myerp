@@ -8,6 +8,7 @@ import { useItemSearch } from "./ItemSearch";
 import { announceCreated, announceSaved, closeThisTab, creatable, useCreated, useNewName } from "./Create";
 import { ErrorNote, useOpenParam } from "./ErrorNote";
 import { ActionsMenu, useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { type Item } from "./Items";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { Fold, FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
@@ -120,6 +121,31 @@ export function BomsPage({ session }: { session: SignedIn }) {
   return <BomList session={session} canEdit={canEdit} />;
 }
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+const BOM_COLUMNS: Column<Bom>[] = [
+  { key: "number", label: "BOM No", fixed: true, cell: (b) => b.number },
+  { key: "item", label: "Item", standard: true, cell: (b) => b.item_name },
+  { key: "version", label: "Version", standard: true, num: true, cell: (b) => b.version },
+  { key: "name", label: "Name", standard: true, cell: (b) => b.name },
+  { key: "default", label: "Default", standard: true, cell: (b) => (b.is_default ? <span className="star">★ Default</span> : "") },
+  {
+    key: "makes",
+    label: "Makes",
+    standard: true,
+    cell: (b) => (
+      <>
+        {plain(b.makes_qty)} {b.makes_unit_short}
+      </>
+    ),
+  },
+  { key: "materials", label: "Materials", standard: true, num: true, cell: (b) => b.material_count || "" },
+  { key: "status", label: "Status", standard: true, cell: (b) => (b.is_active ? b.status_label : "Disabled") },
+  { key: "item_no", label: "Item No", cell: (b) => b.item_number },
+  { key: "kind", label: "Type", cell: (b) => b.kind_label },
+  { key: "customer", label: "Customer", cell: (b) => b.customer_name },
+  { key: "valid_from", label: "Valid From", nowrap: true, cell: (b) => (b.valid_from ? b.valid_from.split("-").reverse().join("-") : "") },
+];
+
 function BomList({ session, canEdit }: { session: SignedIn; canEdit: boolean }) {
   const { boms, reload } = useBoms();
   const [selectedId, setSelected] = useKept<number | null>("Boms.selectedId", null);
@@ -131,7 +157,8 @@ function BomList({ session, canEdit }: { session: SignedIn; canEdit: boolean }) 
   useEffect(() => {
     if (startName && canEdit) window.location.hash = `#/boms?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const io = useExchange({ master: "boms", noun: "BOMs", session, onImported: reload });
+  const columns = useColumns("boms", BOM_COLUMNS, { sort: false });
+  const io = useExchange({ master: "boms", noun: "BOMs", session, onImported: reload, extra: [columns.item] });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (openId && boms.some((b) => b.id === openId)) {
@@ -153,27 +180,25 @@ function BomList({ session, canEdit }: { session: SignedIn; canEdit: boolean }) 
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>BOM No</th>
-                <th>Item</th>
-                <th className="num">Version</th>
-                <th>Name</th>
-                <th>Default</th>
-                <th>Makes</th>
-                <th className="num">Materials</th>
-                <th>Status</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
                 <ActionHeads />
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
             </thead>
             <tbody>
               {boms.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="small">
+                  <td colSpan={columns.shown.length + 2} className="small">
                     No BOMs yet.
                   </td>
                 </tr>
@@ -185,16 +210,7 @@ function BomList({ session, canEdit }: { session: SignedIn; canEdit: boolean }) 
                   onClick={() => setSelected(b.id)}
                   onDoubleClick={() => openTab(`#/boms?view=${b.id}`)}
                 >
-                  <td>{b.number}</td>
-                  <td>{b.item_name}</td>
-                  <td className="num">{b.version}</td>
-                  <td>{b.name}</td>
-                  <td>{b.is_default ? <span className="star">★ Default</span> : ""}</td>
-                  <td>
-                    {plain(b.makes_qty)} {b.makes_unit_short}
-                  </td>
-                  <td className="num">{b.material_count || ""}</td>
-                  <td>{b.is_active ? b.status_label : "Disabled"}</td>
+                  <Cells shown={columns.shown} row={b} />
                   <ActionCells
                     canEdit={canEdit}
                     onOpen={() => openTab(canEdit ? `#/boms?form=${b.id}` : `#/boms?view=${b.id}`)}

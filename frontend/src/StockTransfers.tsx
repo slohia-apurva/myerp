@@ -10,6 +10,7 @@ import { money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useKept } from "./Keep";
@@ -138,15 +139,16 @@ export function StockTransfersPage({ companyId, session }: { companyId: number; 
   return <TransferList companyId={companyId} session={session} />;
 }
 
-const COLUMNS: [key: string, label: string, text: (t: Transfer) => string, num?: boolean][] = [
-  ["number", "Transfer No", (t) => t.number || "Draft"],
-  ["date", "Date", (t) => shortDate(t.transfer_date)],
-  ["from", "From", (t) => t.from_name],
-  ["to", "To", (t) => t.to_name],
-  ["items", "Items", (t) => t.items ?? ""],
-  ["vehicle", "Vehicle No", (t) => t.vehicle_no],
-  ["value", "Value ₹", (t) => (t.status === "draft" ? "" : money(t.value)), true],
-  ["status", "Status", (t) => t.status_label],
+const value = (t: Transfer) => (t.status === "draft" ? "" : money(t.value));
+const COLUMNS: Column<Transfer>[] = [
+  { key: "number", label: "Transfer No", fixed: true, text: (t) => t.number || "Draft", cell: (t) => <b>{t.number || "Draft"}</b> },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (t) => shortDate(t.transfer_date), cell: (t) => shortDate(t.transfer_date) },
+  { key: "from", label: "From", standard: true, text: (t) => t.from_name, cell: (t) => t.from_name },
+  { key: "to", label: "To", standard: true, text: (t) => t.to_name, cell: (t) => t.to_name },
+  { key: "items", label: "Items", standard: true, text: (t) => t.items ?? "", cell: (t) => t.items },
+  { key: "vehicle", label: "Vehicle No", standard: true, text: (t) => t.vehicle_no, cell: (t) => t.vehicle_no },
+  { key: "value", label: "Value ₹", standard: true, num: true, text: value, cell: value },
+  { key: "status", label: "Status", standard: true, text: (t) => t.status_label, cell: (t) => <span className={pillClass(t.status)}>{t.status_label}</span> },
 ];
 
 function TransferList({ companyId, session }: { companyId: number; session: SignedIn }) {
@@ -165,16 +167,8 @@ function TransferList({ companyId, session }: { companyId: number; session: Sign
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((t) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => text(t).toLowerCase().includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("stock-transfers", COLUMNS, { sort: false });
   const selected = rows.find((t) => t.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Stock transfers: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`, scope: "" });
   const open = (id: number) => openTab(`${transferBase(companyId)}?view=${id}`);
@@ -186,7 +180,7 @@ function TransferList({ companyId, session }: { companyId: number; session: Sign
         sub={`${shown.length} ${shown.length === 1 ? "transfer" : "transfers"} · goods between branches with the same GSTIN`}
         actions={
           <>
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
             {can(session, "create") && (
               <button type="button" onClick={() => openTab(`${transferBase(companyId)}?form=new`)}>
                 New Transfer
@@ -197,6 +191,7 @@ function TransferList({ companyId, session }: { companyId: number; session: Sign
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -211,25 +206,12 @@ function TransferList({ companyId, session }: { companyId: number; session: Sign
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(e) => setSearch({ ...search, [key]: e.target.value })} />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No stock transfers match.
                   </td>
                 </tr>
@@ -245,18 +227,7 @@ function TransferList({ companyId, session }: { companyId: number; session: Sign
                     if (e.key === "Enter") open(t.id);
                   }}
                 >
-                  <td>
-                    <b>{t.number || "Draft"}</b>
-                  </td>
-                  <td className="nowrap">{shortDate(t.transfer_date)}</td>
-                  <td>{t.from_name}</td>
-                  <td>{t.to_name}</td>
-                  <td>{t.items}</td>
-                  <td>{t.vehicle_no}</td>
-                  <td className="num">{t.status === "draft" ? "" : money(t.value)}</td>
-                  <td>
-                    <span className={pillClass(t.status)}>{t.status_label}</span>
-                  </td>
+                  <Cells shown={columns.shown} row={t} />
                 </tr>
               ))}
             </tbody>

@@ -8,6 +8,7 @@ import { money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, useColumns, type Column } from "./Columns";
 import { LedgerPosting, MissingLedgersPopup, missingLedgersOf, type MissingLedgers } from "./LedgerPosting";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { TotalsPanel } from "./PurchaseOrders";
@@ -151,15 +152,21 @@ export function CreditNotesPage({ companyId, session }: { companyId: number; ses
   return <NoteList companyId={companyId} />;
 }
 
-const COLUMNS: [key: string, label: string, text: (n: Note) => string, num?: boolean][] = [
-  ["number", "Credit Note No", (n) => n.number || "Draft"],
-  ["date", "Date", (n) => shortDate(n.note_date)],
-  ["customer", "Customer", (n) => n.customer_name],
-  ["kind", "Type", (n) => n.kind_label],
-  ["invoice", "Against Invoice", (n) => n.invoice_number],
-  ["einvoice", "e-Invoice", (n) => (n.irn ? "Made" : n.status === "submitted" && n.needs_einvoice ? "Pending" : "")],
-  ["total", "Total ₹", (n) => money(n.total), true],
-  ["status", "Status", (n) => n.status_label],
+const einvoice = (n: Note) => (n.irn ? "Made" : n.status === "submitted" && n.needs_einvoice ? "Pending" : "");
+const COLUMNS: Column<Note>[] = [
+  { key: "number", label: "Credit Note No", fixed: true, text: (n) => n.number || "Draft", cell: (n) => <b>{n.number || "Draft"}</b> },
+  { key: "date", label: "Date", standard: true, nowrap: true, text: (n) => shortDate(n.note_date), cell: (n) => shortDate(n.note_date) },
+  { key: "customer", label: "Customer", standard: true, text: (n) => n.customer_name, cell: (n) => n.customer_name },
+  { key: "kind", label: "Type", standard: true, text: (n) => n.kind_label, cell: (n) => n.kind_label },
+  { key: "invoice", label: "Against Invoice", standard: true, text: (n) => n.invoice_number, cell: (n) => n.invoice_number },
+  { key: "einvoice", label: "e-Invoice", standard: true, text: einvoice, cell: einvoice },
+  { key: "total", label: "Total ₹", standard: true, num: true, text: (n) => money(n.total), total: (n) => Number(n.total), cell: (n) => money(n.total) },
+  { key: "status", label: "Status", standard: true, text: (n) => n.status_label, cell: (n) => <span className={pillClass(n.status)}>{n.status_label}</span> },
+  { key: "taxable", label: "Taxable ₹", num: true, text: (n) => money(n.taxable_total), total: (n) => Number(n.taxable_total), cell: (n) => money(n.taxable_total) },
+  { key: "reason", label: "Reason", text: (n) => n.reason_label, cell: (n) => n.reason_label },
+  { key: "gstin", label: "Customer GSTIN", text: (n) => n.customer_gstin, cell: (n) => n.customer_gstin },
+  { key: "branch", label: "Branch", text: (n) => n.branch_name, cell: (n) => n.branch_name },
+  { key: "ref", label: "Customer Ref", text: (n) => n.customer_ref, cell: (n) => n.customer_ref },
 ];
 
 function NoteList({ companyId }: { companyId: number }) {
@@ -178,16 +185,8 @@ function NoteList({ companyId }: { companyId: number }) {
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((n) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          return words.every((w) => text(n).toLowerCase().includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("credit-notes", COLUMNS, { sort: false });
   const selected = rows.find((n) => n.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Credit notes: ${VIEWS.find(([v]) => v === view)?.[1] ?? ""}`, scope: "" });
   const open = (id: number) => openTab(`${creditBase(companyId)}?view=${id}`);
@@ -197,10 +196,11 @@ function NoteList({ companyId }: { companyId: number }) {
         title="Credit Note"
         crumbs={[{ label: "Entry › Sales", href: creditBase(companyId) }]}
         sub={`${shown.length} ${shown.length === 1 ? "credit note" : "credit notes"} · made from a submitted sales invoice ("Create ▾" on the invoice)`}
-        actions={printing.buttons}
+        actions={printing.menu([...printing.items, columns.item])}
       />
       {error && <p className="error">{error}</p>}
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -215,25 +215,12 @@ function NoteList({ companyId }: { companyId: number }) {
           </div>
           <table className="pick po-list">
             <thead>
-              <tr>
-                {COLUMNS.map(([key, label, , num]) => (
-                  <th key={key} className={num ? "num" : undefined}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="col-search no-print">
-                {COLUMNS.map(([key, label]) => (
-                  <th key={key}>
-                    <input type="search" aria-label={`Search ${label}`} placeholder="Search" value={search[key] ?? ""} onChange={(e) => setSearch({ ...search, [key]: e.target.value })} />
-                  </th>
-                ))}
-              </tr>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
             </thead>
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="small">
+                  <td colSpan={columns.shown.length} className="small">
                     No credit notes match.
                   </td>
                 </tr>
@@ -249,21 +236,7 @@ function NoteList({ companyId }: { companyId: number }) {
                     if (e.key === "Enter") open(n.id);
                   }}
                 >
-                  {COLUMNS.map(([key, , text, num]) =>
-                    key === "number" ? (
-                      <td key={key}>
-                        <b>{text(n)}</b>
-                      </td>
-                    ) : key === "status" ? (
-                      <td key={key}>
-                        <span className={pillClass(n.status)}>{n.status_label}</span>
-                      </td>
-                    ) : (
-                      <td key={key} className={num ? "num" : key === "date" ? "nowrap" : undefined}>
-                        {text(n)}
-                      </td>
-                    ),
-                  )}
+                  <Cells shown={columns.shown} row={n} />
                 </tr>
               ))}
             </tbody>

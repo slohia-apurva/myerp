@@ -1,11 +1,12 @@
 import { Combobox } from "./Combobox";
 import { announceCreated, announceSaved, closeThisTab, useCreated, useNewName } from "./Create";
 import { useOpenParam } from "./ErrorNote";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SignedIn } from "./api";
 import { ChangeLog } from "./Audit";
 import { PageHeader, Section } from "./Brand";
 import { useExchange } from "./Exchange";
+import { Cells, useColumns, type Column } from "./Columns";
 import { InUseNote, isLocked, Locked, type LockInfo } from "./Lock";
 import { ActionCells, ActionHeads } from "./RowActions";
 import { FormPage, hashParam, openTab, SidePanel, SideRows } from "./Master";
@@ -64,6 +65,28 @@ export function PriceListsPage({ session }: { session: SignedIn }) {
   return <ListPage session={session} canEdit={canEdit} lists={lists} reload={reload} />;
 }
 
+// The list's columns; "Choose Columns…" in Actions ▾ picks and orders them for each person.
+function priceListColumns(currencies: Currency[]): Column<PriceList>[] {
+  return [
+    {
+      key: "name",
+      label: "Price List",
+      fixed: true,
+      cell: (l) => (
+        <>
+          {l.name}
+          {!l.is_active && <span className="pill">Disabled</span>}
+        </>
+      ),
+    },
+    { key: "kind", label: "Type", standard: true, cell: (l) => l.kind_label },
+    { key: "currency", label: "Currency", standard: true, cell: (l) => currencyLabel(l.currency, currencies) },
+    { key: "prices", label: "Prices", standard: true, num: true, cell: (l) => l.price_count || "" },
+    { key: "used", label: "Used By", standard: true, num: true, cell: (l) => l.party_count || "" },
+    { key: "notes", label: "Notes", cell: (l) => <span className="small">{l.notes}</span> },
+  ];
+}
+
 function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList[]; reload: () => void }) {
   const { lists, canEdit, reload } = props;
   const [selectedId, setSelected] = useKept<number | null>("PriceLists.selectedId", null);
@@ -79,7 +102,8 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList
   useEffect(() => {
     if (startName && canEdit) window.location.hash = `#/price-lists?form=new&new=${encodeURIComponent(startName)}`;
   }, [startName, canEdit]);
-  const io = useExchange({ master: "price-lists", noun: "price lists", session: props.session, onImported: reload });
+  const columns = useColumns("price-lists", useMemo(() => priceListColumns(currencies), [currencies]), { sort: false });
+  const io = useExchange({ master: "price-lists", noun: "price lists", session: props.session, onImported: reload, extra: [columns.item] });
   const [openId, opened] = useOpenParam();
   useEffect(() => {
     if (openId && lists.some((l) => l.id === openId)) {
@@ -101,19 +125,20 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList
         }
       />
       {io.panel}
+      {columns.panel}
       <div className="side-layout">
         <div className="side-main">
           <table className="pick">
             <thead>
               <tr>
-                <th>Price List</th>
-                <th>Type</th>
-                <th>Currency</th>
-                <th className="num">Prices</th>
-                <th className="num">Used By</th>
+                {columns.shown.map((c) => (
+                  <th key={c.key} className={c.num ? "num" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
                 <ActionHeads />
               </tr>
-              <ColumnSearch />
+              <ColumnSearch key={columns.shown.map((c) => c.key).join(",")} />
             </thead>
             <tbody>
               {lists.map((l) => (
@@ -123,14 +148,7 @@ function ListPage(props: { session: SignedIn; canEdit: boolean; lists: PriceList
                   onClick={() => setSelected(l.id)}
                   onDoubleClick={() => openTab(`#/price-lists?form=${l.id}`)}
                 >
-                  <td>
-                    {l.name}
-                    {!l.is_active && <span className="pill">Disabled</span>}
-                  </td>
-                  <td>{l.kind_label}</td>
-                  <td>{currencyLabel(l.currency, currencies)}</td>
-                  <td className="num">{l.price_count || ""}</td>
-                  <td className="num">{l.party_count || ""}</td>
+                  <Cells shown={columns.shown} row={l} />
                   <ActionCells
                     canEdit={canEdit}
                     onOpen={() => openTab(`#/price-lists?form=${l.id}`)}

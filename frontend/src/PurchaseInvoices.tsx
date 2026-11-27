@@ -11,6 +11,7 @@ import { longDate, money } from "./Companies";
 import { announceSaved, closeThisTab, useCreated } from "./Create";
 import { ErrorNote } from "./ErrorNote";
 import { ActionsMenu, usePrintMenu } from "./Exchange";
+import { Cells, ListHeads, matching, TotalRow, useColumns, type Column } from "./Columns";
 import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Master";
 import { RateLinesTable, type RateLine } from "./RateLines";
 import { SupplementaryFormTab, type SupplementaryBill } from "./SupplementaryBills";
@@ -162,16 +163,46 @@ const VIEWS = [
   { value: "all", label: "All" },
   { value: "unbilled", label: "Goods received, not billed" },
 ];
-const COLUMNS: [key: string, label: string, text: (r: Invoice) => string, num?: boolean][] = [
-  ["number", "PI No", (r) => r.number || "Draft"],
-  ["date", "Posting Date", (r) => `${shortDate(r.posting_date)} ${showDate(r.posting_date)}`],
-  ["supplier", "Supplier", (r) => r.supplier_name],
-  ["bill", "Supplier Invoice No", (r) => r.bill_no],
-  ["bill_date", "Bill Date", (r) => shortDate(r.bill_date)],
-  ["receipts", "Goods Receipts", (r) => (r.kind === "supplementary" ? `Supplementary against ${r.original_number}` : r.kind === "direct" ? "No GRN" : r.receipts.map((x) => x.number).join(" "))],
-  ["total", "Amount ₹", (r) => `${r.total} ${money(r.total)}`, true],
-  ["due", "First Due", (r) => shortDate(r.first_due)],
-  ["status", "Status", (r) => r.status_label],
+const receiptsText = (r: Invoice) =>
+  r.kind === "supplementary" ? `Supplementary against ${r.original_number}` : r.kind === "direct" ? "No GRN" : r.receipts.map((x) => x.number).join(" ");
+const COLUMNS: Column<Invoice>[] = [
+  { key: "number", label: "PI No", fixed: true, text: (r) => r.number || "Draft", cell: (r) => (r.number ? <b>{r.number}</b> : <span className="small">Draft</span>) },
+  { key: "date", label: "Posting Date", standard: true, nowrap: true, text: (r) => `${shortDate(r.posting_date)} ${showDate(r.posting_date)}`, cell: (r) => shortDate(r.posting_date) },
+  { key: "supplier", label: "Supplier", standard: true, text: (r) => r.supplier_name, cell: (r) => r.supplier_name },
+  { key: "bill", label: "Supplier Invoice No", standard: true, text: (r) => r.bill_no, cell: (r) => r.bill_no },
+  { key: "bill_date", label: "Bill Date", standard: true, nowrap: true, text: (r) => shortDate(r.bill_date), cell: (r) => shortDate(r.bill_date) },
+  {
+    key: "receipts",
+    label: "Goods Receipts",
+    standard: true,
+    text: receiptsText,
+    cell: (r) =>
+      r.kind === "supplementary" ? (
+        <>
+          <span className="tag">Supplementary</span> <span className="small">against {r.original_number}</span>
+        </>
+      ) : r.kind === "direct" ? (
+        <span className="tag">No GRN</span>
+      ) : (
+        r.receipts.map((x) => x.number).join(", ")
+      ),
+  },
+  { key: "total", label: "Amount ₹", standard: true, num: true, text: (r) => `${r.total} ${money(r.total)}`, total: (r) => Number(r.total), cell: (r) => money(r.total) },
+  {
+    key: "due",
+    label: "First Due",
+    standard: true,
+    nowrap: true,
+    text: (r) => shortDate(r.first_due),
+    cell: (r) => (r.status === "submitted" && r.first_due && r.first_due < today() ? <span className="pill bad">{shortDate(r.first_due)}</span> : shortDate(r.first_due)),
+  },
+  { key: "status", label: "Status", standard: true, text: (r) => r.status_label, cell: (r) => <span className={pillClass(r.status)}>{r.status_label}</span> },
+  { key: "taxable", label: "Taxable ₹", num: true, text: (r) => money(r.taxable_total), total: (r) => Number(r.taxable_total), cell: (r) => money(r.taxable_total) },
+  { key: "kind", label: "Type", text: (r) => r.kind_label, cell: (r) => r.kind_label },
+  { key: "term", label: "Credit Term", text: (r) => r.credit_term_name, cell: (r) => r.credit_term_name },
+  { key: "gstin", label: "Supplier GSTIN", text: (r) => r.supplier_gstin, cell: (r) => r.supplier_gstin },
+  { key: "branch", label: "Branch", text: (r) => r.branch_name, cell: (r) => r.branch_name },
+  { key: "made_by", label: "Made By", text: (r) => r.created_by_name, cell: (r) => r.created_by_name },
 ];
 
 function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
@@ -190,20 +221,10 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
     reload();
     setSelectedId(c.id);
   });
-  const shown = useMemo(
-    () =>
-      rows.filter((r) =>
-        COLUMNS.every(([key, , text]) => {
-          const words = (search[key] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-          const value = text(r).toLowerCase();
-          return words.every((w) => value.includes(w));
-        }),
-      ),
-    [rows, search],
-  );
+  const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
+  const columns = useColumns("purchase-invoices", COLUMNS, { sort: false });
   const selected = view === "unbilled" ? null : (rows.find((r) => r.id === selectedId) ?? null);
   const printing = usePrintMenu({ title: `Purchase invoices: ${VIEWS.find((v) => v.value === view)?.label ?? ""}`, scope: "" });
-  const total = shown.reduce((sum, r) => sum + Number(r.total), 0);
   return (
     <section className="page">
       <PageHeader
@@ -224,12 +245,13 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
               </button>
             )}
             {canCreate && <button onClick={() => openTab(`${base(companyId)}?form=new`)}>New purchase invoice</button>}
-            {printing.buttons}
+            {printing.menu([...printing.items, columns.item])}
           </>
         }
       />
       <ErrorNote error={error} />
       {printing.panel}
+      {columns.panel}
       <div className={selected ? "side-layout" : "full-list"}>
         <div className="side-main">
           <div className="row filters no-print">
@@ -289,37 +311,17 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
           ) : (
             <table className="pick po-list">
               <thead>
-                <tr>
-                  {COLUMNS.map(([key, label, , isNum]) => (
-                    <th key={key} className={isNum ? "num" : undefined}>
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-                <tr className="col-search no-print">
-                  {COLUMNS.map(([key, label]) => (
-                    <th key={key}>
-                      <input
-                        type="search"
-                        aria-label={`Search ${label}`}
-                        placeholder="Search"
-                        value={search[key] ?? ""}
-                        onChange={(e) => setSearch({ ...search, [key]: e.target.value })}
-                      />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
+              <ListHeads shown={columns.shown} search={search} setSearch={setSearch} />
+            </thead>
               <tbody>
                 {shown.length === 0 && (
                   <tr>
-                    <td colSpan={COLUMNS.length} className="small">
+                    <td colSpan={columns.shown.length} className="small">
                       No purchase invoices match.
                     </td>
                   </tr>
                 )}
                 {shown.map((r) => {
-                  const overdue = r.status === "submitted" && r.first_due && r.first_due < today();
                   return (
                     <tr
                       key={r.id}
@@ -331,40 +333,12 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
                         if (e.key === "Enter") openTab(`${base(companyId)}?view=${r.id}`);
                       }}
                     >
-                      <td>{r.number ? <b>{r.number}</b> : <span className="small">Draft</span>}</td>
-                      <td className="nowrap">{shortDate(r.posting_date)}</td>
-                      <td>{r.supplier_name}</td>
-                      <td>{r.bill_no}</td>
-                      <td className="nowrap">{shortDate(r.bill_date)}</td>
-                      <td>
-                        {r.kind === "supplementary" ? (
-                          <>
-                            <span className="tag">Supplementary</span> <span className="small">against {r.original_number}</span>
-                          </>
-                        ) : r.kind === "direct" ? (
-                          <span className="tag">No GRN</span>
-                        ) : (
-                          r.receipts.map((x) => x.number).join(", ")
-                        )}
-                      </td>
-                      <td className="num">{money(r.total)}</td>
-                      <td className="nowrap">{overdue ? <span className="pill bad">{shortDate(r.first_due)}</span> : shortDate(r.first_due)}</td>
-                      <td>
-                        <span className={pillClass(r.status)}>{r.status_label}</span>
-                      </td>
+                      <Cells shown={columns.shown} row={r} />
                     </tr>
                   );
                 })}
               </tbody>
-              {shown.length > 1 && (
-                <tfoot>
-                  <tr>
-                    <td colSpan={6}>Total</td>
-                    <td className="num">{money(total)}</td>
-                    <td colSpan={2} />
-                  </tr>
-                </tfoot>
-              )}
+              {shown.length > 1 && <TotalRow shown={columns.shown} rows={shown} show={money} />}
             </table>
           )}
           {view !== "unbilled" && shown.length > 0 && (
