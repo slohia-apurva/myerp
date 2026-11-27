@@ -3761,10 +3761,17 @@ export const MANUAL: Chapter[] = [
             came into).
           </li>
           <li>
-            The supplier's open orders for that warehouse are listed under
-            "Purchase Orders". Tick the ones the goods came against and click
-            "Get items": each item still pending comes in with its pending
-            quantity.
+            The supplier's open orders are listed under "Purchase Orders",
+            each with the branch it was ordered for. Goods ordered for one
+            branch may come into another, for example an order for "Head
+            office" received at "Sankrail-1": the stock goes where it came in,
+            and the "Purchase Invoice" is made at that branch. Only orders for
+            branches in the same state as the "Receiving Warehouse" are listed,
+            because the supplier's bill and its GST follow the order's state;
+            goods for a branch in another state are received there and then
+            moved by a "Stock Transfer". Tick the orders the goods came
+            against and click "Get items": each item still pending comes in
+            with its pending quantity.
           </li>
           <li>
             Fill in the supplier's challan or invoice number and date, the

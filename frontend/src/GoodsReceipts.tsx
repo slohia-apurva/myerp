@@ -126,13 +126,14 @@ type PendingOrder = {
   supplier: number;
   branch: number;
   branch_name: string;
+  state_code: string;
   currency: string;
   transporter: number | null;
   lines: PendingLine[];
 };
 type Place = { id: number; branch: number; kind: string; name: string; is_default: boolean; purpose: string };
 type Setup = {
-  branches: { id: number; name: string }[];
+  branches: { id: number; name: string; state_code: string }[];
   locations: Place[];
   /** Masters › People ticked "Stores": for Received By and QC By. */
   suppliers: { id: number; name: string }[];
@@ -574,7 +575,8 @@ function ReceiptForm(props: {
       setFromOrder(null);
       if (!o) return;
       setSupplier(String(o.supplier));
-      setBranch(String(o.branch));
+      // The order's own branch, if it holds stock; else the person picks where the goods came in.
+      if (setup.branches.some((b) => b.id === o.branch)) setBranch(String(o.branch));
       setTransporter(o.transporter ? String(o.transporter) : "");
       setOrders([o.id]);
       setLines(o.lines.map((l) => newLine(l)));
@@ -599,7 +601,9 @@ function ReceiptForm(props: {
       ],
     };
   };
-  const offered = pending.filter((o) => !branch || String(o.branch) === branch);
+  const br = setup?.branches.find((b) => String(b.id) === branch);
+  // Goods ordered for one branch may come into another in the same state (Sidharth, 2026-11-27).
+  const offered = pending.filter((o) => !br || o.state_code === br.state_code);
   const pickSupplier = (v: string) => {
     setSupplier(v);
     setOrders([]);
@@ -609,8 +613,9 @@ function ReceiptForm(props: {
   useEffect(() => {
     if (branch || !pending.length) return;
     const all = new Set(pending.map((o) => o.branch));
-    if (all.size === 1) setBranch(String(pending[0].branch));
-  }, [pending, branch]);
+    const only = setup?.branches.find((b) => b.id === pending[0].branch);
+    if (all.size === 1 && only) setBranch(String(only.id));
+  }, [pending, branch, setup]);
   const tickOrder = (id: number, on: boolean) => {
     setOrders((os) => (on ? [...os, id] : os.filter((x) => x !== id)));
     if (!on) setLines((ls) => ls.filter((l) => l.info.order !== id));
@@ -655,7 +660,6 @@ function ReceiptForm(props: {
   };
 
   const sup = setup?.suppliers.find((s) => String(s.id) === supplier);
-  const br = setup?.branches.find((b) => String(b.id) === branch);
   const currency = pending.find((o) => orders.includes(o.id))?.currency ?? r?.currency ?? "INR";
   const toInr = currency === "INR" ? 1 : num(rate);
   const overs = lines.filter((l) => overBy(l) > 0);
@@ -893,7 +897,7 @@ function ReceiptForm(props: {
             <div className="grn-orders">
               <div className="fact-label">Purchase Orders</div>
               {!supplier && <p className="small">Pick the supplier: its open orders are listed here.</p>}
-              {supplier && offered.length === 0 && <p className="small">This supplier has no open orders{br ? ` for ${br.name}` : ""}.</p>}
+              {supplier && offered.length === 0 && <p className="small">This supplier has no open orders{br ? ` for a branch in the state of ${br.name}` : ""}.</p>}
               {offered.map((o) => {
                 const left = o.lines.filter((l) => num(l.pending) > 0).length;
                 return (
