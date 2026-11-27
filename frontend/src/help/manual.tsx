@@ -140,7 +140,7 @@ export const MANUAL: Chapter[] = [
         <h3>Searching a list</h3>
         <p>
           On the masters lists ("Items", "Units", "Brands", "Credit terms",
-          "Price lists", "Terms", "Batches", "Transporters", "HSN codes",
+          "Price lists", "Terms", "Mail templates", "Batches", "Transporters", "HSN codes",
           "Countries" and "PIN codes") there is a search box under each column
           heading. Type in one or more of them: the list keeps only the lines
           that match every box (and the search box above the list, if you used
@@ -154,7 +154,7 @@ export const MANUAL: Chapter[] = [
         <p>
           Every list has "Choose Columns…" under "Actions" at the top right:
           the masters ("Items", "People", "Transporters", "Units", "Brands",
-          "Credit terms", "Price lists", "Terms", "Batches", "BOMs", "Insurance
+          "Credit terms", "Price lists", "Terms", "Mail templates", "Batches", "BOMs", "Insurance
           policies", "HSN codes", "Countries", "PIN codes", "Companies" and
           "Users") and the lists of entries ("Purchase Order", "Goods Receipt",
           "Purchase Invoice", "Purchase Return", "Debit Note", "Sales Order",
@@ -615,6 +615,52 @@ export const MANUAL: Chapter[] = [
           not change orders already made. Sets are never deleted: tick
           "Disabled" to stop offering one. Once a set is used by a supplier, a
           company or a submitted order, its "Type" cannot change.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "mail-templates",
+    title: "Mail templates",
+    summary: "The wording of the mails sent to suppliers from a purchase order, shared by every company.",
+    body: (
+      <>
+        <p>
+          A mail template holds the "Subject", the "Opening" words above the
+          grid of lines and the "Closing" words under it for one kind of mail
+          sent from a purchase order. This is one list shared by every company
+          in the group. Three come ready-made: "Purchase Order", "Short / Excess
+          Supply" and "Reminder for Pending Supply"; change their words as you
+          like.
+        </p>
+        <h3>Add or change a template</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Mail templates".</li>
+          <li>
+            Click "New Mail Template", or "Open" on a line. Give it a "Name",
+            such as "Second Reminder (firm)", and pick what it is "Used For".
+            That decides which lines the mail shows (the pending lines for a
+            reminder, the short or excess lines for "Short / Excess Supply")
+            and which document "Attach" adds.
+          </li>
+          <li>
+            Write the "Subject", "Opening" and "Closing". The box "Fields You
+            Can Use" on the right lists the fields, such as {"{PO No}"},{" "}
+            {"{PO Date}"}, {"{Supplier}"}, {"{Days Late}"} and{" "}
+            {"{Our Company}"} (the company sending the mail). Type them with
+            the braces; they are filled in when the mail is made. A field the
+            template cannot use is refused on "Save", so a typing slip never
+            reaches a supplier.
+          </li>
+          <li>
+            Tick "Default for …" under "Switches" to list it first. Each use
+            has one default: ticking it takes the tick off the old one.
+          </li>
+          <li>Click "Save". Changes are kept in "Activity".</li>
+        </ol>
+        <p>
+          "Dear …," and your signature are added by the mail itself.
+          Templates are never deleted: tick "Disabled" to stop offering one.
         </p>
       </>
     ),

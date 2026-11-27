@@ -202,6 +202,7 @@ def _register() -> None:
         ItemGroup,
         Ledger,
         LedgerGroup,
+        MailTemplate,
         NumberFormat,
         PartyContact,
         PriceList,
@@ -395,6 +396,7 @@ def _register() -> None:
             ItemGroup: Tracked("item_group", "Item group", lambda r: None),
             Batch: Tracked("batch", "Batch", lambda r: None),
             Brand: Tracked("brand", "Brand", lambda r: None),
+            MailTemplate: Tracked("mail_template", "Mail template", lambda r: None),
             SalesPerson: Tracked("sales_person", "Person", lambda r: None),
             Item: Tracked(
                 "item",

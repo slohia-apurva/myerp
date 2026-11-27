@@ -26,6 +26,8 @@ export function existingHref(e: Existing): string | null {
       return `#/boms?view=${e.id}`;
     case "terms":
       return `#/terms?open=${e.id}`;
+    case "mail_template":
+      return `#/mail-templates?open=${e.id}`;
     case "role":
       return `#/roles?open=${e.id}`;
     case "user":

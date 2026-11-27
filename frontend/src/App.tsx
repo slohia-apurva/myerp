@@ -32,6 +32,7 @@ const TransportersPage = lazy(() => import("./Transporters").then((m) => ({ defa
 const InsurancePage = lazy(() => import("./Insurance").then((m) => ({ default: m.InsurancePage })));
 const WarehousesPage = lazy(() => import("./Warehouses").then((m) => ({ default: m.WarehousesPage })));
 const BatchesPage = lazy(() => import("./Batches").then((m) => ({ default: m.BatchesPage })));
+const MailTemplatesPage = lazy(() => import("./MailTemplates").then((m) => ({ default: m.MailTemplatesPage })));
 const BrandsPage = lazy(() => import("./Brands").then((m) => ({ default: m.BrandsPage })));
 const SalesPeoplePage = lazy(() => import("./SalesPeople").then((m) => ({ default: m.SalesPeoplePage })));
 const ItemGroupsPage = lazy(() => import("./ItemGroups").then((m) => ({ default: m.ItemGroupsPage })));
@@ -67,7 +68,7 @@ const TdsAdjustmentsPage = lazy(() => import("./TdsAdjustments").then((m) => ({ 
 const TdsCheckPage = lazy(() => import("./TdsCheck").then((m) => ({ default: m.TdsCheckPage })));
 const SupplierReplyPage = lazy(() => import("./SupplierReply").then((m) => ({ default: m.SupplierReplyPage })));
 
-type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "boms" | "hsn" | "reset" | "bill-reading" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
+type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "mail-templates" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "boms" | "hsn" | "reset" | "bill-reading" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 /** The screens under "Reports" in the top menu. */
 const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement", "pending-purchase-orders", "procurement-tracker"];
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
@@ -80,7 +81,7 @@ function routeFromHash(): Route {
   if (page === "bins") return { page, id: Number(id) || undefined };
   // The retention sample label QR opens #/batches/<id>/trace: keep that address.
   if (page === "batches" && sub === "trace") return { page: "batches", id: Number(id) || undefined, sub };
-  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "boms" || page === "reset" || page === "bill-reading" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
+  return { page: page === "users" || page === "roles" || page === "credit-terms" || page === "price-lists" || page === "terms" || page === "mail-templates" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "hsn" || page === "items" || page === "boms" || page === "reset" || page === "bill-reading" || page === "migration" || page === "central" || page === "request-addition" || page === "countries" || page === "pin-codes" ? page : "home" };
 }
 
 /** While a screen's own file is on its way: the page's empty band, so nothing jumps. */
@@ -171,7 +172,7 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {link("home", "Dashboard")}
           {canSeeMasters && (
             <MastersMenu
-              active={page === "credit-terms" || page === "price-lists" || page === "terms" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "items" || page === "boms" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers" || sub === "insurance" || sub === "warehouses"))}
+              active={page === "credit-terms" || page === "price-lists" || page === "terms" || page === "mail-templates" || page === "units" || page === "item-groups" || page === "brands" || page === "sales-people" || page === "batches" || page === "items" || page === "boms" || (page === "companies" && (sub === "ledgers" || sub === "groups" || sub === "couriers" || sub === "insurance" || sub === "warehouses"))}
               company={current.company}
               canSeeMasters={canSeeMasters}
             />
@@ -319,6 +320,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             <HsnPage session={session} />
           ) : page === "batches" && canSeeMasters ? (
             <BatchesPage session={session} />
+          ) : page === "mail-templates" && canSeeMasters ? (
+            <MailTemplatesPage session={session} />
           ) : page === "brands" && canSeeMasters ? (
             <BrandsPage session={session} />
           ) : page === "sales-people" && canSeeMasters ? (

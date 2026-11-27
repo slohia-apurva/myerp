@@ -746,6 +746,45 @@ class TermsSet(models.Model):
         return self.name
 
 
+class MailTemplate(models.Model):
+    """The wording of a mail sent from an entry (Sidharth, 2026-11-27): the
+    subject, the words before the lines grid and the words after it, with
+    fields like {PO No} filled in when the mail is made. "Used For" decides
+    which grid the mail carries and when the template is offered; one
+    template of each use is the default. One list for the whole group of
+    companies; never deleted, only disabled. See core/mail_templates.py."""
+
+    PURCHASE_ORDER, SHORT_EXCESS, REMINDER = "purchase_order", "short_excess", "reminder"
+    USES = [
+        (PURCHASE_ORDER, "Purchase Order"),
+        (SHORT_EXCESS, "Short / Excess Supply"),
+        (REMINDER, "Reminder for Pending Supply"),
+    ]
+
+    name = models.CharField(max_length=80)
+    used_for = models.CharField(max_length=20, choices=USES)
+    subject = models.CharField(max_length=200)
+    opening = models.TextField()
+    closing = models.TextField(blank=True)
+    # Attach the use's document (the order, or the goods receipt) by default.
+    attach = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="mail_template_name_unique"),
+            models.UniqueConstraint(
+                "used_for", condition=models.Q(is_default=True), name="mail_template_one_default"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class PriceLine(models.Model):
     """One rate: an item in one of its units, from a quantity, from a date.
     The rate in force is the latest one started, for the biggest From Qty not

@@ -1862,6 +1862,26 @@ fieldset.item-checks {
 .item-fields .wide {
   grid-column: 1 / -1;
 }
+/* Mail Templates: the fields a template may use, and where the lines grid goes. */
+.mail-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mail-fields code {
+  background: var(--mist);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12.5px;
+}
+.mail-grid-slot {
+  border: 1px dashed var(--field);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  background: var(--mist);
+}
 /* Fields that read down the left column, then down the right (Sales: unit, MRP, USP | batch, best before). */
 .item-cols {
   display: grid;
