@@ -186,6 +186,7 @@ def _register() -> None:
         PurchaseInvoice,
         PurchaseOrder,
         PurchaseReturn,
+        ReminderSchedule,
         TdsAdjustment,
     )
     from core import india
@@ -397,6 +398,33 @@ def _register() -> None:
             Batch: Tracked("batch", "Batch", lambda r: None),
             Brand: Tracked("brand", "Brand", lambda r: None),
             MailTemplate: Tracked("mail_template", "Mail template", lambda r: None),
+            ReminderSchedule: Tracked(
+                "reminder_schedule",
+                "Reminder schedule",
+                lambda r: None,
+                extras={
+                    "steps": (
+                        "Steps",
+                        lambda r: "; ".join(
+                            f"{st.days} days {'before' if st.before else 'after'}"
+                            + (f" ({st.template.name})" if st.template_id else "")
+                            for st in r.steps.all()
+                        )
+                        or None,
+                    ),
+                },
+                labels={
+                    "is_on": "Automatic Reminders On",
+                    "send_hour": "Send At",
+                    "skip_sundays": "Skip Sundays",
+                    "copy_purchaser": "Copy the purchaser",
+                    "copy_submitter": "Copy who submitted",
+                    "repeat_days": "Then every (days)",
+                    "repeat_max": "Up to (more reminders)",
+                    "repeat_template": "Then template",
+                    "last_run_on": "Last run",
+                },
+            ),
             SalesPerson: Tracked("sales_person", "Person", lambda r: None),
             Item: Tracked(
                 "item",

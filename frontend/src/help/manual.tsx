@@ -666,6 +666,61 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "reminder-schedule",
+    title: "Reminder schedule",
+    summary: "Automatic reminders to suppliers for purchase orders with goods still to come.",
+    body: (
+      <>
+        <p>
+          The reminder schedule sends suppliers a reminder by itself while an
+          order still has goods to come. It is one schedule for every company
+          in the group, and it starts switched off: tick "Automatic Reminders
+          On" under "Switches" and click "Save" to start it.
+        </p>
+        <h3>Set the steps</h3>
+        <ol>
+          <li>Click "Masters" in the top menu, then "Reminder schedule".</li>
+          <li>
+            Under "Steps", each line is one reminder, counted from the order's
+            "Expected Delivery": for example "2 days before", "3 days after",
+            "7 days after". Pick the mail template for each (empty uses the
+            default "Reminder for Pending Supply"; make a firmer one under
+            "Mail templates"). "Add Step" adds a line and "Remove" takes one
+            off.
+          </li>
+          <li>
+            The "Then" line repeats a reminder "every … days, up to … more
+            reminders" after the last step. Put 0 days for no repeats.
+          </li>
+          <li>
+            Under "Sending", pick the hour ("Send At"), who gets a copy (the
+            order's purchaser, the person who submitted it) and whether to
+            skip Sundays (Sunday's reminder then goes on Monday). Click "Save".
+          </li>
+        </ol>
+        <p>
+          Each day, from the chosen hour, every order that is "Ordered" or
+          "Part received" gets its next reminder once its date has come: one
+          reminder a day at most, and none on a day someone already sent one
+          by hand. The mail goes to the supplier contacts the order is mailed
+          to, lists only the lines still pending, and is written in the
+          order's Activity and its "Reminders" box. Reminders stop by
+          themselves when everything is received or closed, or the order is
+          cancelled. If a reminder cannot go (the company's mail account is
+          not set up, or the supplier has no contact with an email), the
+          purchaser gets a bell notice once and it is tried again the next
+          day.
+        </p>
+        <h3>Leave a supplier or an order out</h3>
+        <p>
+          On a supplier's ledger, tick "No Automatic Reminders" under
+          "Purchaser And Transport" (for that company). On one order, tick
+          "No Automatic Reminders" in its "Reminders" box.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "price-lists",
     title: "Price lists",
     summary:
@@ -3752,6 +3807,13 @@ export const MANUAL: Chapter[] = [
             have been sent. "Send" sends it from the company's mail account;
             replies come to you and each reminder is written to the order's
             Activity.
+          </li>
+          <li>
+            The "Reminders" box on a submitted order lists every reminder
+            sent, by hand or by the "Reminder schedule" (Masters), with when,
+            how, the template, to whom and how many lines were pending, and
+            says when the next automatic one is due. Tick "No Automatic
+            Reminders" there to leave this order out.
           </li>
           <li>
             The "Purchase Order" template sends the order itself to the

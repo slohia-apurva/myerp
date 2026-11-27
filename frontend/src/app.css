@@ -1875,6 +1875,19 @@ fieldset.item-checks {
   padding: 1px 5px;
   font-size: 12.5px;
 }
+/* Reminder Schedule: a step's "2 days before Expected Delivery" on one line. */
+.inline-fields {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.inline-fields input.days {
+  width: 56px;
+}
+.inline-fields .combo {
+  width: 110px;
+}
 .mail-grid-slot {
   border: 1px dashed var(--field);
   border-radius: 6px;

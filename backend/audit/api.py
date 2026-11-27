@@ -21,7 +21,7 @@ GROUP_TYPES = ("user", "role")
 # group-wide masters
 SHARED_MASTER_TYPES = (
     "credit_term", "unit", "item", "item_group", "brand", "sales_person", "bom",
-    "mail_template",
+    "mail_template", "reminder_schedule",
 )  # fmt: skip
 
 

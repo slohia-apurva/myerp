@@ -18,7 +18,7 @@ from rest_framework.views import APIView
 from audit.models import AuditEntry
 from buying import mail_text
 from buying.api import SUBMIT, _check, _order, _plain, person_email
-from buying.models import PurchaseOrder
+from buying.models import OrderReminder, PurchaseOrder
 from buying.supplier_mail import (
     _dmy,
     _emails,
@@ -278,5 +278,14 @@ class ReminderView(APIView):
             record_name=str(o)[:200],
             action=AuditEntry.UPDATE,
             changes=[{"field": FIELD, "label": "Reminder", "old": None, "new": record, "to": to}],
+        )
+        raw = data.get("template")
+        t = MailTemplate.objects.filter(pk=raw).first() if str(raw or "").isdigit() else None
+        OrderReminder.objects.create(
+            order=o,
+            template_name=t.name if t else "",
+            sent_to=to,
+            line_count=len(lines),
+            by=request.user,
         )
         return Response({"sent_to": to, "cc": cc})

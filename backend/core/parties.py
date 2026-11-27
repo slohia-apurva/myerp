@@ -132,6 +132,8 @@ class PartySerializer(serializers.ModelSerializer):
         required=False,
         write_only=True,
     )
+    # This company sends the supplier no automatic reminders (kept on its ledger).
+    no_auto_reminders = serializers.BooleanField(required=False, write_only=True)
     # The company's usual transporter for a customer, kept on its ledger too.
     preferred_transporter = serializers.PrimaryKeyRelatedField(
         queryset=CourierAccount.objects.all(),
@@ -203,6 +205,7 @@ class PartySerializer(serializers.ModelSerializer):
             "sales_terms_name",
             "salesman",
             "preferred_transporter",
+            "no_auto_reminders",
             "addresses",
             "contacts",
             "products",
@@ -244,6 +247,7 @@ _NOT_PARTY_FIELDS = (
     "min_order_value",
     "salesman",
     "preferred_transporter",
+    "no_auto_reminders",
     "credit_term_name",
     "price_list_name",
     "buying_price_list_name",
@@ -309,6 +313,9 @@ def save_party(
         _check_preferred_transporter(ledger, side, transporter)
         ledger.preferred_transporter = transporter
         own.append("preferred_transporter")
+    if "no_auto_reminders" in data:
+        ledger.no_auto_reminders = bool(data.pop("no_auto_reminders"))
+        own.append("no_auto_reminders")
     if own:
         ledger.save(update_fields=own)
     party = ledger.party
@@ -705,6 +712,10 @@ def party_extras() -> dict:
         "party_salesman": (
             "Salesman or purchaser",
             lambda ledger: ledger.salesman.name if ledger.salesman_id else None,
+        ),
+        "party_no_auto_reminders": (
+            "No automatic reminders",
+            lambda ledger: "Yes" if ledger.no_auto_reminders else None,
         ),
         "party_preferred_transporter": (
             "Preferred transporter",

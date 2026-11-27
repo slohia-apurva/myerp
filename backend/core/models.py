@@ -595,6 +595,8 @@ class Ledger(models.Model):
     # The TDS section (central list, e.g. "194I(b)") a bill line booked to this
     # expense ledger deducts under. Blank: the supplier's default.
     tds_section = models.CharField("TDS section", max_length=12, blank=True)
+    # This company sends this supplier no automatic reminders (buying/auto_reminders.py).
+    no_auto_reminders = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

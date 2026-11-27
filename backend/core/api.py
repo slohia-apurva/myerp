@@ -321,6 +321,7 @@ class LedgerSerializer(serializers.ModelSerializer):
             # Each company's own salesman or purchaser.
             data["party"]["salesman"] = ledger.salesman_id
             data["party"]["salesman_name"] = ledger.salesman.name if ledger.salesman_id else ""
+            data["party"]["no_auto_reminders"] = ledger.no_auto_reminders
             data["party"]["preferred_transporter"] = ledger.preferred_transporter_id
             data["party"]["preferred_transporter_name"] = (
                 ledger.preferred_transporter.name if ledger.preferred_transporter_id else ""
