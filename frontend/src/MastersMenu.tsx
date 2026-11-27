@@ -176,7 +176,13 @@ export function ReportsMenu(props: { active: boolean; company: Company; stock: b
         ["Batch Traceability", "#/batches", props.stock],
       ],
     ],
-    ["Purchase", [["Pending Purchase Orders", `#/companies/${id}/pending-purchase-orders`, !!props.purchase]]],
+    [
+      "Purchase",
+      [
+        ["Pending Purchase Orders", `#/companies/${id}/pending-purchase-orders`, !!props.purchase],
+        ["Procurement Tracker", `#/companies/${id}/procurement-tracker`, !!props.purchase],
+      ],
+    ],
     [
       "Books",
       [

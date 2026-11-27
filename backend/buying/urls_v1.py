@@ -51,6 +51,11 @@ urlpatterns = [
         reports.PendingOrdersView.as_view(),
         name="pending-purchase-orders",
     ),
+    path(
+        "companies/<int:pk>/procurement-tracker/",
+        reports.ProcurementTrackerView.as_view(),
+        name="procurement-tracker",
+    ),
     path("purchase-orders/<int:pk>/", api.OrderDetailView.as_view(), name="purchase-order"),
     path(
         "purchase-orders/<int:pk>/pdf/",

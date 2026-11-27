@@ -5329,6 +5329,10 @@ button.conn-plus {
   width: 16px;
   height: 16px;
 }
+/* Supplier and item names may wrap so the tracker's many columns fit. */
+table.report.tracker td:nth-child(-n + 6) {
+  white-space: normal;
+}
 table.report .late {
   color: var(--red);
   font-weight: 600;
