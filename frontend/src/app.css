@@ -2586,6 +2586,9 @@ table thead tr.col-search-none > th {
 .menu-sub.open > .menu-flyout {
   display: flex;
 }
+.menu-flyout > a {
+  white-space: nowrap;
+}
 .menu-flyout .soon {
   padding: 10px 16px;
   color: var(--slate);
@@ -5306,4 +5309,27 @@ button.conn-plus {
   display: block;
   color: var(--red);
   font-size: 12.5px;
+}
+
+/* Purchase reports (Sidharth, 2026-11-27): narrow filters, a tick among them, and late days in red. */
+.report-filters.narrow > label {
+  flex: 0 1 220px;
+}
+.report-filters label.report-tick {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  align-self: flex-end;
+  gap: 8px;
+  padding-bottom: 8px;
+  font-weight: 400;
+  color: var(--ink);
+}
+.report-filters label.report-tick input {
+  width: 16px;
+  height: 16px;
+}
+table.report .late {
+  color: var(--red);
+  font-weight: 600;
 }

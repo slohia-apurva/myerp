@@ -82,3 +82,34 @@ def test_signed_out_gets_no_pdf():
         HTTP_HOST=HOST,
     )
     assert response.status_code in (401, 403)
+
+
+def test_excel_of_a_report_keeps_numbers_as_numbers(viewer):
+    import io
+
+    from openpyxl import load_workbook
+
+    body = {
+        "title": "Pending Purchase Orders",
+        "scope": "Apurvam Organics LLP",
+        "sheets": [
+            {
+                "title": "Pending Purchase Orders",
+                "columns": ["PO No", "Pending Value ₹"],
+                "rows": [["AO/PO/26-27/00412", "2,31,860.40"], ["AO/PO/26-27/00431", "9"]],
+                "text": [0],
+            }
+        ],
+    }
+    response = viewer.post(
+        "/api/v1/print/xlsx/", body, content_type="application/json", HTTP_HOST=HOST
+    )
+    assert response.status_code == 200
+    assert 'filename="pending-purchase-orders-' in response["Content-Disposition"]
+    ws = load_workbook(io.BytesIO(response.content)).active
+    rows = [[c.value for c in r] for r in ws.iter_rows()]
+    assert rows[0][0] == "Pending Purchase Orders"
+    assert rows[1][0] == "Apurvam Organics LLP"
+    assert rows[3] == ["PO No", "Pending Value ₹"]
+    assert rows[4] == ["AO/PO/26-27/00412", 231860.4]
+    assert rows[5] == ["AO/PO/26-27/00431", 9]

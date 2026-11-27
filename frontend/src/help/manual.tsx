@@ -1533,7 +1533,8 @@ export const MANUAL: Chapter[] = [
         <ul>
           <li>Scan the QR code on a retention sample label.</li>
           <li>
-            Or click "Reports" in the top menu, then "Batch Traceability" (or
+            Or click "Reports" in the top menu, point at "Stock" and click
+            "Batch Traceability" (or
             "Masters", then "Batches"). The Batches list opens: find the batch
             with the search boxes under the headings and click "Trace" on its
             row (or under "Batch Details" on the right).
@@ -5255,8 +5256,9 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          Open them from "Reports" in the top menu. They show the company picked
-          at the top right and read straight from the stock ledger, so they
+          Click "Reports" in the top menu and point at "Stock". The reports
+          there show the company picked at the top right and read straight from
+          the stock ledger, so they
           always agree with the submitted entries. Anyone whose role may see
           stock can open them. Each has the "Actions ▾" button with "Print" and
           "Download PDF". "Batch Traceability" in the same menu opens the
@@ -5328,6 +5330,52 @@ export const MANUAL: Chapter[] = [
     ),
   },
   {
+    id: "purchase-reports",
+    title: "Purchase reports",
+    summary: "Purchase orders that still have goods to come, with how late they are and what is left to receive.",
+    body: (
+      <>
+        <p>
+          Click "Reports" in the top menu and point at "Purchase". These reports
+          show the company picked at the top right. Anyone whose role may see
+          purchase entries can open them. Each one has the "Actions ▾" button
+          with "Choose Columns…", "Print", "Download PDF" and "Export to Excel".
+          Print, PDF and Excel take every row that matches, not only the page on
+          screen.
+        </p>
+        <h3>Pending Purchase Orders</h3>
+        <ul>
+          <li>
+            One line for each submitted order that still has goods to come. A
+            line of the order is pending while less than its quantity has been
+            received and nobody has used "Close Line" on it. Drafts, cancelled
+            orders and orders received in full are left out.
+          </li>
+          <li>
+            In the "Show" box, "PO Date From" and "To" choose the orders by their
+            date (from 1 April of this year to today when you start), "Branch"
+            keeps one branch, and "Late Deliveries Only" keeps only the orders
+            whose "Expected Delivery" date has passed.
+          </li>
+          <li>
+            The columns are "PO No", "PO Date", "Supplier", "Expected Delivery",
+            "Days Late" (days since the expected date, in red), "Purchaser",
+            "Branch", "Lines Pending", "Order Value ₹" and "Pending Value ₹"
+            (both before GST; the pending value is the quantity still to come at
+            the order rate) and "Status" ("Ordered" or "Part received").
+          </li>
+          <li>
+            The list shows 25 orders a page. Type in the "Search" box under a
+            heading to find orders (a date as 27-11-2026, or part of it), and
+            click a heading to sort by it; click again to sort the other way.
+            The "Total" line at the bottom adds up every page.
+          </li>
+          <li>Click a PO number to open the order.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
     id: "accounts-reports",
     title: "Accounts reports",
     summary:
@@ -5335,8 +5383,8 @@ export const MANUAL: Chapter[] = [
     body: (
       <>
         <p>
-          Open them from "Reports" in the top menu. They show the company picked
-          at the top right and read straight from the books, so every submitted
+          Click "Reports" in the top menu and point at "Books". The reports there
+          show the company picked at the top right and read straight from the books, so every submitted
           entry is in them. Anyone whose role may see accounts can open them.
           Each has the "Actions ▾" button with "Print" and "Download PDF".
         </p>

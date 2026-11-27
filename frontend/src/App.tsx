@@ -45,6 +45,7 @@ const CustomerStockPage = lazy(() => import("./CustomerStock").then((m) => ({ de
 const OwnUsePage = lazy(() => import("./OwnUse").then((m) => ({ default: m.OwnUsePage })));
 const ManufacturingOrdersPage = lazy(() => import("./ManufacturingOrders").then((m) => ({ default: m.ManufacturingOrdersPage })));
 const StockLedgerPage = lazy(() => import("./Reports").then((m) => ({ default: m.StockLedgerPage })));
+const PendingPurchaseOrdersPage = lazy(() => import("./PurchaseReports").then((m) => ({ default: m.PendingPurchaseOrdersPage })));
 const StockSummaryPage = lazy(() => import("./Reports").then((m) => ({ default: m.StockSummaryPage })));
 const LedgerStatementPage = lazy(() => import("./Books").then((m) => ({ default: m.LedgerStatementPage })));
 const TrialBalancePage = lazy(() => import("./Books").then((m) => ({ default: m.TrialBalancePage })));
@@ -67,7 +68,7 @@ const SupplierReplyPage = lazy(() => import("./SupplierReply").then((m) => ({ de
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "boms" | "hsn" | "reset" | "bill-reading" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 /** The screens under "Reports" in the top menu. */
-const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement"];
+const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement", "pending-purchase-orders"];
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -180,8 +181,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
           {canSeeShipments && current.company?.modules.includes("sales") && (
             <SalesMenu active={page === "companies" && sub === "shipments"} company={current.company} />
           )}
-          {(canSeeStock || canSeeBooks) && current.company && (
-            <ReportsMenu active={page === "companies" && REPORTS.includes(sub ?? "")} company={current.company} stock={canSeeStock} books={canSeeBooks} />
+          {(canSeeStock || canSeeBooks || (canSeePurchase && current.company?.modules.includes("purchase"))) && current.company && (
+            <ReportsMenu active={page === "companies" && REPORTS.includes(sub ?? "")} company={current.company} stock={canSeeStock} books={canSeeBooks} purchase={canSeePurchase && current.company.modules.includes("purchase")} />
           )}
           {(session.user.is_owner || canMigrate) && (
             <AdminMenu
@@ -221,6 +222,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             <BatchTracePage key={id} id={id} />
           ) : page === "bins" && id && canSeeMasters ? (
             <BinContentsPage key={id} id={id} />
+          ) : page === "companies" && id && sub === "pending-purchase-orders" && canSeePurchase ? (
+            <PendingPurchaseOrdersPage key={id} companyId={id} />
           ) : page === "companies" && id && sub === "stock-summary" && canSeeStock ? (
             <StockSummaryPage key={id} companyId={id} />
           ) : page === "companies" && id && sub === "stock-ledger" && canSeeStock ? (

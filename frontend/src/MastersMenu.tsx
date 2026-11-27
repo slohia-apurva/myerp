@@ -162,21 +162,86 @@ export function SalesMenu(props: { active: boolean; company: Company }) {
 
 /** "Reports" in the top menu (Sidharth, 2026-11-18): reports read straight from the
  * stock ledger and the books, for the company picked at the top right. */
-export function ReportsMenu(props: { active: boolean; company: Company; stock: boolean; books: boolean }) {
+export function ReportsMenu(props: { active: boolean; company: Company; stock: boolean; books: boolean; purchase?: boolean }) {
   const id = props.company.id;
-  return (
-    <DropMenu
-      label="Reports"
-      active={props.active}
-      items={[
+  // Related reports sit in their own list to the right (Sidharth, 2026-11-27, preview
+  // mockups/purchase-reports/4), as "Entry" does.
+  const groups: [string, [string, string, boolean][]][] = [
+    [
+      "Stock",
+      [
         ["Stock Summary", `#/companies/${id}/stock-summary`, props.stock],
         ["Stock Ledger", `#/companies/${id}/stock-ledger`, props.stock],
         // Opens Batches, where "Trace" on a batch opens its Batch Trace (Sidharth, 2026-11-26).
         ["Batch Traceability", "#/batches", props.stock],
+      ],
+    ],
+    ["Purchase", [["Pending Purchase Orders", `#/companies/${id}/pending-purchase-orders`, !!props.purchase]]],
+    [
+      "Books",
+      [
         ["Trial Balance", `#/companies/${id}/trial-balance`, props.books],
         ["Ledger Statement", `#/companies/${id}/ledger-statement`, props.books],
-      ]}
-    />
+      ],
+    ],
+  ];
+  return <SubMenus label="Reports" active={props.active} groups={groups} />;
+}
+
+/** A top-menu button whose list holds groups ("Stock ▸"); each opens its own list to the right
+ * on hover, or on a click for touch screens. Groups with nothing the person may open are left out. */
+function SubMenus(props: { label: string; active: boolean; groups: [string, [string, string, boolean][]][] }) {
+  const [open, setOpen] = useState(false);
+  const [sub, setSub] = useState("");
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const shut = () => setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    window.addEventListener("hashchange", shut);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+      window.removeEventListener("hashchange", shut);
+    };
+  }, [open]);
+  const groups = props.groups.map(([name, links]) => [name, links.filter((l) => l[2])] as const).filter(([, links]) => links.length > 0);
+  return (
+    <div className={`menu${props.active ? " active" : ""}`} ref={box}>
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+          setSub("");
+        }}
+      >
+        {props.label} <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="menu-panel" role="menu">
+          {groups.map(([name, links]) => (
+            <div key={name} className={`menu-sub${sub === name ? " open" : ""}`}>
+              <button type="button" aria-haspopup="true" aria-expanded={sub === name} onClick={() => setSub(sub === name ? "" : name)}>
+                {name} <span aria-hidden="true">▸</span>
+              </button>
+              <div className="menu-flyout" role="menu" aria-label={name}>
+                {links.map(([label, href]) => (
+                  <a key={label} role="menuitem" href={href} onClick={() => setOpen(false)}>
+                    {label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
