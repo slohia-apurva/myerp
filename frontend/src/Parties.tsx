@@ -410,127 +410,135 @@ export function PartyFields({
         )}
       </div>
       </div>
-      <div className="panel-card">
-      <h4>Credit</h4>
-      <div className="row">
-        <label>
-          Credit limit (₹, blank = no limit)
-          <input
-            className="num"
-            inputMode="decimal"
-            value={Number(p.credit_limit) ? p.credit_limit : ""}
-            onChange={(e) => set({ credit_limit: e.target.value })}
-          />
-        </label>
-        {!supplier && (
+      <div className="credit-boxes">
+        <div className="panel-card">
+          <h4>Credit</h4>
           <label>
-            Minimum Order Value (₹, before GST)
+            Credit Limit (₹)
             <input
               className="num"
               inputMode="decimal"
-              value={Number(p.min_order_value) ? p.min_order_value : ""}
-              onChange={(e) => set({ min_order_value: e.target.value })}
+              value={Number(p.credit_limit) ? p.credit_limit : ""}
+              onChange={(e) => set({ credit_limit: e.target.value })}
             />
-            <span className="small">Blank = no minimum. A Sales Order below it is put On Hold.</span>
+            <span className="small">Blank = no limit</span>
           </label>
-        )}
-        <label>
-          Credit terms
-          <Combobox
-            value={p.credit_term === null ? "" : String(p.credit_term)}
-            empty="None"
-            options={terms
-              .filter((t) => t.is_active || t.id === p.credit_term)
-              .map((t) => ({ value: String(t.id), label: t.name }))}
-            onChange={(v) => set({ credit_term: v ? Number(v) : null })}
-            create={newTerm}
-          />
-          {term && <span className="small">{term.summary}</span>}
-        </label>
-        <label>
-          Price list
-          <Combobox
-            value={(supplier ? p.buying_price_list : p.price_list) ? String(supplier ? p.buying_price_list : p.price_list) : ""}
-            empty="None"
-            options={priceLists
-              .filter(
-                (l) =>
-                  l.kind === (supplier ? "buying" : "selling") &&
-                  (l.is_active || l.id === (supplier ? p.buying_price_list : p.price_list)),
-              )
-              .map((l) => ({ value: String(l.id), label: l.name }))}
-            onChange={(v) => set(supplier ? { buying_price_list: v ? Number(v) : null } : { price_list: v ? Number(v) : null })}
-            create={newList}
-          />
-          <span className="small">
-            {supplier ? "The rates this supplier sells to you at" : "The rates this customer is sold at"}. Its own Item
-            Prices win.
-          </span>
-        </label>
-        <label>
-          Terms and Conditions
-          <Combobox
-            value={ownTerms ? String(ownTerms) : ""}
-            empty="Company default"
-            options={termsSets
-              .filter((t) => t.kind === (supplier ? "purchase" : "sales") && (t.is_active || t.id === ownTerms))
-              .map((t) => ({ value: String(t.id), label: t.name }))}
-            onChange={(v) => set(supplier ? { purchase_terms: v ? Number(v) : null } : { sales_terms: v ? Number(v) : null })}
-            create={newTermsSet}
-          />
-          <span className="small">
-            Printed on {supplier ? "purchase orders" : "sales documents"} to this {supplier ? "supplier" : "customer"}; empty
-            uses the company's default.
-          </span>
-        </label>
-        <label>
-          {supplier ? "Purchaser" : "Salesman"}
-          <Combobox
-            value={p.salesman === null ? "" : String(p.salesman)}
-            empty="None"
-            options={people
-              .filter((x) => x.is_active || x.id === p.salesman)
-              .map((x) => ({ value: String(x.id), label: x.is_active ? x.name : `${x.name} (disabled)` }))}
-            onChange={(v) => set({ salesman: v ? Number(v) : null })}
-            onType={findPeople}
-            create={newPerson}
-          />
-        </label>
-        {hasTransport && (
+          {!supplier && (
+            <label>
+              Minimum Order Value (₹, before GST)
+              <input
+                className="num"
+                inputMode="decimal"
+                value={Number(p.min_order_value) ? p.min_order_value : ""}
+                onChange={(e) => set({ min_order_value: e.target.value })}
+              />
+              <span className="small">Blank = no minimum. A Sales Order below it is put On Hold.</span>
+            </label>
+          )}
           <label>
-            Preferred Transporter
+            Credit Terms
             <Combobox
-              value={p.preferred_transporter == null ? "" : String(p.preferred_transporter)}
-              empty={supplier ? "By Supplier" : "None"}
-              options={transporters
-                .filter((t) => t.is_active || t.id === p.preferred_transporter)
-                .map((t) => ({ value: String(t.id), label: t.is_active ? t.name : `${t.name} (disabled)` }))}
-              onChange={(v) => set({ preferred_transporter: v ? Number(v) : null })}
-              onType={findTransporters}
-              create={newTransporter}
+              value={p.credit_term === null ? "" : String(p.credit_term)}
+              empty="None"
+              options={terms
+                .filter((t) => t.is_active || t.id === p.credit_term)
+                .map((t) => ({ value: String(t.id), label: t.name }))}
+              onChange={(v) => set({ credit_term: v ? Number(v) : null })}
+              create={newTerm}
             />
+            {term && <span className="small">{term.summary}</span>}
           </label>
-        )}
-        {supplier && (
+        </div>
+        <div className="panel-card">
+          <h4>Prices And Terms</h4>
           <label>
-            Deductee Type
+            Price List
             <Combobox
-              value={p.deductee_type ?? ""}
-              empty={`From the PAN${panType(p.pan) ? `: ${panType(p.pan)}` : ""}`}
-              options={DEDUCTEE_TYPES}
-              onChange={(v) => set({ deductee_type: v })}
+              value={(supplier ? p.buying_price_list : p.price_list) ? String(supplier ? p.buying_price_list : p.price_list) : ""}
+              empty="None"
+              options={priceLists
+                .filter(
+                  (l) =>
+                    l.kind === (supplier ? "buying" : "selling") &&
+                    (l.is_active || l.id === (supplier ? p.buying_price_list : p.price_list)),
+                )
+                .map((l) => ({ value: String(l.id), label: l.name }))}
+              onChange={(v) => set(supplier ? { buying_price_list: v ? Number(v) : null } : { price_list: v ? Number(v) : null })}
+              create={newList}
             />
-            <span className="small">Sets the TDS rate; no PAN means the higher rate</span>
+            <span className="small">
+              {supplier ? "The rates this supplier sells to you at" : "The rates this customer is sold at"}. Its own Item
+              Prices win.
+            </span>
           </label>
-        )}
-        {supplier && (
           <label>
-            Default TDS Section
-            <TdsSectionPicker value={p.tds_section ?? ""} onChange={(v) => set({ tds_section: v })} />
-            <span className="small">Used for a bill line whose item or ledger names none</span>
+            Terms And Conditions
+            <Combobox
+              value={ownTerms ? String(ownTerms) : ""}
+              empty="Company default"
+              options={termsSets
+                .filter((t) => t.kind === (supplier ? "purchase" : "sales") && (t.is_active || t.id === ownTerms))
+                .map((t) => ({ value: String(t.id), label: t.name }))}
+              onChange={(v) => set(supplier ? { purchase_terms: v ? Number(v) : null } : { sales_terms: v ? Number(v) : null })}
+              create={newTermsSet}
+            />
+            <span className="small">
+              Printed on {supplier ? "purchase orders" : "sales documents"} to this {supplier ? "supplier" : "customer"}; empty
+              uses the company's default.
+            </span>
           </label>
+        </div>
+        <div className="panel-card">
+          <h4>{supplier ? "Purchaser And Transport" : "Salesman And Transport"}</h4>
+          <label>
+            {supplier ? "Purchaser" : "Salesman"}
+            <Combobox
+              value={p.salesman === null ? "" : String(p.salesman)}
+              empty="None"
+              options={people
+                .filter((x) => x.is_active || x.id === p.salesman)
+                .map((x) => ({ value: String(x.id), label: x.is_active ? x.name : `${x.name} (disabled)` }))}
+              onChange={(v) => set({ salesman: v ? Number(v) : null })}
+              onType={findPeople}
+              create={newPerson}
+            />
+          </label>
+          {hasTransport && (
+            <label>
+              Preferred Transporter
+              <Combobox
+                value={p.preferred_transporter == null ? "" : String(p.preferred_transporter)}
+                empty={supplier ? "By Supplier" : "None"}
+                options={transporters
+                  .filter((t) => t.is_active || t.id === p.preferred_transporter)
+                  .map((t) => ({ value: String(t.id), label: t.is_active ? t.name : `${t.name} (disabled)` }))}
+                onChange={(v) => set({ preferred_transporter: v ? Number(v) : null })}
+                onType={findTransporters}
+                create={newTransporter}
+              />
+            </label>
+          )}
+        </div>
+        {supplier && (
+          <div className="panel-card">
+            <h4>TDS</h4>
+            <label>
+              Deductee Type
+              <Combobox
+                value={p.deductee_type ?? ""}
+                empty={`From the PAN${panType(p.pan) ? `: ${panType(p.pan)}` : ""}`}
+                options={DEDUCTEE_TYPES}
+                onChange={(v) => set({ deductee_type: v })}
+              />
+              <span className="small">Sets the TDS rate; no PAN means the higher rate.</span>
+            </label>
+            <label>
+              Default TDS Section
+              <TdsSectionPicker value={p.tds_section ?? ""} onChange={(v) => set({ tds_section: v })} />
+              <span className="small">Used for a bill line whose item or ledger names none.</span>
+            </label>
+          </div>
         )}
-      </div>
       </div>
       </PanelBox>
 
