@@ -323,8 +323,19 @@ def _save(r: GoodsReceipt, data: dict) -> None:
             raise ValidationError({"orders": [f"{o.number} is not an order of {supplier}."]})
         if o.status not in PurchaseOrder.OPEN:
             raise ValidationError({"orders": [f"{o.number} is {o.get_status_display().lower()}."]})
-        if o.branch_id != branch.pk:
-            raise ValidationError({"orders": [f"{o.number} is for {o.branch}, not {branch}."]})
+        # Goods ordered for one branch may come into another (Sidharth, 2026-11-27):
+        # the stock is where it arrived. Only within the same state, since the
+        # supplier's bill and its CGST + SGST or IGST follow the order's state, and
+        # the purchase invoice is booked at the receiving branch.
+        if o.branch.state_code != branch.state_code:
+            raise ValidationError(
+                {
+                    "orders": [
+                        f"{o.number} is for {o.branch}, in another state. Receive it at a "
+                        f"branch in that state, then move the goods by a Stock Transfer."
+                    ]
+                }
+            )
     currencies = {o.currency for o in orders}
     if len(currencies) > 1:
         raise ValidationError(
@@ -1007,6 +1018,7 @@ class PendingOrdersView(APIView):
                         "supplier_name": o.supplier.name,
                         "branch": o.branch_id,
                         "branch_name": o.branch.name,
+                        "state_code": o.branch.state_code,
                         "currency": o.currency,
                         "transporter": o.transporter_id,
                         "lines": pending_lines(o),
@@ -1032,7 +1044,9 @@ class ReceiptSetupView(APIView):
         ).select_related("parent")
         return Response(
             {
-                "branches": [{"id": b.pk, "name": b.name} for b in branches],
+                "branches": [
+                    {"id": b.pk, "name": b.name, "state_code": b.state_code} for b in branches
+                ],
                 "locations": [
                     {
                         "id": p.pk,

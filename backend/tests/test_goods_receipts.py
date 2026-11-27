@@ -513,3 +513,39 @@ def test_received_by_and_qc_by_are_stores_people(store, owner, grn, alpha):  # n
         owner, "patch", f"sales-people/{ramesh}/", {"is_stores": False, "is_purchaser": True}
     )
     assert untick.status_code == 400 and "is_stores" in untick.json()
+
+
+def _branch(g, name, state_code):
+    from core.models import Branch
+    from core.stores import sync_default_store
+
+    b = Branch.objects.create(company_id=g["company"], name=name, state_code=state_code)
+    sync_default_store(b)
+    return b, WarehouseLocation.objects.get(branch=b, is_default=True)
+
+
+def test_an_order_for_one_branch_is_received_at_another_in_the_same_state(store, grn, alpha):
+    """Head office orders, the goods come into the Sankrail warehouse (Sidharth,
+    2026-11-27): allowed, and the stock is where it arrived."""
+    with use_tenant(alpha):
+        sankrail, area = _branch(grn, "Sankrail-1", "27")
+    rows = call(store, "get", f"{url(grn)}pending/?supplier={grn['local']}").json()
+    assert rows[0]["state_code"] == "27"
+    puts = [{"location": area.pk, "qty": "30"}]
+    body = receipt(grn, [box_line(grn, puts=puts)], branch=sankrail.pk, submit=True)
+    done = call(store, "post", url(grn), body)
+    assert done.status_code == 201, done.json()
+    assert done.json()["branch_name"] == "Sankrail-1"
+    with use_tenant(alpha):
+        assert on_hand(Item.objects.get(pk=grn["box"]), area) == 30
+        assert StockMove.objects.filter(location=area).exists()
+
+
+def test_an_order_for_a_branch_in_another_state_is_not_received_here(store, grn, alpha):
+    with use_tenant(alpha):
+        kolkata, area = _branch(grn, "Kolkata", "19")
+    puts = [{"location": area.pk, "qty": "30"}]
+    body = receipt(grn, [box_line(grn, puts=puts)], branch=kolkata.pk)
+    res = call(store, "post", url(grn), body)
+    assert res.status_code == 400
+    assert "in another state" in str(res.json())
