@@ -35,6 +35,7 @@ KEY_FIELDS: dict[str, dict[str, str]] = {
     "number_format": {"prefix": "prefix", "width": "number of digits"},
     "batch": {"item": "item"},
     "brand": {},  # the name stays open; nothing else on a brand is a key
+    "mail_template": {},  # nothing refers to a template; every field stays open
     "sales_person": {},  # name, ticks and contact stay open
     "ledger_group": {"parent": "the group it sits under"},
     "ledger": {"group": "group", "currency": "currency", "bill_wise": "bill-wise"},
