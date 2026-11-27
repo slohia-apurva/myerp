@@ -16,11 +16,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from audit.models import AuditEntry
+from buying import mail_text
 from buying.api import SUBMIT, _check, _order, _plain, person_email
 from buying.models import PurchaseOrder
 from buying.supplier_mail import (
     _dmy,
     _emails,
+    _named,
     _order_file,
     _people,
     _signature,
@@ -28,6 +30,7 @@ from buying.supplier_mail import (
 )
 from core import mail
 from core.api import Signed
+from core.models import MailTemplate
 
 FIELD = "po_reminder"
 ASK = (
@@ -176,6 +179,15 @@ class ReminderView(APIView):
         buyer = person_email(o.purchaser)
         if buyer and buyer.lower() not in {p["email"].lower() for p in cc}:
             cc.append({"name": f"{o.purchaser.name} (Purchaser)", "email": buyer})
+        t = mail_text.chosen(request, MailTemplate.REMINDER)
+        if t is not None:
+            w = mail_text.words(t, mail_text.order_values(o, ticked[0].name if ticked else ""))
+        else:
+            w = {
+                "subject": f"Reminder: Pending Supply against PO No : {o.number}",
+                "opening": _intro(o),
+                "closing": ASK,
+            }
         before = _sent_before(o)
         last = None
         if before:
@@ -203,9 +215,12 @@ class ReminderView(APIView):
                 ]
                 + [{"name": c.name, "email": c.email, "of": "Supplier"} for c in contacts],
                 "lines": pending_lines(o),
-                "subject": f"Reminder: Pending Supply against PO No : {o.number}",
-                "intro": _intro(o),
-                "closing": ASK,
+                "template": t.pk if t else None,
+                "template_name": t.name if t else "",
+                "attach_default": t.attach if t else True,
+                "subject": w["subject"],
+                "intro": w["opening"],
+                "closing": w["closing"],
                 "signature": _signature(request.user, o),
                 "attachment": _order_file(o)[0],
                 "last": last,
@@ -248,7 +263,7 @@ class ReminderView(APIView):
         except mail.NotSetUp as exc:
             raise ValidationError({"detail": str(exc)}) from exc
         record = (
-            f'Reminder sent to supplier: "{subject}" to {", ".join(to)}'
+            f'Reminder sent to supplier{_named(data)}: "{subject}" to {", ".join(to)}'
             + (f", copy to {', '.join(cc)}" if cc else "")
             + "; "
             + "; ".join(f"{ln['item_code']} {ln['pending']} {ln['unit']} pending" for ln in lines)

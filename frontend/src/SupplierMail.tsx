@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "./api";
 import { Combobox } from "./Combobox";
 import { ErrorNote } from "./ErrorNote";
@@ -32,6 +32,11 @@ type Draft = {
   short_ask: string;
   over_ask: string;
   signature: string;
+  // From the picked mail template (absent when the group has none).
+  template?: number;
+  subject_pattern?: string;
+  closing?: string;
+  attach_default?: boolean;
 };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -42,9 +47,17 @@ const PILL: Record<DiffLine["kind"], string> = { short: "pill warn", not_receive
 function wording(lines: DiffLine[], number: string, d: Draft): [string, string] {
   const short = lines.some((l) => l.kind !== "over");
   const over = lines.some((l) => l.kind === "over");
-  const what = short && over ? "Short and Excess Supply" : over ? "Excess Supply" : "Short Supply";
-  return [`${what} against PO No : ${number}`, [short && d.short_ask, over && d.over_ask].filter(Boolean).join(" ")];
+  const what = short && over ? "Short and Excess" : over ? "Excess" : "Short";
+  if (d.subject_pattern !== undefined) return [d.subject_pattern.replace(/\{\s*short\s+or\s+excess\s*\}/gi, what), d.closing ?? ""];
+  return [`${what} Supply against PO No : ${number}`, [short && d.short_ask, over && d.over_ask].filter(Boolean).join(" ")];
 }
+
+/** The mail's own heading and its Template picker, when opened from "Email Supplier". */
+type Picked = { template?: number; picker?: ReactNode; title?: string };
+const withTemplate = (link: string, template?: number, more = "") => {
+  const q = [template ? `template=${template}` : "", more].filter(Boolean).join("&");
+  return q ? `${link}?${q}` : link;
+};
 
 export function People({ label, value, options, onChange }: { label: string; value: Person[]; options: Person[]; onChange: (p: Person[]) => void }) {
   const left = options.filter((o) => !value.some((v) => v.email.toLowerCase() === o.email.toLowerCase()));
@@ -84,7 +97,15 @@ export function People({ label, value, options, onChange }: { label: string; val
 
 /** "Email Supplier" on a purchase order: one mail about the lines that came
  * short, did not come, or came in excess, with a grid of them. */
-export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: number; grn: string; onClose: () => void; onSent: (to: string[]) => void }) {
+export function SupplierMail({
+  orderId,
+  grn,
+  onClose,
+  onSent,
+  template,
+  picker,
+  title = "Email Supplier",
+}: { orderId: number; grn: string; onClose: () => void; onSent: (to: string[]) => void } & Picked) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [to, setTo] = useState<Person[]>([]);
   const [cc, setCc] = useState<Person[]>([]);
@@ -98,24 +119,25 @@ export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: numbe
   const [withOrder, setWithOrder] = useState(false);
   const link = `v1/purchase-orders/${orderId}/supplier-mail/`;
   useEffect(() => {
-    api<Draft>(`${link}?grn=${grn}`).then((d) => {
+    api<Draft>(withTemplate(link, template, `grn=${grn}`)).then((d) => {
       setDraft(d);
       setTo(d.to);
       setCc(d.cc);
       setTicked(d.lines.map((l) => l.id));
-      setReceipt(d.grn ? String(d.grn) : "");
+      setReceipt(d.grn && d.attach_default !== false ? String(d.grn) : "");
     }, setError);
-  }, [link, grn]);
+  }, [link, grn, template]);
   const chosen = useMemo(() => (draft ? draft.lines.filter((l) => ticked.includes(l.id)) : []), [draft, ticked]);
   if (!draft)
     return (
-      <Fold title="Email Supplier" open>
+      <Fold title={title} open>
+        {picker}
         <ErrorNote error={error} />
       </Fold>
     );
   const [autoSubject, autoClosing] = wording(chosen, draft.order_number, draft);
   const shownSubject = subject ?? autoSubject;
-  const shownIntro = intro ?? draft.intros[receipt] ?? "";
+  const shownIntro = intro ?? draft.intros[receipt] ?? draft.intros[String(draft.grn ?? "")] ?? "";
   const shownClosing = closing ?? autoClosing;
   const greeting = draft.to_options.find((o) => o.email === to[0]?.email)?.name || "Sir/Madam";
   const send = async () => {
@@ -131,6 +153,7 @@ export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: numbe
         lines: ticked,
         grn: receipt ? Number(receipt) : null,
         attach_order: withOrder,
+        template: draft.template,
       });
       onSent(done.sent_to);
     } catch (err) {
@@ -140,17 +163,21 @@ export function SupplierMail({ orderId, grn, onClose, onSent }: { orderId: numbe
     }
   };
   return (
-    <Fold title="Email Supplier" open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
+    <Fold title={title} open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
       {!draft.mail_ready && (
         <p className="use-note">
           The company's mail account is not set up yet. An Owner sets it under Admin › Company › Edit › "Mail Account".
         </p>
       )}
       {draft.lines.length === 0 ? (
-        <p className="small">Every line has come as ordered or is closed; there is nothing to write about.</p>
+        <>
+          {picker}
+          <p className="small">Every line has come as ordered or is closed; there is nothing to write about.</p>
+        </>
       ) : (
         <div className="supplier-mail">
           <div>
+            {picker}
             <People label="To" value={to} options={draft.to_options} onChange={setTo} />
             <People label="CC" value={cc} options={draft.cc_options} onChange={setCc} />
             <label className="field">
@@ -258,6 +285,7 @@ type OrderDraft = {
   message: string;
   signature: string;
   attachment: string;
+  template?: number | null;
 };
 
 /** "Email PO": the submitted order to the supplier, its PDF attached. */
@@ -269,13 +297,14 @@ export function OrderMail({
   onSent,
   path = "purchase-orders",
   title = "Email PO",
+  template,
+  picker,
 }: {
   orderId: number;
   onClose: () => void;
   onSent: (to: string[]) => void;
   path?: string;
-  title?: string;
-}) {
+} & Picked) {
   const sale = path === "sales-orders";
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [to, setTo] = useState<Person[]>([]);
@@ -286,17 +315,18 @@ export function OrderMail({
   const [busy, setBusy] = useState(false);
   const link = `v1/${path}/${orderId}/mail/`;
   useEffect(() => {
-    api<OrderDraft>(link).then((d) => {
+    api<OrderDraft>(withTemplate(link, template)).then((d) => {
       setDraft(d);
       setTo(d.to);
       setCc(d.cc);
       setSubject(d.subject);
       setMessage(d.message);
     }, setError);
-  }, [link]);
+  }, [link, template]);
   if (!draft)
     return (
       <Fold title={title} open>
+        {picker}
         <ErrorNote error={error} />
       </Fold>
     );
@@ -305,7 +335,13 @@ export function OrderMail({
     setBusy(true);
     setError("");
     try {
-      const done = await api<{ sent_to: string[] }>(link, { to: to.map((p) => p.email), cc: cc.map((p) => p.email), subject, message });
+      const done = await api<{ sent_to: string[] }>(link, {
+        to: to.map((p) => p.email),
+        cc: cc.map((p) => p.email),
+        subject,
+        message,
+        template: draft.template ?? undefined,
+      });
       onSent(done.sent_to);
     } catch (err) {
       setError(err);
@@ -322,6 +358,7 @@ export function OrderMail({
       )}
       <div className="supplier-mail">
         <div>
+          {picker}
           <People label="To" value={to} options={draft.to_options} onChange={setTo} />
           <People label="CC" value={cc} options={draft.cc_options} onChange={setCc} />
           <label className="field">
@@ -390,6 +427,8 @@ type ReminderDraft = {
   attachment: string;
   last: { date: string; by: string; to: string[] } | null;
   count: number;
+  template: number | null;
+  attach_default: boolean;
 };
 
 const lateWords = (d: number) => (d ? `${d} day${d === 1 ? "" : "s"} late` : "");
@@ -397,7 +436,14 @@ const lateWords = (d: number) => (d ? `${d} day${d === 1 ? "" : "s"} late` : "")
 /** "Send Reminder" on an open purchase order (Sidharth, 2026-11-27): asks the
  * supplier when the quantity still to come will be supplied, with a grid of
  * those lines. */
-export function SupplierReminder({ orderId, onClose, onSent }: { orderId: number; onClose: () => void; onSent: (to: string[]) => void }) {
+export function SupplierReminder({
+  orderId,
+  onClose,
+  onSent,
+  template,
+  picker,
+  title = "Send Reminder",
+}: { orderId: number; onClose: () => void; onSent: (to: string[]) => void } & Picked) {
   const [draft, setDraft] = useState<ReminderDraft | null>(null);
   const [to, setTo] = useState<Person[]>([]);
   const [cc, setCc] = useState<Person[]>([]);
@@ -410,7 +456,7 @@ export function SupplierReminder({ orderId, onClose, onSent }: { orderId: number
   const [busy, setBusy] = useState(false);
   const link = `v1/purchase-orders/${orderId}/reminder/`;
   useEffect(() => {
-    api<ReminderDraft>(link).then((d) => {
+    api<ReminderDraft>(withTemplate(link, template)).then((d) => {
       setDraft(d);
       setTo(d.to);
       setCc(d.cc);
@@ -418,12 +464,14 @@ export function SupplierReminder({ orderId, onClose, onSent }: { orderId: number
       setSubject(d.subject);
       setIntro(d.intro);
       setClosing(d.closing);
+      setWithOrder(d.attach_default);
     }, setError);
-  }, [link]);
+  }, [link, template]);
   const chosen = useMemo(() => (draft ? draft.lines.filter((l) => ticked.includes(l.id)) : []), [draft, ticked]);
   if (!draft)
     return (
-      <Fold title="Send Reminder" open>
+      <Fold title={title} open>
+        {picker}
         <ErrorNote error={error} />
       </Fold>
     );
@@ -440,6 +488,7 @@ export function SupplierReminder({ orderId, onClose, onSent }: { orderId: number
         closing,
         lines: ticked,
         attach_order: withOrder,
+        template: draft.template ?? undefined,
       });
       onSent(done.sent_to);
     } catch (err) {
@@ -449,17 +498,21 @@ export function SupplierReminder({ orderId, onClose, onSent }: { orderId: number
     }
   };
   return (
-    <Fold title="Send Reminder" open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
+    <Fold title={title} open summary={draft.mail_ready ? `From ${draft.from}` : "Mail account not set up"}>
       {!draft.mail_ready && (
         <p className="use-note">
           The company's mail account is not set up yet. An Owner sets it under Admin › Company › Edit › "Mail Account".
         </p>
       )}
       {draft.lines.length === 0 ? (
-        <p className="small">Every line has come in full or is closed; there is nothing to chase.</p>
+        <>
+          {picker}
+          <p className="small">Every line has come in full or is closed; there is nothing to chase.</p>
+        </>
       ) : (
         <div className="supplier-mail">
           <div>
+            {picker}
             <People label="To" value={to} options={draft.to_options} onChange={setTo} />
             <People label="CC" value={cc} options={draft.cc_options} onChange={setCc} />
             <label className="field">
@@ -552,4 +605,47 @@ export function SupplierReminder({ orderId, onClose, onSent }: { orderId: number
       </div>
     </Fold>
   );
+}
+
+type Offered = { id: number; name: string; used_for: "purchase_order" | "short_excess" | "reminder"; used_for_label: string; is_default: boolean };
+
+/** "Email Supplier" on a purchase order (Sidharth, 2026-11-27): one button; the
+ * "Template" picker (Masters › Mail templates) decides the mail: the order itself,
+ * short / excess supply against a receipt, or a reminder for what is still to come. */
+export function EmailSupplier({ orderId, grn, onClose, onSent }: { orderId: number; grn: string; onClose: () => void; onSent: (to: string[]) => void }) {
+  const [offered, setOffered] = useState<Offered[] | null>(null);
+  const [pick, setPick] = useState("");
+  const [error, setError] = useState<unknown>("");
+  useEffect(() => {
+    api<Offered[]>(`v1/purchase-orders/${orderId}/mail-templates/`).then((ts) => {
+      setOffered(ts);
+      // Opened from a receipt notice: the short / excess mail; else a reminder while goods are due; else the order.
+      const first =
+        (grn && ts.find((t) => t.used_for === "short_excess")) || ts.find((t) => t.used_for === "reminder") || ts.find((t) => t.used_for === "purchase_order") || ts[0];
+      setPick(first ? String(first.id) : "");
+    }, setError);
+  }, [orderId, grn]);
+  const t = offered?.find((x) => String(x.id) === pick);
+  if (!offered || !t)
+    return (
+      <Fold title="Email Supplier" open>
+        {offered && <p className="small">No mail template fits this order. Add one under Masters › Mail templates.</p>}
+        <ErrorNote error={error} />
+        <div className="buttons">
+          <button type="button" className="link" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </Fold>
+    );
+  const picker = (
+    <div className="field">
+      <span className="fact-label">Template</span>
+      <Combobox ariaLabel="Template" value={pick} onChange={setPick} options={offered.map((x) => ({ value: String(x.id), label: x.name, hint: x.used_for_label }))} />
+    </div>
+  );
+  const common = { orderId, onClose, onSent, template: t.id, picker, title: "Email Supplier" };
+  if (t.used_for === "purchase_order") return <OrderMail key={pick} {...common} />;
+  if (t.used_for === "short_excess") return <SupplierMail key={pick} {...common} grn={grn} />;
+  return <SupplierReminder key={pick} {...common} />;
 }
