@@ -3963,6 +3963,13 @@ label.attach-kind .combo * {
 .mail-preview .mail-grid {
   margin: 8px 0 12px;
 }
+.mail-grid td.late {
+  color: var(--red);
+  font-weight: 600;
+}
+.mail-grid td.late .small {
+  font-weight: 400;
+}
 .supplier-mail input,
 .mail-preview textarea {
   box-sizing: border-box;

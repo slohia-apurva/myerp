@@ -19,7 +19,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Mast
 import { STOCK_COST } from "./Items";
 import { defaultPolicy, TransitInsuranceFold, TransitInsuranceView, type OrderInsurance, type PolicyPick } from "./Insurance";
 import { PoPrint } from "./PoPrint";
-import { OrderMail, SupplierMail } from "./SupplierMail";
+import { OrderMail, SupplierMail, SupplierReminder } from "./SupplierMail";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
 import { Connections } from "./Connections";
@@ -1622,6 +1622,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
   const [mailing, setMailing] = useState(!!hashParam("mail"));
   const [sendingPo, setSendingPo] = useState(false);
+  const [reminding, setReminding] = useState(false);
   const [mailed, setMailed] = useState("");
   const { terms } = useCreditTerms();
   const reload = useCallback(() => {
@@ -1697,6 +1698,11 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Email Supplier
               </button>
             )}
+            {can("submit") && (order.status === "ordered" || order.status === "part_received") && !reminding && (
+              <button type="button" className="link" onClick={() => setReminding(true)}>
+                Send Reminder
+              </button>
+            )}
             {/* The order prints in its own tab, laid out for the supplier. */}
             <ActionsMenu label="Print" items={printMenu(companyId, order.id)} />
             {draft && can("submit") && (
@@ -1746,6 +1752,17 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               onSent={(to) => {
                 setSendingPo(false);
                 setMailed(`Order mailed to ${to.join(", ")}. A copy is in the order's Activity.`);
+                setFiles((n) => n + 1);
+              }}
+            />
+          )}
+          {reminding && (
+            <SupplierReminder
+              orderId={order.id}
+              onClose={() => setReminding(false)}
+              onSent={(to) => {
+                setReminding(false);
+                setMailed(`Reminder sent to ${to.join(", ")}. A copy is in the order's Activity.`);
                 setFiles((n) => n + 1);
               }}
             />
