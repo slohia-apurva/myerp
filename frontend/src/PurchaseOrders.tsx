@@ -19,7 +19,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Mast
 import { STOCK_COST } from "./Items";
 import { defaultPolicy, TransitInsuranceFold, TransitInsuranceView, type OrderInsurance, type PolicyPick } from "./Insurance";
 import { PoPrint } from "./PoPrint";
-import { OrderMail, SupplierMail, SupplierReminder } from "./SupplierMail";
+import { EmailSupplier } from "./SupplierMail";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
 import { Connections } from "./Connections";
@@ -1621,8 +1621,6 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
   const [reason, setReason] = useState("");
   const [files, setFiles] = useState(0); // bumps the Activity after a file is added or removed
   const [mailing, setMailing] = useState(!!hashParam("mail"));
-  const [sendingPo, setSendingPo] = useState(false);
-  const [reminding, setReminding] = useState(false);
   const [mailed, setMailed] = useState("");
   const { terms } = useCreditTerms();
   const reload = useCallback(() => {
@@ -1688,19 +1686,9 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Cancel order
               </button>
             )}
-            {can("submit") && !draft && order.status !== "cancelled" && !sendingPo && (
-              <button type="button" className="link" onClick={() => setSendingPo(true)}>
-                Email PO
-              </button>
-            )}
             {can("submit") && !draft && order.status !== "cancelled" && !mailing && (
               <button type="button" className="link" onClick={() => setMailing(true)}>
                 Email Supplier
-              </button>
-            )}
-            {can("submit") && (order.status === "ordered" || order.status === "part_received") && !reminding && (
-              <button type="button" className="link" onClick={() => setReminding(true)}>
-                Send Reminder
               </button>
             )}
             {/* The order prints in its own tab, laid out for the supplier. */}
@@ -1745,30 +1733,8 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
           )}
           <ErrorNote error={error} />
           {mailed && <p className="use-note">{mailed}</p>}
-          {sendingPo && (
-            <OrderMail
-              orderId={order.id}
-              onClose={() => setSendingPo(false)}
-              onSent={(to) => {
-                setSendingPo(false);
-                setMailed(`Order mailed to ${to.join(", ")}. A copy is in the order's Activity.`);
-                setFiles((n) => n + 1);
-              }}
-            />
-          )}
-          {reminding && (
-            <SupplierReminder
-              orderId={order.id}
-              onClose={() => setReminding(false)}
-              onSent={(to) => {
-                setReminding(false);
-                setMailed(`Reminder sent to ${to.join(", ")}. A copy is in the order's Activity.`);
-                setFiles((n) => n + 1);
-              }}
-            />
-          )}
           {mailing && (
-            <SupplierMail
+            <EmailSupplier
               orderId={order.id}
               grn={hashParam("grn") ?? ""}
               onClose={() => setMailing(false)}

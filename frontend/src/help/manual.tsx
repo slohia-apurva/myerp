@@ -3709,7 +3709,18 @@ export const MANUAL: Chapter[] = [
             submit purchase orders.
           </li>
           <li>
-            "Email Supplier" on a submitted order writes one mail to the
+            "Email Supplier" on a submitted order opens one mail box. Pick
+            the kind of mail under "Template": "Purchase Order" (the order
+            itself), "Short / Excess Supply" (after a receipt that did not
+            match) or "Reminder for Pending Supply" (while goods are still to
+            come), or any other template made under Masters › "Mail
+            templates". Only the templates that fit the order are offered.
+            The template fills the subject and the words, which can still be
+            changed before "Send", and the order's Activity names the template
+            used. Each kind of mail works as below.
+          </li>
+          <li>
+            "Short / Excess Supply" writes one mail to the
             supplier about every line that came short ("Short"), did not come
             ("Not received") or came in excess ("Excess"), all ticked; untick a
             line under "Lines" to leave it out. "To" starts with the contacts
@@ -3725,7 +3736,7 @@ export const MANUAL: Chapter[] = [
             with it too.
           </li>
           <li>
-            "Send Reminder" on an order that is "Ordered" or "Part received"
+            "Reminder for Pending Supply", on an order that is "Ordered" or "Part received"
             (for example one opened from "Pending Purchase Orders" or the
             "Procurement Tracker") writes to the supplier asking when the
             quantity still to come will be supplied. The mail has a grid of
@@ -3743,17 +3754,17 @@ export const MANUAL: Chapter[] = [
             Activity.
           </li>
           <li>
-            "Email PO" on a submitted order sends the order itself to the
+            The "Purchase Order" template sends the order itself to the
             supplier, as a PDF in the printed layout. "To" starts with the
             contacts ticked "Mail" on the order (and the agent, if ticked),
-            "CC" with you; add or remove people as in "Email Supplier". The
+            "CC" with you; add or remove people as in the other mails. The
             "Subject" reads "Purchase Order No : …" and the message can be
             changed. Click the file name beside "Attached" to see the PDF
             first. "Send" sends it from the company's mail account; replies
             come to you and the order's Activity notes it.
           </li>
           <li>
-            Every order mailed with "Email PO" carries a "View and Accept
+            Every order mailed with the "Purchase Order" template carries a "View and Accept
             Order" button: a private link made for that mailing, which the
             supplier opens without signing in (on a phone or a computer). It
             works for 90 days, and not once the order is cancelled. The

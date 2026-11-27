@@ -17,13 +17,15 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from audit.models import AuditEntry
+from buying import mail_text
 from buying.api import SUBMIT, VIEW, _check, _fresh, _order, _plain, person_email
 from buying.models import GoodsReceipt, PurchaseOrder
 from buying.po_pdf import order_pdf
 from buying.supplier_link import make_link
 from core import mail, print_mark, printout
 from core.api import Signed
-from core.models import PartyContact
+from core.mail_templates import fill
+from core.models import MailTemplate, PartyContact
 from tenancy.context import tenant_atomic
 
 SHORT, MISSING, OVER = "short", "not_received", "over"
@@ -117,6 +119,21 @@ class SupplierMailView(APIView):
         contacts = _supplier_contacts(o)
         ticked = [c for c in contacts if c.pk in o.mail_to] or contacts[:1]
         acct = mail.account_of(o.company)
+        t = mail_text.chosen(request, MailTemplate.SHORT_EXCESS)
+        words = {}
+        if t is not None:
+            base = mail_text.order_values(o, ticked[0].name if ticked else "")
+            words = {
+                "template": t.pk,
+                "template_name": t.name,
+                "attach_default": t.attach,
+                "intros": {
+                    str(x.pk): fill(t.opening, base | mail_text.receipt_values(x)) for x in receipts
+                }
+                | {"": fill(t.opening, base | mail_text.receipt_values(None))},
+                "subject_pattern": fill(t.subject, base | mail_text.receipt_values(r)),
+                "closing": fill(t.closing, base | mail_text.receipt_values(r)),
+            }
         return Response(
             {
                 "order": o.pk,
@@ -146,6 +163,7 @@ class SupplierMailView(APIView):
                 "over_ask": OVER_ASK,
                 "signature": _signature(request.user, o),
             }
+            | words
         )
 
     def post(self, request, pk: int):
@@ -194,7 +212,7 @@ class SupplierMailView(APIView):
         except mail.NotSetUp as exc:
             raise ValidationError({"detail": str(exc)}) from exc
         record = (
-            f'Mail to supplier: "{subject}" to {", ".join(to)}'
+            f'Mail to supplier{_named(data)}: "{subject}" to {", ".join(to)}'
             + (f", copy to {', '.join(cc)}" if cc else "")
             + "; "
             + "; ".join(
@@ -215,6 +233,13 @@ class SupplierMailView(APIView):
             changes=[{"field": "supplier_mail", "label": "Mail", "old": None, "new": record}],
         )
         return Response({"sent_to": to, "cc": cc})
+
+
+def _named(data) -> str:
+    """ " (Template name)" for the activity note, when a template was picked."""
+    raw = data.get("template")
+    t = MailTemplate.objects.filter(pk=raw).first() if str(raw or "").isdigit() else None
+    return f" ({t.name})" if t else ""
 
 
 def _emails(value, field: str) -> list[str]:
@@ -425,13 +450,23 @@ class OrderMailView(APIView):
             if o.agent_id
             else []
         )
+        t = mail_text.chosen(request, MailTemplate.PURCHASE_ORDER)
+        to = _order_to(o)
+        if t is not None:
+            w = mail_text.words(t, mail_text.order_values(o, to[0]["name"] if to else ""))
+            subject = w["subject"]
+            message = "\n\n".join(x for x in (w["opening"], w["closing"]) if x)
+        else:
+            subject, message = f"Purchase Order No : {o.number}", _order_message(o)
         return Response(
             {
+                "template": t.pk if t else None,
+                "template_name": t.name if t else "",
                 "order_number": o.number,
                 "supplier_name": o.supplier.name,
                 "mail_ready": bool(acct and acct.password),
                 "from": acct.address if acct else "",
-                "to": _order_to(o),
+                "to": to,
                 "to_options": [
                     {"name": c.name, "email": c.email, "of": "Supplier"} for c in contacts
                 ]
@@ -443,8 +478,8 @@ class OrderMailView(APIView):
                     {"name": u.display_name, "email": u.email, "of": "Our team"} for u in _people(o)
                 ]
                 + [{"name": c.name, "email": c.email, "of": "Supplier"} for c in contacts],
-                "subject": f"Purchase Order No : {o.number}",
-                "message": _order_message(o),
+                "subject": subject,
+                "message": message,
                 "signature": _signature(request.user, o),
                 "attachment": _order_file(o)[0],
             }
@@ -511,7 +546,7 @@ class OrderMailView(APIView):
             )
         except mail.NotSetUp as exc:
             raise ValidationError({"detail": str(exc)}) from exc
-        record = f'Order mailed: "{subject}" to {", ".join(to)}' + (
+        record = f'Order mailed{_named(data)}: "{subject}" to {", ".join(to)}' + (
             f", copy to {', '.join(cc)}" if cc else ""
         )
         AuditEntry.objects.create(
