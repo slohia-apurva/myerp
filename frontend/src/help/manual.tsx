@@ -2568,8 +2568,13 @@ export const MANUAL: Chapter[] = [
           details by hand.
         </p>
         <p>
-          The "GST And Credit" section has two boxes, "GST" and "Credit". Together
-          they hold:
+          The "GST And Credit" section starts with the "GST" box. Under it, four
+          smaller boxes sit two side by side (one under another on a phone):
+          "Credit" ("Credit Limit", "Credit Terms", and for a customer "Minimum
+          Order Value"), "Prices And Terms" ("Price List", "Terms And
+          Conditions"), "Purchaser And Transport" ("Salesman And Transport" for a
+          customer) and, for a supplier only, "TDS" ("Deductee Type", "Default TDS
+          Section"). Together they hold:
         </p>
         <Fields
           rows={[
