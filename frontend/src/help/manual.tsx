@@ -5360,7 +5360,8 @@ export const MANUAL: Chapter[] = [
   {
     id: "purchase-reports",
     title: "Purchase reports",
-    summary: "Purchase orders that still have goods to come, with how late they are and what is left to receive.",
+    summary:
+      "Purchase orders that still have goods to come, and every order line with what was ordered, received, billed and is still to come.",
     body: (
       <>
         <p>
@@ -5399,6 +5400,36 @@ export const MANUAL: Chapter[] = [
             The "Total" line at the bottom adds up every page.
           </li>
           <li>Click a PO number to open the order.</li>
+        </ul>
+        <h3>Procurement Tracker</h3>
+        <ul>
+          <li>
+            One line for each line of a submitted order: what was ordered, what
+            has come in, what has been billed and what is still to come.
+          </li>
+          <li>
+            In the "Show" box, "PO Date From", "To" and "Branch" work as above.
+            "Lines" picks "Pending only" (lines with goods still to come; where
+            you start), "Received" (lines received in full, or closed with
+            "Close Line") or "All".
+          </li>
+          <li>
+            The columns are "Supplier", "PO No", "PO Date", "Expected Delivery"
+            (in red when it has passed and goods are still to come), "Item Code",
+            "Item Name", "Unit", "Qty Ordered", "Qty Received" (accepted on
+            submitted goods receipts), "Balance", "GRN No" (the latest goods
+            receipt against the line), "Qty Billed" (on purchase invoices) and
+            "Status" ("Pending", "Part received", "Received" or "Closed").
+          </li>
+          <li>
+            "Choose Columns…" in "Actions ▾" can add "Rate ₹", "Pending Value ₹"
+            (the balance at the order rate, before GST), "Purchaser", "Branch"
+            and "Closed Reason", and hide or move the others.
+          </li>
+          <li>
+            25 lines a page, a "Search" box under each heading, and a click on a
+            heading sorts by it. Click a PO or GRN number to open it.
+          </li>
         </ul>
       </>
     ),

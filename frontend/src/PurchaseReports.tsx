@@ -8,7 +8,7 @@ import { ErrorNote } from "./ErrorNote";
 import { usePrintMenu, type MenuItem, type PrintSheet } from "./Exchange";
 import { useKept } from "./Keep";
 import { Pager, type Paged } from "./Pager";
-import { EntryLink, dmy, rupees } from "./Reports";
+import { EntryLink, dmy, qty, rupees } from "./Reports";
 
 /** Reports › Purchase (Sidharth, 2026-11-27, previews mockups/purchase-reports/1 and 4). */
 
@@ -246,6 +246,224 @@ export function PendingPurchaseOrdersPage({ companyId }: { companyId: number }) 
       <Pager data={data} noun="orders" onPage={setPage} />
       <p className="small no-print">
         Click a PO number to open the order. Days Late counts from the Expected Delivery date to today. Pending Value is the quantity still to come at the order rate, before GST. The totals cover every page.
+      </p>
+    </section>
+  );
+}
+
+type TrackerLine = {
+  id: number;
+  order: number;
+  number: string;
+  date: string;
+  supplier: string;
+  expected: string | null;
+  late: boolean;
+  item_code: string;
+  item_name: string;
+  unit: string;
+  ordered: string;
+  received: string;
+  balance: string;
+  grn: string;
+  grn_id: number | null;
+  billed: string;
+  status: string;
+  rate: string;
+  pending: string;
+  purchaser: string;
+  branch: string;
+  reason: string;
+};
+
+const LINES = [
+  { value: "pending", label: "Pending only" },
+  { value: "received", label: "Received" },
+  { value: "all", label: "All" },
+];
+const STATUS_PILL: Record<string, string> = { Pending: "on", "Part received": "warn", Received: "", Closed: "" };
+
+/** Reports › Purchase › Procurement Tracker: every order line with what was ordered, received and
+ * billed, and what is still to come (Sidharth, 2026-11-27, preview mockups/purchase-reports/2). */
+export function ProcurementTrackerPage({ companyId }: { companyId: number }) {
+  const [from, setFrom] = useKept("Tracker.from", yearStart());
+  const [to, setTo] = useKept("Tracker.to", today());
+  const [branch, setBranch] = useKept("Tracker.branch", "");
+  const [lines, setLines] = useKept("Tracker.lines", "pending");
+  const [page, setPage] = useKept("Tracker.page", 1);
+  const [data, setData] = useState<Report<TrackerLine> | null>(null);
+  const [error, setError] = useState<unknown>("");
+
+  const all: ReportColumn<TrackerLine>[] = useMemo(() => {
+    const plain = (key: keyof TrackerLine, label: string, search?: string, standard = true): ReportColumn<TrackerLine> => ({
+      key,
+      label,
+      standard,
+      search,
+      cell: (r) => String(r[key] ?? ""),
+      text: (r) => String(r[key] ?? ""),
+    });
+    const number = (key: "ordered" | "received" | "balance" | "billed", label: string): ReportColumn<TrackerLine> => ({
+      key,
+      label,
+      standard: true,
+      num: true,
+      cell: (r) => qty(r[key]),
+      text: (r) => qty(r[key]),
+    });
+    return [
+      { ...plain("supplier", "Supplier", "supplier"), fixed: true },
+      {
+        key: "number",
+        label: "PO No",
+        fixed: true,
+        search: "number",
+        cell: (r) => <EntryLink companyId={companyId} entry={{ type: "purchase_order", type_label: "Purchase Order", id: r.order, number: r.number, page: "purchase-orders" }} />,
+        text: (r) => r.number,
+      },
+      { key: "date", label: "PO Date", standard: true, search: "date", cell: (r) => dmy(r.date), text: (r) => dmy(r.date) },
+      {
+        key: "expected",
+        label: "Expected Delivery",
+        standard: true,
+        search: "expected",
+        cell: (r) => (r.late ? <span className="late" title="Late: goods still to come">{dmy(r.expected)}</span> : dmy(r.expected)),
+        text: (r) => dmy(r.expected),
+      },
+      plain("item_code", "Item Code", "item_code"),
+      plain("item_name", "Item Name", "item_name"),
+      plain("unit", "Unit", "unit"),
+      number("ordered", "Qty Ordered"),
+      number("received", "Qty Received"),
+      number("balance", "Balance"),
+      {
+        key: "grn",
+        label: "GRN No",
+        standard: true,
+        search: "grn",
+        cell: (r) => (r.grn_id ? <EntryLink companyId={companyId} entry={{ type: "goods_receipt", type_label: "Goods Receipt", id: r.grn_id, number: r.grn, page: "goods-receipts" }} /> : ""),
+        text: (r) => r.grn,
+      },
+      number("billed", "Qty Billed"),
+      {
+        key: "status",
+        label: "Status",
+        standard: true,
+        search: "status",
+        cell: (r) => <span className={`pill ${STATUS_PILL[r.status] ?? ""}`}>{r.status}</span>,
+        text: (r) => r.status,
+      },
+      { key: "rate", label: "Rate ₹", num: true, cell: (r) => rupees(r.rate), text: (r) => rupees(r.rate) },
+      { key: "pending", label: "Pending Value ₹", num: true, cell: (r) => rupees(r.pending), text: (r) => rupees(r.pending) },
+      plain("purchaser", "Purchaser", "purchaser", false),
+      plain("branch", "Branch", "branch_name", false),
+      plain("reason", "Closed Reason", "reason", false),
+    ];
+  }, [companyId]);
+  const columns = useColumns<TrackerLine>("procurement-tracker", all);
+  const shown = columns.shown as ReportColumn<TrackerLine>[];
+  const { searches, onSearch } = useServerSearch("Tracker", shown, setPage);
+
+  const query = useCallback(
+    (more: Record<string, string>) => {
+      const q = new URLSearchParams(more);
+      if (from) q.set("from", from);
+      if (to) q.set("to", to);
+      if (branch) q.set("branch", branch);
+      q.set("lines", lines);
+      if (columns.sort) q.set("sort", columns.sort);
+      Object.entries(searches).forEach(([k, v]) => v && q.set(k, v));
+      return `v1/companies/${companyId}/procurement-tracker/?${q}`;
+    },
+    [companyId, from, to, branch, lines, columns.sort, searches],
+  );
+  useEffect(() => {
+    setError("");
+    api<Report<TrackerLine>>(query({ page: String(page) })).then(setData, setError);
+  }, [query, page]);
+
+  const title = "Procurement Tracker";
+  const branchName = data?.branches.find((b) => String(b.id) === branch)?.name;
+  const linesName = LINES.find((l) => l.value === lines)?.label;
+  const scope = [data?.company_name, branchName, `PO dates ${dmy(from) || "start"} to ${dmy(to) || "today"}`, `Lines: ${linesName}`].filter(Boolean).join(" · ");
+  const load = useCallback(async (): Promise<PrintSheet["sheets"]> => {
+    const d = await api<Report<TrackerLine>>(query({ all: "1" }));
+    const rows = d.results.map((r) => shown.map((c) => c.text(r)));
+    const text = shown.map((c, i) => (c.num ? -1 : i)).filter((i) => i >= 0);
+    return [{ title, columns: shown.map((c) => c.label), rows, text, right: shown.map((c) => !!c.num) }];
+  }, [query, shown]);
+  const printing = usePrintMenu({ title, scope, load });
+  const excel = excelItem(title, scope, load, setError);
+
+  return (
+    <section className="page">
+      <PageHeader
+        title={title}
+        sub={`${data?.company_name ?? ""}: every order line with what was ordered, received and billed, and what is still to come.`}
+        actions={printing.menu([columns.item, ...printing.items, excel])}
+      />
+      {printing.panel}
+      {columns.panel}
+      <Section title="Show">
+        <div className="row report-filters narrow">
+          <label>
+            PO Date From
+            <input type="date" value={from} max="9999-12-31" onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+          </label>
+          <label>
+            To
+            <input type="date" value={to} max="9999-12-31" onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+          </label>
+          <label>
+            Branch
+            <Combobox
+              ariaLabel="Branch"
+              options={(data?.branches ?? []).map((b) => ({ value: String(b.id), label: b.name }))}
+              value={branch}
+              empty="All branches"
+              onChange={(v) => { setBranch(v); setPage(1); }}
+            />
+          </label>
+          <label>
+            Lines
+            <Combobox ariaLabel="Lines" options={LINES} value={lines} onChange={(v) => { setLines(v || "pending"); setPage(1); }} />
+          </label>
+        </div>
+      </Section>
+      <ErrorNote error={error} />
+      <table className="report pick tracker" data-title={title}>
+        <thead>
+          <tr>
+            {shown.map((c) => (
+              <th key={c.key} className={c.num ? "num" : undefined} data-no-search={c.search ? undefined : ""}>
+                {columns.heading(c)}
+              </th>
+            ))}
+          </tr>
+          <ColumnSearch key={shown.map((c) => c.key).join(",")} onSearch={onSearch} />
+        </thead>
+        <tbody>
+          {data && data.results.length === 0 && (
+            <tr>
+              <td colSpan={shown.length} className="small">
+                {Object.values(searches).some(Boolean) ? "Nothing matches the column searches." : lines === "pending" ? "No order lines are waiting for goods." : "No order lines in these dates."}
+              </td>
+            </tr>
+          )}
+          {data?.results.map((r) => (
+            <tr key={r.id}>
+              {shown.map((c) => (
+                <td key={c.key} className={c.num ? "num" : undefined}>
+                  {c.cell(r)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Pager data={data} noun="lines" onPage={setPage} />
+      <p className="small no-print">
+        "Lines" picks "Pending only" (goods still to come), "Received" (received in full or closed) or "All". A late Expected Delivery shows in red. Click a PO or GRN number to open it; GRN No is the latest receipt against the line. "Choose Columns…" in Actions adds Rate, Pending Value, Purchaser, Branch and Closed Reason.
       </p>
     </section>
   );

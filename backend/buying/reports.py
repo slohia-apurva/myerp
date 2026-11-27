@@ -1,4 +1,4 @@
-"""Purchase reports (Sidharth, 2026-11-27, previews mockups/purchase-reports/1 and 4).
+"""Purchase reports (Sidharth, 2026-11-27, previews mockups/purchase-reports/1, 2 and 4).
 
 Reports › Purchase › Pending Purchase Orders: every submitted order with goods
 still to come, one row per order. A line is pending while less than its
@@ -13,22 +13,27 @@ import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db.models import (
+    Case,
     CharField,
     Count,
     DecimalField,
     ExpressionWrapper,
     F,
     Func,
+    OuterRef,
     Q,
+    Subquery,
     Sum,
     Value,
+    When,
 )
+from django.db.models.functions import Coalesce
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from buying.api import VIEW, _check, _company
-from buying.models import PurchaseOrder
+from buying.models import GoodsReceipt, GoodsReceiptLine, PurchaseOrder, PurchaseOrderLine
 from core import paging
 from core.api import Signed
 
@@ -119,14 +124,44 @@ def pending_orders(company, params, today: datetime.date):
     return rows.select_related("supplier", "purchaser", "branch")
 
 
-def _sorted(rows, key: str):
-    field = SORTS.get(key.removeprefix("-"))
+def _sorted(rows, key: str, sorts=SORTS, then=("order_date", "number", "pk")):
+    field = sorts.get(key.removeprefix("-"))
     if not field:
-        return rows.order_by("order_date", "number", "pk")
+        return rows.order_by(*then)
     down = key.startswith("-") != field.startswith("-")
     expr = F(field.removeprefix("-"))
     first = expr.desc(nulls_last=True) if down else expr.asc(nulls_last=True)
-    return rows.order_by(first, "order_date", "number", "pk")
+    return rows.order_by(first, *then)
+
+
+def _answer(out: dict, rows, count: int, params, row, noun: str) -> Response:
+    """Every row (?all=1, for Print, PDF and Excel) or one page of 25."""
+    if params.get("all") == "1":
+        if count > ALL_LIMIT:
+            raise ValidationError(
+                {"detail": f"{count:,} {noun} is too many to print. Narrow the PO dates."}
+            )
+        return Response({**out, "results": [row(r) for r in rows]})
+    size = paging.PAGE_SIZE
+    last = max(1, -(-count // size))
+    try:
+        page = min(max(1, int(params.get("page", 1))), last)
+    except ValueError:
+        page = 1
+    return Response(
+        {
+            **out,
+            "count": count,
+            "page": page,
+            "pages": last,
+            "page_size": size,
+            "results": [row(r) for r in rows[(page - 1) * size : page * size]],
+        }
+    )
+
+
+def _branches(company) -> list[dict]:
+    return [{"id": b.pk, "name": b.name} for b in company.branches.order_by("name", "pk")]
 
 
 def _row(o: PurchaseOrder, today: datetime.date) -> dict:
@@ -172,9 +207,7 @@ class PendingOrdersView(APIView):
         count = sums["orders"]
         out = {
             "company_name": company.name,
-            "branches": [
-                {"id": b.pk, "name": b.name} for b in company.branches.order_by("name", "pk")
-            ],
+            "branches": _branches(company),
             "totals": {
                 "orders": count,
                 "lines": sums["lines"],
@@ -182,25 +215,157 @@ class PendingOrdersView(APIView):
                 "pending": _money(sums["pending"]),
             },
         }
-        if request.query_params.get("all") == "1":
-            if count > ALL_LIMIT:
-                raise ValidationError(
-                    {"detail": f"{count:,} orders is too many to print. Narrow the PO dates."}
-                )
-            return Response({**out, "results": [_row(o, today) for o in rows]})
-        last = max(1, -(-count // paging.PAGE_SIZE))
-        try:
-            page = min(max(1, int(request.query_params.get("page", 1))), last)
-        except ValueError:
-            page = 1
-        size = paging.PAGE_SIZE
-        return Response(
-            {
-                **out,
-                "count": count,
-                "page": page,
-                "pages": last,
-                "page_size": size,
-                "results": [_row(o, today) for o in rows[(page - 1) * size : page * size]],
-            }
+        return _answer(out, rows, count, request.query_params, lambda o: _row(o, today), "orders")
+
+
+# ---------------------------------------------------------------------------
+# Reports › Purchase › Procurement Tracker (preview mockups/purchase-reports/2):
+# one row per line of a submitted order, with what was ordered, received and
+# billed and what is still to come. ?lines=pending (the default) keeps lines
+# with a balance; received keeps those received in full or closed; all both.
+
+LINE_PENDING = Q(closed_at__isnull=True, qty__gt=F("received_qty"))
+LINE_SORTS = {
+    "supplier": "order__supplier__name",
+    "number": "order__number",
+    "date": "order__order_date",
+    "expected": "order__expected_date",
+    "item_code": "item__item_number",
+    "item_name": "item__name",
+    "unit": "unit__short_name",
+    "ordered": "qty",
+    "received": "received_qty",
+    "balance": "balance",
+    "grn": "grn_number",
+    "billed": "billed",
+    "status": "line_status",
+    "rate": "rate",
+    "pending": "pending_value",
+    "purchaser": "order__purchaser__name",
+    "branch": "order__branch__name",
+    "reason": "close_reason",
+}
+LINE_SEARCHES = {
+    "supplier": ["order__supplier__name"],
+    "number": ["order__number"],
+    "date": ["date_text"],
+    "expected": ["expected_text"],
+    "item_code": ["item__item_number"],
+    "item_name": ["item__name"],
+    "unit": ["unit__short_name", "unit__name"],
+    "grn": ["grn_number"],
+    "purchaser": ["order__purchaser__name"],
+    "branch_name": ["order__branch__name"],
+    "reason": ["close_reason"],
+}
+SUBMITTED = (
+    PurchaseOrder.ORDERED,
+    PurchaseOrder.PART_RECEIVED,
+    PurchaseOrder.RECEIVED,
+    PurchaseOrder.CLOSED,
+)
+CLOSED, RECEIVED, PART, WAITING = "Closed", "Received", "Part received", "Pending"
+
+
+def tracker_lines(company, params):
+    rows = PurchaseOrderLine.objects.filter(order__company=company, order__status__in=SUBMITTED)
+    if start := params.get("from"):
+        rows = rows.filter(order__order_date__gte=start)
+    if end := params.get("to"):
+        rows = rows.filter(order__order_date__lte=end)
+    if branch := params.get("branch", ""):
+        rows = rows.filter(order__branch_id=branch) if branch.isdigit() else rows.none()
+    which = params.get("lines", "pending")
+    if which == "pending":
+        rows = rows.filter(LINE_PENDING)
+    elif which == "received":
+        rows = rows.exclude(LINE_PENDING)
+    receipts = GoodsReceiptLine.objects.filter(
+        order_line=OuterRef("pk"), receipt__status=GoodsReceipt.SUBMITTED
+    )
+    latest = receipts.order_by("-receipt__receipt_date", "-receipt_id")
+    billed = receipts.values("order_line").annotate(t=Sum("billed_qty")).values("t")
+    rows = rows.annotate(
+        date_text=_dmy("order__order_date"),
+        expected_text=_dmy("order__expected_date"),
+        grn_number=Subquery(latest.values("receipt__number")[:1]),
+        grn_id=Subquery(latest.values("receipt_id")[:1]),
+        billed=Coalesce(Subquery(billed[:1]), Value(ZERO), output_field=MONEY),
+        balance=Case(
+            When(LINE_PENDING, then=F("qty") - F("received_qty")),
+            default=Value(ZERO),
+            output_field=MONEY,
+        ),
+        line_status=Case(
+            When(closed_at__isnull=False, then=Value(CLOSED)),
+            When(received_qty__gte=F("qty"), then=Value(RECEIVED)),
+            When(received_qty__gt=0, then=Value(PART)),
+            default=Value(WAITING),
+            output_field=CharField(),
+        ),
+    )
+    rows = rows.annotate(
+        pending_value=ExpressionWrapper(F("balance") * F("taxable") / F("qty"), output_field=MONEY)
+    )
+    rows = paging.search(rows, params, LINE_SEARCHES)
+    for word in paging.words(params.get("status", "").lower()):
+        rows = rows.filter(line_status__icontains=word)
+    return rows.select_related(
+        "order__supplier", "order__purchaser", "order__branch", "item", "unit"
+    )
+
+
+def _line_row(ln: PurchaseOrderLine, today: datetime.date) -> dict:
+    o = ln.order
+    return {
+        "id": ln.pk,
+        "order": o.pk,
+        "number": o.number,
+        "date": o.order_date,
+        "supplier": o.supplier.name,
+        "expected": o.expected_date,
+        "late": bool(ln.balance and o.expected_date and o.expected_date < today),
+        "item_code": ln.item.item_number,
+        "item_name": ln.item.name,
+        "unit": ln.unit.short_name,
+        "ordered": str(ln.qty),
+        "received": str(ln.received_qty),
+        "balance": str(ln.balance),
+        "grn": ln.grn_number or "",
+        "grn_id": ln.grn_id,
+        "billed": str(ln.billed),
+        "status": ln.line_status,
+        "rate": str(ln.rate),
+        "pending": _money(ln.pending_value),
+        "purchaser": o.purchaser.name if o.purchaser else "",
+        "branch": o.branch.name,
+        "reason": ln.close_reason if ln.closed_at else "",
+    }
+
+
+class ProcurementTrackerView(APIView):
+    """GET companies/<id>/procurement-tracker/?from=&to=&branch=&lines=pending|received|all
+    &page=&sort= and a search per column. ?all=1 gives every row, for printing."""
+
+    permission_classes = [Signed]
+
+    def get(self, request, pk: int):
+        _check(request, VIEW)
+        company = _company(request, pk)
+        _day(request, "from")
+        _day(request, "to")
+        if request.query_params.get("lines", "pending") not in ("pending", "received", "all"):
+            raise ValidationError({"lines": ["Pick pending, received or all."]})
+        today = datetime.date.today()
+        rows = tracker_lines(company, request.query_params)
+        count = rows.count()
+        rows = _sorted(
+            rows,
+            request.query_params.get("sort", ""),
+            LINE_SORTS,
+            ("order__order_date", "order__number", "position", "pk"),
+        )
+        out = {"company_name": company.name, "branches": _branches(company)}
+        return _answer(
+            out, rows, count, request.query_params, lambda ln: _line_row(ln, today), "lines"
         )
