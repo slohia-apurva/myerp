@@ -202,9 +202,15 @@ export const MANUAL: Chapter[] = [
           <li>
             <strong>Top menu</strong> (white bar): the modules you may use, such
             as Dashboard and Masters. You only see the ones your role allows.
-            Click "Masters" to open its list: "Ledger groups", "Ledgers",
-            "Credit terms", "Items", "Price lists" and "Units". Ledger groups and
-            ledgers open for the company you are working in. Owners also see "Admin", which
+            Click "Masters" to open its groups: "Accounts" (ledger groups,
+            ledgers, insurance policies), "Items & Stock" (items, item groups,
+            brands, units, batches, BOMs, warehouses), "Pricing & Terms" (price
+            lists, credit terms, terms and conditions), "People & Transport"
+            (people, transporters), "Mail" (mail templates, reminder schedule)
+            and "GST & Places" (HSN codes, countries, PIN codes). Point at a
+            group, or click it, to see its list to the right; on a phone the list
+            opens under the group. Ledger groups, ledgers, insurance policies,
+            warehouses and transporters open for the company you are working in. Owners also see "Admin", which
             holds "Company", "Users", "User roles", "Bill Reading" and "Reset data". "Help"
             opens this manual at the page for the screen you are on. On a
             phone the M logo, the company, the bell, "Help" and "Sign out" sit
@@ -538,7 +544,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add credit terms</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Credit terms".</li>
+          <li>Click "Masters" in the top menu, then "Pricing & Terms", then "Credit terms".</li>
           <li>
             Click "Add credit terms" and give
             them a name, such as "30% advance, 70% in 15 days".
@@ -588,7 +594,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a set</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Terms and conditions".</li>
+          <li>Click "Masters" in the top menu, then "Pricing & Terms", then "Terms and conditions".</li>
           <li>
             Click "Add terms". Give it a
             "Name", such as "Purchase - tea", and a "Type".
@@ -635,7 +641,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add or change a template</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Mail templates".</li>
+          <li>Click "Masters" in the top menu, then "Mail", then "Mail templates".</li>
           <li>
             Click "New Mail Template", or "Open" on a line. Give it a "Name",
             such as "Second Reminder (firm)", and pick what it is "Used For".
@@ -679,7 +685,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Set the steps</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Reminder schedule".</li>
+          <li>Click "Masters" in the top menu, then "Mail", then "Reminder schedule".</li>
           <li>
             Under "Steps", each line is one reminder, counted from the order's
             "Expected Delivery": for example "2 days before", "3 days after",
@@ -739,7 +745,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a price list</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Price lists".</li>
+          <li>Click "Masters" in the top menu, then "Pricing & Terms", then "Price lists".</li>
           <li>
             Click "Add price list". Give it a
             "Name", such as "Retail 2026", a "Type" ("Selling" or "Buying") and,
@@ -918,7 +924,7 @@ export const MANUAL: Chapter[] = [
         <h3>Add an item</h3>
         <ol>
           <li>
-            Click "Masters" in the top menu, then "Items", then "Add item". The
+            Click "Masters" in the top menu, then "Items & Stock", then "Items", then "Add item". The
             page is titled "Add item" ("Edit item" when you change one) and has
             "Cancel" and "Save" in the green bar. Below the item name are
             folding sections: "General", "Sales", "Purchase", "GST Rates",
@@ -1098,7 +1104,7 @@ export const MANUAL: Chapter[] = [
         <p>
           A BOM says what one batch of an item needs: its materials, with a
           loss allowed on each, and the by-products and scrap it gives. Open
-          "Masters", then "BOMs" (shown when the company has the Production
+          "Masters", then "Items & Stock", then "BOMs" (shown when the company has the Production
           module ticked). BOMs are kept for the whole group, like items. The
           list shows "BOM No", "Item", "Version", "Name", "Default", "Makes",
           "Materials" and "Status"; double-click a row to open its page. A BOM
@@ -1205,7 +1211,7 @@ export const MANUAL: Chapter[] = [
         <p>
           MyERP keeps one list of HSN and SAC codes for everyone, so it is the
           same in every company and is looked after centrally. You cannot change
-          it, but you can search it: click "Masters" in the top menu, then "HSN
+          it, but you can search it: click "Masters" in the top menu, then "GST & Places", then "HSN
           codes", and type a few digits of the code or words from the
           description. To search one column only, type in the box under
           "HSN code" (the first digits of the code) or under "Description"
@@ -1250,7 +1256,7 @@ export const MANUAL: Chapter[] = [
         <p>
           MyERP keeps one list of countries and one of PIN codes for everyone,
           so they are the same in every company. You cannot change them, but
-          you can search them: click "Masters" in the top menu, then
+          you can search them: click "Masters" in the top menu, then "GST & Places", then
           "Countries" or "PIN codes", and type in the search box, or in the
           box under a column heading ("PIN Code", "City", "State") to search
           that column only. Click a line
@@ -1613,7 +1619,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a batch</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Batches".</li>
+          <li>Click "Masters" in the top menu, then "Items & Stock", then "Batches".</li>
           <li>
             Click "Add batch". The form opens in the same tab. Pick the
             "Item" (only items that track batches are listed) and give the
@@ -1783,7 +1789,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>On a customer or supplier</h3>
         <p>
-          In "Masters" › "Ledgers", click a customer's or supplier's ledger:
+          In "Masters" › "Accounts" › "Ledgers", click a customer's or supplier's ledger:
           the panels on the right end with "Connections", listing only the
           kinds it has in this company (Sales Order, Delivery Note, Sales
           Invoice, Credit Note, Purchase Order, Goods Receipt, Purchase
@@ -1795,7 +1801,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>On an item</h3>
         <p>
-          Open an item from "Masters" › "Items" ("View"): "Connections" near
+          Open an item from "Masters" › "Items & Stock" › "Items" ("View"): "Connections" near
           the bottom shows, for the company picked at the top right, how many
           sales orders, delivery notes, sales invoices, credit notes, purchase
           orders, goods receipts, purchase invoices and purchase returns name
@@ -1821,7 +1827,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a brand</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Brands".</li>
+          <li>Click "Masters" in the top menu, then "Items & Stock", then "Brands".</li>
           <li>
             Click "Add brand". The form opens in the same tab. Give the
             "Name" (for example Apurvam) and, if you like, "Notes".
@@ -1861,7 +1867,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a person</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "People".</li>
+          <li>Click "Masters" in the top menu, then "People & Transport", then "People".</li>
           <li>
             Click "Add person". The form opens in the same tab. Give the
             "Name", and if you like the "Mobile", "Email" and "Notes".
@@ -1926,7 +1932,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a group</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Item groups".</li>
+          <li>Click "Masters" in the top menu, then "Items & Stock", then "Item groups".</li>
           <li>
             Click "Add group" for a main group, or click "+ Sub-group" beside a
             group to add one under it. The form opens in the same tab.
@@ -2014,7 +2020,7 @@ export const MANUAL: Chapter[] = [
         </p>
         <h3>Add a unit</h3>
         <ol>
-          <li>Click "Masters" in the top menu, then "Units".</li>
+          <li>Click "Masters" in the top menu, then "Items & Stock", then "Units".</li>
           <li>
             Click "Add unit". The form opens in the same tab. Give the
             "Name" (for example Drum) and a "Short name" (for example drm).
@@ -2277,7 +2283,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>
             Pick the company at the top right, then click "Masters" in the top
-            menu, then "Warehouses". Each warehouse has its own box.
+            menu, then "Items & Stock", then "Warehouses". Each warehouse has its own box.
           </li>
           <li>
             Click "Add rack". The form opens in the same tab. Give the rack
@@ -2454,7 +2460,7 @@ export const MANUAL: Chapter[] = [
           the Schedule III head shown in small print under each name.
         </p>
         <p>
-          Open them from "Masters" › "Ledger groups". The table shows each
+          Open them from "Masters" › "Accounts" › "Ledger groups". The table shows each
           group's nature (asset, liability, income or expense), its Schedule III
           head and how many ledgers it holds. Click a group's ledger count to
           see those ledgers. Click a group's row to see its details (name, the
@@ -2510,7 +2516,7 @@ export const MANUAL: Chapter[] = [
       <>
         <p>
           A ledger is one account: a customer, a supplier, a bank, an expense or
-          an income head. Open Ledgers from "Masters" › "Ledgers" or the
+          an income head. Open Ledgers from "Masters" › "Accounts" › "Ledgers" or the
           Dashboard.
         </p>
         <h3>The screen</h3>
@@ -2702,7 +2708,7 @@ export const MANUAL: Chapter[] = [
             ],
             [
               "Salesman or Purchaser",
-              'The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser), from the list in "Masters" › "People". A customer offers the people ticked "Salesman", a supplier those ticked "Purchaser"; type a new name and pick \'Create "…"\' to add someone. Other companies can choose someone else for the same party.',
+              'The person in this company who looks after the customer (Salesman) or buys from the supplier (Purchaser), from the list in "Masters" › "People & Transport" › "People". A customer offers the people ticked "Salesman", a supplier those ticked "Purchaser"; type a new name and pick \'Create "…"\' to add someone. Other companies can choose someone else for the same party.',
             ],
             [
               "Deductee Type and Default TDS Section",
@@ -2863,7 +2869,7 @@ export const MANUAL: Chapter[] = [
         <ol>
           <li>
             Pick the company at the top right, then click "Masters" in the top
-            menu, then "Transporters".
+            menu, then "People & Transport", then "Transporters".
           </li>
           <li>
             Click "Add transporter". The form opens in the same tab.
@@ -2961,7 +2967,7 @@ export const MANUAL: Chapter[] = [
           it uses up part of its sum insured, and the insurer tops it up with an
           endorsement when it runs low. Policies belong to one company; pick
           the company at the top right, then click "Masters" in the top menu,
-          then "Insurance policies".
+          then "Accounts", then "Insurance policies".
         </p>
         <p>
           The list shows each policy with its "Total Cover" and, for a marine
@@ -3650,7 +3656,7 @@ export const MANUAL: Chapter[] = [
             supplier's "Purchaser" in this company (set on the supplier). Change
             it to a broker or firm from the suppliers list (marked "Supplier";
             add it as a supplier first) or to another person ticked "Purchaser"
-            in "Masters" › "People" (marked "Purchaser"; type a
+            in "Masters" › "People & Transport" › "People" (marked "Purchaser"; type a
             new name and pick 'Create "…"' to add one), or to "None"; then tick
             who of them gets the mail. A purchaser is mailed at their own email,
             else the one they sign in with. Contacts themselves are added on the supplier's ledger.
@@ -3948,7 +3954,7 @@ export const MANUAL: Chapter[] = [
             Fill in the supplier's challan or invoice number and date, the
             "Transporter", "LR / Docket No", "Vehicle No", "E-way Bill No" and
             "Received By". "Received By" lists the people ticked "Stores" in
-            "Masters" › "People", whether or not they sign in to MyERP; type a
+            "Masters" › "People & Transport" › "People", whether or not they sign in to MyERP; type a
             new name and pick 'Create "…"' to add someone.
           </li>
           <li>
