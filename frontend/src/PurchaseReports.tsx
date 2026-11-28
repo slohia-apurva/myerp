@@ -30,7 +30,7 @@ type Totals = { orders: number; lines: number; value: string; pending: string };
 type Report<T> = Paged<T> & { company_name: string; branches: { id: number; name: string }[]; totals: Totals };
 
 /** 1 April of this financial year. */
-function yearStart(): string {
+export function yearStart(): string {
   const d = new Date();
   const y = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
   return `${y}-04-01`;
@@ -38,10 +38,10 @@ function yearStart(): string {
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** A column of a report: what the screen shows and, for Print, PDF and Excel, its text. */
-type ReportColumn<T> = Column<T> & { text: (row: T) => string };
+export type ReportColumn<T> = Column<T> & { text: (row: T) => string };
 
 /** The columns' search boxes, sent to the server once typing stops; a new search goes back to page 1. */
-function useServerSearch<T>(name: string, shown: ReportColumn<T>[], setPage: (p: number) => void) {
+export function useServerSearch<T>(name: string, shown: ReportColumn<T>[], setPage: (p: number) => void) {
   const [searches, setSearches] = useKept<Record<string, string>>(`${name}.searches`, {});
   const [typed, setTyped] = useState<Record<string, string>>(searches);
   useEffect(() => {
@@ -66,7 +66,7 @@ function useServerSearch<T>(name: string, shown: ReportColumn<T>[], setPage: (p:
 }
 
 /** "Export to Excel": the same sheets as Print and PDF, as an Excel file. */
-function excelItem(title: string, scope: string, load: () => Promise<PrintSheet["sheets"]>, onError: (e: unknown) => void): MenuItem {
+export function excelItem(title: string, scope: string, load: () => Promise<PrintSheet["sheets"]>, onError: (e: unknown) => void): MenuItem {
   return {
     label: "Export to Excel",
     onClick: () => {

@@ -209,6 +209,7 @@ export function ReportsMenu(props: { active: boolean; company: Company; stock: b
       [
         ["Pending Purchase Orders", `#/companies/${id}/pending-purchase-orders`, !!props.purchase],
         ["Procurement Tracker", `#/companies/${id}/procurement-tracker`, !!props.purchase],
+        ["Accounts Payable", `#/companies/${id}/accounts-payable`, !!props.purchase],
       ],
     ],
     [

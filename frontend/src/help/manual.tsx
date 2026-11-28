@@ -5553,7 +5553,7 @@ export const MANUAL: Chapter[] = [
     id: "purchase-reports",
     title: "Purchase reports",
     summary:
-      "Purchase orders that still have goods to come, and every order line with what was ordered, received, billed and is still to come.",
+      "Purchase orders that still have goods to come, every order line with what was ordered, received, billed and is still to come, and Accounts Payable: what is owed to each supplier, bill by bill, aged.",
     body: (
       <>
         <p>
@@ -5621,6 +5621,83 @@ export const MANUAL: Chapter[] = [
           <li>
             25 lines a page, a "Search" box under each heading, and a click on a
             heading sorts by it. Click a PO or GRN number to open it.
+          </li>
+        </ul>
+        <h3>Accounts Payable</h3>
+        <ul>
+          <li>
+            What the company owes its suppliers on a day, bill by bill. A bill
+            is a submitted purchase invoice (also a supplementary bill or a bill
+            without goods receipt) or a supplier's bill brought from the old
+            books on the ledger's opening balance. What is still owed on it is
+            the bill amount less the TDS deducted, less debit notes against it,
+            less payments. Payments will count once the Payment entry is built;
+            until then the "Paid" column stays empty.
+          </li>
+          <li>
+            In the "Show" box: "As On" is the day the report is for (today when
+            you start; entries dated later are left out). "View" picks
+            "Suppliers" (one line per supplier) or "Bills" (every open bill).
+            "Age By" picks "Due Date" (days past the due date, where you start)
+            or "Bill Date" (days since the bill). "Branch" keeps the bills of one
+            branch (bills from the old books have no branch, so they show only
+            with "All branches"), "Purchaser" the suppliers of one purchaser,
+            and "Overdue Only" only bills past their due date.
+          </li>
+          <li>
+            Due dates come from the bill's credit term, counted from the bill
+            date. A term in parts (say half in 30 days, half in 60) ages each
+            part on its own. A debit note or TDS Adjustment comes off the latest
+            due date first.
+          </li>
+          <li>
+            "Suppliers" view: "Supplier", "Code", "Credit Term", "Bills", the
+            ageing columns "Not Due ₹", "1-30 ₹", "31-60 ₹", "61-90 ₹" and "Over
+            90 ₹" (days past the due date; 61 days and more in red), "Total Due ₹"
+            and "Oldest Overdue". Aged by bill date, the columns are "0-30",
+            "31-60", "61-90", "91-180" and "Over 180". "Purchaser" can be added
+            with "Choose Columns…".
+          </li>
+          <li>
+            Click a supplier to see its ageing at the right with its overdue
+            bills. There, "Show Bills" opens the Bills view for that supplier
+            alone ("Show All Suppliers" goes back to all), "Open Ledger
+            Statement" opens its ledger, "Print Outstanding Statement" prints
+            the supplier's open bills to send to them, and "Email Outstanding
+            Statement" mails that print to the supplier's contacts from the
+            company's mailbox (contacts marked "Accounting" are offered first).
+          </li>
+          <li>
+            "Bills" view: the bills grouped under each supplier, with the
+            supplier's totals on its heading line. The columns are "Bill No" (the
+            supplier's number; click it to open the purchase invoice), "Our
+            Entry", "Bill Date", "Due Date", "Bill Amount ₹", "TDS ₹", "Debit
+            Notes ₹", "Paid ₹", "Balance ₹", "Days Overdue" and "Age". The small
+            grey line under an amount says what made it: the TDS section and rate
+            (and any TDS Adjustment), the debit note numbers, the payment
+            numbers.
+          </li>
+          <li>
+            Tick the box at the left of a bill to add it to the green line above
+            the list, which counts the bills ticked and what they come to ("To
+            Pay"). Ticks stay as you move between pages; "Clear Ticks" removes
+            them. "Make Payment" there will make a payment of the ticked bills
+            once the Payment entry is built.
+          </li>
+          <li>
+            Both views show 25 lines a page, with a "Search" box under each
+            heading and a click on a heading to sort. "Actions ▾" holds "Choose
+            Columns…", "Print", "Download PDF" and "Export to Excel" (every line,
+            not only the page), and two prints for management: "Print Summary
+            with Ageing" (the ageing boxes and one line per supplier) and "Print
+            Summary with Bills" (the same, then each supplier's open bills).
+          </li>
+          <li>
+            The supplier's "Outstanding Bills" print shows the company heading,
+            the supplier's address, GSTIN, PAN and code, a summary, "In Plain
+            Words" (what we owe them), the open bills with their TDS, debit notes
+            and payments, the ageing boxes, and "Please Confirm" asking them to
+            confirm the balance within 15 days, beside the signature.
           </li>
         </ul>
       </>

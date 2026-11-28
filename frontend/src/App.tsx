@@ -48,6 +48,7 @@ const OwnUsePage = lazy(() => import("./OwnUse").then((m) => ({ default: m.OwnUs
 const ManufacturingOrdersPage = lazy(() => import("./ManufacturingOrders").then((m) => ({ default: m.ManufacturingOrdersPage })));
 const StockLedgerPage = lazy(() => import("./Reports").then((m) => ({ default: m.StockLedgerPage })));
 const ProcurementTrackerPage = lazy(() => import("./PurchaseReports").then((m) => ({ default: m.ProcurementTrackerPage })));
+const PayablesPage = lazy(() => import("./Payables").then((m) => ({ default: m.PayablesPage })));
 const PendingPurchaseOrdersPage = lazy(() => import("./PurchaseReports").then((m) => ({ default: m.PendingPurchaseOrdersPage })));
 const StockSummaryPage = lazy(() => import("./Reports").then((m) => ({ default: m.StockSummaryPage })));
 const LedgerStatementPage = lazy(() => import("./Books").then((m) => ({ default: m.LedgerStatementPage })));
@@ -71,7 +72,7 @@ const SupplierReplyPage = lazy(() => import("./SupplierReply").then((m) => ({ de
 
 type Page = "home" | "users" | "roles" | "companies" | "credit-terms" | "price-lists" | "terms" | "mail-templates" | "reminder-schedule" | "units" | "item-groups" | "brands" | "sales-people" | "batches" | "items" | "boms" | "hsn" | "reset" | "bill-reading" | "migration" | "central" | "request-addition" | "countries" | "pin-codes" | "help" | "bins";
 /** The screens under "Reports" in the top menu. */
-const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement", "pending-purchase-orders", "procurement-tracker"];
+const REPORTS = ["stock-summary", "stock-ledger", "trial-balance", "ledger-statement", "pending-purchase-orders", "procurement-tracker", "accounts-payable"];
 type Route = { page: Page; id?: number; sub?: string; subId?: number; topic?: string };
 
 function routeFromHash(): Route {
@@ -227,6 +228,8 @@ function Shell({ session, onSignOut }: { session: SignedIn; onSignOut: (s: Sessi
             <BinContentsPage key={id} id={id} />
           ) : page === "companies" && id && sub === "pending-purchase-orders" && canSeePurchase ? (
             <PendingPurchaseOrdersPage key={id} companyId={id} />
+          ) : page === "companies" && id && sub === "accounts-payable" && canSeePurchase ? (
+            <PayablesPage key={id} companyId={id} canMail={session.permissions.includes("purchase.submit")} />
           ) : page === "companies" && id && sub === "procurement-tracker" && canSeePurchase ? (
             <ProcurementTrackerPage key={id} companyId={id} />
           ) : page === "companies" && id && sub === "stock-summary" && canSeeStock ? (
