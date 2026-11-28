@@ -4118,7 +4118,10 @@ export const MANUAL: Chapter[] = [
           yet. "Days Waiting" counts the days since the receipt date, in red
           after 30 days. "Bill Pending ₹" is the unbilled quantity at the
           receipt's stock rate, before GST, and "Billed" says "Not billed" or
-          "Part billed". Goods sent back still count as pending, because the
+          "Part billed". A bill that was saved but not submitted still leaves
+          the goods waiting: "Billed" then reads "Draft bill" and the supplier's
+          bill number, and clicking it (or "Open Draft Bill" at the right) opens
+          that draft so you can check it and click "Submit". Goods sent back still count as pending, because the
           supplier bills what was received and a Debit Note settles the return.
           A line sent back whole and never billed waits for nothing. Click a
           receipt to see each item's "Accepted", "Billed" and "Pending" quantity

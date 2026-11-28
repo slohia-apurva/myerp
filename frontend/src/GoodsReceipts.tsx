@@ -83,6 +83,7 @@ export type ReceiptLine = LineInfo & {
 };
 export type GoodsReceipt = {
   id: number;
+  company: number;
   number: string;
   status: string;
   status_label: string;
@@ -120,6 +121,8 @@ export type GoodsReceipt = {
   bill_pending_value: string;
   billed_state: "" | "none" | "part" | "billed";
   bill_lines: BillLine[];
+  /** Supplier bills saved as drafts against it, not yet submitted (list only). */
+  draft_bills?: { id: number; bill_no: string }[];
   lines?: ReceiptLine[];
   packages?: PackageRow[];
 };
@@ -256,6 +259,33 @@ const VIEWS = [
 /** Whole days from the receipt date to today. */
 const daysSince = (date: string) => Math.max(0, Math.floor((Date.now() - new Date(`${date}T00:00:00`).getTime()) / 86400000));
 const BILLED_LABELS: Record<string, string> = { none: "Not billed", part: "Part billed", billed: "Billed" };
+const draftBillsText = (r: GoodsReceipt) => (r.draft_bills ?? []).map((b) => `Draft bill ${b.bill_no || "(no bill no)"}`).join(", ");
+/** A draft bill's goods still wait for a submitted bill; the tag names the draft and opens it
+ * (Sidharth, 2026-11-28). */
+function BilledTag({ r }: { r: GoodsReceipt }) {
+  const drafts = r.draft_bills ?? [];
+  if (!drafts.length) return <span className="pill warn">{BILLED_LABELS[r.billed_state] ?? ""}</span>;
+  return (
+    <>
+      {drafts.map((b) => (
+        <a
+          key={b.id}
+          className="pill warn"
+          href={`#/companies/${r.company}/purchase-invoices?view=${b.id}`}
+          title="Saved but not submitted: open it and Submit to bill these goods"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.ctrlKey || e.metaKey) return;
+            e.preventDefault();
+            openTab(`#/companies/${r.company}/purchase-invoices?view=${b.id}`);
+          }}
+        >
+          {`Draft bill ${b.bill_no || "(no bill no)"}`}
+        </a>
+      ))}
+    </>
+  );
+}
 const COLUMNS: Column<GoodsReceipt>[] = [
   { key: "number", label: "GRN No", fixed: true, text: (r) => r.number || "Draft", cell: (r) => (r.number ? <b>{r.number}</b> : <span className="small">Draft</span>) },
   { key: "date", label: "Date", standard: true, nowrap: true, text: (r) => `${shortDate(r.receipt_date)} ${showDate(r.receipt_date)}`, cell: (r) => shortDate(r.receipt_date) },
@@ -304,8 +334,8 @@ const UNBILLED_COLUMNS: Column<GoodsReceipt>[] = [
     label: "Billed",
     standard: true,
     nowrap: true,
-    text: (r) => BILLED_LABELS[r.billed_state] ?? "",
-    cell: (r) => <span className="pill warn">{BILLED_LABELS[r.billed_state] ?? ""}</span>,
+    text: (r) => draftBillsText(r) || (BILLED_LABELS[r.billed_state] ?? ""),
+    cell: (r) => <BilledTag r={r} />,
   },
 ];
 
@@ -418,6 +448,7 @@ function ReceiptList({ companyId, canCreate, canBill }: { companyId: number; can
                   ["Received By", selected.received_by_name],
                   ["Stock Value", selected.status === "submitted" ? `₹${money(selected.stock_value)}` : ""],
                   ["Bill Pending", selected.billed_state === "none" || selected.billed_state === "part" ? `₹${money(selected.bill_pending_value)}` : ""],
+                  ["Draft Bill", unbilled ? draftBillsText(selected).replace(/Draft bill /g, "") : ""],
                 ]}
               />
               {unbilled && selected.bill_lines.length > 0 && (
@@ -450,7 +481,12 @@ function ReceiptList({ companyId, canCreate, canBill }: { companyId: number; can
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                {(selected.billed_state === "none" || selected.billed_state === "part") && canBill && (
+                {unbilled && (selected.draft_bills ?? []).length > 0 && (
+                  <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/purchase-invoices?view=${selected.draft_bills![0].id}`)}>
+                    Open Draft Bill
+                  </button>
+                )}
+                {(selected.billed_state === "none" || selected.billed_state === "part") && !(selected.draft_bills ?? []).length && canBill && (
                   <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/purchase-invoices?form=new&receipt=${selected.id}`)}>
                     Make Purchase Invoice
                   </button>

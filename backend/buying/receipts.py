@@ -26,6 +26,8 @@ from buying.models import (
     GoodsReceipt,
     GoodsReceiptLine,
     GoodsReceiptPutaway,
+    PurchaseInvoice,
+    PurchaseInvoiceLine,
     PurchaseOrder,
     PurchaseOrderLine,
 )
@@ -151,6 +153,27 @@ def _billing(r: GoodsReceipt) -> dict:
     pending = sum((x["pending_qty"] for x in lines), ZERO)
     state = "none" if pending and pending == accepted else "part" if pending else "billed"
     return {"bill_pending_value": value, "billed_state": state, "bill_lines": lines}
+
+
+def _draft_bills(receipt_ids: list[int]) -> dict[int, list[dict]]:
+    """Supplier bills saved as drafts against these receipts, not yet
+    submitted, so their goods still count as not billed (Sidharth, 2026-11-28:
+    "Bills Pending" names the draft and opens it)."""
+    found: dict[int, dict[int, dict]] = {}
+    rows = (
+        PurchaseInvoiceLine.objects.filter(
+            receipt_line__receipt_id__in=receipt_ids, invoice__status=PurchaseInvoice.DRAFT
+        )
+        .values("receipt_line__receipt_id", "invoice_id", "invoice__bill_no")
+        .order_by("invoice_id")
+        .distinct()
+    )
+    for row in rows:
+        found.setdefault(row["receipt_line__receipt_id"], {})[row["invoice_id"]] = {
+            "id": row["invoice_id"],
+            "bill_no": row["invoice__bill_no"],
+        }
+    return {rid: list(bills.values()) for rid, bills in found.items()}
 
 
 def _putaway_out(p: GoodsReceiptPutaway) -> dict:
@@ -875,7 +898,11 @@ class ReceiptListView(APIView):
                 | Q(orders__number__icontains=word)
                 | Q(lines__item__name__icontains=word)
             ).distinct()
-        return Response(_text([_receipt_out(r, lines=False) for r in rows[:1000]]))
+        out = [_receipt_out(r, lines=False) for r in rows[:1000]]
+        drafts = _draft_bills([r["id"] for r in out if r["billed_state"] in ("none", "part")])
+        for r in out:
+            r["draft_bills"] = drafts.get(r["id"], [])
+        return Response(_text(out))
 
     @tenant_atomic()
     def post(self, request, pk: int):

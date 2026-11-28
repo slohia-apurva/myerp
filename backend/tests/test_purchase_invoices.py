@@ -244,14 +244,21 @@ def test_bills_pending_lists_receipts_until_fully_billed(buyer, received):  # no
     assert D(row["bill_pending_value"]) == D(row["stock_value"])
     assert all(D(ln["pending_qty"]) == D(ln["accepted_qty"]) for ln in row["bill_lines"])
 
+    assert row["draft_bills"] == []
+
     draft = call(buyer, "get", f"{_inv_url(g)}draft-from/?receipt={g['receipt']}").json()
     tea_only = {**draft, "lines": draft["lines"][:1], "charges": []}
     first = call(buyer, "post", _inv_url(g), _body(g, tea_only)).json()
+    # A bill saved as a draft is named, but the goods still wait for a submitted bill.
+    row = call(buyer, "get", pending_url).json()[0]
+    assert row["billed_state"] == "none"
+    assert row["draft_bills"] == [{"id": first["id"], "bill_no": "DTT/1201"}]
     done = call(buyer, "patch", f"purchase-invoices/{first['id']}/",
                 _body(g, tea_only, bill_total=first["total"], submit=True))  # fmt: skip
     assert done.status_code == 200, done.json()
     row = call(buyer, "get", pending_url).json()[0]
     assert row["billed_state"] == "part"
+    assert row["draft_bills"] == []
     assert D("0") < D(row["bill_pending_value"]) < D(row["stock_value"])
     tea = next(ln for ln in row["bill_lines"] if D(ln["billed_qty"]))
     assert D(tea["pending_qty"]) == 0
