@@ -200,8 +200,46 @@ def test_a_bill_for_another_company_is_always_refused(buyer, owner, received, al
     assert rows["bill_no"]["result"] == "written"  # DTT/1201 against DTT/1201/2026-27
     assert rows["irn"]["result"] == "info"
     body = _body(g, draft, bill_total=inv["total"], submit=True, bill_check_reason="It is fine")
-    refused = call(owner, "patch", link, body)
+    refused = call(buyer, "patch", link, body)
     assert refused.status_code == 400 and ELSEWHERE in refused.json()["detail"]
+    assert refused.json()["override"] is False
+    assert "may belong to another company" in refused.json()["detail"]
+    assert call(buyer, "get", link).json()["status"] == "draft"
+    # An Owner sees the override, needs a reason, and then it goes through,
+    # with the reason kept (Sidharth, 2026-11-28: supplier's e-invoice raised
+    # to the wrong GSTIN).
+    no_reason = _body(g, draft, bill_total=inv["total"], submit=True)
+    asked = call(owner, "patch", link, no_reason)
+    assert asked.status_code == 400 and asked.json()["override"] is True
+    done = call(owner, "patch", link, body)
+    assert done.status_code == 200, done.json()
+    assert done.json()["status"] == "submitted"
+    with use_tenant(alpha):
+        assert BillReading.objects.get().seen_reason == "It is fine"
+        assert AuditEntry.objects.filter(
+            record_id=inv["id"], changes__0__new__icontains="Submitted anyway by an Owner"
+        ).exists()
+
+
+def test_a_bill_for_our_other_company_names_it(buyer, received, alpha):  # noqa: F811
+    with use_tenant(alpha):
+        Company.objects.create(name="Sister Concern Ltd", gstin=ELSEWHERE)
+    g = received
+    draft, inv = _draft(buyer, g, alpha)
+    _attach(buyer, inv["id"], _bill_pdf(["Tax Invoice"] * 6, qr=_qr_token(BuyerGstin=ELSEWHERE)))
+    checked = call(buyer, "post", f"purchase-invoices/{inv['id']}/bill-check/", {}).json()
+    assert "That is Sister Concern Ltd's GSTIN." in checked["refuse"][0]
+    assert checked["owner_may_override"] is True
+
+
+def test_a_bill_from_another_supplier_cannot_be_overridden(owner, received, alpha):  # noqa: F811
+    g = received
+    draft, inv = _draft(owner, g, alpha)
+    _attach(owner, inv["id"], _bill_pdf(["Tax Invoice"] * 6, qr=_qr_token(SellerGstin=ELSEWHERE)))
+    link = f"purchase-invoices/{inv['id']}/"
+    body = _body(g, draft, bill_total=inv["total"], submit=True, bill_check_reason="It is fine")
+    refused = call(owner, "patch", link, body)
+    assert refused.status_code == 400 and refused.json()["override"] is False
 
 
 def test_the_owner_can_refuse_submit_on_any_difference(buyer, owner, received, alpha):  # noqa: F811

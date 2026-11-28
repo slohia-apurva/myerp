@@ -29,7 +29,7 @@ from buying import bill_reading
 from buying.api import SUBMIT, VIEW, _check, _plain
 from buying.models import BillCheckSetting, BillReading, PurchaseInvoice
 from core.api import Signed
-from core.models import Attachment
+from core.models import Attachment, Branch, Company
 from tenancy.context import tenant_atomic
 
 KIND = "purchase_invoice"
@@ -247,9 +247,22 @@ def _gstin_rows(inv, qr, text, doc="bill") -> tuple[list[dict], list[str]]:
         )
         refuse.append(
             f"The {doc} is addressed to GSTIN {buyer}, not {inv.company.name} ({expected}). "
-            "It may belong to another company."
+            + _whose(buyer)
         )
     return rows, refuse
+
+
+OTHER_COMPANY = "It may belong to another company."
+
+
+def _whose(gstin: str) -> str:
+    """Name our own other company when the GSTIN is one of the group's (a bill
+    raised to Apurva Organics Ltd instead of the LLP, 2026-11-28)."""
+    company = Company.objects.filter(gstin=gstin).first()
+    if company is None:
+        branch = Branch.objects.filter(gstin=gstin).select_related("company").first()
+        company = branch.company if branch else None
+    return f"That is {company.name}'s GSTIN." if company else OTHER_COMPANY
 
 
 def _day_row(key, label, day, qr, text):
@@ -478,10 +491,16 @@ def compare(inv: PurchaseInvoice, reading: dict) -> dict:
             f" {total_row['note'].replace(' on bill', '')}"
             f" than this entry (₹{total_row['entry']})."
         )
+    keys = {r["key"]: r["result"] for r in gstin_rows}
     return {
         "rows": rows,
         "differences": len(differences),
         "refuse": refuse,
+        # Only "addressed to another company" may be overridden, and only by an
+        # Owner with a reason (Sidharth, 2026-11-28): the supplier raised the
+        # e-invoice to the wrong GSTIN and will not correct it in time. A bill
+        # from another supplier is always refused.
+        "owner_may_override": bool(refuse) and keys.get("supplier_gstin") != DIFFERS,
         "headline": headline.strip(),
         "short": short,
     }
@@ -648,8 +667,18 @@ def refuse_submit(inv: PurchaseInvoice, user, reason: str = "") -> Response | No
     p = payload(inv, attachment, found)
     reason = (reason or "").strip()[:300]
     if p.get("refuse"):
+        override = bool(p.get("owner_may_override")) and user.is_owner
+        if reason and override:
+            _seen(found, user, reason)
+            _log(user, inv, f"Submitted anyway by an Owner: {_result_text(p)} Reason: {reason}")
+            return None
         return Response(
-            {"bill_check": p, "detail": " ".join(p["refuse"]), "id": inv.pk},
+            {
+                "bill_check": p,
+                "detail": " ".join(p["refuse"]),
+                "id": inv.pk,
+                "override": override,
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
     if not p.get("differences") or found.seen_reason:
