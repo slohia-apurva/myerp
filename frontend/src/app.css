@@ -5378,6 +5378,11 @@ table.po-list .late {
   color: var(--red);
   font-weight: 600;
 }
+/* Goods Receipt "Bills Pending": a draft bill's tag opens it. */
+a.pill {
+  text-decoration: underline;
+  cursor: pointer;
+}
 /* Goods Receipt "Bills Pending": each item's accepted, billed and pending quantity in the side panel. */
 table.side-lines {
   width: 100%;
