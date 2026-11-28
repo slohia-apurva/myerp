@@ -12,7 +12,7 @@ import datetime
 from collections import defaultdict
 from decimal import Decimal
 
-from django.db.models import Max, Q
+from django.db.models import F, Max, Q
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -116,6 +116,43 @@ def _earlier(line: GoodsReceiptLine) -> Decimal:
     return sum((r.accepted_qty for r in rows), ZERO)
 
 
+def _bill_pending(ln: GoodsReceiptLine) -> Decimal:
+    """What the next purchase invoice is offered of the line, as the invoice's
+    "draft from receipt" does: the full unbilled quantity, goods sent back
+    included (a debit note settles them), while anything of the line is still
+    neither billed nor sent back. A line sent back whole and never billed waits
+    for nothing."""
+    if ln.accepted_qty <= ln.billed_qty + ln.returned_qty:
+        return ZERO
+    return ln.accepted_qty - ln.billed_qty
+
+
+def _billing(r: GoodsReceipt) -> dict:
+    """What suppliers have billed of a submitted receipt: per line, the pending
+    value (the unbilled share of the line's stock value) and the state."""
+    if r.status != GoodsReceipt.SUBMITTED:
+        return {"bill_pending_value": ZERO, "billed_state": "", "bill_lines": []}
+    lines, value = [], ZERO
+    for ln in r.lines.all():
+        pending = _bill_pending(ln)
+        if ln.accepted_qty and pending:
+            value += (ln.value * pending / ln.accepted_qty).quantize(Decimal("0.01"))
+        lines.append(
+            {
+                "item_name": ln.item.name,
+                "item_number": ln.item.item_number,
+                "unit_name": ln.unit.short_name,
+                "accepted_qty": ln.accepted_qty,
+                "billed_qty": ln.billed_qty,
+                "pending_qty": pending,
+            }
+        )
+    accepted = sum((ln.accepted_qty for ln in r.lines.all()), ZERO)
+    pending = sum((x["pending_qty"] for x in lines), ZERO)
+    state = "none" if pending and pending == accepted else "part" if pending else "billed"
+    return {"bill_pending_value": value, "billed_state": state, "bill_lines": lines}
+
+
 def _putaway_out(p: GoodsReceiptPutaway) -> dict:
     return {
         "location": p.location_id,
@@ -195,6 +232,7 @@ def _receipt_out(r: GoodsReceipt, lines: bool = True) -> dict:
         "cancel_reason": r.cancel_reason,
         "submitted_at": r.submitted_at,
         "submitted_by_name": r.submitted_by.display_name if r.submitted_by_id else "",
+        **_billing(r),
     }
     if lines:
         out["lines"] = [_line_out(ln) for ln in r.lines.all()]
@@ -823,6 +861,12 @@ class ReceiptListView(APIView):
         view = request.query_params.get("view", "all")
         if view in (GoodsReceipt.DRAFT, GoodsReceipt.SUBMITTED, GoodsReceipt.CANCELLED):
             rows = rows.filter(status=view)
+        elif view == "unbilled":
+            # Submitted receipts with goods the supplier has not billed yet.
+            rows = rows.filter(
+                status=GoodsReceipt.SUBMITTED,
+                lines__accepted_qty__gt=F("lines__billed_qty") + F("lines__returned_qty"),
+            ).distinct()
         for word in request.query_params.get("q", "").split():
             rows = rows.filter(
                 Q(number__icontains=word)

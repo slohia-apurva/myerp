@@ -116,9 +116,14 @@ export type GoodsReceipt = {
   cancel_reason: string;
   submitted_at: string | null;
   submitted_by_name: string;
+  /** What suppliers have still to bill (submitted receipts; Sidharth, 2026-11-28). */
+  bill_pending_value: string;
+  billed_state: "" | "none" | "part" | "billed";
+  bill_lines: BillLine[];
   lines?: ReceiptLine[];
   packages?: PackageRow[];
 };
+type BillLine = { item_name: string; item_number: string; unit_name: string; accepted_qty: string; billed_qty: string; pending_qty: string };
 type PendingLine = LineInfo & { pending: string };
 type PendingOrder = {
   id: number;
@@ -215,7 +220,7 @@ export function GoodsReceiptsPage({ companyId, session }: { companyId: number; s
     return <GrnPrint id={print} kind={PRINT_KINDS.includes(layout) ? layout : "note"} only={only} />;
   }
   if (view > 0) return <ReceiptView companyId={companyId} id={view} />;
-  return <ReceiptList companyId={companyId} canCreate={can("create")} />;
+  return <ReceiptList companyId={companyId} canCreate={can("create")} canBill={session.permissions.includes("purchase.create")} />;
 }
 
 /** "Print ▾": the receipt's layouts (Sidharth, 2026-11-15). Labels print the ticked bags,
@@ -245,8 +250,12 @@ const VIEWS = [
   { value: "all", label: "All" },
   { value: "draft", label: "Drafts" },
   { value: "submitted", label: "Submitted" },
+  { value: "unbilled", label: "Bills Pending" },
   { value: "cancelled", label: "Cancelled" },
 ];
+/** Whole days from the receipt date to today. */
+const daysSince = (date: string) => Math.max(0, Math.floor((Date.now() - new Date(`${date}T00:00:00`).getTime()) / 86400000));
+const BILLED_LABELS: Record<string, string> = { none: "Not billed", part: "Part billed", billed: "Billed" };
 const COLUMNS: Column<GoodsReceipt>[] = [
   { key: "number", label: "GRN No", fixed: true, text: (r) => r.number || "Draft", cell: (r) => (r.number ? <b>{r.number}</b> : <span className="small">Draft</span>) },
   { key: "date", label: "Date", standard: true, nowrap: true, text: (r) => `${shortDate(r.receipt_date)} ${showDate(r.receipt_date)}`, cell: (r) => shortDate(r.receipt_date) },
@@ -265,8 +274,42 @@ const COLUMNS: Column<GoodsReceipt>[] = [
   },
   { key: "status", label: "Status", standard: true, text: (r) => r.status_label, cell: (r) => <span className={pillClass(r.status)}>{r.status_label}</span> },
 ];
+/** "Bills Pending": submitted receipts the supplier has still to bill, with how long they have
+ * waited and what is pending (Sidharth, 2026-11-28, preview grn-pending-bills/2). */
+const UNBILLED_COLUMNS: Column<GoodsReceipt>[] = [
+  ...COLUMNS.filter((c) => c.key !== "value" && c.key !== "status"),
+  {
+    key: "days",
+    label: "Days Waiting",
+    standard: true,
+    num: true,
+    text: (r) => String(daysSince(r.receipt_date)),
+    cell: (r) => {
+      const days = daysSince(r.receipt_date);
+      return days > 30 ? <span className="late" title="Waiting over 30 days for the bill">{days}</span> : days;
+    },
+  },
+  { ...COLUMNS.find((c) => c.key === "value")!, cell: (r) => money(r.stock_value) },
+  {
+    key: "pending",
+    label: "Bill Pending ₹",
+    standard: true,
+    num: true,
+    text: (r) => `${r.bill_pending_value} ${money(r.bill_pending_value)}`,
+    total: (r) => Number(r.bill_pending_value),
+    cell: (r) => money(r.bill_pending_value),
+  },
+  {
+    key: "billed",
+    label: "Billed",
+    standard: true,
+    nowrap: true,
+    text: (r) => BILLED_LABELS[r.billed_state] ?? "",
+    cell: (r) => <span className="pill warn">{BILLED_LABELS[r.billed_state] ?? ""}</span>,
+  },
+];
 
-function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: boolean }) {
+function ReceiptList({ companyId, canCreate, canBill }: { companyId: number; canCreate: boolean; canBill: boolean }) {
   const [view, setView] = useKept("GoodsReceipts.view", () => listStart("all").view);
   const [rows, setRows] = useState<GoodsReceipt[]>([]);
   const [search, setSearch] = useKept<Record<string, string>>("GoodsReceipts.search", () => listStart("").search);
@@ -285,7 +328,8 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
     if (open && rows.some((r) => r.id === open)) setSelectedId(open);
   }, [rows]);
   const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
-  const columns = useColumns("goods-receipts", COLUMNS, { sort: false });
+  const unbilled = view === "unbilled";
+  const columns = useColumns(unbilled ? "goods-receipts-unbilled" : "goods-receipts", unbilled ? UNBILLED_COLUMNS : COLUMNS, { sort: false });
   const selected = rows.find((r) => r.id === selectedId) ?? null;
   const printing = usePrintMenu({ title: `Goods receipts: ${VIEWS.find((v) => v.value === view)?.label ?? ""}`, scope: "" });
   return (
@@ -373,12 +417,44 @@ function ReceiptList({ companyId, canCreate }: { companyId: number; canCreate: b
                   ["Vehicle No", selected.vehicle_no],
                   ["Received By", selected.received_by_name],
                   ["Stock Value", selected.status === "submitted" ? `₹${money(selected.stock_value)}` : ""],
+                  ["Bill Pending", selected.billed_state === "none" || selected.billed_state === "part" ? `₹${money(selected.bill_pending_value)}` : ""],
                 ]}
               />
+              {unbilled && selected.bill_lines.length > 0 && (
+                <table className="side-lines">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th className="num">Accepted</th>
+                      <th className="num">Billed</th>
+                      <th className="num">Pending</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selected.bill_lines.map((l, i) => (
+                      <tr key={i}>
+                        <td>
+                          {l.item_name} <span className="small-inline">{l.item_number}</span>
+                        </td>
+                        <td className="num">{`${qty(l.accepted_qty)} ${l.unit_name}`}</td>
+                        <td className="num">{qty(l.billed_qty)}</td>
+                        <td className="num">
+                          <b>{`${qty(l.pending_qty)} ${l.unit_name}`}</b>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
               <div className="side-buttons">
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
+                {(selected.billed_state === "none" || selected.billed_state === "part") && canBill && (
+                  <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/purchase-invoices?form=new&receipt=${selected.id}`)}>
+                    Make Purchase Invoice
+                  </button>
+                )}
                 <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?print=${selected.id}&layout=note`)}>
                   Print
                 </button>

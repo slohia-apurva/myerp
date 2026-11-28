@@ -4105,6 +4105,21 @@ export const MANUAL: Chapter[] = [
           challan from another supplier's GSTIN, or addressed to another
           company's GSTIN, is always refused.
         </p>
+        <h3>Receipts waiting for the supplier's bill</h3>
+        <p>
+          In the list, pick "Bills Pending" in the picker at the top left. It
+          shows the submitted receipts with goods the supplier has not billed
+          yet. "Days Waiting" counts the days since the receipt date, in red
+          after 30 days. "Bill Pending ₹" is the unbilled quantity at the
+          receipt's stock rate, before GST, and "Billed" says "Not billed" or
+          "Part billed". Goods sent back still count as pending, because the
+          supplier bills what was received and a Debit Note settles the return.
+          A line sent back whole and never billed waits for nothing. Click a
+          receipt to see each item's "Accepted", "Billed" and "Pending" quantity
+          at the right; "Make Purchase Invoice" there opens a new invoice
+          filled with what is pending. A receipt leaves this list once
+          everything on it is billed.
+        </p>
         <h3>Printing the receipt, bin sheets and bag labels</h3>
         <p>
           "Print ▾" on a receipt lists its print layouts; each opens in a new
