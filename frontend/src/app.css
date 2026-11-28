@@ -5428,3 +5428,31 @@ table.side-lines .num {
   margin: -12px -14px 0;
   padding: 9px 14px;
 }
+
+/* Accounts Payable (Sidharth, 2026-11-28): a supplier's heading over its bills, the tick
+   column, and the line that adds up the bills ticked to pay. */
+table.report tr.report-group td {
+  background: var(--mint);
+  color: var(--deep-green);
+  font-weight: 700;
+}
+table.report .tick-col {
+  width: 28px;
+  text-align: center;
+}
+.pay-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--mint-line);
+  border-radius: 8px;
+  background: var(--mint);
+}
+.pay-bar > span {
+  margin-right: auto;
+}
+.side-buttons.wrap {
+  flex-wrap: wrap;
+}

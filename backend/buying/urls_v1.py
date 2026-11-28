@@ -9,6 +9,8 @@ from buying import (
     invoice_pdf,
     invoices,
     mail_text,
+    payables,
+    payables_pdf,
     planning,
     po_reminder,
     purchase_prints,
@@ -58,6 +60,26 @@ urlpatterns = [
         "companies/<int:pk>/procurement-tracker/",
         reports.ProcurementTrackerView.as_view(),
         name="procurement-tracker",
+    ),
+    path(
+        "companies/<int:pk>/accounts-payable/",
+        payables.PayablesView.as_view(),
+        name="accounts-payable",
+    ),
+    path(
+        "companies/<int:pk>/accounts-payable/pdf/",
+        payables_pdf.PayablesPdfView.as_view(),
+        name="accounts-payable-pdf",
+    ),
+    path(
+        "companies/<int:pk>/accounts-payable/suppliers/<int:ledger>/pdf/",
+        payables_pdf.SupplierPdfView.as_view(),
+        name="accounts-payable-supplier-pdf",
+    ),
+    path(
+        "companies/<int:pk>/accounts-payable/suppliers/<int:ledger>/mail/",
+        payables_pdf.SupplierMailView.as_view(),
+        name="accounts-payable-supplier-mail",
     ),
     path("purchase-orders/<int:pk>/", api.OrderDetailView.as_view(), name="purchase-order"),
     path(
