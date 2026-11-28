@@ -116,38 +116,64 @@ function DropMenu(props: { label: string; active: boolean; items: MenuItem[] }) 
  * the company picked at the top right. */
 export function MastersMenu(props: { active: boolean; company?: Company; canSeeMasters: boolean }) {
   const company = props.company;
-  return (
-    <DropMenu
-      label="Masters"
-      active={props.active}
-      items={[
-        ["Ledger groups", company ? `#/companies/${company.id}/groups` : "", props.canSeeMasters && !!company],
-        ["Ledgers", company ? `#/companies/${company.id}/ledgers` : "", props.canSeeMasters && !!company],
-        ["Credit terms", "#/credit-terms", props.canSeeMasters],
-        ["People", "#/sales-people", props.canSeeMasters],
-        [
-          "Transporters",
-          company ? `#/companies/${company.id}/couriers` : "",
-          props.canSeeMasters && !!company?.modules.includes("sales"),
-        ],
-        ["Insurance policies", company ? `#/companies/${company.id}/insurance` : "", props.canSeeMasters && !!company],
-        ["Warehouses", company ? `#/companies/${company.id}/warehouses` : "", props.canSeeMasters && !!company],
-        ["Item groups", "#/item-groups", props.canSeeMasters],
-        ["Items", "#/items", props.canSeeMasters],
-        ["BOMs", "#/boms", props.canSeeMasters && !!company?.modules.includes("production")],
-        ["Batches", "#/batches", props.canSeeMasters],
-        ["Brands", "#/brands", props.canSeeMasters],
-        ["Price lists", "#/price-lists", props.canSeeMasters],
-        ["Terms and conditions", "#/terms", props.canSeeMasters],
-        ["Mail templates", "#/mail-templates", props.canSeeMasters],
-        ["Reminder schedule", "#/reminder-schedule", props.canSeeMasters],
-        ["Units", "#/units", props.canSeeMasters],
-        ["HSN codes", "#/hsn", props.canSeeMasters],
-        ["Countries", "#/countries", props.canSeeMasters],
-        ["PIN codes", "#/pin-codes", props.canSeeMasters],
-      ]}
-    />
-  );
+  const see = props.canSeeMasters;
+  const own = see && !!company; // company-wise masters need a company picked
+  const at = (path: string) => (company ? `#/companies/${company.id}/${path}` : "");
+  // Grouped so the list stays short (Sidharth, 2026-11-28, preview mockups/masters-menu);
+  // each group opens its own list to the right, as Reports and Entry do.
+  const groups: [string, [string, string, boolean][]][] = [
+    [
+      "Accounts",
+      [
+        ["Ledger groups", at("groups"), own],
+        ["Ledgers", at("ledgers"), own],
+        ["Insurance policies", at("insurance"), own],
+      ],
+    ],
+    [
+      "Items & Stock",
+      [
+        ["Items", "#/items", see],
+        ["Item groups", "#/item-groups", see],
+        ["Brands", "#/brands", see],
+        ["Units", "#/units", see],
+        ["Batches", "#/batches", see],
+        ["BOMs", "#/boms", see && !!company?.modules.includes("production")],
+        ["Warehouses", at("warehouses"), own],
+      ],
+    ],
+    [
+      "Pricing & Terms",
+      [
+        ["Price lists", "#/price-lists", see],
+        ["Credit terms", "#/credit-terms", see],
+        ["Terms and conditions", "#/terms", see],
+      ],
+    ],
+    [
+      "People & Transport",
+      [
+        ["People", "#/sales-people", see],
+        ["Transporters", at("couriers"), see && !!company?.modules.includes("sales")],
+      ],
+    ],
+    [
+      "Mail",
+      [
+        ["Mail templates", "#/mail-templates", see],
+        ["Reminder schedule", "#/reminder-schedule", see],
+      ],
+    ],
+    [
+      "GST & Places",
+      [
+        ["HSN codes", "#/hsn", see],
+        ["Countries", "#/countries", see],
+        ["PIN codes", "#/pin-codes", see],
+      ],
+    ],
+  ];
+  return <SubMenus label="Masters" active={props.active} groups={groups} />;
 }
 
 /** "Sales" in the top menu: for now the shipments sent by courier (spec 06).
