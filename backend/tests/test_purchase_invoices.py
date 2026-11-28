@@ -253,6 +253,15 @@ def test_bills_pending_lists_receipts_until_fully_billed(buyer, received):  # no
     row = call(buyer, "get", pending_url).json()[0]
     assert row["billed_state"] == "none"
     assert row["draft_bills"] == [{"id": first["id"], "bill_no": "DTT/1201"}]
+    # "Open Saved Draft" everywhere: the invoices' own list of receipts to bill names it, and the
+    # receipt's connections (read by "Create ▾") show it as a draft.
+    waiting = call(buyer, "get", f"{_inv_url(g)}unbilled/").json()
+    assert waiting[0]["draft_bills"] == [{"id": first["id"], "bill_no": "DTT/1201"}]
+    conn = call(buyer, "get", f"companies/{g['company']}/connections/goods_receipt/{g['receipt']}/")
+    bills = [
+        k for grp in conn.json()["groups"] for k in grp["kinds"] if k["type"] == "purchase_invoice"
+    ]
+    assert [(d["id"], d["status"]) for d in bills[0]["docs"]] == [(first["id"], "draft")]
     done = call(buyer, "patch", f"purchase-invoices/{first['id']}/",
                 _body(g, tea_only, bill_total=first["total"], submit=True))  # fmt: skip
     assert done.status_code == 200, done.json()

@@ -14,7 +14,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Mast
 import { EntriesBox, type Entry } from "./PurchaseInvoices";
 import { useReturns } from "./Refresh";
 import { useKept } from "./Keep";
-import { Connections } from "./Connections";
+import { Connections, draftOr, openDraft, useSavedDrafts } from "./Connections";
 
 /** Entry > Purchase > Purchase Return (Sidharth, 2026-11-15, preview 74): goods sent back
  * to the supplier against a goods receipt. Submit takes them out of the bin they were put
@@ -179,6 +179,7 @@ function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; can
   const shown = useMemo(() => matching(rows, COLUMNS, search), [rows, search]);
   const columns = useColumns("purchase-returns", COLUMNS, { sort: false });
   const selected = rows.find((r) => r.id === selectedId) ?? null;
+  const selectedDrafts = useSavedDrafts(companyId, "purchase_return", selected?.status === "submitted" ? selected.id : null);
   const printing = usePrintMenu({ title: `Purchase returns: ${VIEWS.find((v) => v.value === view)?.label ?? ""}`, scope: "" });
   return (
     <section className="page">
@@ -273,10 +274,17 @@ function ReturnList({ companyId, canCreate, canDebit }: { companyId: number; can
                 <button type="button" className="link" onClick={() => pdf(selected.id)}>
                   Print
                 </button>
-                {canDebit && (selected.debit_state === "pending" || selected.debit_state === "part") && (
-                  <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/debit-notes?form=new&return=${selected.id}`)}>
-                    Make Debit Note
+                {selectedDrafts.debit_note ? (
+                  <button type="button" className="link" title="A debit note is already saved as a draft: open it to finish and Submit" onClick={() => openDraft(companyId, selectedDrafts.debit_note)}>
+                    Open Saved Draft
                   </button>
+                ) : (
+                  canDebit &&
+                  (selected.debit_state === "pending" || selected.debit_state === "part") && (
+                    <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/debit-notes?form=new&return=${selected.id}`)}>
+                      Make Debit Note
+                    </button>
+                  )
                 )}
               </div>
             </SidePanel>
@@ -581,6 +589,7 @@ function ReturnForm(props: { companyId: number; title: string; ret: Return | nul
 
 function ReturnView({ companyId, id, can, canDebit }: { companyId: number; id: number; can: (p: string) => boolean; canDebit: boolean }) {
   const [ret, setRet] = useState<Return | null>(null);
+  const drafts = useSavedDrafts(companyId, "purchase_return", ret?.status === "submitted" ? ret.id : null, ret);
   const [error, setError] = useState<unknown>("");
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
@@ -654,16 +663,18 @@ function ReturnView({ companyId, id, can, canDebit }: { companyId: number; id: n
                 label="Create"
                 main
                 items={[
-                  {
-                    label: "Debit Note",
-                    disabled: !ret.to_debit || !canDebit,
-                    onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&return=${ret.id}`),
-                  },
+                  drafts.debit_note
+                    ? draftOr(companyId, drafts, "debit_note", { label: "" })
+                    : {
+                        label: "Debit Note",
+                        disabled: !ret.to_debit || !canDebit,
+                        onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&return=${ret.id}`),
+                      },
                 ]}
                 note={
                   !canDebit
                     ? "Your role cannot make debit notes"
-                    : ret.to_debit
+                    : ret.to_debit || drafts.debit_note
                       ? undefined
                       : notBilled
                         ? "Once the supplier's bill is entered. If the bill leaves these goods out, no Debit Note is needed."

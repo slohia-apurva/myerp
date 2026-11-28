@@ -18,7 +18,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Mast
 import { useOnReturn, useReturns } from "./Refresh";
 import { usePeopleSearch } from "./SalesPeople";
 import { useKept } from "./Keep";
-import { Connections } from "./Connections";
+import { Connections, draftOr, useSavedDrafts, type SavedDraft } from "./Connections";
 
 /** Entry > Purchase > Goods Receipt: what arrived against a supplier's purchase orders, and
  * which bins and batches it went into. Submit posts the stock (Dr Stock, Cr Goods Received
@@ -170,9 +170,9 @@ const PRINTS = [
 const pillClass = (status: string) => (status === "submitted" ? "pill on" : "pill");
 
 /** "Create ▾" on a submitted receipt: the documents that follow from it. */
-const createFromReceipt = (companyId: number, id: number) => [
-  { label: "Purchase Invoice (supplier's bill)", onClick: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&receipt=${id}`) },
-  { label: "Purchase Return (goods sent back)", onClick: () => openTab(`#/companies/${companyId}/purchase-returns?form=new&receipt=${id}`) },
+const createFromReceipt = (companyId: number, id: number, drafts: Record<string, SavedDraft>) => [
+  draftOr(companyId, drafts, "purchase_invoice", { label: "Purchase Invoice (supplier's bill)", onClick: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&receipt=${id}`) }),
+  draftOr(companyId, drafts, "purchase_return", { label: "Purchase Return (goods sent back)", onClick: () => openTab(`#/companies/${companyId}/purchase-returns?form=new&receipt=${id}`) }),
 ];
 
 function useSetup(companyId: number) {
@@ -448,7 +448,7 @@ function ReceiptList({ companyId, canCreate, canBill }: { companyId: number; can
                   ["Received By", selected.received_by_name],
                   ["Stock Value", selected.status === "submitted" ? `₹${money(selected.stock_value)}` : ""],
                   ["Bill Pending", selected.billed_state === "none" || selected.billed_state === "part" ? `₹${money(selected.bill_pending_value)}` : ""],
-                  ["Draft Bill", unbilled ? draftBillsText(selected).replace(/Draft bill /g, "") : ""],
+                  ["Draft Bill", draftBillsText(selected).replace(/Draft bill /g, "")],
                 ]}
               />
               {unbilled && selected.bill_lines.length > 0 && (
@@ -481,9 +481,9 @@ function ReceiptList({ companyId, canCreate, canBill }: { companyId: number; can
                 <button type="button" onClick={() => openTab(`${base(companyId)}?view=${selected.id}`)}>
                   Open
                 </button>
-                {unbilled && (selected.draft_bills ?? []).length > 0 && (
+                {(selected.draft_bills ?? []).length > 0 && (
                   <button type="button" className="link" onClick={() => openTab(`#/companies/${companyId}/purchase-invoices?view=${selected.draft_bills![0].id}`)}>
-                    Open Draft Bill
+                    Open Saved Draft
                   </button>
                 )}
                 {(selected.billed_state === "none" || selected.billed_state === "part") && !(selected.draft_bills ?? []).length && canBill && (
@@ -1421,6 +1421,7 @@ function PackagesBox({ rows, ticked, onTick }: { rows: PackageRow[]; ticked: num
 function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
   const { setup } = useSetup(companyId);
   const [r, setR] = useState<GoodsReceipt | null>(null);
+  const drafts = useSavedDrafts(companyId, "goods_receipt", r?.status === "submitted" ? r.id : null, r);
   const [noLedgers, setNoLedgers] = useState<MissingLedgers | null>(null);
   const [error, setError] = useState<unknown>("");
   const [cancelling, setCancelling] = useState(false);
@@ -1496,7 +1497,7 @@ function ReceiptView({ companyId, id }: { companyId: number; id: number }) {
                 Submit
               </button>
             )}
-            {r.status === "submitted" && <ActionsMenu label="Create" main items={createFromReceipt(companyId, r.id)} />}
+            {r.status === "submitted" && <ActionsMenu label="Create" main items={createFromReceipt(companyId, r.id, drafts)} />}
           </>
         }
       />

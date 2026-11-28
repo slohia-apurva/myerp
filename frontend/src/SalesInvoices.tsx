@@ -15,7 +15,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows, listStart } from "./Mast
 import { makeCreditNote } from "./CreditNotes";
 import { TotalsPanel } from "./PurchaseOrders";
 import { useKept } from "./Keep";
-import { Connections } from "./Connections";
+import { Connections, draftOr, useSavedDrafts } from "./Connections";
 
 /** Entry > Sales > Sales Invoice: the tax invoice for one or more submitted delivery notes of a
  * customer (Sidharth, 2026-11-20, previews 14a/14b in mockups/sales). Quantities are what the notes
@@ -397,6 +397,7 @@ export function portalNumbers(text: string): Partial<Portal> {
 
 function InvoiceView({ companyId, id, session }: { companyId: number; id: number; session: SignedIn }) {
   const [inv, setInv] = useState<Invoice | null>(null);
+  const drafts = useSavedDrafts(companyId, "sales_invoice", inv && inv.status !== "draft" ? inv.id : null, inv);
   const [error, setError] = useState<unknown>("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -527,7 +528,7 @@ function InvoiceView({ companyId, id, session }: { companyId: number; id: number
                 Submit
               </button>
             )}
-            {submitted && <ActionsMenu label="Create" main items={next(companyId, inv.id, setError)} />}
+            {submitted && <ActionsMenu label="Create" main items={next(companyId, inv.id, setError).map((item, i) => (i === 0 ? draftOr(companyId, drafts, "credit_note", item) : item))} />}
           </>
         }
       />

@@ -148,7 +148,7 @@ const printItems = (id: number) => [
 const nextOf = (companyId: number, note: Note, fail: (err: unknown) => void) => [
   note.billed
     ? { label: "Sales Invoice (made)", disabled: true }
-    : { label: note.invoice ? "Sales Invoice (open the draft)" : "Sales Invoice", onClick: () => makeSalesInvoice(companyId, note.id).catch(fail) },
+    : { label: note.invoice ? "Open Saved Draft: Sales Invoice" : "Sales Invoice", onClick: () => makeSalesInvoice(companyId, note.id).catch(fail) },
   { label: "Sales Return (later)", disabled: true },
 ];
 

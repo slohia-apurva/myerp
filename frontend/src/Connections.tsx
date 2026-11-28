@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import type { MenuItem } from "./Exchange";
 import { openTab } from "./Master";
 
 /** "Connections" on every entry's view (Sidharth, 2026-11-26, previews
@@ -24,6 +25,62 @@ type Data = {
   summary: string;
 };
 
+/** One read of an entry's connections serves both the box and its screen's "Create ▾" (a few
+ * seconds' memory, so the two do not ask twice). */
+const recent = new Map<string, { at: number; answer: Promise<Data> }>();
+function loadConnections(companyId: number, kind: string, id: number): Promise<Data> {
+  const url = `v1/companies/${companyId}/connections/${kind}/${id}/`;
+  const held = recent.get(url);
+  if (held && Date.now() - held.at < 3000) return held.answer;
+  const answer = api<Data>(url);
+  recent.set(url, { at: Date.now(), answer });
+  answer.catch(() => recent.delete(url));
+  return answer;
+}
+
+/** A follow-on document saved as a draft and not yet submitted (an invoice from this receipt, a
+ * debit note from this return…). */
+export type SavedDraft = { id: number; number: string; page: string; name: string };
+
+/** "Open Saved Draft" (Sidharth, 2026-11-28): when a draft of the next document already exists for
+ * this entry, the button that would start a new one opens that draft instead, on every screen:
+ * "Create ▾", the Connections "+", and the list side panels. Kind -> its first saved draft. */
+export function useSavedDrafts(companyId: number, kind: string, id: number | null | undefined, stamp?: unknown): Record<string, SavedDraft> {
+  const [drafts, setDrafts] = useState<Record<string, SavedDraft>>({});
+  useEffect(() => {
+    let live = true;
+    setDrafts({});
+    if (id) loadConnections(companyId, kind, id).then((d) => live && setDrafts(draftsOf(d)), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [companyId, kind, id, stamp]);
+  return drafts;
+}
+
+/** Saved but not finished: a draft, or a pick list still being picked. */
+const unfinished = (type: string, status: string) => status === "draft" || (type === "pick_list" && status === "open");
+
+function draftsOf(d: Data): Record<string, SavedDraft> {
+  const out: Record<string, SavedDraft> = {};
+  for (const g of d.groups)
+    for (const k of g.kinds) {
+      const doc = (k.docs ?? []).find((x) => unfinished(k.type, x.status));
+      if (doc && !out[k.type]) out[k.type] = { id: doc.id, number: doc.number, page: k.page ?? "", name: k.name };
+    }
+  return out;
+}
+
+export const draftHref = (companyId: number, d: SavedDraft) => `#/companies/${companyId}/${d.page}?view=${d.id}`;
+export const openDraft = (companyId: number, d: SavedDraft) => openTab(draftHref(companyId, d));
+
+/** A "Create ▾" item for `kind`: as given, or "Open Saved Draft" when one is waiting. */
+export function draftOr(companyId: number, drafts: Record<string, SavedDraft>, kind: string, item: MenuItem): MenuItem {
+  const d = drafts[kind];
+  if (!d) return item;
+  return { label: `Open Saved Draft: ${d.name}`, onClick: () => openDraft(companyId, d), title: "A draft is already saved: open it to finish and Submit" };
+}
+
 const day = (iso: string | null) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "";
 
@@ -45,7 +102,7 @@ export function Connections(props: {
 
   useEffect(() => {
     let live = true;
-    api<Data>(`v1/companies/${companyId}/connections/${kind}/${id}/`).then(
+    loadConnections(companyId, kind, id).then(
       (d) => live && (setData(d), setFailed(false)),
       () => live && setFailed(true),
     );
@@ -108,11 +165,21 @@ export function Connections(props: {
                             All {k.count} →
                           </a>
                         )}
-                        {create?.[k.type] && (
-                          <button type="button" className="link conn-plus" title={`New ${k.name}`} onClick={create[k.type]}>
-                            +
-                          </button>
-                        )}
+                        {create?.[k.type] &&
+                          (() => {
+                            // A saved draft is opened, not a second one started.
+                            const draft = (k.docs ?? []).find((x) => unfinished(k.type, x.status));
+                            return (
+                              <button
+                                type="button"
+                                className="link conn-plus"
+                                title={draft ? `Open Saved Draft: ${k.name}` : `New ${k.name}`}
+                                onClick={draft ? () => openTab(hrefOf(k.page ?? "", draft)) : create[k.type]}
+                              >
+                                +
+                              </button>
+                            );
+                          })()}
                       </div>
                       {(k.docs ?? []).length > 0 && (
                         <div className="conn-docs">
@@ -148,7 +215,7 @@ export function Connections(props: {
               ? kind === "party"
                 ? 'For the company you are working in. "All n →" opens that list searched for this party.'
                 : "For the company you are working in: the latest five of each, newest first. Click a number to open it."
-              : 'Click a number to open that entry; "Close" there comes back here. "+" makes a new one from this entry, as "Create ▾" does.'}
+              : 'Click a number to open that entry; "Close" there comes back here. "+" makes a new one from this entry, as "Create ▾" does, or opens the saved draft if there is one.'}
           </p>
         </div>
       )}

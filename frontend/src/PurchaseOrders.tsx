@@ -23,7 +23,7 @@ import { EmailSupplier } from "./SupplierMail";
 import { OrderRemindersBox } from "./ReminderSchedule";
 import { useOnReturn, useReturns } from "./Refresh";
 import { useKept } from "./Keep";
-import { Connections } from "./Connections";
+import { Connections, draftOr, useSavedDrafts, type SavedDraft } from "./Connections";
 import { RateBox, RateSource } from "./RateLock";
 
 /** Entry > Purchase > Purchase Order: what the company asked a supplier for. A draft can
@@ -1607,9 +1607,9 @@ function printMenu(companyId: number, id: number | null) {
 }
 
 /** "Create ▾" on a submitted order: the documents that follow from it. */
-const createFromOrder = (companyId: number, id: number) => [
-  { label: "Goods Receipt (goods received)", onClick: () => openTab(`#/companies/${companyId}/goods-receipts?form=new&order=${id}`) },
-  { label: "Purchase Invoice (supplier's bill)", onClick: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&order=${id}`) },
+const createFromOrder = (companyId: number, id: number, drafts: Record<string, SavedDraft>) => [
+  draftOr(companyId, drafts, "goods_receipt", { label: "Goods Receipt (goods received)", onClick: () => openTab(`#/companies/${companyId}/goods-receipts?form=new&order=${id}`) }),
+  draftOr(companyId, drafts, "purchase_invoice", { label: "Purchase Invoice (supplier's bill)", onClick: () => openTab(`#/companies/${companyId}/purchase-invoices?form=new&order=${id}`) }),
 ];
 
 // The order's own page (read only) ------------------------------------------------------
@@ -1617,6 +1617,7 @@ const createFromOrder = (companyId: number, id: number) => [
 function OrderView({ companyId, id, session }: { companyId: number; id: number; session: SignedIn }) {
   const can = (p: string) => session.permissions.includes(`purchase.${p}`);
   const [order, setOrder] = useState<PurchaseOrder | null>(null);
+  const drafts = useSavedDrafts(companyId, "purchase_order", order && order.status !== "draft" ? order.id : null, order);
   const [error, setError] = useState<unknown>("");
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
@@ -1700,7 +1701,7 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
               </button>
             )}
             {(order.status === "ordered" || order.status === "part_received") && (
-              <ActionsMenu label="Create" main items={createFromOrder(companyId, order.id)} />
+              <ActionsMenu label="Create" main items={createFromOrder(companyId, order.id, drafts)} />
             )}
           </>
         }

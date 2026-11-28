@@ -44,7 +44,7 @@ from buying.models import (
     PurchaseInvoiceLine,
     PurchaseOrder,
 )
-from buying.receipts import _factor
+from buying.receipts import _draft_bills, _factor
 from core import attachments, mail, numbering
 from core.api import Signed
 from core.companies import visible_companies
@@ -1111,9 +1111,11 @@ class UnbilledView(APIView):
             row["orders"].add(rl.order_line.order.number)
             row["lines"] += 1
             row["value"] += grni_value(rl, _to_bill(rl))
+        drafts = _draft_bills(list(by_receipt))
         rows = []
         for row in by_receipt.values():
             row["orders"] = ", ".join(sorted(row["orders"]))
+            row["draft_bills"] = drafts.get(row["receipt"], [])
             rows.append(row)
         return Response(_text(rows))
 
