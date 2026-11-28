@@ -4386,8 +4386,14 @@ export const MANUAL: Chapter[] = [
             it is right and click "Submit with Reason"; the reason is kept in
             Activity. If the Owner chose "Refuse Submit" under Admin › "Bill
             Reading", only an Owner can submit it as it is. A bill from another
-            supplier's GSTIN, or addressed to another company's GSTIN, is always
-            refused: check the supplier, the company or the file.
+            supplier's GSTIN is always refused: check the supplier or the file.
+            A bill addressed to another company's GSTIN is refused too (the
+            message names the company when it is one of yours). When the
+            supplier made the e-invoice out to the wrong GSTIN and will not
+            correct it, an Owner can type why and click "Submit Anyway"; the
+            reason is kept in Activity and the red note stays on the Bill Check.
+            Its input credit will show in the other company's GSTR-2B, so ask
+            the supplier for a credit note and a fresh invoice.
           </li>
           <li>
             <b>TDS.</b> Every purchase bill (against goods receipts, without goods

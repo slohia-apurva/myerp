@@ -30,6 +30,7 @@ export type BillCheck = {
   rows?: CheckRow[];
   differences?: number;
   refuse?: string[];
+  owner_may_override?: boolean;
   headline?: string;
   summary?: string;
 };
@@ -37,17 +38,25 @@ export type BillCheck = {
 /** The Bill Check a refused Submit sent back, if that is why it was refused. */
 export function billCheckOf(
   err: unknown,
-): (BillCheck & { refusedSubmit: boolean }) | null {
+): (BillCheck & { refusedSubmit: boolean; override: boolean }) | null {
   if (
     err instanceof ApiError &&
     err.data &&
     typeof err.data === "object" &&
     "bill_check" in err.data
   ) {
-    const data = err.data as { bill_check: BillCheck; refused?: boolean };
+    const data = err.data as {
+      bill_check: BillCheck;
+      refused?: boolean;
+      override?: boolean;
+    };
+    // "override": an Owner may submit a bill addressed to another company with a reason.
+    const override = !!data.override;
     return {
       ...data.bill_check,
-      refusedSubmit: !!data.refused || !!data.bill_check.refuse?.length,
+      override,
+      refusedSubmit:
+        !!data.refused || (!!data.bill_check.refuse?.length && !override),
     };
   }
   return null;
@@ -280,7 +289,8 @@ export function BillCheckBox(props: {
           {!!check.rows?.length && <CheckTable rows={check.rows} words={words} />}
           {check.seen_reason && (
             <p className="small">
-              Differences accepted by {check.seen_by_name}: {check.seen_reason}
+              {refused ? "Submitted anyway by" : "Differences accepted by"}{" "}
+              {check.seen_by_name}: {check.seen_reason}
             </p>
           )}
           {seeing && (
@@ -352,7 +362,7 @@ export function BillCheckBox(props: {
 
 /** Submit refused because the bill differs (preview 108b): the differences, and Submit with a reason. */
 export function BillCheckPopup(props: {
-  check: BillCheck & { refusedSubmit: boolean };
+  check: BillCheck & { refusedSubmit: boolean; override?: boolean };
   busy: boolean;
   onSubmit: (reason: string) => void;
   onClose: () => void;
@@ -391,6 +401,13 @@ export function BillCheckPopup(props: {
           </p>
         ) : (
           <>
+            {hard && (
+              <p className="small">
+                As an Owner you may submit it anyway, for example when the
+                supplier will not correct the e-invoice. The red note stays on
+                the {words.title}.
+              </p>
+            )}
             <label htmlFor="bill-check-submit-reason">
               To Go Ahead Anyway, Say Why (Kept in Activity)
             </label>
@@ -398,7 +415,11 @@ export function BillCheckPopup(props: {
               id="bill-check-submit-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. 5 Pcs short received, debit note to follow"
+              placeholder={
+                hard
+                  ? "e.g. Supplier raised the e-invoice to the wrong GSTIN, credit note asked for"
+                  : "e.g. 5 Pcs short received, debit note to follow"
+              }
               autoFocus
             />
           </>
@@ -413,7 +434,7 @@ export function BillCheckPopup(props: {
               disabled={!reason.trim() || props.busy}
               onClick={() => props.onSubmit(reason.trim())}
             >
-              Submit with Reason
+              {hard ? "Submit Anyway" : "Submit with Reason"}
             </button>
           )}
         </div>
