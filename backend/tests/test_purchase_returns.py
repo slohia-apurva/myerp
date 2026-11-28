@@ -238,3 +238,15 @@ def test_a_return_the_bill_left_out_needs_no_debit_note_in_the_list(store, buyer
         "not_needed",
         "Not Needed (Billed for Actual Qty Recd.)",
     )
+
+
+def test_goods_sent_back_still_wait_for_their_bill_in_bills_pending(store, buyer, received):
+    """The supplier bills the full received quantity; a debit note settles the
+    return, so a return does not take a receipt off "Bills Pending"."""
+    g = received
+    _send_back(store, g, boxes="3")
+    pending = call(buyer, "get", f"{url(g)}?view=unbilled").json()
+    box = next(ln for ln in pending[0]["bill_lines"] if ln["item_name"] == "Tea Box")
+    assert D(box["pending_qty"]) == D("30")
+    _bill(buyer, g)
+    assert call(buyer, "get", f"{url(g)}?view=unbilled").json() == []

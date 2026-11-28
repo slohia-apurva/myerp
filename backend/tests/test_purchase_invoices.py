@@ -232,3 +232,36 @@ def test_a_bill_above_a_locked_order_rate_tells_the_purchaser(buyer, received, a
     assert "Tea Box" not in body
     assert "rate-difference debit note" in body
     assert "Not mailed: The company's mail account is not set up" in body
+
+
+def test_bills_pending_lists_receipts_until_fully_billed(buyer, received):  # noqa: F811
+    g = received
+    pending_url = f"{url(g)}?view=unbilled"
+    rows = call(buyer, "get", pending_url).json()
+    assert [r["id"] for r in rows] == [g["receipt"]]
+    row = rows[0]
+    assert row["billed_state"] == "none"
+    assert D(row["bill_pending_value"]) == D(row["stock_value"])
+    assert all(D(ln["pending_qty"]) == D(ln["accepted_qty"]) for ln in row["bill_lines"])
+
+    draft = call(buyer, "get", f"{_inv_url(g)}draft-from/?receipt={g['receipt']}").json()
+    tea_only = {**draft, "lines": draft["lines"][:1], "charges": []}
+    first = call(buyer, "post", _inv_url(g), _body(g, tea_only)).json()
+    done = call(buyer, "patch", f"purchase-invoices/{first['id']}/",
+                _body(g, tea_only, bill_total=first["total"], submit=True))  # fmt: skip
+    assert done.status_code == 200, done.json()
+    row = call(buyer, "get", pending_url).json()[0]
+    assert row["billed_state"] == "part"
+    assert D("0") < D(row["bill_pending_value"]) < D(row["stock_value"])
+    tea = next(ln for ln in row["bill_lines"] if D(ln["billed_qty"]))
+    assert D(tea["pending_qty"]) == 0
+
+    box_only = {**draft, "lines": draft["lines"][1:], "charges": []}
+    second = call(buyer, "post", _inv_url(g), _body(g, box_only, bill_no="DTT/1202")).json()
+    done = call(buyer, "patch", f"purchase-invoices/{second['id']}/",
+                _body(g, box_only, bill_no="DTT/1202", bill_total=second["total"],
+                      submit=True))  # fmt: skip
+    assert done.status_code == 200, done.json()
+    assert call(buyer, "get", pending_url).json() == []
+    everything = call(buyer, "get", f"{url(g)}?view=all").json()
+    assert everything[0]["billed_state"] == "billed"
