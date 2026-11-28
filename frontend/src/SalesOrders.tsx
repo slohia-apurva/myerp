@@ -1392,7 +1392,22 @@ function OrderView({ companyId, id, session }: { companyId: number; id: number; 
                 Submit
               </button>
             )}
-            {open && <ActionsMenu label="Create" main items={nextDocs(livePick || !can("create") ? null : makePick, makeNote, can("submit") ? planShort : null)} />}
+            {open && (
+              <ActionsMenu
+                label="Create"
+                main
+                items={nextDocs(livePick || !can("create") ? null : makePick, makeNote, can("submit") ? planShort : null).map((item) => {
+                  // A pick list still being picked, or a delivery note saved as a draft, is opened
+                  // rather than a second one started (Sidharth, 2026-11-28).
+                  const draftNote = notes.find((n) => n.status === "draft");
+                  if (item.label === "Pick List" && livePick?.status === "open")
+                    return { label: "Open Saved Draft: Pick List", onClick: () => openTab(pickHref(livePick.id)) };
+                  if (item.label === "Delivery Note" && draftNote)
+                    return { label: "Open Saved Draft: Delivery Note", onClick: () => openTab(`#/companies/${companyId}/delivery-notes?view=${draftNote.id}`) };
+                  return item;
+                })}
+              />
+            )}
           </>
         }
       />

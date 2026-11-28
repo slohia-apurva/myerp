@@ -1782,6 +1782,19 @@ export const MANUAL: Chapter[] = [
           submitted sales invoice. It shows only when "Create ▾" would offer it
           and your role may make it.
         </p>
+        <h3>Open Saved Draft</h3>
+        <p>
+          If the next document has already been saved as a draft (an invoice
+          for this receipt, a debit note for this return, a delivery note for
+          this order), MyERP opens that draft instead of starting a second one.
+          The line in "Create ▾" then reads "Open Saved Draft:" and the kind,
+          for example "Open Saved Draft: Purchase Invoice". The "+" in
+          Connections and the button at the right of a list (where it would say
+          "Make Purchase Invoice", "Make Debit Note" or "Make Invoice") say
+          "Open Saved Draft" and do the same. A pick list that is still being
+          picked counts as a draft too. Finish the draft and click "Submit";
+          after that the usual button comes back if more is left to do.
+        </p>
         <p>
           Kinds your role may not see are left out: a "Storekeeper", for
           example, does not see TDS Adjustments. Only entries of the company
@@ -4120,7 +4133,7 @@ export const MANUAL: Chapter[] = [
           receipt's stock rate, before GST, and "Billed" says "Not billed" or
           "Part billed". A bill that was saved but not submitted still leaves
           the goods waiting: "Billed" then reads "Draft bill" and the supplier's
-          bill number, and clicking it (or "Open Draft Bill" at the right) opens
+          bill number, and clicking it (or "Open Saved Draft" at the right) opens
           that draft so you can check it and click "Submit". Goods sent back still count as pending, because the
           supplier bills what was received and a Debit Note settles the return.
           A line sent back whole and never billed waits for nothing. Click a

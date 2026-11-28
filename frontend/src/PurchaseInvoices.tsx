@@ -19,7 +19,7 @@ import { TdsBox, type TdsInfo } from "./Tds";
 import { BillTypePicker, billPdf, billPrintItems, DirectFormTab, type DirectBill, type DirectLine } from "./DirectBills";
 import { useReturns } from "./Refresh";
 import { useKept } from "./Keep";
-import { Connections } from "./Connections";
+import { Connections, draftOr, useSavedDrafts } from "./Connections";
 
 /** Entry > Purchase > Purchase Invoice (Sidharth, 2026-11-15, preview 67): the supplier's
  * bill, entered against goods receipts. Submit clears "Goods Received but Bills not
@@ -124,7 +124,7 @@ type Setup = {
   branches: { id: number; name: string }[];
   charge_items: { id: number; name: string; sac: string; add_to_stock: string; gst_rate: string | null }[];
 };
-type Unbilled = { receipt: number; receipt_number: string; receipt_date: string; supplier_name: string; branch_name: string; orders: string; lines: number; value: string };
+type Unbilled = { receipt: number; receipt_number: string; receipt_date: string; supplier_name: string; branch_name: string; orders: string; lines: number; value: string; draft_bills?: { id: number; bill_no: string }[] };
 
 const base = (companyId: number) => `#/companies/${companyId}/purchase-invoices`;
 const showDate = (iso: string | null) => (iso ? longDate(iso) : "");
@@ -298,10 +298,21 @@ function InvoiceList({ companyId, canCreate }: { companyId: number; canCreate: b
                     <td className="num">{u.lines}</td>
                     <td className="num">{money(u.value)}</td>
                     <td className="num no-print">
-                      {canCreate && (
-                        <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?form=new&receipt=${u.receipt}`)}>
-                          Make Invoice
+                      {(u.draft_bills ?? []).length > 0 ? (
+                        <button
+                          type="button"
+                          className="link"
+                          title={`Saved as a draft: bill ${u.draft_bills![0].bill_no || "(no bill no)"}. Open it to finish and Submit.`}
+                          onClick={() => openTab(`${base(companyId)}?view=${u.draft_bills![0].id}`)}
+                        >
+                          Open Saved Draft
                         </button>
+                      ) : (
+                        canCreate && (
+                          <button type="button" className="link" onClick={() => openTab(`${base(companyId)}?form=new&receipt=${u.receipt}`)}>
+                            Make Invoice
+                          </button>
+                        )
                       )}
                     </td>
                   </tr>
@@ -929,6 +940,7 @@ export function EntriesBox({ entries, dues, draft, children }: { entries: Entry[
 
 function InvoiceView({ companyId, id, can }: { companyId: number; id: number; can: (p: string) => boolean }) {
   const [inv, setInv] = useState<Invoice | null>(null);
+  const drafts = useSavedDrafts(companyId, "purchase_invoice", inv?.status === "submitted" ? inv.id : null, inv);
   const [error, setError] = useState<unknown>("");
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
@@ -1002,18 +1014,23 @@ function InvoiceView({ companyId, id, can }: { companyId: number; id: number; ca
                 label="Create"
                 main
                 items={[
-                  {
-                    label: "Debit Note (goods sent back)",
-                    onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}`),
-                  },
-                  {
-                    label: "Debit Note (rate charged higher)",
-                    onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}&reason=rate`),
-                  },
-                  {
+                  // One saved draft debit note stands for both kinds: finish it before starting another.
+                  ...(drafts.debit_note
+                    ? [draftOr(companyId, drafts, "debit_note", { label: "" })]
+                    : [
+                        {
+                          label: "Debit Note (goods sent back)",
+                          onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}`),
+                        },
+                        {
+                          label: "Debit Note (rate charged higher)",
+                          onClick: () => openTab(`#/companies/${companyId}/debit-notes?form=new&invoice=${inv.id}&reason=rate`),
+                        },
+                      ]),
+                  draftOr(companyId, drafts, "supplementary_bill", {
                     label: "Supplementary Bill (rate charged lower)",
                     onClick: () => openTab(`${base(companyId)}?form=new&supplementary=${inv.id}`),
-                  },
+                  }),
                 ]}
               />
             )}

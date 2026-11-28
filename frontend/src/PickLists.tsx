@@ -14,7 +14,7 @@ import { Fold, hashParam, openTab, SidePanel, SideRows } from "./Master";
 import { useOnReturn } from "./Refresh";
 import { useKept } from "./Keep";
 import type { Check } from "./ScanPicking";
-import { Connections } from "./Connections";
+import { Connections, draftOr, useSavedDrafts } from "./Connections";
 
 /** Entry > Sales > Pick List: where the stores take a sales order's goods from,
  * bin and batch per item (Sidharth, 2026-11-19, preview 6). Made by itself when
@@ -251,6 +251,7 @@ const idOr = (n: number | null | undefined) => (n == null ? "none" : String(n));
 
 function PickView({ companyId, id, session }: { companyId: number; id: number; session: SignedIn }) {
   const [pick, setPick] = useState<PickList | null>(null);
+  const drafts = useSavedDrafts(companyId, "pick_list", pick && pick.status !== "open" ? pick.id : null, pick);
   const [error, setError] = useState<unknown>("");
   const [editing, setEditing] = useState(false);
   const [rows, setRows] = useState<DraftRow[]>([]);
@@ -393,12 +394,12 @@ function PickView({ companyId, id, session }: { companyId: number; id: number; s
                 label="Create"
                 main
                 items={[
-                  {
+                  draftOr(companyId, drafts, "delivery_note", {
                     label: "Delivery Note",
                     onClick: () => makeDeliveryNote(companyId, pick.id).catch((err) => setError(err)),
                     disabled: pick.status !== "picked" || !can(session, "create"),
                     title: pick.status === "delivered" ? "This list has gone out on a delivery note" : undefined,
-                  },
+                  }),
                 ]}
               />
             )}
